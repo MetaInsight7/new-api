@@ -18,99 +18,135 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Card, Avatar, Skeleton, Tag } from '@douyinfe/semi-ui';
-import { VChart } from '@visactor/react-vchart';
-import { useNavigate } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
+import { Card, Skeleton } from '@douyinfe/semi-ui';
+import {
+  Activity,
+  Coins,
+  DatabaseZap,
+  UsersRound,
+  WalletCards,
+} from 'lucide-react';
+
+const iconMap = {
+  wallet: WalletCards,
+  coins: Coins,
+  activity: Activity,
+  tokens: DatabaseZap,
+  users: UsersRound,
+};
 
 const StatsCards = ({
-  groupedStatsData,
+  statsData,
   loading,
-  getTrendSpec,
   CARD_PROPS,
-  CHART_CONFIG,
+  title,
+  note,
+  statusAction,
+  statusTitle,
+  t,
 }) => {
-  const navigate = useNavigate();
-  const { t } = useTranslation();
+  const balanceStatus = statsData[0] || {};
+  const statusPillClass = `dashboard-health-pill is-${balanceStatus.statusTone || 'green'}${
+    statusAction ? ' is-clickable' : ''
+  }`;
+  const statusPillContent = (
+    <>
+      <span />
+      {balanceStatus.statusText}
+    </>
+  );
+
   return (
-    <div className='mb-4'>
-      <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4'>
-        {groupedStatsData.map((group, idx) => (
-          <Card
-            key={idx}
-            {...CARD_PROPS}
-            className={`${group.color} border-0 !rounded-2xl w-full`}
-            title={group.title}
-          >
-            <div className='space-y-4'>
-              {group.items.map((item, itemIdx) => (
-                <div
-                  key={itemIdx}
-                  className='flex items-center justify-between cursor-pointer'
-                  onClick={item.onClick}
-                >
-                  <div className='flex items-center'>
-                    <Avatar
-                      className='mr-3'
-                      size='small'
-                      color={item.avatarColor}
-                    >
-                      {item.icon}
-                    </Avatar>
-                    <div>
-                      <div className='text-xs text-gray-500'>{item.title}</div>
-                      <div className='text-lg font-semibold'>
-                        <Skeleton
-                          loading={loading}
-                          active
-                          placeholder={
-                            <Skeleton.Paragraph
-                              active
-                              rows={1}
-                              style={{
-                                width: '65px',
-                                height: '24px',
-                                marginTop: '4px',
-                              }}
-                            />
-                          }
-                        >
-                          {item.value}
-                        </Skeleton>
-                      </div>
-                    </div>
-                  </div>
-                  {item.title === t('当前余额') ? (
-                    <Tag
-                      color='white'
-                      shape='circle'
-                      size='large'
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigate('/console/topup');
-                      }}
-                    >
-                      {t('充值')}
-                    </Tag>
-                  ) : (
-                    (loading ||
-                      (item.trendData && item.trendData.length > 0)) && (
-                      <div className='w-24 h-10'>
-                        <VChart
-                          spec={getTrendSpec(item.trendData, item.trendColor)}
-                          option={CHART_CONFIG}
-                        />
-                      </div>
-                    )
-                  )}
-                </div>
-              ))}
+    <Card
+      {...CARD_PROPS}
+      className='dashboard-usage-card !rounded-2xl'
+      bodyStyle={{ padding: 0 }}
+    >
+      <div className='dashboard-usage-card__body'>
+        <div className='dashboard-usage-card__header'>
+          <div>
+            <div className='dashboard-usage-card__title'>
+              {title || t('用量概览')}
             </div>
-          </Card>
-        ))}
+            <div className='dashboard-usage-card__note'>
+              {note || t('当前范围统计，历史项展示账户累计口径')}
+            </div>
+          </div>
+          {statusAction ? (
+            <button
+              type='button'
+              className={statusPillClass}
+              onClick={statusAction}
+              title={statusTitle}
+              aria-label={statusTitle}
+            >
+              {statusPillContent}
+            </button>
+          ) : (
+            <div className={statusPillClass}>{statusPillContent}</div>
+          )}
+        </div>
+
+        <div className='dashboard-metric-grid'>
+          {statsData.map((item) => {
+            const Icon = iconMap[item.icon] || Activity;
+            const metricContent = (
+              <>
+                <div className={`dashboard-metric-card__icon is-${item.tone}`}>
+                  <Icon size={18} />
+                </div>
+                <div className='dashboard-metric-card__content'>
+                  <div className='dashboard-metric-card__label'>
+                    {item.title}
+                  </div>
+                  <div className='dashboard-metric-card__value'>
+                    <Skeleton
+                      loading={loading}
+                      active
+                      placeholder={
+                        <Skeleton.Title
+                          style={{ width: 88, height: 28, margin: 0 }}
+                        />
+                      }
+                    >
+                      {item.value}
+                    </Skeleton>
+                  </div>
+                  <div
+                    className={`dashboard-metric-card__caption is-${item.captionTone || item.tone}`}
+                    title={item.caption}
+                  >
+                    {item.caption}
+                  </div>
+                </div>
+              </>
+            );
+
+            if (item.onClick) {
+              return (
+                <button
+                  key={item.title}
+                  type='button'
+                  className='dashboard-metric-cell is-clickable'
+                  onClick={item.onClick}
+                  aria-label={item.actionLabel || item.caption || item.title}
+                >
+                  {metricContent}
+                </button>
+              );
+            }
+
+            return (
+              <div key={item.title} className='dashboard-metric-cell'>
+                {metricContent}
+              </div>
+            );
+          })}
+        </div>
       </div>
-    </div>
+    </Card>
   );
 };
 
 export default StatsCards;
+

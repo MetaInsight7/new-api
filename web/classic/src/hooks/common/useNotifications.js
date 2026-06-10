@@ -58,7 +58,18 @@ export const useNotifications = (statusState) => {
 
   // Effects
   useEffect(() => {
-    setUnreadCount(calculateUnreadCount());
+    const updateUnreadCount = () => {
+      setUnreadCount(calculateUnreadCount());
+    };
+
+    updateUnreadCount();
+    window.addEventListener('storage', updateUnreadCount);
+    window.addEventListener('notice_read_keys_updated', updateUnreadCount);
+
+    return () => {
+      window.removeEventListener('storage', updateUnreadCount);
+      window.removeEventListener('notice_read_keys_updated', updateUnreadCount);
+    };
   }, [announcements]);
 
   // Actions
@@ -66,21 +77,25 @@ export const useNotifications = (statusState) => {
     setNoticeVisible(true);
   };
 
+  const markAllAsRead = () => {
+    if (!announcements.length) return;
+    let readKeys = [];
+    try {
+      readKeys = JSON.parse(localStorage.getItem('notice_read_keys')) || [];
+    } catch (_) {
+      readKeys = [];
+    }
+    const mergedKeys = Array.from(
+      new Set([...readKeys, ...announcements.map(getAnnouncementKey)]),
+    );
+    localStorage.setItem('notice_read_keys', JSON.stringify(mergedKeys));
+    window.dispatchEvent(new Event('notice_read_keys_updated'));
+    setUnreadCount(0);
+  };
+
   const handleNoticeClose = () => {
     setNoticeVisible(false);
-    if (announcements.length) {
-      let readKeys = [];
-      try {
-        readKeys = JSON.parse(localStorage.getItem('notice_read_keys')) || [];
-      } catch (_) {
-        readKeys = [];
-      }
-      const mergedKeys = Array.from(
-        new Set([...readKeys, ...announcements.map(getAnnouncementKey)]),
-      );
-      localStorage.setItem('notice_read_keys', JSON.stringify(mergedKeys));
-    }
-    setUnreadCount(0);
+    markAllAsRead();
   };
 
   return {
@@ -89,6 +104,7 @@ export const useNotifications = (statusState) => {
     announcements,
     handleNoticeOpen,
     handleNoticeClose,
+    markAllAsRead,
     getUnreadKeys,
   };
 };

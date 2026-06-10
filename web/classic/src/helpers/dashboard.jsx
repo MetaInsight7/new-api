@@ -42,6 +42,50 @@ export const getDefaultTime = () => {
   return localStorage.getItem(STORAGE_KEYS.DATA_EXPORT_DEFAULT_TIME) || 'hour';
 };
 
+const getNowTimestamp = () => Math.floor(Date.now() / 1000);
+
+const getTodayStartTimestamp = () => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.floor(today.getTime() / 1000);
+};
+
+export const getDashboardTimeRange = (rangeKey = 'today') => {
+  const now = getNowTimestamp();
+  const ranges = {
+    today: {
+      start: getTodayStartTimestamp(),
+      end: now,
+      defaultTime: 'hour',
+    },
+    last_24h: {
+      start: now - 86400,
+      end: now,
+      defaultTime: 'hour',
+    },
+    last_7d: {
+      start: now - 86400 * 7,
+      end: now,
+      defaultTime: 'day',
+    },
+    last_30d: {
+      start: now - 86400 * 30,
+      end: now,
+      defaultTime: 'day',
+    },
+  };
+
+  const range = ranges[rangeKey] || ranges.today;
+  return {
+    key: ranges[rangeKey] ? rangeKey : 'today',
+    start_timestamp: timestamp2string(range.start),
+    end_timestamp: timestamp2string(range.end),
+    defaultTime: range.defaultTime,
+    startTimestamp: range.start,
+    endTimestamp: range.end,
+  };
+};
+
 export const getTimeInterval = (timeType, isSeconds = false) => {
   const intervals =
     DEFAULT_TIME_INTERVALS[timeType] || DEFAULT_TIME_INTERVALS.hour;
@@ -49,17 +93,75 @@ export const getTimeInterval = (timeType, isSeconds = false) => {
 };
 
 export const getInitialTimestamp = () => {
-  const defaultTime = getDefaultTime();
-  const now = new Date().getTime() / 1000;
+  return getDashboardTimeRange('today').start_timestamp;
+};
 
-  switch (defaultTime) {
-    case 'hour':
-      return timestamp2string(now - 86400);
-    case 'week':
-      return timestamp2string(now - 86400 * 30);
-    default:
-      return timestamp2string(now - 86400 * 7);
-  }
+export const getInitialEndTimestamp = () => {
+  return getDashboardTimeRange('today').end_timestamp;
+};
+
+export const shouldUseDashboardMockCharts = () =>
+  localStorage.getItem('dashboard_mock_charts') === 'true' ||
+  new URLSearchParams(window.location.search).get('dashboard_mock_charts') ===
+    'true';
+
+export const generateDashboardMockQuotaData = (
+  startTimestamp,
+  endTimestamp,
+  timeType = 'hour',
+) => {
+  const models = [
+    { name: 'gpt-4o-mini', weight: 1, quotaBase: 240, tokenBase: 13200 },
+    {
+      name: 'claude-3-5-sonnet',
+      weight: 0.74,
+      quotaBase: 410,
+      tokenBase: 9400,
+    },
+    {
+      name: 'gemini-2.0-flash',
+      weight: 0.58,
+      quotaBase: 180,
+      tokenBase: 16800,
+    },
+    { name: 'deepseek-chat', weight: 0.42, quotaBase: 96, tokenBase: 7200 },
+  ];
+  const safeStart = Number(startTimestamp) || getTodayStartTimestamp();
+  const safeEnd = Number(endTimestamp) || getNowTimestamp();
+  const interval = getTimeInterval(timeType, true);
+  const pointCount = Math.max(
+    7,
+    Math.min(12, Math.floor((safeEnd - safeStart) / interval) + 1),
+  );
+  const lastPoint = Math.max(safeEnd, safeStart + interval * (pointCount - 1));
+
+  return Array.from({ length: pointCount }).flatMap((_, pointIndex) => {
+    const createdAt = lastPoint - (pointCount - 1 - pointIndex) * interval;
+    const dayCurve =
+      0.76 + Math.sin((pointIndex / pointCount) * Math.PI) * 0.55;
+    const pulse = pointIndex % 4 === 2 ? 1.22 : 1;
+
+    return models.map((model, modelIndex) => {
+      const drift = 0.82 + ((pointIndex + modelIndex * 2) % 5) * 0.09;
+      const count = Math.max(
+        1,
+        Math.round((18 + pointIndex * 2.4) * model.weight * dayCurve * pulse),
+      );
+      const tokenUsed = Math.round(
+        model.tokenBase * model.weight * dayCurve * drift,
+      );
+      const quota = Math.round(model.quotaBase * count * drift);
+
+      return {
+        __dashboardMock: true,
+        count,
+        created_at: createdAt,
+        model_name: model.name,
+        quota,
+        token_used: tokenUsed,
+      };
+    });
+  });
 };
 
 // ========== 数据处理工具函数 ==========
@@ -264,10 +366,14 @@ export const processRawData = (
   const showYear = isDataCrossYear(data.map((item) => item.created_at));
 
   data.forEach((item) => {
+    const quota = Number(item.quota || 0);
+    const count = Number(item.count || 0);
+    const tokenUsed = Number(item.token_used || 0);
+
     result.uniqueModels.add(item.model_name);
-    result.totalTokens += item.token_used;
-    result.totalQuota += item.quota;
-    result.totalTimes += item.count;
+    result.totalTokens += tokenUsed;
+    result.totalQuota += quota;
+    result.totalTimes += count;
 
     const timeKey = timestamp2string1(
       item.created_at,
@@ -284,9 +390,9 @@ export const processRawData = (
       result.timeTokensMap,
       result.timeCountMap,
     );
-    updateMapValue(result.timeQuotaMap, timeKey, item.quota);
-    updateMapValue(result.timeTokensMap, timeKey, item.token_used);
-    updateMapValue(result.timeCountMap, timeKey, item.count);
+    updateMapValue(result.timeQuotaMap, timeKey, quota);
+    updateMapValue(result.timeTokensMap, timeKey, tokenUsed);
+    updateMapValue(result.timeCountMap, timeKey, count);
   });
 
   result.timePoints.sort();
@@ -442,3 +548,4 @@ export const processUserData = (data, dataExportDefaultTime, limit = 10) => {
 
   return { rankingData, trendData, topUsers };
 };
+

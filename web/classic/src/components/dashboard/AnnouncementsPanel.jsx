@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Card, Tag, Timeline, Empty } from '@douyinfe/semi-ui';
+import { Badge, Button, Card, Tag, Timeline, Empty } from '@douyinfe/semi-ui';
 import { Bell } from 'lucide-react';
 import { marked } from 'marked';
 import {
@@ -32,64 +32,138 @@ const AnnouncementsPanel = ({
   announcementLegendData,
   CARD_PROPS,
   ILLUSTRATION_SIZE,
+  variant = 'default',
+  unreadCount = 0,
+  onNoticeOpen,
   t,
 }) => {
+  const isDashboard = variant === 'dashboard';
+  const displayAnnouncements = isDashboard
+    ? announcementData.slice(0, 20)
+    : announcementData;
+  const cardClassName = `shadow-sm !rounded-2xl ${
+    isDashboard
+      ? 'dashboard-announcement-card dashboard-announcement-card--dashboard'
+      : 'lg:col-span-2'
+  }`;
+
+  const renderLegendDot = (legend) => (
+    <div
+      className='w-2 h-2 rounded-full'
+      style={{
+        backgroundColor:
+          legend.color === 'grey'
+            ? '#8b9aa7'
+            : legend.color === 'blue'
+              ? '#3b82f6'
+              : legend.color === 'green'
+                ? '#10b981'
+                : legend.color === 'orange'
+                  ? '#f59e0b'
+                  : legend.color === 'red'
+                    ? '#ef4444'
+                    : '#8b9aa7',
+      }}
+    />
+  );
+
+  const noticeOpenButton = (
+    <Button
+      size='small'
+      type='tertiary'
+      theme='light'
+      icon={<Bell size={14} />}
+      className='dashboard-announcement-open-btn'
+      onClick={onNoticeOpen}
+    >
+      {t('查看')}
+    </Button>
+  );
+
   return (
     <Card
       {...CARD_PROPS}
-      className='shadow-sm !rounded-2xl lg:col-span-2'
+      className={cardClassName}
       title={
-        <div className='flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2 w-full'>
-          <div className='flex items-center gap-2'>
+        <div
+          className={
+            isDashboard
+              ? 'dashboard-announcement-titlebar'
+              : 'flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2 w-full'
+          }
+        >
+          <div className='flex items-center gap-2 min-w-0'>
             <Bell size={16} />
-            {t('系统公告')}
+            <span className='truncate'>{t('系统公告')}</span>
             <Tag color='white' shape='circle'>
-              {t('显示最新20条')}
+              {isDashboard
+                ? `${displayAnnouncements.length}/20`
+                : t('显示最新20条')}
             </Tag>
           </div>
-          {/* 图例 */}
-          <div className='flex flex-wrap gap-3 text-xs'>
-            {announcementLegendData.map((legend, index) => (
-              <div key={index} className='flex items-center gap-1'>
+          {isDashboard ? (
+            <span className='dashboard-announcement-open-wrap'>
+              {unreadCount > 0 ? (
+                <Badge
+                  count={unreadCount}
+                  type='danger'
+                  overflowCount={99}
+                  className='dashboard-announcement-notice-badge'
+                >
+                  {noticeOpenButton}
+                </Badge>
+              ) : (
+                noticeOpenButton
+              )}
+            </span>
+          ) : (
+            <div className='flex flex-wrap gap-3 text-xs'>
+              {announcementLegendData.map((legend, index) => (
                 <div
-                  className='w-2 h-2 rounded-full'
-                  style={{
-                    backgroundColor:
-                      legend.color === 'grey'
-                        ? '#8b9aa7'
-                        : legend.color === 'blue'
-                          ? '#3b82f6'
-                          : legend.color === 'green'
-                            ? '#10b981'
-                            : legend.color === 'orange'
-                              ? '#f59e0b'
-                              : legend.color === 'red'
-                                ? '#ef4444'
-                                : '#8b9aa7',
-                  }}
-                />
-                <span className='text-gray-600'>{legend.label}</span>
-              </div>
-            ))}
-          </div>
+                  key={index}
+                  className='flex items-center gap-1'
+                  title={legend.label}
+                >
+                  {renderLegendDot(legend)}
+                  <span className='text-gray-600'>{legend.label}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       }
       bodyStyle={{ padding: 0 }}
     >
-      <ScrollableContainer maxHeight='24rem'>
-        {announcementData.length > 0 ? (
-          <Timeline mode='left'>
-            {announcementData.map((item, idx) => {
+      <ScrollableContainer
+        maxHeight={
+          isDashboard ? 'var(--dashboard-announcement-body-height)' : '24rem'
+        }
+        className={isDashboard ? 'dashboard-announcement-scroll' : ''}
+      >
+        {displayAnnouncements.length > 0 ? (
+          <Timeline
+            mode='left'
+            className={isDashboard ? 'dashboard-announcement-timeline' : ''}
+          >
+            {displayAnnouncements.map((item, idx) => {
               const htmlExtra = item.extra ? marked.parse(item.extra) : '';
               return (
                 <Timeline.Item
                   key={idx}
                   type={item.type || 'default'}
-                  time={`${item.relative ? item.relative + ' ' : ''}${item.time}`}
+                  time={
+                    isDashboard
+                      ? item.relative || item.time
+                      : `${item.relative ? item.relative + ' ' : ''}${item.time}`
+                  }
                   extra={
                     item.extra ? (
                       <div
-                        className='text-xs text-gray-500'
+                        className={
+                          isDashboard
+                            ? 'dashboard-announcement-extra text-xs text-gray-500'
+                            : 'text-xs text-gray-500'
+                        }
                         dangerouslySetInnerHTML={{ __html: htmlExtra }}
                       />
                     ) : null
@@ -97,6 +171,9 @@ const AnnouncementsPanel = ({
                 >
                   <div>
                     <div
+                      className={
+                        isDashboard ? 'dashboard-announcement-content' : ''
+                      }
                       dangerouslySetInnerHTML={{
                         __html: marked.parse(item.content || ''),
                       }}

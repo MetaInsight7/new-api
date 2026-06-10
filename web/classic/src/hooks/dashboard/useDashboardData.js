@@ -20,9 +20,17 @@ For commercial licensing, please contact support@quantumnous.com
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { API, isAdmin, showError, timestamp2string } from '../../helpers';
-import { getDefaultTime, getInitialTimestamp } from '../../helpers/dashboard';
-import { TIME_OPTIONS } from '../../constants/dashboard.constants';
+import { API, isAdmin, showError } from '../../helpers';
+import {
+  generateDashboardMockQuotaData,
+  getDashboardTimeRange,
+  getDefaultTime,
+  shouldUseDashboardMockCharts,
+} from '../../helpers/dashboard';
+import {
+  TIME_OPTIONS,
+  TIME_RANGE_OPTIONS,
+} from '../../constants/dashboard.constants';
 import { useIsMobile } from '../common/useIsMobile';
 import { useMinimumLoadingTime } from '../common/useMinimumLoadingTime';
 
@@ -37,26 +45,33 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   const [greetingVisible, setGreetingVisible] = useState(false);
   const [searchModalVisible, setSearchModalVisible] = useState(false);
   const showLoading = useMinimumLoadingTime(loading);
+  const initialTimeRange = getDashboardTimeRange('today');
+  const [activeTimeRange, setActiveTimeRange] = useState(initialTimeRange.key);
 
   // ========== 输入状态 ==========
   const [inputs, setInputs] = useState({
     username: '',
     token_name: '',
     model_name: '',
-    start_timestamp: getInitialTimestamp(),
-    end_timestamp: timestamp2string(new Date().getTime() / 1000 + 3600),
+    start_timestamp: initialTimeRange.start_timestamp,
+    end_timestamp: initialTimeRange.end_timestamp,
     channel: '',
     data_export_default_time: '',
   });
 
-  const [dataExportDefaultTime, setDataExportDefaultTime] =
-    useState(getDefaultTime());
+  const [dataExportDefaultTime, setDataExportDefaultTime] = useState(
+    initialTimeRange.defaultTime || getDefaultTime(),
+  );
 
   // ========== 数据状态 ==========
   const [quotaData, setQuotaData] = useState([]);
   const [consumeQuota, setConsumeQuota] = useState(0);
   const [consumeTokens, setConsumeTokens] = useState(0);
   const [times, setTimes] = useState(0);
+  const [recentTokens, setRecentTokens] = useState(0);
+  const [adminUsageSummary, setAdminUsageSummary] = useState({
+    activeUsers: 0,
+  });
   const [pieData, setPieData] = useState([{ type: 'null', value: '0' }]);
   const [lineData, setLineData] = useState([]);
   const [modelColors, setModelColors] = useState({});
@@ -105,6 +120,15 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     [t],
   );
 
+  const timeRangeOptions = useMemo(
+    () =>
+      TIME_RANGE_OPTIONS.map((option) => ({
+        ...option,
+        label: t(option.label),
+      })),
+    [t],
+  );
+
   const performanceMetrics = useMemo(() => {
     const { start_timestamp, end_timestamp } = inputs;
     const timeDiff =
@@ -144,7 +168,21 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
       localStorage.setItem('data_export_default_time', value);
       return;
     }
+    if (name === 'start_timestamp' || name === 'end_timestamp') {
+      setActiveTimeRange('custom');
+    }
     setInputs((inputs) => ({ ...inputs, [name]: value }));
+  }, []);
+
+  const handleTimeRangeChange = useCallback((rangeKey) => {
+    const range = getDashboardTimeRange(rangeKey);
+    setActiveTimeRange(range.key);
+    setDataExportDefaultTime(range.defaultTime);
+    setInputs((inputs) => ({
+      ...inputs,
+      start_timestamp: range.start_timestamp,
+      end_timestamp: range.end_timestamp,
+    }));
   }, []);
 
   const showSearchModal = useCallback(() => {
@@ -156,42 +194,107 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   }, []);
 
   // ========== API 调用函数 ==========
-  const loadQuotaData = useCallback(async () => {
-    setLoading(true);
-    try {
-      let url = '';
-      const { start_timestamp, end_timestamp, username } = inputs;
-      let localStartTimestamp = Date.parse(start_timestamp) / 1000;
-      let localEndTimestamp = Date.parse(end_timestamp) / 1000;
-
-      if (isAdminUser) {
-        url = `/api/data/?username=${username}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&default_time=${dataExportDefaultTime}`;
-      } else {
-        url = `/api/data/self/?start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&default_time=${dataExportDefaultTime}`;
-      }
-
-      const res = await API.get(url);
-      const { success, message, data } = res.data;
-      if (success) {
-        setQuotaData(data);
-        if (data.length === 0) {
-          data.push({
-            count: 0,
-            model_name: '无数据',
-            quota: 0,
-            created_at: now.getTime() / 1000,
-          });
+  const loadQuotaData = useCallback(
+    async (inputOverrides = {}) => {
+      setLoading(true);
+      try {
+        let url = '';
+        const effectiveInputs = { ...inputs, ...inputOverrides };
+        const { username } = effectiveInputs;
+        let { start_timestamp, end_timestamp } = effectiveInputs;
+        if (activeTimeRange !== 'custom') {
+          const range = getDashboardTimeRange(activeTimeRange);
+          start_timestamp = range.start_timestamp;
+          end_timestamp = range.end_timestamp;
+          setInputs((currentInputs) => ({
+            ...currentInputs,
+            start_timestamp,
+            end_timestamp,
+            ...(Object.prototype.hasOwnProperty.call(inputOverrides, 'username')
+              ? { username: inputOverrides.username }
+              : {}),
+          }));
         }
-        data.sort((a, b) => a.created_at - b.created_at);
-        return data;
-      } else {
-        showError(message);
-        return [];
+
+        let localStartTimestamp = Date.parse(start_timestamp) / 1000;
+        let localEndTimestamp = Date.parse(end_timestamp) / 1000;
+
+        if (isAdminUser) {
+          url = `/api/data/?username=${encodeURIComponent(username || '')}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&default_time=${dataExportDefaultTime}`;
+        } else {
+          url = `/api/data/self/?start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&default_time=${dataExportDefaultTime}`;
+        }
+
+        const res = await API.get(url);
+        const { success, message, data } = res.data;
+        if (success) {
+          let normalizedData = [...(data || [])];
+          if (normalizedData.length === 0 && shouldUseDashboardMockCharts()) {
+            normalizedData = generateDashboardMockQuotaData(
+              localStartTimestamp,
+              localEndTimestamp,
+              dataExportDefaultTime,
+            );
+          }
+          setQuotaData(normalizedData);
+          if (normalizedData.length === 0) {
+            normalizedData.push({
+              count: 0,
+              model_name: '无数据',
+              quota: 0,
+              created_at: now.getTime() / 1000,
+            });
+          }
+          normalizedData.sort((a, b) => a.created_at - b.created_at);
+          return normalizedData;
+        } else {
+          showError(message);
+          return [];
+        }
+      } finally {
+        setLoading(false);
       }
-    } finally {
-      setLoading(false);
+    },
+    [inputs, activeTimeRange, dataExportDefaultTime, isAdminUser, now],
+  );
+
+  const clearAdminUserFilter = useCallback(async () => {
+    if (!isAdminUser) return [];
+    setInputs((inputs) => ({ ...inputs, username: '' }));
+    const data = await loadQuotaData({ username: '' });
+    setSearchModalVisible(false);
+    return data;
+  }, [isAdminUser, loadQuotaData]);
+
+  const loadRecentTokenUsage = useCallback(async () => {
+    if (isAdminUser) {
+      setRecentTokens(0);
+      return 0;
     }
-  }, [inputs, dataExportDefaultTime, isAdminUser, now]);
+
+    try {
+      const nowTimestamp = Math.floor(Date.now() / 1000);
+      const startTimestamp = nowTimestamp - 86400 * 30;
+      const url = `/api/data/self/?start_timestamp=${startTimestamp}&end_timestamp=${nowTimestamp}&default_time=day`;
+      const res = await API.get(url);
+      const { success, data } = res.data || {};
+      if (!success) {
+        setRecentTokens(0);
+        return 0;
+      }
+
+      const totalTokens = (data || []).reduce(
+        (total, item) => total + Number(item?.token_used || 0),
+        0,
+      );
+      setRecentTokens(totalTokens);
+      return totalTokens;
+    } catch (err) {
+      console.error(err);
+      setRecentTokens(0);
+      return 0;
+    }
+  }, [isAdminUser]);
 
   const loadUptimeData = useCallback(async () => {
     setUptimeLoading(true);
@@ -216,23 +319,43 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   const loadUserQuotaData = useCallback(async () => {
     if (!isAdminUser) return [];
     try {
-      const { start_timestamp, end_timestamp } = inputs;
+      let { start_timestamp, end_timestamp } = inputs;
+      if (activeTimeRange !== 'custom') {
+        const range = getDashboardTimeRange(activeTimeRange);
+        start_timestamp = range.start_timestamp;
+        end_timestamp = range.end_timestamp;
+      }
       const localStartTimestamp = Date.parse(start_timestamp) / 1000;
       const localEndTimestamp = Date.parse(end_timestamp) / 1000;
       const url = `/api/data/users?start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}`;
       const res = await API.get(url);
       const { success, message, data } = res.data;
       if (success) {
-        return data || [];
+        const rows = data || [];
+        const activeUsers = new Set(
+          rows
+            .filter(
+              (item) =>
+                Number(item?.count || 0) > 0 ||
+                Number(item?.quota || 0) > 0 ||
+                Number(item?.token_used || 0) > 0,
+            )
+            .map((item) => item?.username)
+            .filter(Boolean),
+        ).size;
+        setAdminUsageSummary({ activeUsers });
+        return rows;
       } else {
         showError(message);
+        setAdminUsageSummary({ activeUsers: 0 });
         return [];
       }
     } catch (err) {
       console.error(err);
+      setAdminUsageSummary({ activeUsers: 0 });
       return [];
     }
-  }, [inputs, isAdminUser]);
+  }, [inputs, activeTimeRange, isAdminUser]);
 
   const getUserData = useCallback(async () => {
     let res = await API.get(`/api/user/self`);
@@ -246,9 +369,10 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
 
   const refresh = useCallback(async () => {
     const data = await loadQuotaData();
+    await loadRecentTokenUsage();
     await loadUptimeData();
     return data;
-  }, [loadQuotaData, loadUptimeData]);
+  }, [loadQuotaData, loadRecentTokenUsage, loadUptimeData]);
 
   const handleSearchConfirm = useCallback(
     async (updateChartDataCallback) => {
@@ -272,9 +396,10 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   useEffect(() => {
     if (!initialized.current) {
       getUserData();
+      loadRecentTokenUsage();
       initialized.current = true;
     }
-  }, [getUserData]);
+  }, [getUserData, loadRecentTokenUsage]);
 
   return {
     // 基础状态
@@ -284,6 +409,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
 
     // 输入状态
     inputs,
+    activeTimeRange,
     dataExportDefaultTime,
 
     // 数据状态
@@ -294,6 +420,8 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     setConsumeTokens,
     times,
     setTimes,
+    recentTokens,
+    adminUsageSummary,
     pieData,
     setPieData,
     lineData,
@@ -317,6 +445,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
 
     // 计算值
     timeOptions,
+    timeRangeOptions,
     performanceMetrics,
     getGreeting,
     isAdminUser,
@@ -329,9 +458,11 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
 
     // 函数
     handleInputChange,
+    handleTimeRangeChange,
     showSearchModal,
     handleCloseModal,
     loadQuotaData,
+    clearAdminUserFilter,
     loadUserQuotaData,
     loadUptimeData,
     getUserData,

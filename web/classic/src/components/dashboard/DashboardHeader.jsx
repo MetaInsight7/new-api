@@ -24,6 +24,10 @@ import { RefreshCw, Search } from 'lucide-react';
 const DashboardHeader = ({
   getGreeting,
   greetingVisible,
+  rangeCaption,
+  activeTimeRange,
+  timeRangeOptions,
+  handleTimeRangeChange,
   showSearchModal,
   refresh,
   loading,
@@ -32,30 +36,62 @@ const DashboardHeader = ({
   const ICON_BUTTON_CLASS = 'text-white hover:bg-opacity-80 !rounded-full';
 
   return (
-    <div className='flex items-center justify-between mb-4'>
-      <h2
-        className='text-2xl font-semibold text-gray-800 transition-opacity duration-1000 ease-in-out'
-        style={{ opacity: greetingVisible ? 1 : 0 }}
-      >
-        {getGreeting}
-      </h2>
-      <div className='flex gap-3'>
-        <Button
-          type='tertiary'
-          icon={<Search size={16} />}
-          onClick={showSearchModal}
-          className={`bg-green-500 hover:bg-green-600 ${ICON_BUTTON_CLASS}`}
-        />
-        <Button
-          type='tertiary'
-          icon={<RefreshCw size={16} />}
-          onClick={refresh}
-          loading={loading}
-          className={`bg-blue-500 hover:bg-blue-600 ${ICON_BUTTON_CLASS}`}
-        />
+    <div className='dashboard-header mb-4'>
+      <div className='dashboard-header__copy'>
+        <h2
+          className='text-2xl font-semibold text-gray-800 transition-opacity duration-1000 ease-in-out'
+          style={{ opacity: greetingVisible ? 1 : 0 }}
+        >
+          {getGreeting}
+        </h2>
+        <div className='dashboard-header__range'>{rangeCaption}</div>
+      </div>
+
+      <div className='dashboard-header__actions'>
+        <div
+          className='dashboard-time-range'
+          role='group'
+          aria-label={t('时间范围')}
+        >
+          {timeRangeOptions.map((option) => {
+            const active = activeTimeRange === option.value;
+            return (
+              <Button
+                key={option.value}
+                size='small'
+                theme={active ? 'solid' : 'borderless'}
+                type={active ? 'primary' : 'tertiary'}
+                onClick={() => handleTimeRangeChange(option.value)}
+              >
+                {option.label}
+              </Button>
+            );
+          })}
+        </div>
+
+        <div className='dashboard-header__tools'>
+          <Button
+            type='tertiary'
+            icon={<Search size={16} />}
+            onClick={showSearchModal}
+            aria-label={t('筛选')}
+            title={t('筛选')}
+            className={`bg-green-500 hover:bg-green-600 ${ICON_BUTTON_CLASS}`}
+          />
+          <Button
+            type='tertiary'
+            icon={<RefreshCw size={16} />}
+            onClick={refresh}
+            loading={loading}
+            aria-label={t('刷新')}
+            title={t('刷新')}
+            className={`bg-blue-500 hover:bg-blue-600 ${ICON_BUTTON_CLASS}`}
+          />
+        </div>
       </div>
     </div>
   );
 };
 
 export default DashboardHeader;
+

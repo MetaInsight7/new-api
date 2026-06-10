@@ -43,6 +43,13 @@ export const TIME_OPTIONS = [
   { label: '周', value: 'week' },
 ];
 
+export const TIME_RANGE_OPTIONS = [
+  { label: '今日', value: 'today' },
+  { label: '近 24 小时', value: 'last_24h' },
+  { label: '近 7 天', value: 'last_7d' },
+  { label: '近 30 天', value: 'last_30d' },
+];
+
 export const DEFAULT_TIME_INTERVALS = {
   hour: { seconds: 3600, minutes: 60 },
   day: { seconds: 86400, minutes: 1440 },

@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Card, Tabs, TabPane } from '@douyinfe/semi-ui';
+import { Card } from '@douyinfe/semi-ui';
 import { PieChart } from 'lucide-react';
 import { VChart } from '@visactor/react-vchart';
 
@@ -35,61 +35,88 @@ const ChartsPanel = ({
   CARD_PROPS,
   CHART_CONFIG,
   FLEX_CENTER_GAP2,
-  hasApiInfoPanel,
   t,
 }) => {
+  const chartTabs = [
+    { key: '1', label: t('消耗分布') },
+    { key: '2', label: t('调用趋势') },
+    { key: '3', label: t('次数分布') },
+    { key: '4', label: t('次数排行') },
+    ...(isAdminUser
+      ? [
+          { key: '5', label: t('用户排行') },
+          { key: '6', label: t('用户趋势') },
+        ]
+      : []),
+  ];
+
+  const renderChart = () => {
+    const commonProps = {
+      options: CHART_CONFIG,
+      className: 'dashboard-chart-render',
+      width: '100%',
+      height: '100%',
+    };
+
+    if (activeChartTab === '1') {
+      return <VChart {...commonProps} spec={spec_line} />;
+    }
+    if (activeChartTab === '2') {
+      return <VChart {...commonProps} spec={spec_model_line} />;
+    }
+    if (activeChartTab === '3') {
+      return <VChart {...commonProps} spec={spec_pie} />;
+    }
+    if (activeChartTab === '4') {
+      return <VChart {...commonProps} spec={spec_rank_bar} />;
+    }
+    if (activeChartTab === '5' && isAdminUser) {
+      return <VChart {...commonProps} spec={spec_user_rank} />;
+    }
+    if (activeChartTab === '6' && isAdminUser) {
+      return <VChart {...commonProps} spec={spec_user_trend} />;
+    }
+    return <VChart {...commonProps} spec={spec_line} />;
+  };
+
   return (
     <Card
       {...CARD_PROPS}
-      className={`!rounded-2xl ${hasApiInfoPanel ? 'lg:col-span-3' : ''}`}
+      className='dashboard-chart-card !rounded-2xl'
       title={
-        <div className='flex flex-col lg:flex-row lg:items-center lg:justify-between w-full gap-3'>
-          <div className={FLEX_CENTER_GAP2}>
+        <div className='dashboard-chart-header'>
+          <div className={`dashboard-chart-title ${FLEX_CENTER_GAP2}`}>
             <PieChart size={16} />
             {t('模型数据分析')}
           </div>
-          <Tabs
-            type='slash'
-            activeKey={activeChartTab}
-            onChange={setActiveChartTab}
+          <div
+            className='dashboard-chart-segments'
+            role='tablist'
+            aria-label={t('模型数据分析')}
           >
-            <TabPane tab={<span>{t('消耗分布')}</span>} itemKey='1' />
-            <TabPane tab={<span>{t('调用趋势')}</span>} itemKey='2' />
-            <TabPane tab={<span>{t('调用次数分布')}</span>} itemKey='3' />
-            <TabPane tab={<span>{t('调用次数排行')}</span>} itemKey='4' />
-            {isAdminUser && (
-              <TabPane tab={<span>{t('用户消耗排行')}</span>} itemKey='5' />
-            )}
-            {isAdminUser && (
-              <TabPane tab={<span>{t('用户消耗趋势')}</span>} itemKey='6' />
-            )}
-          </Tabs>
+            {chartTabs.map((tab) => (
+              <button
+                key={tab.key}
+                type='button'
+                role='tab'
+                aria-selected={activeChartTab === tab.key}
+                className={`dashboard-chart-segment ${
+                  activeChartTab === tab.key ? 'is-active' : ''
+                }`}
+                onClick={() => setActiveChartTab(tab.key)}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
         </div>
       }
       bodyStyle={{ padding: 0 }}
     >
-      <div className='h-96 p-2'>
-        {activeChartTab === '1' && (
-          <VChart spec={spec_line} option={CHART_CONFIG} />
-        )}
-        {activeChartTab === '2' && (
-          <VChart spec={spec_model_line} option={CHART_CONFIG} />
-        )}
-        {activeChartTab === '3' && (
-          <VChart spec={spec_pie} option={CHART_CONFIG} />
-        )}
-        {activeChartTab === '4' && (
-          <VChart spec={spec_rank_bar} option={CHART_CONFIG} />
-        )}
-        {activeChartTab === '5' && isAdminUser && (
-          <VChart spec={spec_user_rank} option={CHART_CONFIG} />
-        )}
-        {activeChartTab === '6' && isAdminUser && (
-          <VChart spec={spec_user_trend} option={CHART_CONFIG} />
-        )}
-      </div>
+      <div className='dashboard-chart-body'>{renderChart()}</div>
     </Card>
   );
 };
 
 export default ChartsPanel;
+

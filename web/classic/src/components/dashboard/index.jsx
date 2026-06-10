@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useContext, useEffect } from 'react';
+import React, { useContext, useEffect, useMemo, useRef } from 'react';
 import { getRelativeTime } from '../../helpers';
 import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
@@ -25,28 +25,28 @@ import { StatusContext } from '../../context/Status';
 import DashboardHeader from './DashboardHeader';
 import StatsCards from './StatsCards';
 import ChartsPanel from './ChartsPanel';
-import ApiInfoPanel from './ApiInfoPanel';
 import AnnouncementsPanel from './AnnouncementsPanel';
 import FaqPanel from './FaqPanel';
 import UptimePanel from './UptimePanel';
+import WorkspacePanel from './WorkspacePanel';
 import SearchModal from './modals/SearchModal';
+import NoticeModal from '../layout/NoticeModal';
+import './workspace.css';
 
 import { useDashboardData } from '../../hooks/dashboard/useDashboardData';
 import { useDashboardStats } from '../../hooks/dashboard/useDashboardStats';
 import { useDashboardCharts } from '../../hooks/dashboard/useDashboardCharts';
+import { useNotifications } from '../../hooks/common/useNotifications';
 
 import {
   CHART_CONFIG,
+  ANNOUNCEMENT_LEGEND_DATA,
   CARD_PROPS,
   FLEX_CENTER_GAP2,
   ILLUSTRATION_SIZE,
-  ANNOUNCEMENT_LEGEND_DATA,
   UPTIME_STATUS_MAP,
 } from '../../constants/dashboard.constants';
 import {
-  getTrendSpec,
-  handleCopyUrl,
-  handleSpeedTest,
   getUptimeStatusColor,
   getUptimeStatusText,
   renderMonitorList,
@@ -55,7 +55,7 @@ import {
 const Dashboard = () => {
   // ========== Context ==========
   const [userState, userDispatch] = useContext(UserContext);
-  const [statusState, statusDispatch] = useContext(StatusContext);
+  const [statusState] = useContext(StatusContext);
 
   // ========== 主要数据管理 ==========
   const dashboardData = useDashboardData(userState, userDispatch, statusState);
@@ -74,16 +74,29 @@ const Dashboard = () => {
   );
 
   // ========== 统计数据 ==========
-  const { groupedStatsData } = useDashboardStats(
+  const { statsData, summaryTitle, summaryNote } = useDashboardStats(
     userState,
     dashboardData.consumeQuota,
     dashboardData.consumeTokens,
     dashboardData.times,
-    dashboardData.trendData,
+    dashboardData.recentTokens,
+    dashboardData.adminUsageSummary,
+    dashboardData.activeTimeRange,
+    dashboardData.isAdminUser,
+    dashboardData.inputs.username,
     dashboardData.performanceMetrics,
     dashboardData.navigate,
     dashboardData.t,
   );
+  const timeRangeReady = useRef(false);
+  const {
+    noticeVisible,
+    unreadCount,
+    handleNoticeOpen,
+    handleNoticeClose,
+    markAllAsRead,
+    getUnreadKeys,
+  } = useNotifications(statusState);
 
   // ========== 数据处理 ==========
   const loadUserData = async () => {
@@ -113,13 +126,38 @@ const Dashboard = () => {
     await loadUserData();
   };
 
+  const handleClearAdminUserFilter = async () => {
+    const data = await dashboardData.clearAdminUserFilter();
+    if (data && data.length > 0) {
+      dashboardCharts.updateChartData(data);
+    }
+    await loadUserData();
+  };
+
   const handleSearchConfirm = async () => {
     await dashboardData.handleSearchConfirm(dashboardCharts.updateChartData);
     await loadUserData();
   };
 
+  const handleAnnouncementOpen = () => {
+    markAllAsRead();
+    handleNoticeOpen();
+  };
+
+  const rangeCaption = useMemo(() => {
+    const captionMap = {
+      today: '今日 00:00 至当前',
+      last_24h: '近 24 小时滚动统计',
+      last_7d: '近 7 天统计',
+      last_30d: '近 30 天统计',
+      custom: '自定义时间范围',
+    };
+    return dashboardData.t(
+      captionMap[dashboardData.activeTimeRange] || captionMap.today,
+    );
+  }, [dashboardData]);
+
   // ========== 数据准备 ==========
-  const apiInfoData = statusState?.status?.api_info || [];
   const announcementData = (statusState?.status?.announcements || []).map(
     (item) => {
       const pubDate = item?.publishDate ? new Date(item.publishDate) : null;
@@ -145,16 +183,36 @@ const Dashboard = () => {
     }),
   );
 
+  const announcementLegendData = ANNOUNCEMENT_LEGEND_DATA.map((item) => ({
+    ...item,
+    label: dashboardData.t(item.label),
+  }));
+
   // ========== Effects ==========
   useEffect(() => {
     initChart();
   }, []);
+
+  useEffect(() => {
+    if (!timeRangeReady.current) {
+      timeRangeReady.current = true;
+      return;
+    }
+    if (dashboardData.activeTimeRange === 'custom') {
+      return;
+    }
+    handleRefresh();
+  }, [dashboardData.activeTimeRange]);
 
   return (
     <div className='h-full'>
       <DashboardHeader
         getGreeting={dashboardData.getGreeting}
         greetingVisible={dashboardData.greetingVisible}
+        rangeCaption={rangeCaption}
+        activeTimeRange={dashboardData.activeTimeRange}
+        timeRangeOptions={dashboardData.timeRangeOptions}
+        handleTimeRangeChange={dashboardData.handleTimeRangeChange}
         showSearchModal={dashboardData.showSearchModal}
         refresh={handleRefresh}
         loading={dashboardData.loading}
@@ -174,18 +232,57 @@ const Dashboard = () => {
         t={dashboardData.t}
       />
 
-      <StatsCards
-        groupedStatsData={groupedStatsData}
-        loading={dashboardData.loading}
-        getTrendSpec={getTrendSpec}
-        CARD_PROPS={CARD_PROPS}
-        CHART_CONFIG={CHART_CONFIG}
+      <NoticeModal
+        visible={noticeVisible}
+        onClose={handleNoticeClose}
+        isMobile={dashboardData.isMobile}
+        defaultTab='system'
+        unreadKeys={getUnreadKeys()}
       />
 
-      {/* API信息和图表面板 */}
+      <div
+        className={`dashboard-overview-grid mb-4 ${
+          dashboardData.announcementsEnabled ? '' : 'is-single'
+        }`}
+      >
+        <StatsCards
+          statsData={statsData}
+          loading={dashboardData.loading}
+          CARD_PROPS={CARD_PROPS}
+          title={summaryTitle}
+          note={summaryNote}
+          statusAction={
+            dashboardData.isAdminUser &&
+            String(dashboardData.inputs.username || '').trim()
+              ? handleClearAdminUserFilter
+              : undefined
+          }
+          statusTitle={`${dashboardData.t('清空')} ${dashboardData.t('用户筛选')}`}
+          t={dashboardData.t}
+        />
+
+        {dashboardData.announcementsEnabled && (
+          <div className='dashboard-announcement-panel-slot'>
+            <AnnouncementsPanel
+              announcementData={announcementData}
+              announcementLegendData={announcementLegendData}
+              CARD_PROPS={CARD_PROPS}
+              ILLUSTRATION_SIZE={ILLUSTRATION_SIZE}
+              variant='dashboard'
+              unreadCount={unreadCount}
+              onNoticeOpen={handleAnnouncementOpen}
+              t={dashboardData.t}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* 图表和 API 接入面板 */}
       <div className='mb-4'>
         <div
-          className={`grid grid-cols-1 gap-4 ${dashboardData.hasApiInfoPanel ? 'lg:grid-cols-4' : ''}`}
+          className={`dashboard-workbench-grid ${
+            dashboardData.apiInfoEnabled ? '' : 'is-single'
+          }`}
         >
           <ChartsPanel
             activeChartTab={dashboardData.activeChartTab}
@@ -200,44 +297,30 @@ const Dashboard = () => {
             CARD_PROPS={CARD_PROPS}
             CHART_CONFIG={CHART_CONFIG}
             FLEX_CENTER_GAP2={FLEX_CENTER_GAP2}
-            hasApiInfoPanel={dashboardData.hasApiInfoPanel}
+            hasApiInfoPanel={dashboardData.apiInfoEnabled}
             t={dashboardData.t}
           />
 
-          {dashboardData.hasApiInfoPanel && (
-            <ApiInfoPanel
-              apiInfoData={apiInfoData}
-              handleCopyUrl={(url) => handleCopyUrl(url, dashboardData.t)}
-              handleSpeedTest={handleSpeedTest}
-              CARD_PROPS={CARD_PROPS}
-              FLEX_CENTER_GAP2={FLEX_CENTER_GAP2}
-              ILLUSTRATION_SIZE={ILLUSTRATION_SIZE}
+          {dashboardData.apiInfoEnabled && (
+            <WorkspacePanel
+              user={userState?.user}
+              status={statusState?.status}
               t={dashboardData.t}
             />
           )}
         </div>
       </div>
 
-      {/* 系统公告和常见问答卡片 */}
-      {dashboardData.hasInfoPanels && (
+      {/* 常见问答和服务可用性卡片 */}
+      {(dashboardData.faqEnabled || dashboardData.uptimeEnabled) && (
         <div className='mb-4'>
-          <div className='grid grid-cols-1 lg:grid-cols-4 gap-4'>
-            {/* 公告卡片 */}
-            {dashboardData.announcementsEnabled && (
-              <AnnouncementsPanel
-                announcementData={announcementData}
-                announcementLegendData={ANNOUNCEMENT_LEGEND_DATA.map(
-                  (item) => ({
-                    ...item,
-                    label: dashboardData.t(item.label),
-                  }),
-                )}
-                CARD_PROPS={CARD_PROPS}
-                ILLUSTRATION_SIZE={ILLUSTRATION_SIZE}
-                t={dashboardData.t}
-              />
-            )}
-
+          <div
+            className={`dashboard-support-grid ${
+              dashboardData.faqEnabled && dashboardData.uptimeEnabled
+                ? ''
+                : 'is-single'
+            }`}
+          >
             {/* 常见问答卡片 */}
             {dashboardData.faqEnabled && (
               <FaqPanel
@@ -284,3 +367,4 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
+
