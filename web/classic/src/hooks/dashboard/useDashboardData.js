@@ -97,7 +97,6 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   const [activeUptimeTab, setActiveUptimeTab] = useState('');
 
   // ========== 常量 ==========
-  const now = new Date();
   const isAdminUser = isAdmin();
 
   // ========== Panel enable flags ==========
@@ -242,7 +241,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
               count: 0,
               model_name: '无数据',
               quota: 0,
-              created_at: now.getTime() / 1000,
+              created_at: Date.now() / 1000,
             });
           }
           normalizedData.sort((a, b) => a.created_at - b.created_at);
@@ -255,7 +254,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
         setLoading(false);
       }
     },
-    [inputs, activeTimeRange, dataExportDefaultTime, isAdminUser, now],
+    [inputs, activeTimeRange, dataExportDefaultTime, isAdminUser],
   );
 
   const clearAdminUserFilter = useCallback(async () => {

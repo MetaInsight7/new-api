@@ -66,7 +66,9 @@ const getServerAddress = (status) => {
     if (localStatus?.server_address) {
       return localStatus.server_address;
     }
-  } catch (_) {}
+  } catch (e) {
+    console.error('Failed to parse status from localStorage:', e);
+  }
 
   return window.location.origin;
 };
