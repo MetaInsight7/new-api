@@ -74,20 +74,23 @@ const Dashboard = () => {
   );
 
   // ========== 统计数据 ==========
-  const { statsData, summaryTitle, summaryNote } = useDashboardStats(
-    userState,
-    dashboardData.consumeQuota,
-    dashboardData.consumeTokens,
-    dashboardData.times,
-    dashboardData.recentTokens,
-    dashboardData.adminUsageSummary,
-    dashboardData.activeTimeRange,
-    dashboardData.isAdminUser,
-    dashboardData.inputs.username,
-    dashboardData.performanceMetrics,
-    dashboardData.navigate,
-    dashboardData.t,
-  );
+  const { statsData, quickActions, summaryTitle, summaryNote } =
+    useDashboardStats(
+      userState,
+      dashboardData.consumeQuota,
+      dashboardData.consumeTokens,
+      dashboardData.times,
+      dashboardData.recentTokens,
+      dashboardData.comparisonSummary,
+      dashboardData.adminUsageSummary,
+      dashboardData.selectedAdminUser,
+      dashboardData.activeTimeRange,
+      dashboardData.isAdminUser,
+      dashboardData.inputs.username,
+      dashboardData.performanceMetrics,
+      dashboardData.navigate,
+      dashboardData.t,
+    );
   const timeRangeReady = useRef(false);
   const {
     noticeVisible,
@@ -102,24 +105,33 @@ const Dashboard = () => {
   const loadUserData = async () => {
     if (dashboardData.isAdminUser) {
       const userData = await dashboardData.loadUserQuotaData();
+      if (userData === null) {
+        return null;
+      }
       if (userData && userData.length > 0) {
         dashboardCharts.updateUserChartData(userData);
       }
     }
+    return [];
   };
 
   const initChart = async () => {
-    await dashboardData.loadQuotaData().then((data) => {
-      if (data && data.length > 0) {
-        dashboardCharts.updateChartData(data);
-      }
-    });
+    const data = await dashboardData.loadQuotaData();
+    if (data === null) {
+      return;
+    }
+    if (data.length > 0) {
+      dashboardCharts.updateChartData(data);
+    }
     await loadUserData();
     await dashboardData.loadUptimeData();
   };
 
   const handleRefresh = async () => {
     const data = await dashboardData.refresh();
+    if (data === null) {
+      return;
+    }
     if (data && data.length > 0) {
       dashboardCharts.updateChartData(data);
     }
@@ -128,6 +140,9 @@ const Dashboard = () => {
 
   const handleClearAdminUserFilter = async () => {
     const data = await dashboardData.clearAdminUserFilter();
+    if (data === null) {
+      return;
+    }
     if (data && data.length > 0) {
       dashboardCharts.updateChartData(data);
     }
@@ -205,11 +220,10 @@ const Dashboard = () => {
   }, [dashboardData.activeTimeRange]);
 
   return (
-    <div className='h-full'>
+    <div className='dashboard-page h-full'>
       <DashboardHeader
         getGreeting={dashboardData.getGreeting}
         greetingVisible={dashboardData.greetingVisible}
-        rangeCaption={rangeCaption}
         activeTimeRange={dashboardData.activeTimeRange}
         timeRangeOptions={dashboardData.timeRangeOptions}
         handleTimeRangeChange={dashboardData.handleTimeRangeChange}
@@ -258,6 +272,8 @@ const Dashboard = () => {
               : undefined
           }
           statusTitle={`${dashboardData.t('清空')} ${dashboardData.t('用户筛选')}`}
+          rangeCaption={rangeCaption}
+          quickActions={quickActions}
           t={dashboardData.t}
         />
 

@@ -178,7 +178,10 @@ const WorkspacePanel = ({ user, status, t }) => {
               isSelected ? ' is-selected' : ''
             }`}
             aria-pressed={isSelected}
-            onClick={() => onChange(option.value)}
+            onClick={() => {
+              onChange(option.value);
+              setConfigOpen(false);
+            }}
           >
             <span className='dashboard-api-access__selector-option-main'>
               <strong>{option.title || option.label}</strong>
@@ -424,89 +427,103 @@ const WorkspacePanel = ({ user, status, t }) => {
           )}
         </div>
 
-        <Skeleton
-          active
-          loading={loading && tokens.length === 0}
-          placeholder={<Skeleton.Title style={{ width: '100%' }} />}
-        >
-          {tokens.length > 0 ? (
-            <>
-              <div className='dashboard-api-access__credentials'>
-                <div className='dashboard-api-access__credential'>
-                  <div className='dashboard-api-access__credential-head'>
-                    <span>{t('Base URL')}</span>
-                    <Tooltip content={t('复制 Base URL')}>
-                      <button
-                        type='button'
-                        className='dashboard-api-access__icon-btn'
-                        aria-label={t('复制 Base URL')}
-                        onClick={() => handleCopy(apiBaseUrl)}
-                      >
-                        <Copy size={15} />
-                      </button>
-                    </Tooltip>
-                  </div>
-                  <Tooltip content={apiBaseUrl}>
-                    <code>{apiBaseUrl}</code>
-                  </Tooltip>
-                </div>
+        <div className='dashboard-api-access__body'>
+          <Skeleton
+            active
+            loading={loading && tokens.length === 0}
+            placeholder={<Skeleton.Title style={{ width: '100%' }} />}
+          >
+            {tokens.length > 0 ? (
+              <>
+                <div className='dashboard-api-access__credentials-shell'>
+                  <div className='dashboard-api-access__credentials'>
+                    <div className='dashboard-api-access__credential'>
+                      <span className='dashboard-api-access__credential-label'>
+                        {t('Base URL')}
+                      </span>
+                      <div className='dashboard-api-access__credential-code'>
+                        <Tooltip content={apiBaseUrl}>
+                          <code>{apiBaseUrl}</code>
+                        </Tooltip>
+                        <span className='dashboard-api-access__credential-actions'>
+                          <Tooltip content={t('复制 Base URL')}>
+                            <button
+                              type='button'
+                              className='dashboard-api-access__icon-btn'
+                              aria-label={t('复制 Base URL')}
+                              onClick={() => handleCopy(apiBaseUrl)}
+                            >
+                              <Copy size={15} />
+                            </button>
+                          </Tooltip>
+                        </span>
+                      </div>
+                    </div>
 
-                <div className='dashboard-api-access__credential'>
-                  <div className='dashboard-api-access__credential-head'>
-                    <span>{t('API Key')}</span>
-                    <div className='dashboard-api-access__credential-actions'>
-                      <Tooltip
-                        content={
-                          isKeyVisible ? t('隐藏 API Key') : t('显示 API Key')
-                        }
-                      >
-                        <button
-                          type='button'
-                          className='dashboard-api-access__icon-btn'
-                          aria-label={
-                            isKeyVisible ? t('隐藏 API Key') : t('显示 API Key')
-                          }
-                          disabled={keyLoading}
-                          onClick={handleShowKey}
-                        >
-                          {isKeyVisible ? (
-                            <EyeOff size={15} />
-                          ) : (
-                            <Eye size={15} />
-                          )}
-                        </button>
-                      </Tooltip>
-                      <Tooltip content={t('复制完整 API Key')}>
-                        <button
-                          type='button'
-                          className='dashboard-api-access__icon-btn'
-                          aria-label={t('复制完整 API Key')}
-                          disabled={copyKeyLoading || !selectedToken}
-                          onClick={handleCopySelectedKey}
-                        >
-                          <Copy size={15} />
-                        </button>
-                      </Tooltip>
+                    <div className='dashboard-api-access__credential'>
+                      <span className='dashboard-api-access__credential-label'>
+                        {t('API Key')}
+                      </span>
+                      <div className='dashboard-api-access__credential-code'>
+                        <Tooltip content={selectedTokenDisplayKey}>
+                          <code>{selectedTokenDisplayKey}</code>
+                        </Tooltip>
+                        <span className='dashboard-api-access__credential-actions'>
+                          <Tooltip
+                            content={
+                              isKeyVisible
+                                ? t('隐藏 API Key')
+                                : t('显示 API Key')
+                            }
+                          >
+                            <button
+                              type='button'
+                              className='dashboard-api-access__icon-btn'
+                              aria-label={
+                                isKeyVisible
+                                  ? t('隐藏 API Key')
+                                  : t('显示 API Key')
+                              }
+                              disabled={keyLoading}
+                              onClick={handleShowKey}
+                            >
+                              {isKeyVisible ? (
+                                <EyeOff size={15} />
+                              ) : (
+                                <Eye size={15} />
+                              )}
+                            </button>
+                          </Tooltip>
+                          <Tooltip content={t('复制完整 API Key')}>
+                            <button
+                              type='button'
+                              className='dashboard-api-access__icon-btn'
+                              aria-label={t('复制完整 API Key')}
+                              disabled={copyKeyLoading || !selectedToken}
+                              onClick={handleCopySelectedKey}
+                            >
+                              <Copy size={15} />
+                            </button>
+                          </Tooltip>
+                        </span>
+                      </div>
                     </div>
                   </div>
-                  <Tooltip content={selectedTokenDisplayKey}>
-                    <code>{selectedTokenDisplayKey}</code>
-                  </Tooltip>
                 </div>
-              </div>
 
-              <div className='dashboard-api-access__meta-line'>
-                {t('OpenAI 兼容 · Bearer Token · 脱敏展示不影响复制完整令牌')}
+                <div className='dashboard-api-access__meta-line'>
+                  {t('OpenAI、Claude、Google多协议兼容')}
+                </div>
+              </>
+            ) : (
+              <div className='dashboard-api-access__empty'>
+                <KeyRound size={24} />
+                <strong>{t('暂无可用令牌')}</strong>
+                <span>{t('新建令牌后即可在此处选择并复制 API Key')}</span>
               </div>
-            </>
-          ) : (
-            <div className='dashboard-api-access__empty'>
-              <KeyRound size={24} />
-              <strong>{t('暂无可用令牌')}</strong>
-              <span>{t('新建令牌后即可在此处选择并复制 API Key')}</span>
-            </div>
-          )}
-        </Skeleton>
+            )}
+          </Skeleton>
+        </div>
 
         <div className='dashboard-api-access__actions'>
           <Button

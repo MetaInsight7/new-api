@@ -22,10 +22,10 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { API, isAdmin, showError } from '../../helpers';
 import {
-  generateDashboardMockQuotaData,
+  getDashboardComparisonRange,
   getDashboardTimeRange,
   getDefaultTime,
-  shouldUseDashboardMockCharts,
+  summarizeDashboardQuotaData,
 } from '../../helpers/dashboard';
 import {
   TIME_OPTIONS,
@@ -39,6 +39,11 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const initialized = useRef(false);
+  const quotaRequestRef = useRef(0);
+  const recentTokensRequestRef = useRef(0);
+  const uptimeRequestRef = useRef(0);
+  const userQuotaRequestRef = useRef(0);
+  const selectedAdminUserRequestRef = useRef(0);
 
   // ========== 基础状态 ==========
   const [loading, setLoading] = useState(false);
@@ -69,9 +74,11 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   const [consumeTokens, setConsumeTokens] = useState(0);
   const [times, setTimes] = useState(0);
   const [recentTokens, setRecentTokens] = useState(0);
+  const [comparisonSummary, setComparisonSummary] = useState(null);
   const [adminUsageSummary, setAdminUsageSummary] = useState({
     activeUsers: 0,
   });
+  const [selectedAdminUser, setSelectedAdminUser] = useState(null);
   const [pieData, setPieData] = useState([{ type: 'null', value: '0' }]);
   const [lineData, setLineData] = useState([]);
   const [modelColors, setModelColors] = useState({});
@@ -182,6 +189,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
       start_timestamp: range.start_timestamp,
       end_timestamp: range.end_timestamp,
     }));
+    return range;
   }, []);
 
   const showSearchModal = useCallback(() => {
@@ -194,15 +202,24 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
 
   // ========== API 调用函数 ==========
   const loadQuotaData = useCallback(
-    async (inputOverrides = {}) => {
+    async (inputOverrides = {}, loadOptions = {}) => {
+      const requestId = quotaRequestRef.current + 1;
+      quotaRequestRef.current = requestId;
+      const isLatestRequest = () => quotaRequestRef.current === requestId;
+
       setLoading(true);
       try {
         let url = '';
         const effectiveInputs = { ...inputs, ...inputOverrides };
         const { username } = effectiveInputs;
         let { start_timestamp, end_timestamp } = effectiveInputs;
-        if (activeTimeRange !== 'custom') {
-          const range = getDashboardTimeRange(activeTimeRange);
+        const effectiveTimeRange =
+          loadOptions.rangeKey || activeTimeRange || 'today';
+        const effectiveDefaultTime =
+          loadOptions.defaultTime || dataExportDefaultTime;
+
+        if (effectiveTimeRange !== 'custom') {
+          const range = getDashboardTimeRange(effectiveTimeRange);
           start_timestamp = range.start_timestamp;
           end_timestamp = range.end_timestamp;
           setInputs((currentInputs) => ({
@@ -218,24 +235,58 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
         let localStartTimestamp = Date.parse(start_timestamp) / 1000;
         let localEndTimestamp = Date.parse(end_timestamp) / 1000;
 
-        if (isAdminUser) {
-          url = `/api/data/?username=${encodeURIComponent(username || '')}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&default_time=${dataExportDefaultTime}`;
-        } else {
-          url = `/api/data/self/?start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&default_time=${dataExportDefaultTime}`;
+        const buildQuotaUrl = (rangeStart, rangeEnd) => {
+          if (isAdminUser) {
+            return `/api/data/?username=${encodeURIComponent(username || '')}&start_timestamp=${rangeStart}&end_timestamp=${rangeEnd}&default_time=${effectiveDefaultTime}`;
+          }
+
+          return `/api/data/self/?start_timestamp=${rangeStart}&end_timestamp=${rangeEnd}&default_time=${effectiveDefaultTime}`;
+        };
+
+        const normalizeRows = (rows) => {
+          const normalizedData = [...(rows || [])];
+          normalizedData.sort((a, b) => a.created_at - b.created_at);
+          return normalizedData;
+        };
+
+        url = buildQuotaUrl(localStartTimestamp, localEndTimestamp);
+
+        const comparisonRange = getDashboardComparisonRange(
+          effectiveTimeRange,
+          localStartTimestamp,
+          localEndTimestamp,
+        );
+        const comparisonRequest = comparisonRange
+          ? API.get(
+              buildQuotaUrl(
+                comparisonRange.startTimestamp,
+                comparisonRange.endTimestamp,
+              ),
+            ).catch((err) => {
+              console.error(err);
+              return null;
+            })
+          : Promise.resolve(null);
+
+        const [res, comparisonRes] = await Promise.all([
+          API.get(url),
+          comparisonRequest,
+        ]);
+        if (!isLatestRequest()) {
+          return null;
         }
 
-        const res = await API.get(url);
         const { success, message, data } = res.data;
         if (success) {
-          let normalizedData = [...(data || [])];
-          if (normalizedData.length === 0 && shouldUseDashboardMockCharts()) {
-            normalizedData = generateDashboardMockQuotaData(
-              localStartTimestamp,
-              localEndTimestamp,
-              dataExportDefaultTime,
-            );
-          }
+          const normalizedData = normalizeRows(data);
+
+          const comparisonSuccess = comparisonRes?.data?.success;
+          const comparisonRows = comparisonRange
+            ? normalizeRows(comparisonSuccess ? comparisonRes.data.data : [])
+            : [];
+
           setQuotaData(normalizedData);
+          setComparisonSummary(summarizeDashboardQuotaData(comparisonRows));
           if (normalizedData.length === 0) {
             normalizedData.push({
               count: 0,
@@ -244,14 +295,24 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
               created_at: Date.now() / 1000,
             });
           }
-          normalizedData.sort((a, b) => a.created_at - b.created_at);
           return normalizedData;
         } else {
           showError(message);
+          setComparisonSummary(null);
           return [];
         }
+      } catch (err) {
+        console.error(err);
+        if (!isLatestRequest()) {
+          return null;
+        }
+        showError(err?.message || t('请求失败'));
+        setComparisonSummary(null);
+        return [];
       } finally {
-        setLoading(false);
+        if (isLatestRequest()) {
+          setLoading(false);
+        }
       }
     },
     [inputs, activeTimeRange, dataExportDefaultTime, isAdminUser],
@@ -260,14 +321,25 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   const clearAdminUserFilter = useCallback(async () => {
     if (!isAdminUser) return [];
     setInputs((inputs) => ({ ...inputs, username: '' }));
+    selectedAdminUserRequestRef.current += 1;
+    setSelectedAdminUser(null);
     const data = await loadQuotaData({ username: '' });
+    if (data === null) {
+      return null;
+    }
     setSearchModalVisible(false);
     return data;
   }, [isAdminUser, loadQuotaData]);
 
   const loadRecentTokenUsage = useCallback(async () => {
+    const requestId = recentTokensRequestRef.current + 1;
+    recentTokensRequestRef.current = requestId;
+    const isLatestRequest = () => recentTokensRequestRef.current === requestId;
+
     if (isAdminUser) {
-      setRecentTokens(0);
+      if (isLatestRequest()) {
+        setRecentTokens(0);
+      }
       return 0;
     }
 
@@ -276,6 +348,10 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
       const startTimestamp = nowTimestamp - 86400 * 30;
       const url = `/api/data/self/?start_timestamp=${startTimestamp}&end_timestamp=${nowTimestamp}&default_time=day`;
       const res = await API.get(url);
+      if (!isLatestRequest()) {
+        return null;
+      }
+
       const { success, data } = res.data || {};
       if (!success) {
         setRecentTokens(0);
@@ -290,15 +366,25 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
       return totalTokens;
     } catch (err) {
       console.error(err);
-      setRecentTokens(0);
+      if (isLatestRequest()) {
+        setRecentTokens(0);
+      }
       return 0;
     }
   }, [isAdminUser]);
 
   const loadUptimeData = useCallback(async () => {
+    const requestId = uptimeRequestRef.current + 1;
+    uptimeRequestRef.current = requestId;
+    const isLatestRequest = () => uptimeRequestRef.current === requestId;
+
     setUptimeLoading(true);
     try {
       const res = await API.get('/api/uptime/status');
+      if (!isLatestRequest()) {
+        return null;
+      }
+
       const { success, message, data } = res.data;
       if (success) {
         setUptimeData(data || []);
@@ -311,50 +397,113 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     } catch (err) {
       console.error(err);
     } finally {
-      setUptimeLoading(false);
+      if (isLatestRequest()) {
+        setUptimeLoading(false);
+      }
     }
   }, [activeUptimeTab]);
 
-  const loadUserQuotaData = useCallback(async () => {
-    if (!isAdminUser) return [];
-    try {
-      let { start_timestamp, end_timestamp } = inputs;
-      if (activeTimeRange !== 'custom') {
-        const range = getDashboardTimeRange(activeTimeRange);
-        start_timestamp = range.start_timestamp;
-        end_timestamp = range.end_timestamp;
-      }
-      const localStartTimestamp = Date.parse(start_timestamp) / 1000;
-      const localEndTimestamp = Date.parse(end_timestamp) / 1000;
-      const url = `/api/data/users?start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}`;
-      const res = await API.get(url);
-      const { success, message, data } = res.data;
-      if (success) {
-        const rows = data || [];
-        const activeUsers = new Set(
-          rows
-            .filter(
-              (item) =>
-                Number(item?.count || 0) > 0 ||
-                Number(item?.quota || 0) > 0 ||
-                Number(item?.token_used || 0) > 0,
-            )
-            .map((item) => item?.username)
-            .filter(Boolean),
-        ).size;
-        setAdminUsageSummary({ activeUsers });
-        return rows;
-      } else {
-        showError(message);
-        setAdminUsageSummary({ activeUsers: 0 });
+  const loadUserQuotaData = useCallback(
+    async (loadOptions = {}) => {
+      if (!isAdminUser) return [];
+      const requestId = userQuotaRequestRef.current + 1;
+      userQuotaRequestRef.current = requestId;
+      const isLatestRequest = () => userQuotaRequestRef.current === requestId;
+
+      try {
+        let { start_timestamp, end_timestamp } = inputs;
+        const effectiveTimeRange =
+          loadOptions.rangeKey || activeTimeRange || 'today';
+        if (effectiveTimeRange !== 'custom') {
+          const range = getDashboardTimeRange(effectiveTimeRange);
+          start_timestamp = range.start_timestamp;
+          end_timestamp = range.end_timestamp;
+        }
+        const localStartTimestamp = Date.parse(start_timestamp) / 1000;
+        const localEndTimestamp = Date.parse(end_timestamp) / 1000;
+        const url = `/api/data/users?start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}`;
+        const res = await API.get(url);
+        if (!isLatestRequest()) {
+          return null;
+        }
+
+        const { success, message, data } = res.data;
+        if (success) {
+          const rows = data || [];
+          const activeUsers = new Set(
+            rows
+              .filter(
+                (item) =>
+                  Number(item?.count || 0) > 0 ||
+                  Number(item?.quota || 0) > 0 ||
+                  Number(item?.token_used || 0) > 0,
+              )
+              .map((item) => item?.username)
+              .filter(Boolean),
+          ).size;
+          setAdminUsageSummary({ activeUsers });
+          return rows;
+        } else {
+          showError(message);
+          setAdminUsageSummary({ activeUsers: 0 });
+          return [];
+        }
+      } catch (err) {
+        console.error(err);
+        if (isLatestRequest()) {
+          setAdminUsageSummary({ activeUsers: 0 });
+        }
         return [];
       }
-    } catch (err) {
-      console.error(err);
-      setAdminUsageSummary({ activeUsers: 0 });
-      return [];
-    }
-  }, [inputs, activeTimeRange, isAdminUser]);
+    },
+    [inputs, activeTimeRange, isAdminUser],
+  );
+
+  const loadSelectedAdminUser = useCallback(
+    async (username) => {
+      if (!isAdminUser) return null;
+
+      const trimmedUsername = String(username || '').trim();
+      const requestId = selectedAdminUserRequestRef.current + 1;
+      selectedAdminUserRequestRef.current = requestId;
+      const isLatestRequest = () =>
+        selectedAdminUserRequestRef.current === requestId;
+
+      if (!trimmedUsername) {
+        setSelectedAdminUser(null);
+        return null;
+      }
+
+      try {
+        const res = await API.get(
+          `/api/user/search?keyword=${encodeURIComponent(trimmedUsername)}&group=&p=1&page_size=10`,
+        );
+        if (!isLatestRequest()) {
+          return null;
+        }
+
+        const { success, data } = res.data || {};
+        if (!success) {
+          setSelectedAdminUser(null);
+          return null;
+        }
+
+        const users = data?.items || [];
+        const exactUser = users.find(
+          (item) => item?.username === trimmedUsername,
+        );
+        setSelectedAdminUser(exactUser || null);
+        return exactUser || null;
+      } catch (err) {
+        console.error(err);
+        if (isLatestRequest()) {
+          setSelectedAdminUser(null);
+        }
+        return null;
+      }
+    },
+    [isAdminUser],
+  );
 
   const getUserData = useCallback(async () => {
     let res = await API.get(`/api/user/self`);
@@ -366,16 +515,37 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     }
   }, [userDispatch]);
 
-  const refresh = useCallback(async () => {
-    const data = await loadQuotaData();
-    await loadRecentTokenUsage();
-    await loadUptimeData();
-    return data;
-  }, [loadQuotaData, loadRecentTokenUsage, loadUptimeData]);
+  const refresh = useCallback(
+    async (loadOptions = {}) => {
+      const data = await loadQuotaData(
+        loadOptions.inputOverrides || {},
+        loadOptions,
+      );
+      if (data === null) {
+        return null;
+      }
+      await loadRecentTokenUsage();
+      await loadUptimeData();
+      await loadSelectedAdminUser(
+        loadOptions.inputOverrides?.username ?? inputs.username,
+      );
+      return data;
+    },
+    [
+      inputs.username,
+      loadQuotaData,
+      loadRecentTokenUsage,
+      loadUptimeData,
+      loadSelectedAdminUser,
+    ],
+  );
 
   const handleSearchConfirm = useCallback(
     async (updateChartDataCallback) => {
       const data = await refresh();
+      if (data === null) {
+        return;
+      }
       if (data && data.length > 0 && updateChartDataCallback) {
         updateChartDataCallback(data);
       }
@@ -420,7 +590,9 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     times,
     setTimes,
     recentTokens,
+    comparisonSummary,
     adminUsageSummary,
+    selectedAdminUser,
     pieData,
     setPieData,
     lineData,
@@ -463,6 +635,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     loadQuotaData,
     clearAdminUserFilter,
     loadUserQuotaData,
+    loadSelectedAdminUser,
     loadUptimeData,
     getUserData,
     refresh,

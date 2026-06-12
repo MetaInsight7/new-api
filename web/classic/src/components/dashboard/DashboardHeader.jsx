@@ -24,7 +24,6 @@ import { RefreshCw, Search } from 'lucide-react';
 const DashboardHeader = ({
   getGreeting,
   greetingVisible,
-  rangeCaption,
   activeTimeRange,
   timeRangeOptions,
   handleTimeRangeChange,
@@ -44,7 +43,6 @@ const DashboardHeader = ({
         >
           {getGreeting}
         </h2>
-        <div className='dashboard-header__range'>{rangeCaption}</div>
       </div>
 
       <div className='dashboard-header__actions'>

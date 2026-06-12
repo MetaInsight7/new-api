@@ -1,3 +1,10 @@
+.dashboard-page {
+  width: 100%;
+  max-width: 1536px;
+  min-width: 0;
+  margin-inline: auto;
+}
+
 .dashboard-header {
   display: flex;
   align-items: flex-start;
@@ -28,15 +35,18 @@
 }
 
 .dashboard-header__actions {
+  min-width: 0;
   justify-content: flex-end;
   gap: 10px;
 }
 
 .dashboard-header__tools {
+  flex: 0 0 auto;
   gap: 10px;
 }
 
 .dashboard-time-range {
+  min-width: 0;
   gap: 3px;
   padding: 3px;
   border: 1px solid var(--semi-color-border);
@@ -64,17 +74,10 @@
   grid-template-columns: 1fr;
 }
 
-.dashboard-usage-card {
-  height: 100%;
-  border: 1px solid var(--semi-color-border);
-  background: var(--semi-color-bg-1);
-  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.055);
-}
-
 .dashboard-announcement-panel-slot,
 .dashboard-announcement-card--dashboard {
-  --dashboard-announcement-card-height: 344px;
-  --dashboard-announcement-body-height: 272px;
+  --dashboard-announcement-card-height: 304px;
+  --dashboard-announcement-body-height: 232px;
 }
 
 .dashboard-announcement-panel-slot {
@@ -152,11 +155,23 @@
 .dashboard-announcement-scroll {
   height: 100%;
   min-height: 0;
+  background: var(--semi-color-bg-1);
 }
 
 .dashboard-announcement-scroll .card-content-scroll {
-  height: var(--dashboard-announcement-body-height);
-  max-height: var(--dashboard-announcement-body-height);
+  height: 100%;
+  max-height: 100% !important;
+  background: var(--semi-color-bg-1);
+}
+
+.dashboard-announcement-scroll .card-content-fade-indicator {
+  bottom: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0),
+    var(--semi-color-bg-1) 76%
+  );
+  display: none;
 }
 
 .dashboard-announcement-timeline.semi-timeline {
@@ -200,214 +215,6 @@
   -webkit-line-clamp: 2;
 }
 
-.dashboard-usage-card__body {
-  height: 100%;
-  padding: 13px;
-}
-
-.dashboard-usage-card__header,
-.dashboard-metric-cell {
-  display: flex;
-}
-
-.dashboard-usage-card__header {
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 10px;
-}
-
-.dashboard-usage-card__title {
-  color: var(--semi-color-text-0);
-  font-size: 16px;
-  font-weight: 800;
-  line-height: 1.3;
-}
-
-.dashboard-usage-card__note {
-  margin-top: 4px;
-  color: var(--semi-color-text-2);
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.dashboard-health-pill {
-  height: 30px;
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 7px;
-  padding: 0 10px;
-  border-radius: 999px;
-  background: var(--semi-color-fill-0);
-  color: var(--semi-color-text-2);
-  font-size: 12px;
-  font-weight: 800;
-  white-space: nowrap;
-}
-
-button.dashboard-health-pill {
-  border: 0;
-  cursor: default;
-  font: inherit;
-}
-
-.dashboard-health-pill.is-clickable {
-  cursor: pointer;
-  transition:
-    background 0.16s ease,
-    color 0.16s ease,
-    transform 0.16s ease;
-}
-
-.dashboard-health-pill.is-clickable:hover {
-  transform: translateY(-1px);
-}
-
-.dashboard-health-pill span {
-  width: 7px;
-  height: 7px;
-  border-radius: 999px;
-  background: currentColor;
-}
-
-.dashboard-health-pill.is-green {
-  color: #059669;
-  background: rgba(5, 150, 105, 0.1);
-}
-
-.dashboard-health-pill.is-blue {
-  color: #2563eb;
-  background: rgba(37, 99, 235, 0.1);
-}
-
-.dashboard-health-pill.is-amber {
-  color: #b45309;
-  background: rgba(245, 158, 11, 0.14);
-}
-
-.dashboard-health-pill.is-red {
-  color: #dc2626;
-  background: rgba(220, 38, 38, 0.1);
-}
-
-.dashboard-metric-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 9px;
-}
-
-.dashboard-metric-cell {
-  min-width: 0;
-  min-height: 80px;
-  align-items: flex-start;
-  gap: 11px;
-  width: 100%;
-  padding: 11px;
-  border: 1px solid var(--semi-color-border);
-  border-radius: 10px;
-  background: var(--semi-color-bg-1);
-  color: inherit;
-  cursor: default;
-  font: inherit;
-  text-align: left;
-  transition:
-    background 0.18s ease,
-    border-color 0.18s ease,
-    transform 0.18s ease;
-}
-
-.dashboard-metric-cell.is-clickable {
-  cursor: pointer;
-}
-
-.dashboard-metric-cell.is-clickable:hover {
-  background: var(--semi-color-fill-0);
-  border-color: rgba(22, 119, 255, 0.22);
-  transform: translateY(-1px);
-}
-
-.dashboard-metric-card__icon {
-  width: 36px;
-  height: 36px;
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 9px;
-}
-
-.dashboard-metric-card__icon.is-blue {
-  color: #2563eb;
-  background: rgba(37, 99, 235, 0.1);
-}
-
-.dashboard-metric-card__icon.is-amber {
-  color: #b45309;
-  background: rgba(245, 158, 11, 0.14);
-}
-
-.dashboard-metric-card__icon.is-green {
-  color: #059669;
-  background: rgba(5, 150, 105, 0.12);
-}
-
-.dashboard-metric-card__icon.is-cyan {
-  color: #0e7490;
-  background: rgba(14, 116, 144, 0.12);
-}
-
-.dashboard-metric-card__content {
-  min-width: 0;
-}
-
-.dashboard-metric-card__label {
-  color: var(--semi-color-text-2);
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.dashboard-metric-card__value {
-  overflow: hidden;
-  margin-top: 4px;
-  color: var(--semi-color-text-0);
-  font-size: 22px;
-  font-weight: 800;
-  line-height: 1.15;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.dashboard-metric-card__caption {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  overflow: hidden;
-  margin-top: 6px;
-  color: var(--semi-color-text-2);
-  font-size: 12px;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.dashboard-metric-card__caption.is-green {
-  color: #059669;
-}
-
-.dashboard-metric-card__caption.is-amber {
-  color: #b45309;
-}
-
-.dashboard-metric-card__caption.is-cyan {
-  color: #0e7490;
-}
-
-.dashboard-metric-card__caption.is-red {
-  color: #dc2626;
-}
-
 .dashboard-support-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(300px, 0.55fr);
@@ -415,16 +222,17 @@ button.dashboard-health-pill {
 }
 
 .dashboard-workbench-grid {
+  --dashboard-workbench-card-height: 448px;
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(360px, 420px);
   gap: 16px;
-  align-items: stretch;
+  align-items: start;
 }
 
 .dashboard-chart-card {
-  height: 100%;
-  min-height: 480px;
+  height: var(--dashboard-workbench-card-height);
+  min-height: 0;
   display: flex;
   flex-direction: column;
 }
@@ -438,6 +246,7 @@ button.dashboard-health-pill {
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
+  overflow: hidden;
 }
 
 .dashboard-chart-card .semi-card-header-wrapper,
@@ -523,10 +332,12 @@ button.dashboard-health-pill {
 .dashboard-chart-body {
   display: flex;
   flex: 1 1 auto;
-  min-height: 360px;
+  height: auto;
+  min-height: 0;
   min-width: 0;
   width: 100%;
-  padding: 8px;
+  overflow: hidden;
+  padding: 2px 4px 4px;
 }
 
 .dashboard-chart-render {
@@ -539,13 +350,17 @@ button.dashboard-health-pill {
 
 .dashboard-chart-render > div,
 .dashboard-chart-render canvas {
+  width: 100% !important;
+  height: 100% !important;
   max-width: 100%;
+  max-height: 100%;
 }
 
 .dashboard-api-access-card {
   position: relative;
   z-index: 2;
-  height: 100%;
+  height: var(--dashboard-workbench-card-height);
+  min-height: 0;
   overflow: visible;
   border: 1px solid var(--semi-color-border);
   background: var(--semi-color-bg-1);
@@ -554,10 +369,12 @@ button.dashboard-health-pill {
 
 .dashboard-api-access-card .semi-card-body {
   height: 100%;
+  min-height: 0;
 }
 
 .dashboard-api-access {
   height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -706,6 +523,27 @@ button.dashboard-health-pill {
   transform: rotate(90deg);
 }
 
+.dashboard-api-access__body {
+  width: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  gap: 8px;
+  overflow: visible;
+}
+
+.dashboard-api-access__body .semi-skeleton,
+.dashboard-api-access__body .semi-skeleton-content,
+.dashboard-api-access__body .semi-skeleton-children {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
 .dashboard-api-access__selector-popover {
   position: absolute;
   z-index: 1200;
@@ -752,10 +590,16 @@ button.dashboard-health-pill {
   color: var(--semi-color-primary);
 }
 
+.dashboard-api-access__credential-label,
 .dashboard-api-access__credential-head span {
   color: var(--semi-color-text-2);
   font-size: 12px;
   font-weight: 800;
+}
+
+.dashboard-api-access__credential-label {
+  min-width: 64px;
+  white-space: nowrap;
 }
 
 .dashboard-api-access__selector-list {
@@ -805,7 +649,7 @@ button.dashboard-health-pill {
 
 .dashboard-api-access__selector-option-main strong,
 .dashboard-api-access__selector-option-main small,
-.dashboard-api-access__credential code {
+.dashboard-api-access__credential-code code {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -848,16 +692,30 @@ button.dashboard-health-pill {
 }
 
 .dashboard-api-access__credentials {
+  width: 100%;
+  min-width: 0;
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
-.dashboard-api-access__credential {
+.dashboard-api-access__credentials-shell {
+  width: 100%;
   min-width: 0;
+  box-sizing: border-box;
   padding: 10px;
   border: 1px solid var(--semi-color-border);
   border-radius: 10px;
   background: var(--semi-color-bg-1);
+}
+
+.dashboard-api-access__credential {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-height: 34px;
 }
 
 .dashboard-api-access__credential-head {
@@ -870,20 +728,22 @@ button.dashboard-health-pill {
 }
 
 .dashboard-api-access__credential-actions {
-  display: grid;
-  grid-template-columns: repeat(2, 34px);
-  gap: 6px;
+  min-width: max-content;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .dashboard-api-access__icon-btn {
-  width: 34px;
-  height: 34px;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
   display: grid;
   place-items: center;
   padding: 0;
-  border: 1px solid var(--semi-color-border);
-  border-radius: 8px;
-  background: var(--semi-color-bg-1);
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
   color: var(--semi-color-text-2);
   cursor: pointer;
   transition:
@@ -893,7 +753,6 @@ button.dashboard-health-pill {
 }
 
 .dashboard-api-access__icon-btn:hover:not(:disabled) {
-  border-color: rgba(22, 119, 255, 0.32);
   background: var(--semi-color-fill-0);
   color: var(--semi-color-primary);
 }
@@ -903,14 +762,32 @@ button.dashboard-health-pill {
   opacity: 0.58;
 }
 
-.dashboard-api-access__credential code {
+.dashboard-api-access__credential-code {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  height: 36px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  padding: 0 4px 0 10px;
+  border: 1px solid var(--semi-color-border);
+  border-radius: 9px;
+  background: var(--semi-color-fill-0);
+}
+
+.dashboard-api-access__credential-code > span {
+  min-width: 0;
+}
+
+.dashboard-api-access__credential-code code {
   height: 34px;
   display: flex;
   align-items: center;
-  padding: 0 10px;
-  border: 1px solid var(--semi-color-border);
-  border-radius: 8px;
-  background: var(--semi-color-fill-0);
+  padding: 0;
+  border: 0;
+  background: transparent;
   color: var(--semi-color-text-0);
   font-family:
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
@@ -920,6 +797,7 @@ button.dashboard-health-pill {
 }
 
 .dashboard-api-access__meta-line {
+  margin-top: 4px;
   color: var(--semi-color-text-2);
   font-size: 12px;
   font-weight: 700;
@@ -927,14 +805,17 @@ button.dashboard-health-pill {
 }
 
 .dashboard-api-access__empty {
-  min-height: 170px;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 0;
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 18px;
-  margin-bottom: 14px;
+  padding: 16px 18px;
+  margin-bottom: 0;
   border: 1px dashed var(--semi-color-border);
   border-radius: 12px;
   color: var(--semi-color-text-2);
@@ -996,8 +877,8 @@ button.dashboard-health-pill {
     grid-template-columns: 1fr;
   }
 
-  .dashboard-chart-body {
-    min-height: 380px;
+  .dashboard-workbench-grid {
+    --dashboard-workbench-card-height: 432px;
   }
 
   .dashboard-chart-header {
@@ -1018,6 +899,17 @@ button.dashboard-health-pill {
 @media (max-width: 1080px) {
   .dashboard-workbench-grid {
     grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .dashboard-chart-card,
+  .dashboard-api-access-card {
+    height: auto;
+  }
+
+  .dashboard-chart-body {
+    height: 360px;
+    min-height: 360px;
   }
 
   .dashboard-api-access-card {
@@ -1031,27 +923,46 @@ button.dashboard-health-pill {
 
 @media (max-width: 640px) {
   .dashboard-header__actions {
-    align-items: stretch;
-    flex-direction: column;
+    align-items: center;
+    flex-direction: row;
+    gap: 8px;
   }
 
   .dashboard-time-range {
-    width: 100%;
-    overflow-x: auto;
+    display: flex;
+    flex: 1 1 auto;
+    justify-content: space-between;
+    gap: 0;
+    overflow: hidden;
   }
 
   .dashboard-time-range .semi-button {
-    flex: 1 0 auto;
+    flex: 0 0 auto;
+    width: auto;
+    padding: 0 4px;
+  }
+
+  .dashboard-time-range .semi-button-content {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .dashboard-header__tools {
+    flex: 0 0 auto;
     justify-content: flex-end;
+    gap: 8px;
   }
 
   .dashboard-announcement-titlebar {
     align-items: flex-start;
-    flex-direction: column;
-    gap: 8px;
+    flex-direction: row;
+    gap: 12px;
+  }
+
+  .dashboard-announcement-open-wrap {
+    margin-left: auto;
   }
 
   .dashboard-announcement-panel-slot,
@@ -1060,40 +971,8 @@ button.dashboard-health-pill {
     --dashboard-announcement-body-height: 238px;
   }
 
-  .dashboard-metric-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
-  }
-
-  .dashboard-usage-card__header {
-    flex-direction: column;
-  }
-
-  .dashboard-metric-cell {
-    min-height: 104px;
-    gap: 8px;
-    padding: 10px;
-  }
-
-  .dashboard-metric-card__icon {
-    width: 32px;
-    height: 32px;
-  }
-
-  .dashboard-metric-card__label,
-  .dashboard-metric-card__caption {
-    font-size: 11px;
-  }
-
-  .dashboard-metric-card__value {
-    font-size: 19px;
-  }
-
-  .dashboard-metric-card__caption {
-    white-space: normal;
-  }
-
   .dashboard-chart-body {
+    height: 320px;
     min-height: 320px;
   }
 
@@ -1104,6 +983,845 @@ button.dashboard-health-pill {
   .dashboard-api-access__actions {
     display: grid;
     grid-template-columns: 1fr;
+  }
+}
+
+/* Stats panel ported from the development dashboard. */
+.dashboard-usage-card {
+  --dashboard-usage-font:
+    ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    sans-serif;
+  --dashboard-usage-label-color: rgba(255, 255, 255, 0.78);
+  --dashboard-usage-soft-color: rgba(255, 255, 255, 0.9);
+  height: 304px;
+  min-height: 304px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 22px;
+  background:
+    radial-gradient(
+      circle at 86% 24%,
+      rgba(126, 83, 255, 0.82),
+      transparent 31%
+    ),
+    radial-gradient(circle at 14% 0%, rgba(57, 220, 255, 0.2), transparent 30%),
+    linear-gradient(135deg, #3158ff 0%, #3457f4 48%, #5f43dc 100%);
+  box-shadow:
+    0 18px 46px rgba(47, 91, 255, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.32);
+  font-family: var(--dashboard-usage-font);
+  font-weight: 900;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.dashboard-usage-card * {
+  font-family: var(--dashboard-usage-font);
+}
+
+.dashboard-usage-card .semi-card-body {
+  height: 100%;
+  min-height: 0;
+  padding: 0 !important;
+  font-weight: 900;
+}
+
+.dashboard-usage-card__body {
+  position: relative;
+  overflow: hidden;
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto auto;
+  gap: 16px;
+  padding: 24px;
+  color: #fff;
+  font-weight: 900;
+  isolation: isolate;
+}
+
+.dashboard-usage-card__body::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.12), transparent 42%),
+    radial-gradient(
+      circle at 76% 92%,
+      rgba(255, 255, 255, 0.13),
+      transparent 28%
+    );
+  pointer-events: none;
+}
+
+.dashboard-usage-card__body::after {
+  content: '';
+  position: absolute;
+  inset: auto -48px -72px auto;
+  width: 180px;
+  height: 180px;
+  border-radius: 999px;
+  z-index: -1;
+  background: rgba(255, 255, 255, 0.08);
+  pointer-events: none;
+}
+
+.dashboard-metric-cell,
+.dashboard-primary-metric {
+  display: flex;
+}
+
+.dashboard-health-pill {
+  --dashboard-health-dot: #5df0c0;
+  --dashboard-health-ring: rgba(93, 240, 192, 0.15);
+  height: 28px;
+  min-width: 0;
+  max-width: 100%;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 13px;
+  font-weight: 900;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+button.dashboard-health-pill {
+  border: 0;
+  cursor: default;
+  font: inherit;
+}
+
+.dashboard-health-pill.is-clickable {
+  cursor: pointer;
+  touch-action: manipulation;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease,
+    transform 0.16s ease;
+}
+
+.dashboard-health-pill:focus-visible,
+.dashboard-primary-metric:focus-visible,
+.dashboard-metric-cell:focus-visible,
+.dashboard-usage-action:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.62);
+  outline-offset: 2px;
+}
+
+.dashboard-health-pill span {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--dashboard-health-dot);
+  box-shadow: 0 0 0 4px var(--dashboard-health-ring);
+}
+
+.dashboard-health-pill.is-green {
+  color: rgba(255, 255, 255, 0.94);
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.dashboard-health-pill.is-blue {
+  --dashboard-health-dot: #93c5fd;
+  --dashboard-health-ring: rgba(147, 197, 253, 0.16);
+  color: rgba(255, 255, 255, 0.94);
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.dashboard-health-pill.is-amber {
+  --dashboard-health-dot: #ffd66b;
+  --dashboard-health-ring: rgba(255, 214, 107, 0.18);
+  color: #fff3c4;
+  background: rgba(255, 191, 0, 0.17);
+}
+
+.dashboard-health-pill.is-red {
+  --dashboard-health-dot: #ff8a8a;
+  --dashboard-health-ring: rgba(255, 138, 138, 0.18);
+  color: #ffe2e2;
+  background: rgba(255, 82, 82, 0.18);
+}
+
+.dashboard-usage-balance-row {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 18px;
+}
+
+.dashboard-usage-balance-status {
+  justify-self: end;
+}
+
+.dashboard-usage-side {
+  min-width: 128px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  margin-right: 8px;
+}
+
+.dashboard-rate-metrics {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 7px;
+}
+
+.dashboard-rate-metric {
+  min-width: 116px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: 9px;
+  padding: 7px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.11);
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.dashboard-rate-metric span {
+  color: rgba(255, 255, 255, 0.66);
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.dashboard-rate-metric strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-primary-metric {
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 0;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: default;
+  font: inherit;
+  text-align: left;
+}
+
+.dashboard-primary-metric.is-clickable {
+  cursor: pointer;
+  touch-action: manipulation;
+  transition:
+    background 0.18s ease,
+    transform 0.18s ease;
+}
+
+.dashboard-primary-metric.is-clickable:hover {
+  background: transparent;
+}
+
+.dashboard-primary-metric__label {
+  overflow: hidden;
+  color: var(--dashboard-usage-label-color);
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.25;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-primary-metric__value {
+  overflow: visible;
+  margin-top: 7px;
+  color: #fff;
+  font-size: 52px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.05;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-metric-value-line {
+  min-width: 0;
+  max-width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 5px;
+  overflow: visible;
+  vertical-align: baseline;
+}
+
+.dashboard-metric-value-line.has-trend {
+  width: 100%;
+}
+
+.dashboard-metric-value-number {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
+
+.dashboard-metric-trend-row {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  overflow: visible;
+}
+
+.dashboard-metric-trend {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-self: start;
+  gap: 3px;
+  max-width: 100%;
+  padding: 0;
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.84);
+  font-size: 13px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  white-space: nowrap;
+  animation: dashboardTrendChipUpdate 180ms ease-out;
+}
+
+.dashboard-primary-metric__value .dashboard-metric-trend {
+  font-size: 13px;
+}
+
+.dashboard-metric-trend svg {
+  flex: 0 0 auto;
+}
+
+.dashboard-metric-trend.is-up {
+  color: #b9ffef;
+  background: transparent;
+}
+
+.dashboard-metric-trend.is-down {
+  color: #ffd166;
+  background: transparent;
+  text-shadow: 0 1px 8px rgba(124, 45, 18, 0.36);
+}
+
+.dashboard-metric-trend.is-flat {
+  color: rgba(255, 255, 255, 0.7);
+  background: transparent;
+}
+
+@keyframes dashboardTrendChipUpdate {
+  from {
+    opacity: 0.7;
+    filter: brightness(1.18);
+  }
+
+  to {
+    opacity: 1;
+    filter: brightness(1);
+  }
+}
+
+.dashboard-primary-metric__description {
+  max-width: 320px;
+  margin-top: 6px;
+  color: var(--dashboard-usage-soft-color);
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.4;
+}
+
+.dashboard-secondary-metrics {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 2px;
+}
+
+.dashboard-metric-cell {
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 0;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  cursor: default;
+  font: inherit;
+  text-align: left;
+  transition:
+    background 0.18s ease,
+    transform 0.18s ease;
+}
+
+.dashboard-metric-cell:last-child {
+  border-right: 0;
+}
+
+.dashboard-metric-cell.is-clickable {
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.dashboard-metric-cell.is-clickable:hover {
+  background: transparent;
+}
+
+.dashboard-metric-card__label {
+  overflow: hidden;
+  color: var(--dashboard-usage-label-color);
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.25;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-metric-card__value {
+  overflow: hidden;
+  margin-top: 7px;
+  color: #fff;
+  font-size: 26px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.05;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-usage-actions {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  max-width: none;
+  margin-top: -1px;
+  padding: 0;
+  border-top: 0;
+  background: transparent;
+}
+
+.dashboard-usage-action {
+  box-sizing: border-box;
+  min-width: 0;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease,
+    transform 0.16s ease;
+}
+
+.dashboard-usage-action:last-child {
+  border-right: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.dashboard-usage-action:first-child {
+  border-color: rgba(255, 255, 255, 0.62);
+  background: #fff;
+  color: #2f55f4;
+}
+
+.dashboard-usage-action span {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-usage-card .dashboard-primary-metric,
+.dashboard-usage-card .dashboard-metric-cell,
+.dashboard-usage-card .dashboard-health-pill,
+.dashboard-usage-card .dashboard-usage-action,
+.dashboard-usage-card .dashboard-primary-metric__label,
+.dashboard-usage-card .dashboard-primary-metric__value,
+.dashboard-usage-card .dashboard-primary-metric__description,
+.dashboard-usage-card .dashboard-primary-metric__description span,
+.dashboard-usage-card .dashboard-metric-card__label,
+.dashboard-usage-card .dashboard-metric-card__value,
+.dashboard-usage-card .dashboard-metric-trend,
+.dashboard-usage-card .dashboard-metric-trend span,
+.dashboard-usage-card .dashboard-usage-action span {
+  font-weight: 900;
+}
+
+@media (hover: hover) {
+  .dashboard-health-pill.is-clickable:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: translateY(-1px);
+  }
+
+  .dashboard-usage-action:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: #fff;
+    transform: translateY(-1px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-health-pill.is-clickable,
+  .dashboard-primary-metric.is-clickable,
+  .dashboard-metric-cell,
+  .dashboard-usage-action {
+    transition: none;
+  }
+
+  .dashboard-health-pill.is-clickable:hover,
+  .dashboard-usage-action:hover {
+    transform: none;
+  }
+}
+
+@media (max-width: 1080px) {
+  .dashboard-primary-metric {
+    padding: 0;
+  }
+
+  .dashboard-primary-metric__value {
+    font-size: 44px;
+  }
+
+  .dashboard-metric-cell {
+    padding: 13px 14px;
+  }
+
+  .dashboard-metric-card__value {
+    font-size: 23px;
+  }
+}
+
+@media (min-width: 1081px) and (max-width: 1240px) {
+  .dashboard-usage-card__body {
+    gap: 15px;
+  }
+
+  .dashboard-secondary-metrics {
+    gap: 10px;
+  }
+
+  .dashboard-metric-card__value {
+    overflow: visible;
+    font-size: 25px;
+  }
+
+  .dashboard-metric-card__value .dashboard-metric-value-line {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+    align-items: start;
+  }
+
+  .dashboard-metric-card__value .dashboard-metric-value-line.has-trend {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dashboard-metric-card__value .dashboard-metric-trend {
+    justify-self: start;
+    font-size: 11px;
+  }
+
+  .dashboard-metric-card__value .dashboard-metric-trend svg {
+    width: 11px;
+    height: 11px;
+  }
+}
+
+@media (max-width: 1024px) {
+  .dashboard-usage-card {
+    height: auto;
+  }
+
+  .dashboard-usage-card__body {
+    min-height: 0;
+    gap: 15px;
+    padding: 24px;
+  }
+
+  .dashboard-usage-balance-row {
+    align-items: start;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 12px;
+  }
+
+  .dashboard-usage-balance-status {
+    justify-self: end;
+  }
+
+  .dashboard-usage-side {
+    min-width: 116px;
+  }
+
+  .dashboard-primary-metric {
+    min-height: auto;
+    padding: 0;
+    border-right: 0;
+    border-bottom: 0;
+  }
+
+  .dashboard-primary-metric__value {
+    margin-top: 10px;
+    font-size: 42px;
+  }
+
+  .dashboard-primary-metric__description {
+    max-width: none;
+    margin-top: 10px;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .dashboard-secondary-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    min-height: 0;
+  }
+
+  .dashboard-metric-cell {
+    min-height: auto;
+    gap: 0;
+    padding: 0;
+    border-right: 0;
+    border-bottom: 0;
+  }
+
+  .dashboard-metric-cell:last-child {
+    border-right: 0;
+  }
+
+  .dashboard-metric-card__label {
+    font-size: 12px;
+  }
+
+  .dashboard-metric-card__value {
+    margin-top: 7px;
+    font-size: 18px;
+    overflow: visible;
+  }
+
+  .dashboard-metric-card__value .dashboard-metric-value-line {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+    align-items: start;
+  }
+
+  .dashboard-metric-card__value .dashboard-metric-value-line.has-trend {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dashboard-metric-card__value .dashboard-metric-trend {
+    justify-self: start;
+    font-size: 10px;
+  }
+
+  .dashboard-metric-card__value .dashboard-metric-trend svg {
+    width: 10px;
+    height: 10px;
+  }
+
+  .dashboard-primary-metric__value .dashboard-metric-value-line {
+    gap: 6px;
+  }
+
+  .dashboard-primary-metric__value .dashboard-metric-trend {
+    font-size: 11px;
+  }
+
+  .dashboard-primary-metric__value .dashboard-metric-trend svg {
+    width: 11px;
+    height: 11px;
+  }
+
+  .dashboard-usage-actions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 1px;
+    padding: 0;
+  }
+
+  .dashboard-usage-action {
+    height: 36px;
+    padding: 0 8px;
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 420px) {
+  .dashboard-usage-card {
+    height: 260px;
+    min-height: 260px;
+  }
+
+  .dashboard-usage-card__body {
+    gap: 10px;
+    padding: 18px;
+  }
+
+  .dashboard-usage-balance-row {
+    gap: 10px;
+  }
+
+  .dashboard-usage-side {
+    min-width: 82px;
+    gap: 6px;
+    margin-right: 0;
+  }
+
+  .dashboard-rate-metrics {
+    width: 100%;
+    gap: 5px;
+  }
+
+  .dashboard-rate-metric {
+    min-width: 0;
+    gap: 5px;
+    padding: 5px 7px;
+    border-radius: 9px;
+  }
+
+  .dashboard-rate-metric span {
+    font-size: 10px;
+  }
+
+  .dashboard-rate-metric strong {
+    font-size: 12px;
+  }
+
+  .dashboard-health-pill {
+    height: 26px;
+    padding: 0 9px;
+    font-size: 12px;
+  }
+
+  .dashboard-primary-metric__value {
+    margin-top: 6px;
+    font-size: 36px;
+  }
+
+  .dashboard-primary-metric__description {
+    margin-top: 5px;
+    font-size: 12px;
+    line-height: 1.28;
+  }
+
+  .dashboard-secondary-metrics {
+    gap: 7px;
+  }
+
+  .dashboard-metric-card__label {
+    font-size: 11px;
+  }
+
+  .dashboard-metric-card__value {
+    margin-top: 5px;
+    font-size: 17px;
+  }
+
+  .dashboard-usage-actions {
+    gap: 7px;
+  }
+
+  .dashboard-usage-action {
+    height: 32px;
+    min-width: 0;
+    padding: 0 6px;
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 360px) {
+  .dashboard-time-range .semi-button {
+    padding: 0 2px;
+  }
+
+  .dashboard-usage-card {
+    height: 248px;
+    min-height: 248px;
+  }
+
+  .dashboard-usage-card__body {
+    gap: 8px;
+    padding: 16px;
+  }
+
+  .dashboard-usage-side {
+    min-width: 78px;
+  }
+
+  .dashboard-rate-metric {
+    padding: 4px 6px;
+  }
+
+  .dashboard-primary-metric__value {
+    font-size: 32px;
+  }
+
+  .dashboard-secondary-metrics,
+  .dashboard-usage-actions {
+    gap: 6px;
+  }
+
+  .dashboard-metric-card__label {
+    font-size: 11px;
+  }
+
+  .dashboard-metric-card__value {
+    font-size: 16px;
+  }
+
+  .dashboard-usage-action {
+    height: 30px;
+    font-size: 12px;
   }
 }
 

@@ -86,6 +86,47 @@ export const getDashboardTimeRange = (rangeKey = 'today') => {
   };
 };
 
+export const getDashboardComparisonRange = (
+  rangeKey,
+  startTimestamp,
+  endTimestamp,
+) => {
+  const start = Number(startTimestamp);
+  const end = Number(endTimestamp);
+
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
+    return null;
+  }
+
+  if (rangeKey === 'today') {
+    return {
+      startTimestamp: start - 86400,
+      endTimestamp: end - 86400,
+    };
+  }
+
+  const duration = end - start;
+  return {
+    startTimestamp: start - duration,
+    endTimestamp: start,
+  };
+};
+
+export const summarizeDashboardQuotaData = (data = []) =>
+  data.reduce(
+    (summary, item) => {
+      summary.quota += Number(item?.quota || 0);
+      summary.times += Number(item?.count || 0);
+      summary.tokens += Number(item?.token_used || 0);
+      return summary;
+    },
+    {
+      quota: 0,
+      times: 0,
+      tokens: 0,
+    },
+  );
+
 export const getTimeInterval = (timeType, isSeconds = false) => {
   const intervals =
     DEFAULT_TIME_INTERVALS[timeType] || DEFAULT_TIME_INTERVALS.hour;
@@ -98,70 +139,6 @@ export const getInitialTimestamp = () => {
 
 export const getInitialEndTimestamp = () => {
   return getDashboardTimeRange('today').end_timestamp;
-};
-
-export const shouldUseDashboardMockCharts = () =>
-  localStorage.getItem('dashboard_mock_charts') === 'true' ||
-  new URLSearchParams(window.location.search).get('dashboard_mock_charts') ===
-    'true';
-
-export const generateDashboardMockQuotaData = (
-  startTimestamp,
-  endTimestamp,
-  timeType = 'hour',
-) => {
-  const models = [
-    { name: 'gpt-4o-mini', weight: 1, quotaBase: 240, tokenBase: 13200 },
-    {
-      name: 'claude-3-5-sonnet',
-      weight: 0.74,
-      quotaBase: 410,
-      tokenBase: 9400,
-    },
-    {
-      name: 'gemini-2.0-flash',
-      weight: 0.58,
-      quotaBase: 180,
-      tokenBase: 16800,
-    },
-    { name: 'deepseek-chat', weight: 0.42, quotaBase: 96, tokenBase: 7200 },
-  ];
-  const safeStart = Number(startTimestamp) || getTodayStartTimestamp();
-  const safeEnd = Number(endTimestamp) || getNowTimestamp();
-  const interval = getTimeInterval(timeType, true);
-  const pointCount = Math.max(
-    7,
-    Math.min(12, Math.floor((safeEnd - safeStart) / interval) + 1),
-  );
-  const lastPoint = Math.max(safeEnd, safeStart + interval * (pointCount - 1));
-
-  return Array.from({ length: pointCount }).flatMap((_, pointIndex) => {
-    const createdAt = lastPoint - (pointCount - 1 - pointIndex) * interval;
-    const dayCurve =
-      0.76 + Math.sin((pointIndex / pointCount) * Math.PI) * 0.55;
-    const pulse = pointIndex % 4 === 2 ? 1.22 : 1;
-
-    return models.map((model, modelIndex) => {
-      const drift = 0.82 + ((pointIndex + modelIndex * 2) % 5) * 0.09;
-      const count = Math.max(
-        1,
-        Math.round((18 + pointIndex * 2.4) * model.weight * dayCurve * pulse),
-      );
-      const tokenUsed = Math.round(
-        model.tokenBase * model.weight * dayCurve * drift,
-      );
-      const quota = Math.round(model.quotaBase * count * drift);
-
-      return {
-        __dashboardMock: true,
-        count,
-        created_at: createdAt,
-        model_name: model.name,
-        quota,
-        token_used: tokenUsed,
-      };
-    });
-  });
 };
 
 // ========== 数据处理工具函数 ==========

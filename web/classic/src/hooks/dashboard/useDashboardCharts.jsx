@@ -50,6 +50,13 @@ const USER_COLORS = [
   '#14b8a6',
 ];
 
+const CHART_PADDING = {
+  top: 8,
+  right: 10,
+  bottom: 8,
+  left: 8,
+};
+
 export const useDashboardCharts = (
   dataExportDefaultTime,
   setTrendData,
@@ -64,6 +71,7 @@ export const useDashboardCharts = (
   // ========== 图表规格状态 ==========
   const [spec_pie, setSpecPie] = useState({
     type: 'pie',
+    padding: CHART_PADDING,
     data: [
       {
         id: 'id0',
@@ -99,10 +107,11 @@ export const useDashboardCharts = (
     },
     legends: {
       visible: true,
-      orient: 'left',
+      orient: 'bottom',
+      position: 'middle',
     },
     label: {
-      visible: true,
+      visible: false,
     },
     tooltip: {
       mark: {
@@ -121,6 +130,7 @@ export const useDashboardCharts = (
 
   const [spec_line, setSpecLine] = useState({
     type: 'bar',
+    padding: CHART_PADDING,
     data: [
       {
         id: 'barData',
@@ -195,6 +205,7 @@ export const useDashboardCharts = (
 
   const [spec_model_line, setSpecModelLine] = useState({
     type: 'line',
+    padding: CHART_PADDING,
     data: [
       {
         id: 'lineData',
@@ -253,6 +264,7 @@ export const useDashboardCharts = (
 
   const [spec_rank_bar, setSpecRankBar] = useState({
     type: 'bar',
+    padding: CHART_PADDING,
     data: [
       {
         id: 'rankData',
@@ -297,6 +309,10 @@ export const useDashboardCharts = (
   // ========== Admin: 用户消耗排行 ==========
   const [spec_user_rank, setSpecUserRank] = useState({
     type: 'bar',
+    padding: {
+      ...CHART_PADDING,
+      right: 34,
+    },
     data: [{ id: 'userRankData', values: [] }],
     xField: 'rawQuota',
     yField: 'User',
@@ -344,6 +360,7 @@ export const useDashboardCharts = (
   // ========== Admin: 用户消耗趋势 ==========
   const [spec_user_trend, setSpecUserTrend] = useState({
     type: 'area',
+    padding: CHART_PADDING,
     data: [{ id: 'userTrendData', values: [] }],
     xField: 'Time',
     yField: 'rawQuota',
@@ -416,7 +433,6 @@ export const useDashboardCharts = (
 
   const updateChartData = useCallback(
     (data) => {
-      const isMockChartData = data.some((item) => item?.__dashboardMock);
       const processedData = processRawData(
         data,
         dataExportDefaultTime,
@@ -562,10 +578,6 @@ export const useDashboardCharts = (
         'rankData',
       );
 
-      if (isMockChartData) {
-        return;
-      }
-
       setPieData(newPieData);
       setLineData(newLineData);
       setConsumeQuota(totalQuota);
@@ -652,4 +664,3 @@ export const useDashboardCharts = (
     generateModelColors,
   };
 };
-

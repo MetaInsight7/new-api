@@ -19,12 +19,14 @@ For commercial licensing, please contact support@quantumnous.com
 
 import { useMemo } from 'react';
 import { renderQuota } from '../../helpers';
+import { formatDashboardTokenMetric } from '../../helpers/dashboardFormat';
 
 const getQuotaWarningThreshold = (user) => {
   try {
     const setting = JSON.parse(user?.setting || '{}');
     return Number(setting.quota_warning_threshold || 500000);
-  } catch (_) {
+  } catch (e) {
+    console.error('Failed to parse quota_warning_threshold:', e);
     return 500000;
   }
 };
@@ -46,13 +48,50 @@ const getBalanceCaption = (user, t) => {
   return { text: t('可正常调用'), tone: 'green' };
 };
 
+const formatTrendPercent = (percent) => {
+  const absPercent = Math.abs(percent);
+  const digits = absPercent >= 10 ? 0 : 1;
+  const prefix = percent > 0 ? '+' : percent < 0 ? '-' : '';
+  return `${prefix}${absPercent.toFixed(digits)}%`;
+};
+
+const getMetricTrend = (currentValue, previousValue, t) => {
+  const current = Number(currentValue || 0);
+  const previous = Number(previousValue || 0);
+
+  if (
+    !Number.isFinite(current) ||
+    !Number.isFinite(previous) ||
+    previous <= 0
+  ) {
+    return null;
+  }
+
+  const percent = ((current - previous) / previous) * 100;
+  if (!Number.isFinite(percent)) {
+    return null;
+  }
+
+  const direction =
+    Math.abs(percent) < 0.05 ? 'flat' : percent > 0 ? 'up' : 'down';
+  const value = direction === 'flat' ? '0%' : formatTrendPercent(percent);
+
+  return {
+    direction,
+    value,
+    label: `${t('较上一周期')} ${value}`,
+  };
+};
+
 export const useDashboardStats = (
   userState,
   consumeQuota,
   consumeTokens,
   times,
   recentTokens,
+  comparisonSummary,
   adminUsageSummary,
+  selectedAdminUser,
   activeTimeRange,
   isAdminUser,
   adminUsername,
@@ -64,6 +103,24 @@ export const useDashboardStats = (
   const balanceCaption = getBalanceCaption(user, t);
   const trimmedAdminUsername = String(adminUsername || '').trim();
   const hasAdminUserFilter = Boolean(trimmedAdminUsername);
+  const hasSelectedAdminUser =
+    hasAdminUserFilter && selectedAdminUser?.username === trimmedAdminUsername;
+  const metricTrends = useMemo(
+    () => ({
+      quota: getMetricTrend(consumeQuota, comparisonSummary?.quota, t),
+      times: getMetricTrend(times, comparisonSummary?.times, t),
+      tokens: getMetricTrend(consumeTokens, comparisonSummary?.tokens, t),
+    }),
+    [
+      comparisonSummary?.quota,
+      comparisonSummary?.times,
+      comparisonSummary?.tokens,
+      consumeQuota,
+      consumeTokens,
+      times,
+      t,
+    ],
+  );
   const activeUsers = hasAdminUserFilter
     ? Number(times || 0) > 0 ||
       Number(consumeQuota || 0) > 0 ||
@@ -86,33 +143,51 @@ export const useDashboardStats = (
           icon: 'coins',
           tone: 'amber',
           captionTone: 'amber',
+          trend: metricTrends.quota,
         },
         {
           title: hasAdminUserFilter ? t('请求') : t('全站请求'),
           value: Number(times || 0).toLocaleString(),
           caption: `${t('平均RPM')} ${performanceMetrics?.avgRPM || '0'}`,
+          rateLabel: 'RPM',
+          rateValue: performanceMetrics?.avgRPM || '0',
           icon: 'activity',
           tone: 'green',
           captionTone: 'green',
+          trend: metricTrends.times,
         },
         {
           title: hasAdminUserFilter ? t('Tokens') : t('全站 Tokens'),
-          value: isNaN(consumeTokens)
-            ? 0
-            : Number(consumeTokens).toLocaleString(),
+          value: formatDashboardTokenMetric(consumeTokens),
           caption: `${t('平均TPM')} ${performanceMetrics?.avgTPM || '0'}`,
+          rateLabel: 'TPM',
+          rateValue: performanceMetrics?.avgTPM || '0',
           icon: 'tokens',
           tone: 'cyan',
           captionTone: 'cyan',
+          trend: metricTrends.tokens,
         },
-        {
-          title: t('活跃用户'),
-          value: activeUsers.toLocaleString(),
-          caption: t('当前范围有调用记录'),
-          icon: 'users',
-          tone: 'blue',
-          captionTone: 'green',
-        },
+        hasAdminUserFilter
+          ? {
+              title: t('当前余额'),
+              value: hasSelectedAdminUser
+                ? renderQuota(selectedAdminUser?.quota)
+                : '--',
+              caption: hasSelectedAdminUser
+                ? `${t('历史消耗')} ${renderQuota(selectedAdminUser?.used_quota || 0)}`
+                : t('暂无数据'),
+              icon: 'wallet',
+              tone: 'blue',
+              captionTone: hasSelectedAdminUser ? 'green' : 'amber',
+            }
+          : {
+              title: t('活跃用户'),
+              value: activeUsers.toLocaleString(),
+              caption: t('当前范围有调用记录'),
+              icon: 'users',
+              tone: 'blue',
+              captionTone: 'green',
+            },
       ];
     }
 
@@ -121,13 +196,11 @@ export const useDashboardStats = (
       {
         title: t('当前余额'),
         value: renderQuota(user?.quota),
-        caption: t('点击进入充值'),
         statusText: balanceCaption.text,
         statusTone: balanceCaption.tone,
         icon: 'wallet',
         tone: 'blue',
         captionTone: balanceCaption.tone,
-        onClick: () => navigate('/console/topup'),
       },
       {
         title: isTodayRange ? t('今日消耗') : t('消耗'),
@@ -136,6 +209,7 @@ export const useDashboardStats = (
         icon: 'coins',
         tone: 'amber',
         captionTone: 'amber',
+        trend: metricTrends.quota,
       },
       {
         title: isTodayRange ? t('今日请求') : t('请求'),
@@ -144,16 +218,16 @@ export const useDashboardStats = (
         icon: 'activity',
         tone: 'green',
         captionTone: 'green',
+        trend: metricTrends.times,
       },
       {
         title: isTodayRange ? t('今日 Tokens') : t('Tokens'),
-        value: isNaN(consumeTokens)
-          ? 0
-          : Number(consumeTokens).toLocaleString(),
-        caption: `${t('近 30 天 Tokens')} ${Number(recentTokens || 0).toLocaleString()}`,
+        value: formatDashboardTokenMetric(consumeTokens),
+        caption: `${t('近 30 天 Tokens')} ${formatDashboardTokenMetric(recentTokens)}`,
         icon: 'tokens',
         tone: 'cyan',
         captionTone: 'cyan',
+        trend: metricTrends.tokens,
       },
     ];
   }, [
@@ -162,11 +236,18 @@ export const useDashboardStats = (
     balanceCaption.text,
     balanceCaption.tone,
     hasAdminUserFilter,
+    hasSelectedAdminUser,
     isAdminUser,
+    selectedAdminUser?.quota,
+    selectedAdminUser?.used_quota,
+    selectedAdminUser?.username,
     trimmedAdminUsername,
     user?.quota,
     user?.used_quota,
     user?.request_count,
+    metricTrends.quota,
+    metricTrends.times,
+    metricTrends.tokens,
     times,
     consumeQuota,
     consumeTokens,
@@ -177,8 +258,49 @@ export const useDashboardStats = (
     t,
   ]);
 
+  const quickActions = useMemo(() => {
+    if (isAdminUser) {
+      return [
+        {
+          label: t('用户管理'),
+          icon: 'users',
+          onClick: () => navigate('/console/user'),
+        },
+        {
+          label: t('渠道管理'),
+          icon: 'channels',
+          onClick: () => navigate('/console/channel'),
+        },
+        {
+          label: t('使用日志'),
+          icon: 'logs',
+          onClick: () => navigate('/console/log'),
+        },
+      ];
+    }
+
+    return [
+      {
+        label: t('充值'),
+        icon: 'topup',
+        onClick: () => navigate('/console/topup'),
+      },
+      {
+        label: t('令牌管理'),
+        icon: 'keys',
+        onClick: () => navigate('/console/token'),
+      },
+      {
+        label: t('使用日志'),
+        icon: 'logs',
+        onClick: () => navigate('/console/log'),
+      },
+    ];
+  }, [isAdminUser, navigate, t]);
+
   return {
     statsData,
+    quickActions,
     summaryTitle: isAdminUser
       ? hasAdminUserFilter
         ? t('筛选用户概览')
