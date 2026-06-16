@@ -1,0 +1,29 @@
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  bin = "./tmp/main.exe"
+  cmd = "go build -o ./tmp/main.exe ."
+  delay = 1000
+  exclude_dir = ["assets", "tmp", "vendor", "web", "node_modules", "docs", "bin"]
+  exclude_file = []
+  exclude_regex = ["_test\\.go$"]
+  exclude_unchanged = true
+  follow_symlink = true
+  full_bin = "./tmp/main.exe"
+  include_dir = []
+  include_ext = ["go", "tpl", "tmpl", "html", "env"]
+  kill_delay = "0s"
+  send_interrupt = false
+
+[log]
+  time = false
+
+[color]
+  main = "magenta"
+  watcher = "cyan"
+  build = "yellow"
+  runner = "green"
+
+[misc]
+  clean_on_exit = true
