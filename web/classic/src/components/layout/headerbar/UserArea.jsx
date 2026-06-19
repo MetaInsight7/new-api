@@ -35,6 +35,7 @@ const UserArea = ({
   isLoading,
   isMobile,
   isSelfUseMode,
+  pathname = '',
   logout,
   navigate,
   t,
@@ -143,19 +144,45 @@ const UserArea = ({
     );
   } else {
     const showRegisterButton = !isSelfUseMode;
+    const isLoginRoute = pathname.startsWith('/login');
+    const isRegisterRoute = pathname.startsWith('/register');
+    const isAuthRoute = isLoginRoute || isRegisterRoute;
+    const isLoginActive = isLoginRoute;
+    const isRegisterActive = isAuthRoute ? isRegisterRoute : true;
 
     const commonSizingAndLayoutClass =
       'flex items-center justify-center !py-[10px] !px-1.5';
 
-    const loginButtonSpecificStyling =
+    const activeButtonSpecificStyling =
+      '!bg-[#6c3ff5] hover:!bg-[#5c34d8] dark:!bg-[#6c3ff5] dark:hover:!bg-[#7a52f6]';
+    const inactiveButtonSpecificStyling =
       '!bg-semi-color-fill-0 dark:!bg-semi-color-fill-1 hover:!bg-semi-color-fill-1 dark:hover:!bg-gray-700 transition-colors';
-    let loginButtonClasses = `${commonSizingAndLayoutClass} ${loginButtonSpecificStyling}`;
+    let loginButtonClasses = `${commonSizingAndLayoutClass} ${
+      isLoginActive
+        ? activeButtonSpecificStyling
+        : inactiveButtonSpecificStyling
+    }`;
+    let registerButtonClasses = `${commonSizingAndLayoutClass} ${
+      isRegisterActive
+        ? activeButtonSpecificStyling
+        : inactiveButtonSpecificStyling
+    }`;
 
-    let registerButtonClasses = `${commonSizingAndLayoutClass}`;
+    const getButtonTextClass = (isActive) =>
+      `!text-xs !p-1.5 ${
+        isActive
+          ? '!text-white dark:!text-white'
+          : '!text-semi-color-text-1 dark:!text-gray-300'
+      }`;
+    const rememberAuthPointer = (event) => {
+      if (typeof window === 'undefined') return;
 
-    const loginButtonTextSpanClass =
-      '!text-xs !text-semi-color-text-1 dark:!text-gray-300 !p-1.5';
-    const registerButtonTextSpanClass = '!text-xs !text-white !p-1.5';
+      window.__newApiAuthPointer = {
+        x: event.clientX,
+        y: event.clientY,
+        animateOnAuthEnter: !isAuthRoute,
+      };
+    };
 
     if (showRegisterButton) {
       if (isMobile) {
@@ -170,24 +197,34 @@ const UserArea = ({
 
     return (
       <div className='flex items-center'>
-        <Link to='/login' className='flex'>
+        <Link to='/login' className='flex' onPointerDown={rememberAuthPointer}>
           <Button
-            theme='borderless'
-            type='tertiary'
+            theme={isLoginActive ? 'solid' : 'borderless'}
+            type={isLoginActive ? 'primary' : 'tertiary'}
             className={loginButtonClasses}
+            aria-current={isLoginActive ? 'page' : undefined}
           >
-            <span className={loginButtonTextSpanClass}>{t('登录')}</span>
+            <span className={getButtonTextClass(isLoginActive)}>
+              {t('登录')}
+            </span>
           </Button>
         </Link>
         {showRegisterButton && (
           <div className='hidden md:block'>
-            <Link to='/register' className='flex -ml-px'>
+            <Link
+              to='/register'
+              className='flex -ml-px'
+              onPointerDown={rememberAuthPointer}
+            >
               <Button
-                theme='solid'
-                type='primary'
+                theme={isRegisterActive ? 'solid' : 'borderless'}
+                type={isRegisterActive ? 'primary' : 'tertiary'}
                 className={registerButtonClasses}
+                aria-current={isRegisterActive ? 'page' : undefined}
               >
-                <span className={registerButtonTextSpanClass}>{t('注册')}</span>
+                <span className={getButtonTextClass(isRegisterActive)}>
+                  {t('注册')}
+                </span>
               </Button>
             </Link>
           </div>
