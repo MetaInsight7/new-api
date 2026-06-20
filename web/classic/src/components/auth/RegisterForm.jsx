@@ -555,6 +555,7 @@ const RegisterForm = () => {
             label={t('用户名')}
             placeholder={t('请输入用户名')}
             name='username'
+            autoComplete='username'
             onChange={(value) => handleChange('username', value)}
             prefix={<IconUser />}
           />
@@ -565,6 +566,7 @@ const RegisterForm = () => {
             placeholder={t('输入密码，最短 8 位，最长 20 位')}
             name='password'
             mode='password'
+            autoComplete='new-password'
             onChange={(value) => handleChange('password', value)}
             prefix={<IconLock />}
           />
@@ -575,6 +577,7 @@ const RegisterForm = () => {
             placeholder={t('确认密码')}
             name='password2'
             mode='password'
+            autoComplete='new-password'
             onChange={(value) => handleChange('password2', value)}
             prefix={<IconLock />}
           />
@@ -587,6 +590,7 @@ const RegisterForm = () => {
                 placeholder={t('输入邮箱地址')}
                 name='email'
                 type='email'
+                autoComplete='email'
                 onChange={(value) => handleChange('email', value)}
                 prefix={<IconMail />}
                 suffix={
@@ -606,6 +610,7 @@ const RegisterForm = () => {
                 label={t('验证码')}
                 placeholder={t('输入验证码')}
                 name='verification_code'
+                autoComplete='one-time-code'
                 onChange={(value) => handleChange('verification_code', value)}
                 prefix={<IconKey />}
               />
@@ -728,6 +733,7 @@ const RegisterForm = () => {
             placeholder={t('验证码')}
             label={t('验证码')}
             value={inputs.wechat_verification_code}
+            autoComplete='one-time-code'
             onChange={(value) =>
               handleChange('wechat_verification_code', value)
             }

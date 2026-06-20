@@ -729,6 +729,7 @@ const LoginForm = () => {
             label={t('用户名或邮箱')}
             placeholder={t('请输入您的用户名或邮箱地址')}
             name='username'
+            autoComplete='username'
             onChange={(value) => handleChange('username', value)}
             prefix={<IconMail />}
           />
@@ -751,6 +752,7 @@ const LoginForm = () => {
             placeholder={t('请输入您的密码')}
             name='password'
             mode='password'
+            autoComplete='current-password'
             onChange={(value) => handleChange('password', value)}
             prefix={<IconLock />}
           />
@@ -874,6 +876,7 @@ const LoginForm = () => {
             placeholder={t('验证码')}
             label={t('验证码')}
             value={inputs.wechat_verification_code}
+            autoComplete='one-time-code'
             onChange={(value) =>
               handleChange('wechat_verification_code', value)
             }
