@@ -355,6 +355,21 @@ const RegisterForm = () => {
     setOtherRegisterOptionsLoading(false);
   };
 
+  const renderTurnstile = () => {
+    if (!turnstileEnabled) return null;
+
+    return (
+      <div className='auth-turnstile auth-turnstile-inline'>
+        <Turnstile
+          sitekey={turnstileSiteKey}
+          onVerify={(token) => {
+            setTurnstileToken(token);
+          }}
+        />
+      </div>
+    );
+  };
+
   const onTelegramLoginClicked = async (response) => {
     const fields = [
       'id',
@@ -507,6 +522,8 @@ const RegisterForm = () => {
             {t('或')}
           </Divider>
 
+          {renderTurnstile()}
+
           <Button
             theme='solid'
             type='primary'
@@ -633,6 +650,8 @@ const RegisterForm = () => {
             </div>
           )}
 
+          {renderTurnstile()}
+
           <div className='pt-2'>
             <Button
               theme='solid'
@@ -724,17 +743,6 @@ const RegisterForm = () => {
         ? renderEmailRegisterForm()
         : renderOAuthOptions()}
       {renderWeChatLoginModal()}
-
-      {turnstileEnabled && (
-        <div className='auth-turnstile'>
-          <Turnstile
-            sitekey={turnstileSiteKey}
-            onVerify={(token) => {
-              setTurnstileToken(token);
-            }}
-          />
-        </div>
-      )}
     </AuthLayout>
   );
 };

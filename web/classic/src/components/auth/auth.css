@@ -193,6 +193,10 @@
   width: 100%;
 }
 
+.auth-turnstile-inline {
+  margin-top: 0;
+}
+
 .auth-mascot {
   position: relative;
   width: 550px;

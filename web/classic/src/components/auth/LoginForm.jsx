@@ -499,6 +499,21 @@ const LoginForm = () => {
     setInputs({ username: '', password: '', wechat_verification_code: '' });
   };
 
+  const renderTurnstile = () => {
+    if (!turnstileEnabled) return null;
+
+    return (
+      <div className='auth-turnstile auth-turnstile-inline'>
+        <Turnstile
+          sitekey={turnstileSiteKey}
+          onVerify={(token) => {
+            setTurnstileToken(token);
+          }}
+        />
+      </div>
+    );
+  };
+
   const renderOAuthOptions = () => {
     return (
       <div className='auth-form-shell'>
@@ -628,6 +643,8 @@ const LoginForm = () => {
           <Divider className='auth-divider' margin='16px' align='center'>
             {t('或')}
           </Divider>
+
+          {renderTurnstile()}
 
           <Button
             theme='solid'
@@ -776,6 +793,8 @@ const LoginForm = () => {
             </div>
           )}
 
+          {renderTurnstile()}
+
           <div className='pt-2'>
             <Button
               theme='solid'
@@ -908,17 +927,6 @@ const LoginForm = () => {
         : renderOAuthOptions()}
       {renderWeChatLoginModal()}
       {render2FAModal()}
-
-      {turnstileEnabled && (
-        <div className='auth-turnstile'>
-          <Turnstile
-            sitekey={turnstileSiteKey}
-            onVerify={(token) => {
-              setTurnstileToken(token);
-            }}
-          />
-        </div>
-      )}
     </AuthLayout>
   );
 };
