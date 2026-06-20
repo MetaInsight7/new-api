@@ -80,7 +80,7 @@
 }
 
 .auth-minimal-form .semi-input-wrapper {
-  height: 34px;
+  height: 40px;
   border: 1px solid #e6e6e8;
   border-radius: 999px;
   background: #fff;
@@ -104,7 +104,8 @@
 .auth-minimal-form .semi-input-wrapper .semi-input,
 .auth-minimal-form .semi-input-wrapper input {
   color: #151515;
-  font-size: 14px;
+  font-size: 16px;
+  line-height: 24px;
 }
 
 .auth-minimal-form .semi-input-wrapper .semi-input::placeholder,
@@ -116,8 +117,9 @@
 .auth-secondary-button.semi-button,
 .auth-oauth-button.semi-button {
   width: 100%;
-  height: 34px;
+  height: 44px;
   border-radius: 999px !important;
+  font-size: 16px;
   font-weight: 700;
 }
 
@@ -391,21 +393,5 @@
 
   .auth-form-panel {
     padding: 48px 24px;
-  }
-
-  .auth-minimal-form .semi-input-wrapper {
-    height: 40px;
-  }
-
-  .auth-minimal-form .semi-input-wrapper .semi-input,
-  .auth-minimal-form .semi-input-wrapper input {
-    font-size: 16px;
-    line-height: 24px;
-  }
-
-  .auth-primary-button.semi-button,
-  .auth-secondary-button.semi-button,
-  .auth-oauth-button.semi-button {
-    height: 42px;
   }
 }
