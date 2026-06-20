@@ -65,6 +65,7 @@ import TwoFAVerification from './TwoFAVerification';
 import { useTranslation } from 'react-i18next';
 import { SiDiscord } from 'react-icons/si';
 import AuthLayout from './AuthLayout';
+import { AuthButtonContent, AuthFormHeader } from './AuthFormVisuals';
 
 const LoginForm = () => {
   let navigate = useNavigate();
@@ -516,8 +517,12 @@ const LoginForm = () => {
 
   const renderOAuthOptions = () => {
     return (
-      <div className='auth-form-shell'>
-        <h2 className='auth-title'>{t('登录')}</h2>
+      <div className='auth-form-shell' key='login-options'>
+        <AuthFormHeader
+          title={t('欢迎回到 {{name}}', { name: systemName })}
+          subtitle={t('模型已连好，等你把想法跑起来。')}
+          logo={logo}
+        />
         <div className='space-y-3'>
           {status.wechat_login && (
             <Button
@@ -654,7 +659,9 @@ const LoginForm = () => {
             onClick={handleEmailLoginClick}
             loading={emailLoginLoading}
           >
-            <span className='ml-3'>{t('使用 邮箱或用户名 登录')}</span>
+            <AuthButtonContent icon='mail'>
+              <span className='ml-3'>{t('使用 邮箱或用户名 登录')}</span>
+            </AuthButtonContent>
           </Button>
         </div>
 
@@ -699,7 +706,8 @@ const LoginForm = () => {
         {!status.self_use_mode_enabled && (
           <div className='auth-copy-row'>
             <Text>
-              {t('没有账户？')} <Link to='/register'>{t('注册')}</Link>
+              {t('还没有 Token 搭子？')}{' '}
+              <Link to='/register'>{t('马上注册')}</Link>
             </Text>
           </div>
         )}
@@ -709,8 +717,12 @@ const LoginForm = () => {
 
   const renderEmailLoginForm = () => {
     return (
-      <div className='auth-form-shell'>
-        <h2 className='auth-title'>{t('登录')}</h2>
+      <div className='auth-form-shell' key='login-email'>
+        <AuthFormHeader
+          title={t('欢迎回到 {{name}}', { name: systemName })}
+          subtitle={t('模型已连好，等你把想法跑起来。')}
+          logo={logo}
+        />
         {status.passkey_login && passkeySupported && (
           <Button
             theme='outline'
@@ -726,6 +738,7 @@ const LoginForm = () => {
         <Form className='auth-minimal-form space-y-4'>
           <Form.Input
             field='username'
+            noLabel
             label={t('用户名或邮箱')}
             placeholder={t('请输入您的用户名或邮箱地址')}
             name='username'
@@ -736,19 +749,8 @@ const LoginForm = () => {
 
           <Form.Input
             field='password'
-            label={
-              <div className='auth-field-label-row'>
-                <span>{t('密码')}</span>
-                <button
-                  type='button'
-                  className='auth-inline-action'
-                  onClick={handleResetPasswordClick}
-                  disabled={resetPasswordLoading}
-                >
-                  {t('忘记密码？')}
-                </button>
-              </div>
-            }
+            noLabel
+            label={t('密码')}
             placeholder={t('请输入您的密码')}
             name='password'
             mode='password'
@@ -756,6 +758,17 @@ const LoginForm = () => {
             onChange={(value) => handleChange('password', value)}
             prefix={<IconLock />}
           />
+
+          <div className='auth-field-action-row'>
+            <button
+              type='button'
+              className='auth-inline-action'
+              onClick={handleResetPasswordClick}
+              disabled={resetPasswordLoading}
+            >
+              {t('忘记密码？')}
+            </button>
+          </div>
 
           {(hasUserAgreement || hasPrivacyPolicy) && (
             <div className='auth-terms'>
@@ -809,7 +822,7 @@ const LoginForm = () => {
                 (hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms
               }
             >
-              {t('登录')}
+              <AuthButtonContent>{t('开启 Token 搭子之旅')}</AuthButtonContent>
             </Button>
           </div>
         </Form>
@@ -837,7 +850,8 @@ const LoginForm = () => {
         {!status.self_use_mode_enabled && (
           <div className='auth-copy-row'>
             <Text>
-              {t('没有账户？')} <Link to='/register'>{t('注册')}</Link>
+              {t('还没有 Token 搭子？')}{' '}
+              <Link to='/register'>{t('马上注册')}</Link>
             </Text>
           </div>
         )}

@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" role="img" aria-labelledby="title desc">
+  <title id="title">Token Dazi logo</title>
+  <desc id="desc">Four friendly Token Dazi characters.</desc>
+  <defs>
+    <linearGradient id="violetBody" x1="56" y1="14" x2="101" y2="151" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#835FFF"/>
+      <stop offset="1" stop-color="#6C3FF5"/>
+    </linearGradient>
+    <linearGradient id="coralBody" x1="30" y1="82" x2="90" y2="153" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFB188"/>
+      <stop offset="1" stop-color="#FF8D5B"/>
+    </linearGradient>
+    <linearGradient id="sunBody" x1="110" y1="70" x2="156" y2="153" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F3E366"/>
+      <stop offset="1" stop-color="#E8D754"/>
+    </linearGradient>
+  </defs>
+
+  <g>
+    <path fill="url(#violetBody)" d="M58 36c0-15.5 12.5-28 28-28s28 12.5 28 28v121H58V36Z"/>
+    <path fill="#2D2D2D" d="M105 57c0-13.8 11.2-25 25-25s25 11.2 25 25v100h-50V57Z"/>
+    <path fill="url(#coralBody)" d="M24 117c0-24.3 19.7-44 44-44s44 19.7 44 44v40H24v-40Z"/>
+    <path fill="url(#sunBody)" d="M117 101c0-19.9 16.1-36 36-36s36 16.1 36 36v56h-72v-56Z" transform="translate(-20)"/>
+  </g>
+
+  <g fill="#FFFFFF">
+    <circle cx="78" cy="48" r="8"/>
+    <circle cx="102" cy="48" r="8"/>
+    <circle cx="121" cy="58" r="6"/>
+    <circle cx="139" cy="58" r="6"/>
+  </g>
+
+  <g fill="#2D2D2D">
+    <circle cx="80" cy="48" r="3.4"/>
+    <circle cx="104" cy="48" r="3.4"/>
+    <circle cx="123" cy="58" r="2.7"/>
+    <circle cx="141" cy="58" r="2.7"/>
+    <circle cx="55" cy="113" r="5.6"/>
+    <circle cx="79" cy="113" r="5.6"/>
+    <circle cx="133" cy="101" r="4.8"/>
+    <circle cx="151" cy="101" r="4.8"/>
+  </g>
+</svg>

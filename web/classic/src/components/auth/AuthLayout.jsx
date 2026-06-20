@@ -503,9 +503,11 @@ const AuthMascot = () => {
   );
 };
 
-const AuthLayout = ({ children }) => {
+const AuthLayout = ({ children, compactMobile = false }) => {
   return (
-    <div className='classic-page-fill auth-page'>
+    <div
+      className={`classic-page-fill auth-page${compactMobile ? ' auth-page-compact-mobile' : ''}`}
+    >
       <section className='auth-visual-panel'>
         <AuthMascot />
       </section>

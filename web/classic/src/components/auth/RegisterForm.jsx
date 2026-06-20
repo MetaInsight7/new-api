@@ -63,6 +63,11 @@ import { StatusContext } from '../../context/Status';
 import { useTranslation } from 'react-i18next';
 import { SiDiscord } from 'react-icons/si';
 import AuthLayout from './AuthLayout';
+import {
+  AuthButtonContent,
+  AuthFormHeader,
+  AuthRegisterSteps,
+} from './AuthFormVisuals';
 
 const RegisterForm = () => {
   let navigate = useNavigate();
@@ -407,8 +412,13 @@ const RegisterForm = () => {
 
   const renderOAuthOptions = () => {
     return (
-      <div className='auth-form-shell'>
-        <h2 className='auth-title'>{t('注册')}</h2>
+      <div className='auth-form-shell' key='register-options'>
+        <AuthFormHeader
+          title={t('你的搭子，随时在线')}
+          subtitle={t('一把密钥，万千模型。灵感一闪，代码跟上。')}
+          logo={logo}
+        />
+        <AuthRegisterSteps />
         <div className='space-y-3'>
           {status.wechat_login && (
             <Button
@@ -532,13 +542,15 @@ const RegisterForm = () => {
             onClick={handleEmailRegisterClick}
             loading={emailRegisterLoading}
           >
-            <span className='ml-3'>{t('使用 用户名 注册')}</span>
+            <AuthButtonContent icon='mail'>
+              <span className='ml-3'>{t('召唤 Token 搭子')}</span>
+            </AuthButtonContent>
           </Button>
         </div>
 
         <div className='auth-copy-row'>
           <Text>
-            {t('已有账户？')} <Link to='/login'>{t('登录')}</Link>
+            {t('已有 Token 搭子？')} <Link to='/login'>{t('马上登录')}</Link>
           </Text>
         </div>
       </div>
@@ -547,11 +559,17 @@ const RegisterForm = () => {
 
   const renderEmailRegisterForm = () => {
     return (
-      <div className='auth-form-shell'>
-        <h2 className='auth-title'>{t('注册')}</h2>
+      <div className='auth-form-shell' key='register-email'>
+        <AuthFormHeader
+          title={t('你的搭子，随时在线')}
+          subtitle={t('一把密钥，万千模型。灵感一闪，代码跟上。')}
+          logo={logo}
+        />
+        <AuthRegisterSteps />
         <Form className='auth-minimal-form space-y-4'>
           <Form.Input
             field='username'
+            noLabel
             label={t('用户名')}
             placeholder={t('请输入用户名')}
             name='username'
@@ -562,6 +580,7 @@ const RegisterForm = () => {
 
           <Form.Input
             field='password'
+            noLabel
             label={t('密码')}
             placeholder={t('输入密码，最短 8 位，最长 20 位')}
             name='password'
@@ -573,6 +592,7 @@ const RegisterForm = () => {
 
           <Form.Input
             field='password2'
+            noLabel
             label={t('确认密码')}
             placeholder={t('确认密码')}
             name='password2'
@@ -586,6 +606,7 @@ const RegisterForm = () => {
             <>
               <Form.Input
                 field='email'
+                noLabel
                 label={t('邮箱')}
                 placeholder={t('输入邮箱地址')}
                 name='email'
@@ -607,6 +628,7 @@ const RegisterForm = () => {
               />
               <Form.Input
                 field='verification_code'
+                noLabel
                 label={t('验证码')}
                 placeholder={t('输入验证码')}
                 name='verification_code'
@@ -669,7 +691,7 @@ const RegisterForm = () => {
                 (hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms
               }
             >
-              {t('注册')}
+              <AuthButtonContent>{t('召唤 Token 搭子')}</AuthButtonContent>
             </Button>
           </div>
         </Form>
@@ -696,7 +718,7 @@ const RegisterForm = () => {
 
         <div className='auth-copy-row'>
           <Text>
-            {t('已有账户？')} <Link to='/login'>{t('登录')}</Link>
+            {t('已有 Token 搭子？')} <Link to='/login'>{t('马上登录')}</Link>
           </Text>
         </div>
       </div>
@@ -744,7 +766,7 @@ const RegisterForm = () => {
   };
 
   return (
-    <AuthLayout logo={logo} systemName={systemName}>
+    <AuthLayout logo={logo} systemName={systemName} compactMobile>
       {showEmailRegister || !hasOAuthRegisterOptions
         ? renderEmailRegisterForm()
         : renderOAuthOptions()}

@@ -62,7 +62,12 @@ const PageLayout = () => {
     '/pricing',
   ];
 
-  const shouldHideFooter = cardProPages.includes(location.pathname);
+  const authPages = ['/login', '/register', '/reset', '/user/reset'];
+  const isAuthPage = authPages.includes(location.pathname);
+  const shouldHideHeader = isAuthPage && isMobile;
+
+  const shouldHideFooter =
+    cardProPages.includes(location.pathname) || isAuthPage;
 
   const shouldInnerPadding =
     location.pathname.includes('/console') &&
@@ -71,7 +76,10 @@ const PageLayout = () => {
 
   const isConsoleRoute = location.pathname.startsWith('/console');
   const showSider = isConsoleRoute && (!isMobile || drawerOpen);
-  const isFixedLayout = isConsoleRoute || location.pathname === '/pricing' || location.pathname === '/rankings';
+  const isFixedLayout =
+    isConsoleRoute ||
+    location.pathname === '/pricing' ||
+    location.pathname === '/rankings';
 
   useEffect(() => {
     if (isMobile && drawerOpen && collapsed) {
@@ -147,29 +155,31 @@ const PageLayout = () => {
 
   return (
     <Layout
-      className={`app-layout${isFixedLayout ? ' app-layout-fixed' : ''}`}
+      className={`app-layout${isFixedLayout ? ' app-layout-fixed' : ''}${shouldHideHeader ? ' app-layout-auth-mobile' : ''}`}
       style={{
         display: 'flex',
         flexDirection: 'column',
         overflow: isFixedLayout && !isMobile ? 'hidden' : 'visible',
       }}
     >
-      <Header
-        style={{
-          padding: 0,
-          height: 'auto',
-          lineHeight: 'normal',
-          position: 'fixed',
-          width: '100%',
-          top: 0,
-          zIndex: 100,
-        }}
-      >
-        <HeaderBar
-          onMobileMenuToggle={() => setDrawerOpen((prev) => !prev)}
-          drawerOpen={drawerOpen}
-        />
-      </Header>
+      {!shouldHideHeader && (
+        <Header
+          style={{
+            padding: 0,
+            height: 'auto',
+            lineHeight: 'normal',
+            position: 'fixed',
+            width: '100%',
+            top: 0,
+            zIndex: 100,
+          }}
+        >
+          <HeaderBar
+            onMobileMenuToggle={() => setDrawerOpen((prev) => !prev)}
+            drawerOpen={drawerOpen}
+          />
+        </Header>
+      )}
       <Layout
         style={{
           overflow: isFixedLayout && !isMobile ? 'auto' : 'visible',
