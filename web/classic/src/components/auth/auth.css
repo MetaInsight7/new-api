@@ -27,8 +27,12 @@
   background: #fff;
 }
 
-.auth-form-shell {
+.auth-form-stack {
   width: min(100%, 416px);
+}
+
+.auth-form-shell {
+  width: 100%;
 }
 
 .auth-title {
@@ -186,6 +190,7 @@
   margin-top: 24px;
   display: flex;
   justify-content: center;
+  width: 100%;
 }
 
 .auth-mascot {

@@ -509,7 +509,9 @@ const AuthLayout = ({ children }) => {
       <section className='auth-visual-panel'>
         <AuthMascot />
       </section>
-      <section className='auth-form-panel'>{children}</section>
+      <section className='auth-form-panel'>
+        <div className='auth-form-stack'>{children}</div>
+      </section>
     </div>
   );
 };
