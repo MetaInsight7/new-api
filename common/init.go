@@ -110,6 +110,16 @@ func InitEnv() {
 	GeminiSafetySetting = GetEnvOrDefaultString("GEMINI_SAFETY_SETTING", "BLOCK_NONE")
 	CohereSafetySetting = GetEnvOrDefaultString("COHERE_SAFETY_SETTING", "NONE")
 
+	// Reverse-proxy driven group override (locks an exposed URL to a channel group)
+	GroupHeaderOverrideEnabled = GetEnvOrDefaultBool("GROUP_HEADER_OVERRIDE_ENABLED", false)
+	GroupHeaderName = GetEnvOrDefaultString("GROUP_HEADER_NAME", "X-Api-Group")
+	GroupHeaderAllowedGroups = map[string]bool{}
+	for _, g := range strings.Split(GetEnvOrDefaultString("GROUP_HEADER_ALLOWED_GROUPS", ""), ",") {
+		if g = strings.TrimSpace(g); g != "" {
+			GroupHeaderAllowedGroups[g] = true
+		}
+	}
+
 	// Initialize rate limit variables
 	GlobalApiRateLimitEnable = GetEnvOrDefaultBool("GLOBAL_API_RATE_LIMIT_ENABLE", true)
 	GlobalApiRateLimitNum = GetEnvOrDefault("GLOBAL_API_RATE_LIMIT", 360)

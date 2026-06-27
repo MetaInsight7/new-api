@@ -202,6 +202,16 @@ var (
 	ImageDownloadPermission = RoleGuestUser
 )
 
+// GroupHeaderOverrideEnabled, when true, lets a trusted reverse proxy pin the
+// relay using-group via the GroupHeaderName request header. Default off.
+// GroupHeaderAllowedGroups bounds which groups a header may select (empty = any
+// existing group).
+var (
+	GroupHeaderOverrideEnabled bool
+	GroupHeaderName            = "X-Api-Group"
+	GroupHeaderAllowedGroups   = map[string]bool{}
+)
+
 // All duration's unit is seconds
 // Shouldn't larger then RateLimitKeyExpirationDuration
 var (
