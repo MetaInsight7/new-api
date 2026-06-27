@@ -63,11 +63,12 @@ const PageLayout = () => {
   ];
 
   const authPages = ['/login', '/register', '/reset', '/user/reset'];
+  const isHomePage = location.pathname === '/';
   const isAuthPage = authPages.includes(location.pathname);
   const shouldHideHeader = isAuthPage && isMobile;
 
   const shouldHideFooter =
-    cardProPages.includes(location.pathname) || isAuthPage;
+    isHomePage || cardProPages.includes(location.pathname) || isAuthPage;
 
   const shouldInnerPadding =
     location.pathname.includes('/console') &&
