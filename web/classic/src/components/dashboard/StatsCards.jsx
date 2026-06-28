@@ -18,8 +18,17 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Card, Skeleton } from '@douyinfe/semi-ui';
-import { ArrowDownRight, ArrowUpRight, Minus } from 'lucide-react';
+import { Skeleton } from '@douyinfe/semi-ui';
+import {
+  Activity,
+  ArrowDownRight,
+  ArrowUpRight,
+  Coins,
+  Minus,
+  Users,
+  Wallet,
+  Zap,
+} from 'lucide-react';
 
 const trendIconMap = {
   up: ArrowUpRight,
@@ -261,188 +270,66 @@ const MetricValue = ({ value, width = 88, height = 28, trend, loading }) => {
   );
 };
 
-const StatsCards = ({
-  statsData = [],
-  loading,
-  CARD_PROPS,
-  title,
-  note,
-  statusAction,
-  statusTitle,
-  rangeCaption,
-  quickActions = [],
-  t,
-}) => {
-  const displayStatsData = statsData;
-  const displayQuickActions = quickActions;
-  const balanceStatus = displayStatsData[0] || {};
-  const primaryMetric = displayStatsData[0];
-  const secondaryMetrics = displayStatsData.slice(1);
-  const rateMetrics = secondaryMetrics.filter(
-    (item) => item.rateLabel && item.rateValue !== undefined,
-  );
-  const primaryCaption = [primaryMetric?.caption, rangeCaption]
-    .filter(Boolean)
-    .join(' · ');
-  const displayStatusAction = statusAction;
-  const statusPillClass = `dashboard-health-pill is-${balanceStatus.statusTone || 'green'}${
-    displayStatusAction ? ' is-clickable' : ''
-  }`;
-  const statusPillContent = (
-    <>
-      <span />
-      {balanceStatus.statusText}
-    </>
-  );
+const iconMap = {
+  wallet: Wallet,
+  coins: Coins,
+  activity: Activity,
+  tokens: Zap,
+  users: Users,
+};
 
-  const renderMetricValue = (value, width = 88, height = 28, trend) => (
-    <MetricValue
-      value={value}
-      width={width}
-      height={height}
-      trend={trend}
-      loading={loading}
-    />
-  );
+const toneColorMap = {
+  blue: '#2563eb',
+  amber: '#d97706',
+  green: '#059669',
+  cyan: '#0891b2',
+  red: '#ef4444',
+};
 
-  const renderStatusPill = (className = '') => {
-    const pillClassName = `${statusPillClass}${className ? ` ${className}` : ''}`;
-
-    if (displayStatusAction) {
-      return (
-        <button
-          type='button'
-          className={pillClassName}
-          onClick={displayStatusAction}
-          title={statusTitle}
-          aria-label={statusTitle}
-        >
-          {statusPillContent}
-        </button>
-      );
-    }
-
-    return <div className={pillClassName}>{statusPillContent}</div>;
-  };
-
-  const primaryContent = primaryMetric ? (
-    <>
-      <div
-        className='dashboard-primary-metric__label'
-        title={note || primaryMetric.title}
-      >
-        {primaryMetric.title}
-      </div>
-      <div className='dashboard-primary-metric__value'>
-        {renderMetricValue(primaryMetric.value, 128, 40, primaryMetric.trend)}
-      </div>
-      <div className='dashboard-primary-metric__description'>
-        <span>{primaryCaption || note || primaryMetric.title}</span>
-      </div>
-    </>
-  ) : null;
-
-  const ratePanel = rateMetrics.length > 0 && (
-    <div className='dashboard-rate-metrics' aria-label={t('速率指标')}>
-      {rateMetrics.map((item) => (
-        <div className='dashboard-rate-metric' key={item.rateLabel}>
-          <span>{item.rateLabel}</span>
-          <strong>{item.rateValue}</strong>
-        </div>
-      ))}
-    </div>
-  );
-
+const StatsCards = ({ statsData = [], loading, t }) => {
   return (
-    <Card
-      {...CARD_PROPS}
-      aria-label={title || t('用量概览')}
-      className='dashboard-usage-card'
-      bodyStyle={{ padding: 0 }}
-    >
-      <div className='dashboard-usage-card__body'>
-        <div className='dashboard-usage-balance-row'>
-          {primaryMetric?.onClick ? (
-            <button
-              type='button'
-              className='dashboard-primary-metric is-clickable'
-              onClick={primaryMetric.onClick}
-              aria-label={
-                primaryMetric.actionLabel ||
-                primaryMetric.caption ||
-                primaryMetric.title
-              }
-            >
-              {primaryContent}
-            </button>
-          ) : (
-            <div className='dashboard-primary-metric'>{primaryContent}</div>
-          )}
-          <div className='dashboard-usage-side'>
-            {renderStatusPill('dashboard-usage-balance-status')}
-            {ratePanel}
-          </div>
-        </div>
-
-        <div className='dashboard-secondary-metrics'>
-          {secondaryMetrics.map((item, index) => {
-            const metricKey = item.icon || item.tone || item.title || index;
-            const metricContent = (
-              <>
-                <div className='dashboard-metric-card__label'>{item.title}</div>
-                <div className='dashboard-metric-card__value'>
-                  {renderMetricValue(item.value, 88, 28, item.trend)}
-                </div>
-              </>
-            );
-
-            if (item.onClick) {
-              return (
-                <button
-                  key={metricKey}
-                  type='button'
-                  className='dashboard-metric-cell is-clickable'
-                  onClick={item.onClick}
-                  title={item.caption}
-                  aria-label={item.actionLabel || item.caption || item.title}
-                >
-                  {metricContent}
-                </button>
-              );
+    <div className='dashboard-usage-grid'>
+      {statsData.map((item, index) => {
+        const Icon = iconMap[item.icon] || Wallet;
+        const color = toneColorMap[item.tone] || '#2563eb';
+        const Wrapper = item.onClick ? 'button' : 'div';
+        const wrapperProps = item.onClick
+          ? {
+              type: 'button',
+              onClick: item.onClick,
+              'aria-label': item.actionLabel || item.caption || item.title,
             }
+          : {};
 
-            return (
-              <div
-                key={metricKey}
-                className='dashboard-metric-cell'
-                title={item.caption}
-              >
-                {metricContent}
-              </div>
-            );
-          })}
-        </div>
-
-        {displayQuickActions.length > 0 && (
-          <div className='dashboard-usage-actions'>
-            {displayQuickActions.map((action) => {
-              return (
-                <button
-                  key={action.label}
-                  type='button'
-                  className='dashboard-usage-action'
-                  onClick={action.onClick}
-                  title={action.label}
-                  aria-label={action.label}
-                >
-                  <span>{action.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </Card>
+        return (
+          <Wrapper
+            key={item.icon || item.title || index}
+            className={`dashboard-usage-item${item.onClick ? ' is-clickable' : ''}`}
+            title={item.caption}
+            {...wrapperProps}
+          >
+            <div className='dashboard-usage-item__header'>
+              <Icon size={14} style={{ color }} />
+              <span className='dashboard-usage-item__label' style={{ color }}>
+                {item.title}
+              </span>
+            </div>
+            <div className='dashboard-usage-item__value'>
+              <MetricValue
+                value={item.value}
+                width={88}
+                height={24}
+                trend={item.trend}
+                loading={loading}
+              />
+            </div>
+            {item.caption && (
+              <div className='dashboard-usage-item__caption'>{item.caption}</div>
+            )}
+          </Wrapper>
+        );
+      })}
+    </div>
   );
 };
 

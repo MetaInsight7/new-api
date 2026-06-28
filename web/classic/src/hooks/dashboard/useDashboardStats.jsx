@@ -135,7 +135,7 @@ export const useDashboardStats = (
         {
           title: hasAdminUserFilter ? t('消耗') : t('全站消耗'),
           value: renderQuota(consumeQuota),
-          caption: t('当前筛选范围'),
+          caption: t('今日 00:00 至当前'),
           statusText: hasAdminUserFilter
             ? `${t('用户筛选')} · ${trimmedAdminUsername}`
             : t('全站口径'),
@@ -301,6 +301,7 @@ export const useDashboardStats = (
   return {
     statsData,
     quickActions,
+    balanceCaption,
     summaryTitle: isAdminUser
       ? hasAdminUserFilter
         ? t('筛选用户概览')

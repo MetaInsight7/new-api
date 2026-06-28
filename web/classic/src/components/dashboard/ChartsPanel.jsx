@@ -18,9 +18,24 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Card } from '@douyinfe/semi-ui';
-import { PieChart } from 'lucide-react';
+import {
+  BarChart2,
+  BarChart3,
+  PieChart,
+  TrendingUp,
+  UserPlus,
+  Users,
+} from 'lucide-react';
 import { VChart } from '@visactor/react-vchart';
+
+const chartIcons = {
+  1: PieChart,
+  2: TrendingUp,
+  3: BarChart3,
+  4: BarChart2,
+  5: Users,
+  6: UserPlus,
+};
 
 const ChartsPanel = ({
   activeChartTab,
@@ -32,9 +47,7 @@ const ChartsPanel = ({
   spec_user_rank,
   spec_user_trend,
   isAdminUser,
-  CARD_PROPS,
   CHART_CONFIG,
-  FLEX_CENTER_GAP2,
   t,
 }) => {
   const chartTabs = [
@@ -58,65 +71,44 @@ const ChartsPanel = ({
       height: '100%',
     };
 
-    if (activeChartTab === '1') {
-      return <VChart {...commonProps} spec={spec_line} />;
-    }
-    if (activeChartTab === '2') {
-      return <VChart {...commonProps} spec={spec_model_line} />;
-    }
-    if (activeChartTab === '3') {
-      return <VChart {...commonProps} spec={spec_pie} />;
-    }
-    if (activeChartTab === '4') {
-      return <VChart {...commonProps} spec={spec_rank_bar} />;
-    }
-    if (activeChartTab === '5' && isAdminUser) {
-      return <VChart {...commonProps} spec={spec_user_rank} />;
-    }
-    if (activeChartTab === '6' && isAdminUser) {
-      return <VChart {...commonProps} spec={spec_user_trend} />;
-    }
+    if (activeChartTab === '1') return <VChart {...commonProps} spec={spec_line} />;
+    if (activeChartTab === '2') return <VChart {...commonProps} spec={spec_model_line} />;
+    if (activeChartTab === '3') return <VChart {...commonProps} spec={spec_pie} />;
+    if (activeChartTab === '4') return <VChart {...commonProps} spec={spec_rank_bar} />;
+    if (activeChartTab === '5' && isAdminUser) return <VChart {...commonProps} spec={spec_user_rank} />;
+    if (activeChartTab === '6' && isAdminUser) return <VChart {...commonProps} spec={spec_user_trend} />;
     return <VChart {...commonProps} spec={spec_line} />;
   };
 
   return (
-    <Card
-      {...CARD_PROPS}
-      className='dashboard-chart-card !rounded-2xl'
-      title={
-        <div className='dashboard-chart-header'>
-          <div className={`dashboard-chart-title ${FLEX_CENTER_GAP2}`}>
-            <PieChart size={16} />
-            {t('模型数据分析')}
-          </div>
-          <div
-            className='dashboard-chart-segments'
-            role='tablist'
-            aria-label={t('模型数据分析')}
-          >
-            {chartTabs.map((tab) => (
-              <button
-                key={tab.key}
-                type='button'
-                role='tab'
-                aria-selected={activeChartTab === tab.key}
-                className={`dashboard-chart-segment ${
-                  activeChartTab === tab.key ? 'is-active' : ''
-                }`}
-                onClick={() => setActiveChartTab(tab.key)}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      }
-      bodyStyle={{ padding: 0 }}
-    >
-      <div className='dashboard-chart-body'>{renderChart()}</div>
-    </Card>
+    <div className='dashboard-chart-layout'>
+      <div
+        className='dashboard-chart-sidebar'
+        role='tablist'
+        aria-label={t('模型数据分析')}
+      >
+        {chartTabs.map((tab) => {
+          const Icon = chartIcons[Number(tab.key)] || PieChart;
+          return (
+            <button
+              key={tab.key}
+              type='button'
+              role='tab'
+              aria-selected={activeChartTab === tab.key}
+              className={`dashboard-chart-sidebar__item${
+                activeChartTab === tab.key ? ' is-active' : ''
+              }`}
+              onClick={() => setActiveChartTab(tab.key)}
+            >
+              <Icon size={16} />
+              <span>{tab.label}</span>
+            </button>
+          );
+        })}
+      </div>
+      <div className='dashboard-chart-content'>{renderChart()}</div>
+    </div>
   );
 };
 
 export default ChartsPanel;
-

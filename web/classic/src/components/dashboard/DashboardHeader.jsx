@@ -18,8 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Button } from '@douyinfe/semi-ui';
-import { RefreshCw, Search } from 'lucide-react';
+import { Badge, Button } from '@douyinfe/semi-ui';
+import { Bell, Globe, RefreshCw, Search } from 'lucide-react';
 
 const DashboardHeader = ({
   getGreeting,
@@ -30,22 +30,15 @@ const DashboardHeader = ({
   showSearchModal,
   refresh,
   loading,
+  balanceStatus,
+  quickActions,
+  unreadCount,
+  onNoticeOpen,
   t,
 }) => {
-  const ICON_BUTTON_CLASS = 'text-white hover:bg-opacity-80 !rounded-full';
-
   return (
-    <div className='dashboard-header mb-4'>
-      <div className='dashboard-header__copy'>
-        <h2
-          className='text-2xl font-semibold text-gray-800 transition-opacity duration-1000 ease-in-out'
-          style={{ opacity: greetingVisible ? 1 : 0 }}
-        >
-          {getGreeting}
-        </h2>
-      </div>
-
-      <div className='dashboard-header__actions'>
+    <>
+      <div className='dashboard-topbar mb-4'>
         <div
           className='dashboard-time-range'
           role='group'
@@ -66,30 +59,83 @@ const DashboardHeader = ({
             );
           })}
         </div>
-
-        <div className='dashboard-header__tools'>
+        <div className='dashboard-topbar__tools'>
           <Button
             type='tertiary'
+            theme='borderless'
             icon={<Search size={16} />}
             onClick={showSearchModal}
             aria-label={t('筛选')}
             title={t('筛选')}
-            className={`bg-green-500 hover:bg-green-600 ${ICON_BUTTON_CLASS}`}
           />
           <Button
             type='tertiary'
+            theme='borderless'
             icon={<RefreshCw size={16} />}
             onClick={refresh}
             loading={loading}
             aria-label={t('刷新')}
             title={t('刷新')}
-            className={`bg-blue-500 hover:bg-blue-600 ${ICON_BUTTON_CLASS}`}
           />
         </div>
       </div>
-    </div>
+
+      <div className='dashboard-user-bar mb-4'>
+        <div className='dashboard-user-bar__left'>
+          <div className='dashboard-user-bar__icon'>
+            <Globe size={22} />
+          </div>
+          <div className='dashboard-user-bar__info'>
+            <div
+              className='dashboard-user-bar__greeting'
+              style={{
+                opacity: greetingVisible ? 1 : 0,
+                transition: 'opacity 1s ease-in-out',
+              }}
+            >
+              {getGreeting}
+            </div>
+            <div className='dashboard-user-bar__status'>
+              <span
+                className={`dashboard-status-dot is-${balanceStatus?.tone || 'green'}`}
+              />
+              <span
+                className={`dashboard-status-label is-${balanceStatus?.tone || 'green'}`}
+              >
+                {balanceStatus?.text || t('运行中')}
+              </span>
+            </div>
+          </div>
+        </div>
+        <div className='dashboard-user-bar__right'>
+          {quickActions.map((action) => (
+            <Button
+              key={action.label}
+              theme='outline'
+              type='tertiary'
+              onClick={action.onClick}
+              className='dashboard-header-action'
+            >
+              {action.label}
+            </Button>
+          ))}
+          {onNoticeOpen && (
+            <Badge count={unreadCount || 0} overflowCount={99} type='danger'>
+              <Button
+                theme='outline'
+                type='danger'
+                icon={<Bell size={14} />}
+                onClick={onNoticeOpen}
+                className='dashboard-header-action is-notice'
+              >
+                {t('系统公告')}
+              </Button>
+            </Badge>
+          )}
+        </div>
+      </div>
+    </>
   );
 };
 
 export default DashboardHeader;
-
