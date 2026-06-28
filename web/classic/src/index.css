@@ -15,7 +15,7 @@
 
 /* ==================== 全局基础样式 ==================== */
 :root {
-  --sidebar-width: 180px;
+  --sidebar-width: 130px;
   --sidebar-width-collapsed: 60px;
   --sidebar-current-width: var(--sidebar-width);
 }
@@ -68,6 +68,184 @@ body {
 .app-sider {
   height: calc(100vh - 64px);
   height: calc(100dvh - 64px);
+}
+
+/* ==================== DMIT 蓝色侧边栏 ==================== */
+.app-sider,
+.app-sider .semi-layout-sider-children {
+  background: transparent !important;
+  box-shadow: none !important;
+  overflow: visible !important;
+}
+
+.dmit-sider {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(to top, #1e3c72 0%, #2a5298 100%);
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.dmit-sider__logo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 16px 8px 10px;
+  flex-shrink: 0;
+  text-decoration: none;
+}
+
+.dmit-sider__logo-img {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  flex-shrink: 0;
+  object-fit: cover;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.dmit-sider__logo-text {
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  max-width: 100%;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dmit-sider__menu {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.dmit-sider__menu::-webkit-scrollbar {
+  display: none;
+}
+
+/* DMIT menu-item：图标在上、文字在下（还原 .menu-item 源样式） */
+.dmit-menu-item {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 16px 4px;
+  color: #c7c7c7;
+  text-decoration: none;
+  border-radius: 12px;
+  transition: color 0.2s ease, background 0.2s ease;
+}
+
+.dmit-menu-item:hover,
+.dmit-menu-item:focus {
+  text-decoration: none;
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.dmit-menu-item--active {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.dmit-menu-item__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dmit-menu-item__title {
+  font-size: 15px;
+  font-weight: 600;
+  text-align: center;
+  line-height: 1.2;
+}
+
+/* ===== 二级 pill 导航（还原 DMIT proxmox 模块样式） ===== */
+.dmit-subnav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px;
+  margin-bottom: 16px;
+}
+
+.dmit-subnav__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-size: 15px;
+  font-weight: 500;
+  color: #475569;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.dmit-subnav__item:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+  text-decoration: none;
+}
+
+.dmit-subnav__item--active,
+.dmit-subnav__item--active:hover {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.dmit-subnav__icon {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+/* SubNav 清除固定顶栏(60px)，并吸收紧随其后页面的 mt-[60px]，避免双重间距/被顶栏遮挡 */
+.semi-layout-content > .dmit-subnav {
+  margin-top: 60px;
+}
+
+.semi-layout-content > .dmit-subnav + * {
+  margin-top: 0 !important;
+}
+
+/* DMIT 页面底色：控制台路由内容区铺浅灰 #f5f7fb（桌面 + 移动端一致） */
+.app-console .semi-layout-content {
+  background-color: #f5f7fb;
+}
+
+/* 移动端：二级 pill 横向滚动 */
+@media (max-width: 767px) {
+  .dmit-subnav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .dmit-subnav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .dmit-subnav__item {
+    flex-shrink: 0;
+  }
 }
 
 code {

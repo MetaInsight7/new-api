@@ -20,6 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import HeaderBar from './headerbar';
 import { Layout } from '@douyinfe/semi-ui';
 import SiderBar from './SiderBar';
+import ConsoleSubNav from './ConsoleSubNav';
 import App from '../../App';
 import FooterBar from './Footer';
 import { ToastContainer } from 'react-toastify';
@@ -72,6 +73,12 @@ const PageLayout = () => {
   const isConsoleRoute = location.pathname.startsWith('/console');
   const showSider = isConsoleRoute && (!isMobile || drawerOpen);
   const isFixedLayout = isConsoleRoute || location.pathname === '/pricing' || location.pathname === '/rankings';
+
+  // 二级 pill 导航：console 路由显示（聊天/操练场等全屏工具页除外）
+  const showConsoleSubNav =
+    isConsoleRoute &&
+    !location.pathname.startsWith('/console/chat') &&
+    location.pathname !== '/console/playground';
 
   useEffect(() => {
     if (isMobile && drawerOpen && collapsed) {
@@ -147,7 +154,7 @@ const PageLayout = () => {
 
   return (
     <Layout
-      className={`app-layout${isFixedLayout ? ' app-layout-fixed' : ''}`}
+      className={`app-layout${isFixedLayout ? ' app-layout-fixed' : ''}${isConsoleRoute ? ' app-console' : ''}`}
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -160,9 +167,16 @@ const PageLayout = () => {
           height: 'auto',
           lineHeight: 'normal',
           position: 'fixed',
-          width: '100%',
           top: 0,
           zIndex: 100,
+          left:
+            isConsoleRoute && !isMobile
+              ? 'var(--sidebar-current-width)'
+              : 0,
+          width:
+            isConsoleRoute && !isMobile
+              ? 'calc(100% - var(--sidebar-current-width))'
+              : '100%',
         }}
       >
         <HeaderBar
@@ -184,8 +198,9 @@ const PageLayout = () => {
             style={{
               position: 'fixed',
               left: 0,
-              top: '64px',
-              zIndex: 99,
+              top: isMobile ? '64px' : 0,
+              height: isMobile ? 'calc(100vh - 64px)' : '100vh',
+              zIndex: isMobile ? 99 : 101,
               border: 'none',
               paddingRight: '0',
               width: 'var(--sidebar-current-width)',
@@ -223,6 +238,7 @@ const PageLayout = () => {
             }}
           >
             <ErrorBoundary>
+              {showConsoleSubNav && <ConsoleSubNav />}
               <App />
             </ErrorBoundary>
           </Content>

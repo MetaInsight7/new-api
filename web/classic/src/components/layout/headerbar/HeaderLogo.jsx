@@ -33,7 +33,8 @@ const HeaderLogo = ({
   isDemoSiteMode,
   t,
 }) => {
-  if (isMobile && isConsoleRoute) {
+  // 控制台路由下 logo 移入左侧蓝色导航栏顶部，顶栏不再重复显示
+  if (isConsoleRoute) {
     return null;
   }
 
