@@ -19,7 +19,26 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { Badge, Button } from '@douyinfe/semi-ui';
-import { Bell, Globe, RefreshCw, Search } from 'lucide-react';
+import {
+  Bell,
+  Globe,
+  RefreshCw,
+  Search,
+  Users,
+  Server,
+  ScrollText,
+  Wallet,
+  KeyRound,
+} from 'lucide-react';
+
+// quickActions 的 icon 字符串 → Lucide 图标(对齐 DMIT：操作按钮带图标)
+const ACTION_ICONS = {
+  users: Users,
+  channels: Server,
+  logs: ScrollText,
+  topup: Wallet,
+  keys: KeyRound,
+};
 
 const DashboardHeader = ({
   getGreeting,
@@ -37,29 +56,57 @@ const DashboardHeader = ({
   t,
 }) => {
   return (
-    <>
-      <div className='dashboard-topbar mb-4'>
-        <div
-          className='dashboard-time-range'
-          role='group'
-          aria-label={t('时间范围')}
-        >
-          {timeRangeOptions.map((option) => {
-            const active = activeTimeRange === option.value;
-            return (
-              <Button
-                key={option.value}
-                size='small'
-                theme={active ? 'solid' : 'borderless'}
-                type={active ? 'primary' : 'tertiary'}
-                onClick={() => handleTimeRangeChange(option.value)}
-              >
-                {option.label}
-              </Button>
-            );
-          })}
+    <div className='dashboard-user-bar mb-4'>
+      <div className='dashboard-user-bar__left'>
+        <div className='dashboard-user-bar__icon'>
+          <Globe size={22} />
         </div>
-        <div className='dashboard-topbar__tools'>
+        <div className='dashboard-user-bar__info'>
+          <div
+            className='dashboard-user-bar__greeting'
+            style={{
+              opacity: greetingVisible ? 1 : 0,
+              transition: 'opacity 1s ease-in-out',
+            }}
+          >
+            {getGreeting}
+          </div>
+          <div className='dashboard-user-bar__status'>
+            <span
+              className={`dashboard-status-dot is-${balanceStatus?.tone || 'green'}`}
+            />
+            <span
+              className={`dashboard-status-label is-${balanceStatus?.tone || 'green'}`}
+            >
+              {balanceStatus?.text || t('运行中')}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className='dashboard-user-bar__right'>
+        {/* 第一行：原样的时间范围 + 搜索 + 刷新 */}
+        <div className='dashboard-user-bar__controls'>
+          <div
+            className='dashboard-time-range'
+            role='group'
+            aria-label={t('时间范围')}
+          >
+            {timeRangeOptions.map((option) => {
+              const active = activeTimeRange === option.value;
+              return (
+                <Button
+                  key={option.value}
+                  size='small'
+                  theme={active ? 'solid' : 'borderless'}
+                  type={active ? 'primary' : 'tertiary'}
+                  onClick={() => handleTimeRangeChange(option.value)}
+                >
+                  {option.label}
+                </Button>
+              );
+            })}
+          </div>
           <Button
             type='tertiary'
             theme='borderless'
@@ -78,47 +125,24 @@ const DashboardHeader = ({
             title={t('刷新')}
           />
         </div>
-      </div>
 
-      <div className='dashboard-user-bar mb-4'>
-        <div className='dashboard-user-bar__left'>
-          <div className='dashboard-user-bar__icon'>
-            <Globe size={22} />
-          </div>
-          <div className='dashboard-user-bar__info'>
-            <div
-              className='dashboard-user-bar__greeting'
-              style={{
-                opacity: greetingVisible ? 1 : 0,
-                transition: 'opacity 1s ease-in-out',
-              }}
-            >
-              {getGreeting}
-            </div>
-            <div className='dashboard-user-bar__status'>
-              <span
-                className={`dashboard-status-dot is-${balanceStatus?.tone || 'green'}`}
-              />
-              <span
-                className={`dashboard-status-label is-${balanceStatus?.tone || 'green'}`}
+        {/* 第二行：快捷入口 */}
+        <div className='dashboard-user-bar__actions'>
+          {quickActions.map((action) => {
+            const Icon = ACTION_ICONS[action.icon];
+            return (
+              <Button
+                key={action.label}
+                theme='outline'
+                type='tertiary'
+                icon={Icon ? <Icon size={15} /> : undefined}
+                onClick={action.onClick}
+                className='dashboard-header-action'
               >
-                {balanceStatus?.text || t('运行中')}
-              </span>
-            </div>
-          </div>
-        </div>
-        <div className='dashboard-user-bar__right'>
-          {quickActions.map((action) => (
-            <Button
-              key={action.label}
-              theme='outline'
-              type='tertiary'
-              onClick={action.onClick}
-              className='dashboard-header-action'
-            >
-              {action.label}
-            </Button>
-          ))}
+                {action.label}
+              </Button>
+            );
+          })}
           {onNoticeOpen && (
             <Badge count={unreadCount || 0} overflowCount={99} type='danger'>
               <Button
@@ -134,7 +158,7 @@ const DashboardHeader = ({
           )}
         </div>
       </div>
-    </>
+    </div>
   );
 };
 

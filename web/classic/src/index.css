@@ -18,6 +18,10 @@
   --sidebar-width: 130px;
   --sidebar-width-collapsed: 60px;
   --sidebar-current-width: var(--sidebar-width);
+  /* 对齐 DMIT 字体栈：system-ui(Mac=San Francisco / 中文=PingFang) */
+  --app-font: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', 'Noto Sans',
+    sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
 }
 
 body.sidebar-collapsed {
@@ -25,10 +29,27 @@ body.sidebar-collapsed {
 }
 
 body {
-  font-family: Lato, 'Helvetica Neue', Arial, Helvetica, 'Microsoft YaHei',
-    sans-serif;
+  font-family: var(--app-font);
   color: var(--semi-color-text-0);
   background-color: var(--semi-color-bg-0);
+}
+
+/* 对齐 DMIT 字体：覆盖 Semi 组件硬编码的 Inter，统一用系统字体栈(仅字形,不改字号/颜色) */
+.semi-typography,
+.semi-button,
+.semi-table,
+.semi-input,
+.semi-input-textarea,
+.semi-select,
+.semi-tag,
+.semi-card,
+.semi-descriptions,
+.semi-dropdown,
+.semi-modal,
+.semi-form,
+.semi-navigation,
+.semi-tabs {
+  font-family: var(--app-font);
 }
 
 .app-layout {
@@ -225,9 +246,22 @@ body {
   margin-top: 0 !important;
 }
 
-/* DMIT 页面底色：控制台路由内容区铺浅灰 #f5f7fb（桌面 + 移动端一致） */
+/* DMIT 配色：页面背景纯白(桌面 + 移动端一致)，卡片用浅灰区分 */
 .app-console .semi-layout-content {
-  background-color: #f5f7fb;
+  background-color: #fff;
+}
+
+/* 控制台强调色统一为 DMIT 主蓝 #2563eb(Semi 默认偏亮紫蓝)；仅亮色，暗色不动 */
+/* 注意:Semi 的 --semi-color-primary 是完整颜色值(默认 rgba(0,100,250,1)),
+   solid 按钮直接 background-color: var(--semi-color-primary),所以必须给完整 rgba,
+   不能写裸三元组(否则当 background 用时非法→透明白底白字) */
+html:not(.dark) .app-console {
+  --semi-color-primary: rgba(37, 99, 235, 1);
+  --semi-color-primary-hover: rgba(29, 78, 216, 1);
+  --semi-color-primary-active: rgba(30, 64, 175, 1);
+  --semi-color-primary-light-default: rgba(37, 99, 235, 0.1);
+  --semi-color-primary-light-hover: rgba(37, 99, 235, 0.16);
+  --semi-color-primary-light-active: rgba(37, 99, 235, 0.24);
 }
 
 /* 移动端：二级 pill 横向滚动 */

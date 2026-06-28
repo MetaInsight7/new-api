@@ -193,7 +193,7 @@ export const handleApiError = (error, response = null) => {
 
 // 处理模型数据
 export const processModelsData = (data, currentModel) => {
-  const modelOptions = data.map((model) => ({
+  const modelOptions = (data || []).map((model) => ({
     label: model,
     value: model,
   }));
@@ -211,7 +211,7 @@ export const processModelsData = (data, currentModel) => {
 
 // 处理分组数据
 export const processGroupsData = (data, userGroup) => {
-  let groupOptions = Object.entries(data).map(([group, info]) => ({
+  let groupOptions = Object.entries(data || {}).map(([group, info]) => ({
     label:
       info.desc.length > 20 ? info.desc.substring(0, 20) + '...' : info.desc,
     value: group,
