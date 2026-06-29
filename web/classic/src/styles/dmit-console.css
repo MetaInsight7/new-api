@@ -1,0 +1,188 @@
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
+/* =====================================================================
+   DMIT 控制台主题层
+   - 统一控制台各页面(令牌/渠道/日志/兑换/用户/设置/充值…)的视觉到 DMIT 风格
+   - 仅作用于亮色:html:not(.dark) .app-console,暗色保持 Semi 原样
+   - 纯呈现:不改任何数据/结构,只重塑共享 Semi 组件外观
+   ===================================================================== */
+
+html:not(.dark) .app-console {
+  --dmit-card-bg: #ffffff;
+  --dmit-soft: #f8fafc;
+  --dmit-border: #e2e8f0;
+  --dmit-blue: #2563eb;
+  --dmit-shadow: 0 14px 36px rgba(15, 23, 42, 0.06);
+}
+
+/* ---------- 卡片:白底 + 浅灰边 + 16px 圆角 + 柔和阴影 ---------- */
+html:not(.dark) .app-console .semi-card.semi-card-bordered {
+  border: 1px solid var(--dmit-border);
+  border-radius: 16px;
+  background: var(--dmit-card-bg);
+  box-shadow: var(--dmit-shadow);
+}
+
+/* 卡头作为浅色分区(标题加粗) */
+html:not(.dark) .app-console .semi-card-header {
+  padding: 14px 16px !important;
+  border-bottom: 1px solid var(--dmit-border);
+}
+
+html:not(.dark) .app-console .semi-card-header .semi-card-header-title {
+  color: var(--semi-color-text-0);
+  font-weight: 700;
+}
+
+/* ---------- 表格:浅灰表头 + 清晰行分隔 + hover ---------- */
+html:not(.dark) .app-console .semi-table-thead > .semi-table-row > .semi-table-row-head,
+html:not(.dark) .app-console th.semi-table-row-head {
+  background-color: var(--dmit-soft) !important;
+  color: #475569;
+  font-weight: 700;
+  border-bottom: 1px solid var(--dmit-border);
+}
+
+html:not(.dark)
+  .app-console
+  .semi-table-tbody
+  > .semi-table-row
+  > .semi-table-row-cell {
+  border-bottom: 1px solid var(--dmit-border);
+}
+
+html:not(.dark)
+  .app-console
+  .semi-table-tbody
+  > .semi-table-row:hover
+  > .semi-table-row-cell {
+  background-color: var(--dmit-soft);
+}
+
+/* 选中行:DMIT 浅蓝 */
+html:not(.dark)
+  .app-console
+  .semi-table-row-selected
+  > .semi-table-row-cell {
+  background-color: var(--semi-color-primary-light-default) !important;
+}
+
+/* ---------- 标签页:激活态 DMIT 蓝 ---------- */
+html:not(.dark) .app-console .semi-tabs-tab.semi-tabs-tab-active {
+  color: var(--dmit-blue);
+  font-weight: 700;
+}
+
+html:not(.dark) .app-console .semi-tabs-bar-line .semi-tabs-tab-active::after,
+html:not(.dark) .app-console .semi-tabs-ink-bar {
+  background-color: var(--dmit-blue);
+}
+
+/* 卡片型 tab 激活:浅蓝底 */
+html:not(.dark)
+  .app-console
+  .semi-tabs-bar-card
+  .semi-tabs-tab.semi-tabs-tab-active {
+  background-color: var(--semi-color-primary-light-default);
+  border-color: transparent;
+}
+
+/* ---------- 状态标签:柔和彩色胶囊 ---------- */
+html:not(.dark) .app-console .semi-tag {
+  border-radius: 999px;
+  font-weight: 700;
+}
+
+/* ---------- 分页:激活态 DMIT 蓝 ---------- */
+html:not(.dark) .app-console .semi-page-item-active {
+  background-color: var(--semi-color-primary-light-default);
+  color: var(--dmit-blue);
+  border-color: transparent;
+  font-weight: 700;
+}
+
+/* ---------- 输入 / 选择:聚焦蓝色环 + 浅灰边 ---------- */
+html:not(.dark) .app-console .semi-input-wrapper,
+html:not(.dark) .app-console .semi-select,
+html:not(.dark) .app-console .semi-datepicker-range-input {
+  border-color: var(--dmit-border);
+}
+
+html:not(.dark) .app-console .semi-input-wrapper-focus,
+html:not(.dark) .app-console .semi-input-wrapper:focus-within,
+html:not(.dark) .app-console .semi-select-focus {
+  border-color: var(--dmit-blue);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
+}
+
+/* ---------- 弹窗 / 下拉(Portal 渲染,亮色全局,仅做安全的圆角) ---------- */
+html:not(.dark) .semi-modal-content {
+  border-radius: 16px;
+}
+
+html:not(.dark) .semi-dropdown-menu {
+  border-radius: 12px;
+}
+
+/* ---------- 设置表单:分区标题做成 DMIT 区块头(左侧蓝色强调条) ---------- */
+html:not(.dark) .app-console .semi-form-section-text {
+  position: relative;
+  padding-left: 11px;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--semi-color-text-0);
+}
+
+html:not(.dark) .app-console .semi-form-section-text::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--dmit-blue);
+}
+
+/* 表单字段标签:统一字重/字色 */
+html:not(.dark) .app-console .semi-form-field-label-text {
+  color: var(--semi-color-text-1);
+  font-weight: 600;
+}
+
+/* ---------- 卡头标题图标:DMIT 蓝强调 ---------- */
+html:not(.dark) .app-console .semi-card-header-title svg {
+  color: var(--dmit-blue);
+}
+
+/* ---------- 次要/描边按钮:浅灰边 + hover 浅底,统一 DMIT 观感 ---------- */
+html:not(.dark)
+  .app-console
+  .semi-button-tertiary.semi-button-borderless:hover,
+html:not(.dark) .app-console .semi-button-tertiary.semi-button-light:hover {
+  background-color: var(--dmit-soft);
+}
+
+/* ---------- 空状态:文字弱化,与 DMIT 一致 ---------- */
+html:not(.dark) .app-console .semi-table-placeholder {
+  color: var(--semi-color-text-2);
+}
+
