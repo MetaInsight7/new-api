@@ -601,7 +601,7 @@ const RechargeCard = ({
       </div>
 
       {shouldShowSubscription ? (
-        <Tabs type='card' activeKey={activeTab} onChange={setActiveTab}>
+        <Tabs type='line' activeKey={activeTab} onChange={setActiveTab}>
           <TabPane
             tab={
               <div className='flex items-center gap-2'>

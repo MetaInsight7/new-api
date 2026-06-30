@@ -69,6 +69,11 @@ html:not(.dark) .app-console .semi-table-row-cell {
   background-color: var(--dmit-surface);
 }
 
+/* 表体单元格:等宽数字,让额度/数值列对齐更整齐(排版节奏) */
+html:not(.dark) .app-console .semi-table-tbody .semi-table-row-cell {
+  font-variant-numeric: tabular-nums;
+}
+
 /* 白色表格作为内嵌面板:描边 + 圆角 */
 html:not(.dark) .app-console .table-scroll-card .semi-table {
   border: 1px solid var(--dmit-border);
@@ -80,7 +85,9 @@ html:not(.dark) .app-console .semi-table-thead > .semi-table-row > .semi-table-r
 html:not(.dark) .app-console th.semi-table-row-head {
   background-color: var(--dmit-thead) !important;
   color: #475569;
-  font-weight: 700;
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.02em;
   border-bottom: 1px solid var(--dmit-border);
 }
 
