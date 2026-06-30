@@ -18,9 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useContext, useEffect, useMemo, useRef } from 'react';
+import { Tooltip } from '@douyinfe/semi-ui';
 import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
-import { BarChart3, Gauge, Globe, Server } from 'lucide-react';
+import { BarChart3, BookOpen, Gauge, Globe, KeyRound, Server } from 'lucide-react';
 
 import DashboardHeader from './DashboardHeader';
 import StatsCards from './StatsCards';
@@ -213,6 +214,34 @@ const Dashboard = () => {
             <div className='dashboard-main-section__header'>
               <Server size={16} />
               <span>{dashboardData.t('概要')}</span>
+              <div className='dashboard-main-section__header-actions'>
+                <button
+                  type='button'
+                  title={dashboardData.t('管理令牌')}
+                  onClick={() => dashboardData.navigate('/console/token')}
+                >
+                  <KeyRound size={13} />
+                  {dashboardData.t('令牌')}
+                </button>
+                <button
+                  type='button'
+                  title={dashboardData.t('查看文档')}
+                  onClick={() => {
+                    const docsLink =
+                      statusState?.status?.docs_link ||
+                      localStorage.getItem('docs_link') ||
+                      '';
+                    if (docsLink) {
+                      window.open(docsLink, '_blank', 'noopener,noreferrer');
+                    } else {
+                      dashboardData.navigate('/about');
+                    }
+                  }}
+                >
+                  <BookOpen size={13} />
+                  {dashboardData.t('文档')}
+                </button>
+              </div>
             </div>
             <div className='dashboard-main-section__body'>
               <WorkspacePanel
