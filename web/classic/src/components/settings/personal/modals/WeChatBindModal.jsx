@@ -67,7 +67,7 @@ const WeChatBindModal = ({
           theme='solid'
           size='large'
           onClick={bindWeChat}
-          className='!rounded-lg w-full !bg-slate-600 hover:!bg-slate-700'
+          className='!rounded-lg w-full'
           icon={<SiWechat size={16} />}
         >
           {t('绑定')}

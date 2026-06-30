@@ -374,14 +374,25 @@ const EditTagModal = (props) => {
     <SideSheet
       placement='right'
       title={
-        <Space>
-          <Tag color='blue' shape='circle'>
-            {t('编辑')}
-          </Tag>
-          <Title heading={4} className='m-0'>
-            {t('编辑标签')}
-          </Title>
-        </Space>
+        <div className='flex items-center gap-3'>
+          <span
+            className='inline-flex items-center justify-center w-9 h-9 rounded-lg flex-shrink-0'
+            style={{ background: 'rgba(37,99,235,0.1)', color: '#2563eb' }}
+          >
+            <IconBookmark size={18} />
+          </span>
+          <div className='min-w-0'>
+            <div className='flex items-center gap-2'>
+              <Title heading={5} className='m-0'>
+                {t('编辑标签')}
+              </Title>
+              <Tag color='blue' shape='circle' size='small'>
+                {t('编辑')}
+              </Tag>
+            </div>
+            <div className='text-xs text-gray-500'>{t('标签的基本配置')}</div>
+          </div>
+        </div>
       }
       bodyStyle={{ padding: '0' }}
       visible={visible}
@@ -392,6 +403,7 @@ const EditTagModal = (props) => {
           <Space>
             <Button
               theme='solid'
+              type='primary'
               onClick={() => formApiRef.current?.submitForm()}
               loading={loading}
               icon={<IconSave />}
@@ -400,7 +412,7 @@ const EditTagModal = (props) => {
             </Button>
             <Button
               theme='light'
-              type='primary'
+              type='tertiary'
               onClick={handleClose}
               icon={<IconClose />}
             >

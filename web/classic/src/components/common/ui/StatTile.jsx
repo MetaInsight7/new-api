@@ -18,23 +18,19 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Modal } from '@douyinfe/semi-ui';
 
-const DemoteUserModal = ({ visible, onCancel, onConfirm, user, t }) => {
-  return (
-    <Modal
-      title={t('确定要降级此用户吗？')}
-      visible={visible}
-      onCancel={onCancel}
-      onOk={onConfirm}
-      type='warning'
-      okType='danger'
-      okButtonProps={{ theme: 'solid' }}
-      cancelButtonProps={{ theme: 'borderless' }}
-    >
-      {t('此操作将降低用户的权限级别')}
-    </Modal>
-  );
-};
+// DMIT 扁平统计小卡：彩色方块图标 + 弱化标签 + 粗值
+// tone: 'blue' | 'violet' | 'emerald' | 'amber'
+const StatTile = ({ tone = 'blue', icon: Icon, label, value }) => (
+  <div className={`dmit-stat-tile is-${tone}`}>
+    <div className='dmit-stat-tile__head'>
+      <span className='dmit-stat-tile__icon'>
+        {Icon ? <Icon size={15} /> : null}
+      </span>
+      <span className='dmit-stat-tile__label'>{label}</span>
+    </div>
+    <div className='dmit-stat-tile__value'>{value}</div>
+  </div>
+);
 
-export default DemoteUserModal;
+export default StatTile;

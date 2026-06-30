@@ -19,12 +19,15 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { Button } from '@douyinfe/semi-ui';
+import { IconPlus } from '@douyinfe/semi-icons';
 
 const SubscriptionsActions = ({ openCreate, t, disabled = false }) => {
   return (
     <div className='flex gap-2 w-full md:w-auto'>
       <Button
         type='primary'
+        theme='solid'
+        icon={<IconPlus />}
         className='w-full md:w-auto'
         onClick={openCreate}
         size='small'

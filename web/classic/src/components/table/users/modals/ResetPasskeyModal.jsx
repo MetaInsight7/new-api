@@ -28,6 +28,9 @@ const ResetPasskeyModal = ({ visible, onCancel, onConfirm, user, t }) => {
       onCancel={onCancel}
       onOk={onConfirm}
       type='warning'
+      okType='danger'
+      okButtonProps={{ theme: 'solid' }}
+      cancelButtonProps={{ theme: 'borderless' }}
     >
       {t('此操作将解绑用户当前的 Passkey，下次登录需要重新注册。')}{' '}
       {user?.username

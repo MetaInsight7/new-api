@@ -37,6 +37,9 @@ const EnableDisableUserModal = ({
       onCancel={onCancel}
       onOk={onConfirm}
       type='warning'
+      okType={isDisable ? 'danger' : 'primary'}
+      okButtonProps={{ theme: 'solid' }}
+      cancelButtonProps={{ theme: 'borderless' }}
     >
       {isDisable ? t('此操作将禁用用户账户') : t('此操作将启用用户账户')}
     </Modal>

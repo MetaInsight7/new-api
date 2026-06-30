@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { Button, Form } from '@douyinfe/semi-ui';
-import { IconSearch } from '@douyinfe/semi-icons';
+import { IconSearch, IconPlus, IconRefresh } from '@douyinfe/semi-icons';
 
 const ChannelsFilters = ({
   setEditingChannel,
@@ -41,8 +41,9 @@ const ChannelsFilters = ({
       <div className='flex gap-2 w-full md:w-auto order-2 md:order-1'>
         <Button
           size='small'
-          theme='light'
+          theme='solid'
           type='primary'
+          icon={<IconPlus />}
           className='w-full md:w-auto'
           onClick={() => {
             setEditingChannel({
@@ -57,6 +58,8 @@ const ChannelsFilters = ({
         <Button
           size='small'
           type='tertiary'
+          theme='light'
+          icon={<IconRefresh />}
           className='w-full md:w-auto'
           onClick={refresh}
         >
@@ -66,6 +69,7 @@ const ChannelsFilters = ({
         <Button
           size='small'
           type='tertiary'
+          theme='light'
           onClick={() => setShowColumnSelector(true)}
           className='w-full md:w-auto'
         >
@@ -127,8 +131,10 @@ const ChannelsFilters = ({
           </div>
           <Button
             size='small'
-            type='tertiary'
+            type='primary'
+            theme='solid'
             htmlType='submit'
+            icon={<IconSearch />}
             loading={loading || searching}
             className='w-full md:w-auto'
           >
@@ -137,6 +143,7 @@ const ChannelsFilters = ({
           <Button
             size='small'
             type='tertiary'
+            theme='light'
             onClick={() => {
               if (formApi) {
                 formApi.reset();

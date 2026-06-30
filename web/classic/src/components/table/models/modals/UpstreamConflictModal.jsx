@@ -271,6 +271,8 @@ const UpstreamConflictModal = ({
       confirmLoading={loading}
       okText={t('应用覆盖')}
       cancelText={t('取消')}
+      okButtonProps={{ theme: 'solid' }}
+      cancelButtonProps={{ theme: 'borderless' }}
       width={isMobile ? '100%' : 1000}
     >
       {dataSource.length === 0 ? (

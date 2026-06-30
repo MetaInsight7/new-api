@@ -22,6 +22,7 @@ import MissingModelsModal from './modals/MissingModelsModal';
 import PrefillGroupManagement from './modals/PrefillGroupManagement';
 import EditPrefillGroupModal from './modals/EditPrefillGroupModal';
 import { Button, Modal, Popover, RadioGroup, Radio } from '@douyinfe/semi-ui';
+import { IconPlus } from '@douyinfe/semi-icons';
 import { showSuccess, showError, copy } from '../../../helpers';
 import CompactModeToggle from '../../common/ui/CompactModeToggle';
 import SelectionNotification from './components/SelectionNotification';
@@ -107,6 +108,8 @@ const ModelsActions = ({
       <div className='flex flex-wrap gap-2 w-full md:w-auto order-2 md:order-1'>
         <Button
           type='primary'
+          theme='solid'
+          icon={<IconPlus />}
           className='flex-1 md:flex-initial'
           onClick={() => {
             setEditingModel({

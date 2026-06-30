@@ -49,6 +49,9 @@ const DeleteUserModal = ({
       onCancel={onCancel}
       onOk={handleConfirm}
       type='danger'
+      okType='danger'
+      okButtonProps={{ theme: 'solid' }}
+      cancelButtonProps={{ theme: 'borderless' }}
     >
       {t('相当于删除用户，此修改将不可逆')}
     </Modal>

@@ -19,7 +19,6 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import {
-  Avatar,
   Typography,
   Card,
   Button,
@@ -28,6 +27,7 @@ import {
   Space,
 } from '@douyinfe/semi-ui';
 import { Copy, Users, BarChart2, TrendingUp, Gift, Zap } from 'lucide-react';
+import StatTile from '../common/ui/StatTile';
 
 const { Text } = Typography;
 
@@ -41,150 +41,78 @@ const InvitationCard = ({
   complianceConfirmed = true,
 }) => {
   return (
-    <Card className='!rounded-2xl shadow-sm border-0'>
+    <Card className='!rounded-2xl border-0'>
       {/* 卡片头部 */}
       <div className='flex items-center mb-4'>
-        <Avatar size='small' color='green' className='mr-3 shadow-md'>
-          <Gift size={16} />
-        </Avatar>
+        <span
+          className='mr-3 inline-flex items-center justify-center w-9 h-9 rounded-lg'
+          style={{ background: 'rgba(5,150,105,0.1)', color: '#059669' }}
+        >
+          <Gift size={18} />
+        </span>
         <div>
           <Typography.Text className='text-lg font-medium'>
             {t('邀请奖励')}
           </Typography.Text>
-          <div className='text-xs'>{t('邀请好友获得额外奖励')}</div>
+          <div className='text-xs text-gray-500'>
+            {t('邀请好友获得额外奖励')}
+          </div>
         </div>
       </div>
 
       {/* 收益展示区域 */}
       <Space vertical style={{ width: '100%' }}>
         {/* 统计数据统一卡片 */}
-        <Card
-          className='!rounded-xl w-full'
-          cover={
-            <div
-              className='relative h-30'
-              style={{
-                '--palette-primary-darkerChannel': '0 75 80',
-                backgroundImage: `linear-gradient(0deg, rgba(var(--palette-primary-darkerChannel) / 80%), rgba(var(--palette-primary-darkerChannel) / 80%)), url('/cover-4.webp')`,
-                backgroundSize: 'cover',
-                backgroundPosition: 'center',
-                backgroundRepeat: 'no-repeat',
-              }}
-            >
-              {/* 标题和按钮 */}
-              <div className='relative z-10 h-full flex flex-col justify-between p-4'>
-                <div className='flex justify-between items-center'>
-                  <Text strong style={{ color: 'white', fontSize: '16px' }}>
-                    {t('收益统计')}
-                  </Text>
-                  <Button
-                    type='primary'
-                    theme='solid'
-                    size='small'
-                    disabled={
-                      !complianceConfirmed ||
-                      !userState?.user?.aff_quota ||
-                      userState?.user?.aff_quota <= 0
-                    }
-                    onClick={() => setOpenTransfer(true)}
-                    className='!rounded-lg'
-                  >
-                    <Zap size={12} className='mr-1' />
-                    {t('划转到余额')}
-                  </Button>
-                </div>
-                {!complianceConfirmed && (
-                  <Text
-                    style={{
-                      color: 'rgba(255,255,255,0.8)',
-                      fontSize: 12,
-                    }}
-                  >
-                    {t('邀请奖励划转已禁用，管理员需先确认合规声明。')}
-                  </Text>
-                )}
-
-                {/* 统计数据 */}
-                <div className='grid grid-cols-3 gap-6 mt-4'>
-                  {/* 待使用收益 */}
-                  <div className='text-center'>
-                    <div
-                      className='text-base sm:text-2xl font-bold mb-2'
-                      style={{ color: 'white' }}
-                    >
-                      {renderQuota(userState?.user?.aff_quota || 0)}
-                    </div>
-                    <div className='flex items-center justify-center text-sm'>
-                      <TrendingUp
-                        size={14}
-                        className='mr-1'
-                        style={{ color: 'rgba(255,255,255,0.8)' }}
-                      />
-                      <Text
-                        style={{
-                          color: 'rgba(255,255,255,0.8)',
-                          fontSize: '12px',
-                        }}
-                      >
-                        {t('待使用收益')}
-                      </Text>
-                    </div>
-                  </div>
-
-                  {/* 总收益 */}
-                  <div className='text-center'>
-                    <div
-                      className='text-base sm:text-2xl font-bold mb-2'
-                      style={{ color: 'white' }}
-                    >
-                      {renderQuota(userState?.user?.aff_history_quota || 0)}
-                    </div>
-                    <div className='flex items-center justify-center text-sm'>
-                      <BarChart2
-                        size={14}
-                        className='mr-1'
-                        style={{ color: 'rgba(255,255,255,0.8)' }}
-                      />
-                      <Text
-                        style={{
-                          color: 'rgba(255,255,255,0.8)',
-                          fontSize: '12px',
-                        }}
-                      >
-                        {t('总收益')}
-                      </Text>
-                    </div>
-                  </div>
-
-                  {/* 邀请人数 */}
-                  <div className='text-center'>
-                    <div
-                      className='text-base sm:text-2xl font-bold mb-2'
-                      style={{ color: 'white' }}
-                    >
-                      {userState?.user?.aff_count || 0}
-                    </div>
-                    <div className='flex items-center justify-center text-sm'>
-                      <Users
-                        size={14}
-                        className='mr-1'
-                        style={{ color: 'rgba(255,255,255,0.8)' }}
-                      />
-                      <Text
-                        style={{
-                          color: 'rgba(255,255,255,0.8)',
-                          fontSize: '12px',
-                        }}
-                      >
-                        {t('邀请人数')}
-                      </Text>
-                    </div>
-                  </div>
-                </div>
-              </div>
+        <Card className='!rounded-xl w-full'>
+          <div className='mb-5'>
+            <div className='flex justify-between items-center mb-3'>
+              <Text strong style={{ fontSize: 14 }}>
+                {t('收益统计')}
+              </Text>
+              <Button
+                type='primary'
+                theme='solid'
+                size='small'
+                disabled={
+                  !complianceConfirmed ||
+                  !userState?.user?.aff_quota ||
+                  userState?.user?.aff_quota <= 0
+                }
+                onClick={() => setOpenTransfer(true)}
+                className='!rounded-lg'
+              >
+                <Zap size={12} className='mr-1' />
+                {t('划转到余额')}
+              </Button>
             </div>
-          }
-        >
+            {!complianceConfirmed && (
+              <Text type='tertiary' className='text-xs block mb-3'>
+                {t('邀请奖励划转已禁用，管理员需先确认合规声明。')}
+              </Text>
+            )}
+
+            <div className='grid grid-cols-3 gap-3'>
+              <StatTile
+                tone='emerald'
+                icon={TrendingUp}
+                label={t('待使用收益')}
+                value={renderQuota(userState?.user?.aff_quota || 0)}
+              />
+              <StatTile
+                tone='blue'
+                icon={BarChart2}
+                label={t('总收益')}
+                value={renderQuota(userState?.user?.aff_history_quota || 0)}
+              />
+              <StatTile
+                tone='violet'
+                icon={Users}
+                label={t('邀请人数')}
+                value={userState?.user?.aff_count || 0}
+              />
+            </div>
+          </div>
+
           {/* 邀请链接部分 */}
           <Input
             value={affLink}

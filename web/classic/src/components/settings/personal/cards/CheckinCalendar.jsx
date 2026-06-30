@@ -23,7 +23,6 @@ import {
   Calendar,
   Button,
   Typography,
-  Avatar,
   Spin,
   Tooltip,
   Collapsible,
@@ -244,9 +243,12 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
           className='flex items-center flex-1 cursor-pointer'
           onClick={() => setIsCollapsed(!isCollapsed)}
         >
-          <Avatar size='small' color='green' className='mr-3 shadow-md'>
-            <CalendarCheck size={16} />
-          </Avatar>
+          <span
+            className='mr-3 inline-flex items-center justify-center w-9 h-9 rounded-lg'
+            style={{ background: 'rgba(5,150,105,0.1)', color: '#059669' }}
+          >
+            <CalendarCheck size={18} />
+          </span>
           <div className='flex-1'>
             <div className='flex items-center gap-2'>
               <Typography.Text className='text-lg font-medium'>

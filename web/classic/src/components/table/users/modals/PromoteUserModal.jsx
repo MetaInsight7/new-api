@@ -28,6 +28,8 @@ const PromoteUserModal = ({ visible, onCancel, onConfirm, user, t }) => {
       onCancel={onCancel}
       onOk={onConfirm}
       type='warning'
+      okButtonProps={{ theme: 'solid' }}
+      cancelButtonProps={{ theme: 'borderless' }}
     >
       {t('此操作将提升用户的权限级别')}
     </Modal>

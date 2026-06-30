@@ -48,6 +48,9 @@ const DeleteRedemptionModal = ({
       visible={visible}
       onCancel={onCancel}
       onOk={handleConfirm}
+      okType='danger'
+      okButtonProps={{ theme: 'solid' }}
+      cancelButtonProps={{ theme: 'borderless' }}
       type='warning'
     >
       {t('此修改将不可逆')}

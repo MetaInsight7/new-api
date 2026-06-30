@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { Button } from '@douyinfe/semi-ui';
+import { IconPlus, IconCopy, IconDelete } from '@douyinfe/semi-icons';
 
 const RedemptionsActions = ({
   selectedKeys,
@@ -40,6 +41,8 @@ const RedemptionsActions = ({
     <div className='flex flex-wrap gap-2 w-full md:w-auto order-2 md:order-1'>
       <Button
         type='primary'
+        theme='solid'
+        icon={<IconPlus />}
         className='flex-1 md:flex-initial'
         onClick={handleAddRedemption}
         size='small'
@@ -49,6 +52,8 @@ const RedemptionsActions = ({
 
       <Button
         type='tertiary'
+        theme='light'
+        icon={<IconCopy />}
         className='flex-1 md:flex-initial'
         onClick={batchCopyRedemptions}
         size='small'
@@ -58,6 +63,8 @@ const RedemptionsActions = ({
 
       <Button
         type='danger'
+        theme='light'
+        icon={<IconDelete />}
         className='w-full md:w-auto'
         onClick={batchDeleteRedemptions}
         size='small'

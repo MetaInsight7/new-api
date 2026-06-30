@@ -43,12 +43,13 @@ const SyncWizardModal = ({ visible, onClose, onConfirm, loading, t }) => {
       footer={
         <div className='flex justify-end'>
           {step === 1 && (
-            <Button onClick={() => setStep(0)}>{t('上一步')}</Button>
+            <Button type='tertiary' theme='light' onClick={() => setStep(0)}>{t('上一步')}</Button>
           )}
-          <Button onClick={onClose}>{t('取消')}</Button>
+          <Button type='tertiary' theme='light' onClick={onClose}>{t('取消')}</Button>
           {step === 0 && (
             <Button
               type='primary'
+              theme='solid'
               onClick={() => setStep(1)}
               disabled={option !== 'official'}
             >

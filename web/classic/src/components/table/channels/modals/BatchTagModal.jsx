@@ -35,6 +35,8 @@ const BatchTagModal = ({
       visible={showBatchSetTag}
       onOk={batchSetChannelTag}
       onCancel={() => setShowBatchSetTag(false)}
+      okButtonProps={{ theme: 'solid' }}
+      cancelButtonProps={{ theme: 'borderless' }}
       maskClosable={false}
       centered={true}
       size='small'

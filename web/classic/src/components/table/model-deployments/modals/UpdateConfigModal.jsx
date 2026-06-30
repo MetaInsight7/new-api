@@ -206,6 +206,8 @@ const UpdateConfigModal = ({ visible, onCancel, deployment, onSuccess, t }) => {
       okText={t('更新配置')}
       cancelText={t('取消')}
       confirmLoading={loading}
+      okButtonProps={{ theme: 'solid' }}
+      cancelButtonProps={{ theme: 'borderless' }}
       width={700}
       className='update-config-modal'
     >

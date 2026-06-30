@@ -48,6 +48,8 @@ const EmailBindModal = ({
       visible={showEmailBindModal}
       onCancel={() => setShowEmailBindModal(false)}
       onOk={bindEmail}
+      okButtonProps={{ theme: 'solid' }}
+      cancelButtonProps={{ theme: 'borderless' }}
       size={'small'}
       centered={true}
       maskClosable={false}

@@ -198,22 +198,29 @@ const AddEditSubscriptionModal = ({
   return (
     <>
       <SideSheet
-        placement={placement}
+        placement='right'
         title={
-          <Space>
-            {isEdit ? (
-              <Tag color='blue' shape='circle'>
-                {t('更新')}
-              </Tag>
-            ) : (
-              <Tag color='green' shape='circle'>
-                {t('新建')}
-              </Tag>
-            )}
-            <Title heading={4} className='m-0'>
-              {isEdit ? t('更新套餐信息') : t('创建新的订阅套餐')}
-            </Title>
-          </Space>
+          <div className='flex items-center gap-3'>
+            <span
+              className='inline-flex items-center justify-center w-9 h-9 rounded-lg flex-shrink-0'
+              style={{ background: 'rgba(37,99,235,0.1)', color: '#2563eb' }}
+            >
+              <IconCreditCard size={18} />
+            </span>
+            <div className='min-w-0'>
+              <div className='flex items-center gap-2'>
+                <Title heading={5} className='m-0'>
+                  {isEdit ? t('更新套餐信息') : t('创建新的订阅套餐')}
+                </Title>
+                <Tag color={isEdit ? 'blue' : 'green'} shape='circle' size='small'>
+                  {isEdit ? t('编辑') : t('新建')}
+                </Tag>
+              </div>
+              <div className='text-xs text-gray-500'>
+                {t('套餐的基本信息和定价')}
+              </div>
+            </div>
+          </div>
         }
         bodyStyle={{ padding: '0' }}
         visible={visible}
@@ -223,6 +230,7 @@ const AddEditSubscriptionModal = ({
             <Space>
               <Button
                 theme='solid'
+                type='primary'
                 onClick={() => formApiRef.current?.submitForm()}
                 icon={<IconSave />}
                 loading={loading}
@@ -231,7 +239,7 @@ const AddEditSubscriptionModal = ({
               </Button>
               <Button
                 theme='light'
-                type='primary'
+                type='tertiary'
                 onClick={handleClose}
                 icon={<IconClose />}
               >

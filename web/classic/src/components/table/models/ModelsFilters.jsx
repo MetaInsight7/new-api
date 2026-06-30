@@ -80,8 +80,10 @@ const ModelsFilters = ({
 
         <div className='flex gap-2 w-full md:w-auto'>
           <Button
-            type='tertiary'
+            type='primary'
+            theme='solid'
             htmlType='submit'
+            icon={<IconSearch />}
             loading={loading || searching}
             className='flex-1 md:flex-initial md:w-auto'
             size='small'
@@ -91,6 +93,7 @@ const ModelsFilters = ({
 
           <Button
             type='tertiary'
+            theme='light'
             onClick={handleReset}
             className='flex-1 md:flex-initial md:w-auto'
             size='small'

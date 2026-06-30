@@ -219,6 +219,8 @@ const ChannelUpstreamUpdateModal = ({
       confirmLoading={confirmLoading}
       onCancel={onCancel}
       onOk={handleSubmit}
+      okButtonProps={{ theme: 'solid' }}
+      cancelButtonProps={{ theme: 'borderless' }}
     >
       <div className='flex flex-col gap-3'>
         <Typography.Text type='secondary' size='small'>

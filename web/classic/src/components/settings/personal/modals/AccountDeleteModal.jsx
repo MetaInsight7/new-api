@@ -45,6 +45,9 @@ const AccountDeleteModal = ({
       visible={showAccountDeleteModal}
       onCancel={() => setShowAccountDeleteModal(false)}
       onOk={deleteAccount}
+      okType='danger'
+      okButtonProps={{ type: 'danger', theme: 'solid' }}
+      cancelButtonProps={{ theme: 'borderless' }}
       size={'small'}
       centered={true}
       className='modern-modal'

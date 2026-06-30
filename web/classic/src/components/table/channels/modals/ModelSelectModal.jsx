@@ -365,6 +365,8 @@ const ModelSelectModal = ({
       onCancel={onCancel}
       okText={t('确定')}
       cancelText={t('取消')}
+      okButtonProps={{ theme: 'solid' }}
+      cancelButtonProps={{ theme: 'borderless' }}
       size={isMobile ? 'full-width' : 'large'}
       closeOnEsc
       maskClosable

@@ -1900,6 +1900,8 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
       onOk={handleSave}
       okText={t('保存')}
       cancelText={t('取消')}
+      okButtonProps={{ theme: 'solid' }}
+      cancelButtonProps={{ theme: 'borderless' }}
     >
       <Space vertical align='start' spacing={14} style={{ width: '100%' }}>
         <Card

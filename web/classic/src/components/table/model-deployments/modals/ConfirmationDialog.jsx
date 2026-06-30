@@ -66,8 +66,10 @@ const ConfirmationDialog = ({
       okButtonProps={{
         disabled: !isConfirmed,
         type: type === 'danger' ? 'danger' : 'primary',
+        theme: 'solid',
         loading,
       }}
+      cancelButtonProps={{ theme: 'borderless' }}
       width={480}
     >
       <div className='space-y-4'>

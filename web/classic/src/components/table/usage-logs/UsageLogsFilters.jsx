@@ -154,8 +154,10 @@ const LogsFilters = ({
 
           <div className='flex gap-2 w-full sm:w-auto justify-end'>
             <Button
-              type='tertiary'
+              type='primary'
+              theme='solid'
               htmlType='submit'
+              icon={<IconSearch />}
               loading={loading}
               size='small'
             >
@@ -163,6 +165,7 @@ const LogsFilters = ({
             </Button>
             <Button
               type='tertiary'
+              theme='light'
               onClick={() => {
                 if (formApi) {
                   formApi.reset();
@@ -178,6 +181,7 @@ const LogsFilters = ({
             </Button>
             <Button
               type='tertiary'
+              theme='light'
               onClick={() => setShowColumnSelector(true)}
               size='small'
             >

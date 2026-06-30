@@ -306,12 +306,14 @@ const ExtendDurationModal = ({
       cancelText={t('取消')}
       confirmLoading={loading}
       okButtonProps={{
+        theme: 'solid',
         disabled:
           !deployment?.id ||
           detailsLoading ||
           !durationHours ||
           durationHours < 1,
       }}
+      cancelButtonProps={{ theme: 'borderless' }}
       width={600}
       className='extend-duration-modal'
     >

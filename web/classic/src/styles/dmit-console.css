@@ -25,14 +25,16 @@ For commercial licensing, please contact support@quantumnous.com
    ===================================================================== */
 
 html:not(.dark) .app-console {
-  --dmit-card-bg: #ffffff;
+  --dmit-card-bg: #f8fafc;
+  --dmit-surface: #ffffff;
   --dmit-soft: #f8fafc;
+  --dmit-thead: #eef2f7;
   --dmit-border: #e2e8f0;
   --dmit-blue: #2563eb;
   --dmit-shadow: 0 14px 36px rgba(15, 23, 42, 0.06);
 }
 
-/* ---------- 卡片:白底 + 浅灰边 + 16px 圆角 + 柔和阴影 ---------- */
+/* ---------- 卡片:DMIT 灰底(白页面上凸显)+ 浅灰边 + 16px 圆角 + 柔和阴影 ---------- */
 html:not(.dark) .app-console .semi-card.semi-card-bordered {
   border: 1px solid var(--dmit-border);
   border-radius: 16px;
@@ -40,9 +42,10 @@ html:not(.dark) .app-console .semi-card.semi-card-bordered {
   box-shadow: var(--dmit-shadow);
 }
 
-/* 卡头作为浅色分区(标题加粗) */
+/* 卡头继承灰底,仅保留分隔线 */
 html:not(.dark) .app-console .semi-card-header {
   padding: 14px 16px !important;
+  background: transparent;
   border-bottom: 1px solid var(--dmit-border);
 }
 
@@ -51,10 +54,31 @@ html:not(.dark) .app-console .semi-card-header .semi-card-header-title {
   font-weight: 700;
 }
 
-/* ---------- 表格:浅灰表头 + 清晰行分隔 + hover ---------- */
+/* 输入 / 选择:白色表面,在灰卡上凸显 */
+html:not(.dark) .app-console .semi-input-wrapper,
+html:not(.dark) .app-console .semi-select,
+html:not(.dark) .app-console .semi-datepicker-range-input {
+  background-color: var(--dmit-surface);
+}
+
+/* ---------- 表格:白色表面内嵌在灰卡里 + 浅灰表头 + 行分隔 + hover ---------- */
+html:not(.dark) .app-console .semi-table,
+html:not(.dark) .app-console .semi-table-tbody,
+html:not(.dark) .app-console .semi-table-row,
+html:not(.dark) .app-console .semi-table-row-cell {
+  background-color: var(--dmit-surface);
+}
+
+/* 白色表格作为内嵌面板:描边 + 圆角 */
+html:not(.dark) .app-console .table-scroll-card .semi-table {
+  border: 1px solid var(--dmit-border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
 html:not(.dark) .app-console .semi-table-thead > .semi-table-row > .semi-table-row-head,
 html:not(.dark) .app-console th.semi-table-row-head {
-  background-color: var(--dmit-soft) !important;
+  background-color: var(--dmit-thead) !important;
   color: #475569;
   font-weight: 700;
   border-bottom: 1px solid var(--dmit-border);
@@ -132,13 +156,290 @@ html:not(.dark) .app-console .semi-select-focus {
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
 }
 
-/* ---------- 弹窗 / 下拉(Portal 渲染,亮色全局,仅做安全的圆角) ---------- */
+/* ---------- 弹窗 / 抽屉 / 下拉(Portal 渲染在 .app-console 之外) ---------- */
+/* 浮层组件不在 .app-console 作用域内,默认仍用 Semi 原主蓝;这里在亮色下
+   把 DMIT 主蓝注入到 .semi-portal,使弹窗/抽屉/下拉里的按钮、开关、选中态
+   与控制台主体严格一致 */
+html:not(.dark) .semi-portal {
+  --semi-color-primary: rgba(37, 99, 235, 1);
+  --semi-color-primary-hover: rgba(29, 78, 216, 1);
+  --semi-color-primary-active: rgba(30, 64, 175, 1);
+  --semi-color-primary-light-default: rgba(37, 99, 235, 0.1);
+  --semi-color-primary-light-hover: rgba(37, 99, 235, 0.16);
+  --semi-color-primary-light-active: rgba(37, 99, 235, 0.24);
+}
+
 html:not(.dark) .semi-modal-content {
   border-radius: 16px;
 }
 
 html:not(.dark) .semi-dropdown-menu {
   border-radius: 12px;
+}
+
+/* ---------- 编辑抽屉(SideSheet)DMIT 化:灰底 + 扁平白卡 + 头部分隔 ---------- */
+/* 抽屉正文用浅灰底,内部分区白卡靠边框分层(与控制台一致) */
+html:not(.dark) .semi-portal .semi-sidesheet-body {
+  background: #f8fafc;
+}
+
+/* 抽屉内所有分区卡:扁平(去阴影 + DMIT 浅边 + 12px 圆角 + 白底),
+   覆盖组件里残留的 shadow-sm / border-0 等 Tailwind 类 */
+html:not(.dark) .semi-portal .semi-sidesheet .semi-card {
+  border: 1px solid #e2e8f0;
+  box-shadow: none;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+/* 抽屉头部:底部分隔线 */
+html:not(.dark) .semi-portal .semi-sidesheet-header {
+  border-bottom: 1px solid #e2e8f0;
+}
+
+/* 抽屉/弹窗里旧的"圆形阴影彩色头像"分区图标 → DMIT 浅底彩色方块
+   (只命中具名色头像 semi-avatar-{color},即分区头标志,不影响用户头像) */
+html:not(.dark) .semi-portal .semi-sidesheet .semi-avatar-blue,
+html:not(.dark) .semi-portal .semi-modal-content .semi-avatar-blue {
+  background: rgba(37, 99, 235, 0.1);
+  color: #2563eb;
+  border-radius: 8px;
+  box-shadow: none;
+}
+html:not(.dark) .semi-portal .semi-sidesheet .semi-avatar-green,
+html:not(.dark) .semi-portal .semi-modal-content .semi-avatar-green,
+html:not(.dark) .semi-portal .semi-sidesheet .semi-avatar-light-green,
+html:not(.dark) .semi-portal .semi-modal-content .semi-avatar-light-green {
+  background: rgba(5, 150, 105, 0.1);
+  color: #059669;
+  border-radius: 8px;
+  box-shadow: none;
+}
+html:not(.dark) .semi-portal .semi-sidesheet .semi-avatar-orange,
+html:not(.dark) .semi-portal .semi-modal-content .semi-avatar-orange,
+html:not(.dark) .semi-portal .semi-sidesheet .semi-avatar-amber,
+html:not(.dark) .semi-portal .semi-modal-content .semi-avatar-amber {
+  background: rgba(245, 158, 11, 0.14);
+  color: #b45309;
+  border-radius: 8px;
+  box-shadow: none;
+}
+html:not(.dark) .semi-portal .semi-sidesheet .semi-avatar-purple,
+html:not(.dark) .semi-portal .semi-modal-content .semi-avatar-purple,
+html:not(.dark) .semi-portal .semi-sidesheet .semi-avatar-violet,
+html:not(.dark) .semi-portal .semi-modal-content .semi-avatar-violet {
+  background: rgba(124, 58, 237, 0.12);
+  color: #7c3aed;
+  border-radius: 8px;
+  box-shadow: none;
+}
+html:not(.dark) .semi-portal .semi-sidesheet .semi-avatar-cyan,
+html:not(.dark) .semi-portal .semi-modal-content .semi-avatar-cyan,
+html:not(.dark) .semi-portal .semi-sidesheet .semi-avatar-teal,
+html:not(.dark) .semi-portal .semi-modal-content .semi-avatar-teal {
+  background: rgba(13, 148, 136, 0.12);
+  color: #0d9488;
+  border-radius: 8px;
+  box-shadow: none;
+}
+html:not(.dark) .semi-portal .semi-sidesheet .semi-avatar-red,
+html:not(.dark) .semi-portal .semi-modal-content .semi-avatar-red {
+  background: rgba(220, 38, 38, 0.1);
+  color: #dc2626;
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+/* ---------- 开关:开启态从默认绿改为 DMIT 蓝(亮色,控制台 + 浮层) ---------- */
+html:not(.dark) .app-console .semi-switch-checked,
+html:not(.dark) .semi-portal .semi-switch-checked {
+  background-color: #2563eb;
+}
+html:not(.dark) .app-console .semi-switch-checked:hover,
+html:not(.dark) .semi-portal .semi-switch-checked:hover {
+  background-color: #1d4ed8;
+}
+
+/* ---------- 单选按钮组(type=button)激活态 → DMIT 蓝 ---------- */
+html:not(.dark) .app-console .semi-radioGroup-buttonRadio .semi-radio-checked .semi-radio-addon-buttonRadio,
+html:not(.dark) .semi-portal .semi-radioGroup-buttonRadio .semi-radio-checked .semi-radio-addon-buttonRadio {
+  background-color: var(--semi-color-primary-light-default);
+  color: #2563eb;
+}
+
+
+
+/* 浮层内的输入/选择:聚焦蓝色环,与控制台一致 */
+html:not(.dark) .semi-portal .semi-input-wrapper-focus,
+html:not(.dark) .semi-portal .semi-input-wrapper:focus-within,
+html:not(.dark) .semi-portal .semi-select-focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
+}
+
+/* 浮层内表单分区标题:同样的 DMIT 蓝强调条 */
+html:not(.dark) .semi-portal .semi-form-section-text {
+  position: relative;
+  padding-left: 11px;
+  font-weight: 800;
+}
+
+html:not(.dark) .semi-portal .semi-form-section-text::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 14px;
+  border-radius: 999px;
+  background: #2563eb;
+}
+
+/* ---------- DMIT 统计 chip(用于日志等页面的顶部统计,亮/暗自适应) ---------- */
+.dmit-stat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 13px 7px 9px;
+  border: 1px solid var(--semi-color-border);
+  border-radius: 12px;
+  background: var(--semi-color-bg-1);
+}
+
+.dmit-stat-chip__icon {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+}
+
+.dmit-stat-chip__body {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
+.dmit-stat-chip__label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--semi-color-text-2);
+}
+
+.dmit-stat-chip__value {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--semi-color-text-0);
+}
+
+.dmit-stat-chip.is-blue .dmit-stat-chip__icon {
+  background: rgba(37, 99, 235, 0.1);
+  color: #2563eb;
+}
+
+.dmit-stat-chip.is-violet .dmit-stat-chip__icon {
+  background: rgba(139, 92, 246, 0.12);
+  color: #7c3aed;
+}
+
+.dmit-stat-chip.is-emerald .dmit-stat-chip__icon {
+  background: rgba(5, 150, 105, 0.12);
+  color: #059669;
+}
+
+/* ---------- DMIT 统计小卡(扁平白底 tile，用于充值/邀请等 hero 区，亮/暗自适应) ---------- */
+.dmit-stat-tile {
+  padding: 14px;
+  border: 1px solid var(--semi-color-border);
+  border-radius: 12px;
+  background: var(--semi-color-bg-1);
+  min-width: 0;
+}
+
+.dmit-stat-tile__head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 10px;
+  min-width: 0;
+}
+
+.dmit-stat-tile__icon {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+}
+
+.dmit-stat-tile__label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--semi-color-text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dmit-stat-tile__value {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--semi-color-text-0);
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dmit-stat-tile.is-blue .dmit-stat-tile__icon {
+  background: rgba(37, 99, 235, 0.1);
+  color: #2563eb;
+}
+
+.dmit-stat-tile.is-violet .dmit-stat-tile__icon {
+  background: rgba(139, 92, 246, 0.12);
+  color: #7c3aed;
+}
+
+.dmit-stat-tile.is-emerald .dmit-stat-tile__icon {
+  background: rgba(5, 150, 105, 0.12);
+  color: #059669;
+}
+
+.dmit-stat-tile.is-amber .dmit-stat-tile__icon {
+  background: rgba(245, 158, 11, 0.14);
+  color: #b45309;
+}
+
+/* 窄屏：三列 stat tile 收紧，标签换行而非截断，值缩小以完整显示 */
+@media (max-width: 640px) {
+  .dmit-stat-tile {
+    padding: 11px 10px;
+  }
+
+  .dmit-stat-tile__head {
+    gap: 5px;
+    margin-bottom: 7px;
+    align-items: flex-start;
+  }
+
+  .dmit-stat-tile__icon {
+    width: 22px;
+    height: 22px;
+  }
+
+  .dmit-stat-tile__label {
+    font-size: 11px;
+    white-space: normal;
+  }
+
+  .dmit-stat-tile__value {
+    font-size: 16px;
+  }
 }
 
 /* ---------- 设置表单:分区标题做成 DMIT 区块头(左侧蓝色强调条) ---------- */

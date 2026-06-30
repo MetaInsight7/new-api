@@ -92,7 +92,8 @@ const DeploymentsFilters = ({
         <div className='flex gap-2 w-full md:w-auto'>
           <Button
             htmlType='submit'
-            type='tertiary'
+            type='primary'
+            theme='solid'
             icon={<IconSearch />}
             loading={searching}
             disabled={loading}
@@ -104,6 +105,7 @@ const DeploymentsFilters = ({
 
           <Button
             type='tertiary'
+            theme='light'
             icon={<IconRefresh />}
             onClick={handleReset}
             disabled={loading || searching}
@@ -115,6 +117,7 @@ const DeploymentsFilters = ({
 
           <Button
             type='tertiary'
+            theme='light'
             onClick={() => setShowColumnSelector(true)}
             size='small'
             className='flex-1 md:flex-initial md:w-auto'

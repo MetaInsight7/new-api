@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { Button, Popconfirm } from '@douyinfe/semi-ui';
+import { IconPlus } from '@douyinfe/semi-icons';
 import CompactModeToggle from '../../common/ui/CompactModeToggle';
 
 const DeploymentsActions = ({
@@ -58,6 +59,8 @@ const DeploymentsActions = ({
     <div className='flex flex-wrap gap-2 w-full md:w-auto order-2 md:order-1'>
       <Button
         type='primary'
+        theme='solid'
+        icon={<IconPlus />}
         className='flex-1 md:flex-initial'
         onClick={handleAddDeployment}
         size='small'

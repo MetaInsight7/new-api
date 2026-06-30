@@ -124,6 +124,9 @@ const UserBindingManagementModal = ({
       content: t('确定要解绑 {{name}} 吗？', { name: bindingItem.name }),
       okText: t('确认'),
       cancelText: t('取消'),
+      okType: 'danger',
+      okButtonProps: { theme: 'solid' },
+      cancelButtonProps: { theme: 'borderless' },
       onOk: async () => {
         const loadingKey = `builtin-${bindingItem.key}`;
         setBindingLoadingState(loadingKey, true);
@@ -160,6 +163,9 @@ const UserBindingManagementModal = ({
       content: t('确定要解绑 {{name}} 吗？', { name: provider.name }),
       okText: t('确认'),
       cancelText: t('取消'),
+      okType: 'danger',
+      okButtonProps: { theme: 'solid' },
+      cancelButtonProps: { theme: 'borderless' },
       onOk: async () => {
         const loadingKey = `custom-${provider.id}`;
         setBindingLoadingState(loadingKey, true);

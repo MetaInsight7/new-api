@@ -2153,21 +2153,35 @@ const EditChannelModal = (props) => {
   return (
     <>
       <SideSheet
-        placement={isEdit ? 'right' : 'left'}
+        placement='right'
         title={
           <div className='flex items-center justify-between w-full'>
-            <Space>
-              <Tag color='blue' shape='circle'>
-                {isEdit ? t('编辑') : t('新建')}
-              </Tag>
-              <Title heading={4} className='m-0'>
-                {isEdit ? t('更新渠道信息') : t('创建新的渠道')}
-              </Title>
-            </Space>
+            <div className='flex items-center gap-3 min-w-0'>
+              <span
+                className='inline-flex items-center justify-center w-9 h-9 rounded-lg flex-shrink-0'
+                style={{ background: 'rgba(37,99,235,0.1)', color: '#2563eb' }}
+              >
+                <IconServer size={18} />
+              </span>
+              <div className='min-w-0'>
+                <div className='flex items-center gap-2'>
+                  <Title heading={5} className='m-0'>
+                    {isEdit ? t('更新渠道信息') : t('创建新的渠道')}
+                  </Title>
+                  <Tag color={isEdit ? 'blue' : 'green'} shape='circle' size='small'>
+                    {isEdit ? t('编辑') : t('新建')}
+                  </Tag>
+                </div>
+                <div className='text-xs text-gray-500'>
+                  {t('配置渠道类型、密钥、模型与高级设置')}
+                </div>
+              </div>
+            </div>
             {!isEdit && (
               <Button
                 size='small'
                 type='tertiary'
+                theme='light'
                 className='ec-dbcd0a3c01b55203 shrink-0'
                 icon={<IconBolt />}
                 onClick={pasteFromClipboard}
@@ -2184,6 +2198,7 @@ const EditChannelModal = (props) => {
           <div className='flex justify-end items-center gap-2'>
             <Button
               theme='solid'
+              type='primary'
               onClick={() => formApiRef.current?.submitForm()}
               icon={<IconSave />}
             >
@@ -2191,7 +2206,7 @@ const EditChannelModal = (props) => {
             </Button>
             <Button
               theme='light'
-              type='primary'
+              type='tertiary'
               onClick={handleCancel}
               icon={<IconClose />}
             >
@@ -3698,14 +3713,14 @@ const EditChannelModal = (props) => {
                     </div>
                     <div className='flex items-center gap-1 text-sm' style={{ color: 'var(--semi-color-primary)' }}>
                       <Text size='small' style={{ color: 'var(--semi-color-primary)' }}>
-                        {advancedSettingsOpen ? t('收起') : isEdit ? t('向左展开') : t('向右展开')}
+                        {advancedSettingsOpen ? t('收起') : t('向左展开')}
                       </Text>
                       <IconChevronDown
                         size={14}
                         style={{
                           transform: advancedSettingsOpen
                             ? 'rotate(180deg)'
-                            : isEdit ? 'rotate(90deg)' : 'rotate(-90deg)',
+                            : 'rotate(90deg)',
                           transition: 'transform 0.2s',
                         }}
                       />
@@ -3721,23 +3736,30 @@ const EditChannelModal = (props) => {
                 className='fixed top-0 h-full overflow-y-auto z-[999] semi-sidesheet-inner'
                 style={{
                   width: 600,
-                  [isEdit ? 'right' : 'left']: 600,
+                  right: 600,
                   backgroundColor: 'var(--semi-color-bg-0)',
-                  borderLeft: isEdit ? 'none' : '1px solid var(--semi-color-border)',
-                  borderRight: isEdit ? '1px solid var(--semi-color-border)' : 'none',
-                  animation: `slideIn${isEdit ? 'Left' : 'Right'} 0.3s ease-out`,
+                  borderRight: '1px solid var(--semi-color-border)',
+                  animation: 'slideInLeft 0.3s ease-out',
                 }}
               >
                 <div className='semi-sidesheet-header'>
                   <div className='semi-sidesheet-title'>
-                    <Space>
-                      <Tag color='cyan' shape='circle'>
-                        {t('高级')}
-                      </Tag>
-                      <Title heading={4} className='m-0'>
-                        {t('高级设置')}
-                      </Title>
-                    </Space>
+                    <div className='flex items-center gap-3'>
+                      <span
+                        className='inline-flex items-center justify-center w-9 h-9 rounded-lg flex-shrink-0'
+                        style={{ background: 'rgba(13,148,136,0.12)', color: '#0d9488' }}
+                      >
+                        <IconSetting size={18} />
+                      </span>
+                      <div>
+                        <Title heading={5} className='m-0'>
+                          {t('高级设置')}
+                        </Title>
+                        <div className='text-xs text-gray-500'>
+                          {t('渠道的高级配置选项')}
+                        </div>
+                      </div>
+                    </div>
                   </div>
                   <Button
                     className='semi-sidesheet-close'
@@ -3751,23 +3773,6 @@ const EditChannelModal = (props) => {
                 <div className='semi-sidesheet-body' style={{ padding: 0 }}>
                   <div className='p-2 space-y-3'>
                     <Card className='!rounded-2xl shadow-sm border-0'>
-                      <div className='flex items-center mb-4'>
-                        <Avatar
-                          size='small'
-                          color='orange'
-                          className='mr-2 shadow-md'
-                        >
-                          <IconSetting size={16} />
-                        </Avatar>
-                        <div>
-                          <Text className='text-lg font-medium'>
-                            {t('高级设置')}
-                          </Text>
-                          <div className='text-xs text-gray-600'>
-                            {t('渠道的高级配置选项')}
-                          </div>
-                        </div>
-                      </div>
                       {advancedSettingsContent}
                     </Card>
                   </div>
@@ -3827,7 +3832,7 @@ const EditChannelModal = (props) => {
         visible={keyDisplayState.showModal}
         onCancel={resetKeyDisplayState}
         footer={
-          <Button type='primary' onClick={resetKeyDisplayState}>
+          <Button type='primary' theme='solid' onClick={resetKeyDisplayState}>
             {t('完成')}
           </Button>
         }

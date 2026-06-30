@@ -22,7 +22,6 @@ import {
   Button,
   Typography,
   Card,
-  Avatar,
   Form,
   Radio,
   Toast,
@@ -386,9 +385,12 @@ const NotificationSettings = ({
     >
       {/* 卡片头部 */}
       <div className='flex items-center mb-4'>
-        <Avatar size='small' color='blue' className='mr-3 shadow-md'>
-          <Bell size={16} />
-        </Avatar>
+        <span
+          className='mr-3 inline-flex items-center justify-center w-9 h-9 rounded-lg'
+          style={{ background: 'rgba(37,99,235,0.1)', color: '#2563eb' }}
+        >
+          <Bell size={18} />
+        </span>
         <div>
           <Typography.Text className='text-lg font-medium'>
             {t('其他设置')}
@@ -406,7 +408,7 @@ const NotificationSettings = ({
       >
         {() => (
           <Tabs
-            type='card'
+            type='line'
             defaultActiveKey='notification'
             onChange={(key) => setActiveTabKey(key)}
           >
@@ -822,96 +824,64 @@ const NotificationSettings = ({
                       {t('您可以个性化设置侧边栏的要显示功能')}
                     </Typography.Text>
                   </div>
-                  {/* 边栏设置功能区域容器 */}
-                  <div
-                    className='border rounded-xl p-4'
-                    style={{
-                      borderColor: 'var(--semi-color-border)',
-                      backgroundColor: 'var(--semi-color-bg-1)',
-                    }}
-                  >
-                    {sectionConfigs.map((section) => (
-                      <div key={section.key} className='mb-6'>
-                        {/* 区域标题和总开关 */}
+                  {/* 边栏设置：每个区域一张扁平卡(头部分隔线 + 模块格) */}
+                  <div className='flex flex-col gap-4'>
+                    {sectionConfigs.map((section) => {
+                      const sectionOn =
+                        sidebarModulesUser[section.key]?.enabled !== false;
+                      return (
                         <div
-                          className='flex justify-between items-center mb-4 p-4 rounded-lg'
-                          style={{
-                            backgroundColor: 'var(--semi-color-fill-0)',
-                            border: '1px solid var(--semi-color-border-light)',
-                            borderColor: 'var(--semi-color-fill-1)',
-                          }}
+                          key={section.key}
+                          className='rounded-xl border border-[var(--semi-color-border)] overflow-hidden bg-[var(--semi-color-bg-1)]'
                         >
-                          <div>
-                            <div className='font-semibold text-base text-gray-900 mb-1'>
-                              {section.title}
+                          {/* 区域标题 + 总开关 */}
+                          <div className='flex justify-between items-center gap-3 px-4 py-3 border-b border-[var(--semi-color-border)]'>
+                            <div className='min-w-0'>
+                              <div className='font-semibold text-sm text-gray-900'>
+                                {section.title}
+                              </div>
+                              <div className='text-xs text-gray-500 mt-0.5'>
+                                {section.description}
+                              </div>
                             </div>
-                            <Typography.Text
-                              type='secondary'
-                              size='small'
-                              style={{
-                                fontSize: '12px',
-                                lineHeight: '1.5',
-                                color: 'var(--semi-color-text-2)',
-                              }}
-                            >
-                              {section.description}
-                            </Typography.Text>
+                            <Switch
+                              checked={sectionOn}
+                              onChange={handleSectionChange(section.key)}
+                              size='default'
+                            />
                           </div>
-                          <Switch
-                            checked={
-                              sidebarModulesUser[section.key]?.enabled !== false
-                            }
-                            onChange={handleSectionChange(section.key)}
-                            size='default'
-                          />
-                        </div>
 
-                        {/* 功能模块网格 */}
-                        <Row gutter={[12, 12]}>
-                          {section.modules
-                            .filter((module) =>
-                              isAllowedByAdmin(section.key, module.key),
-                            )
-                            .map((module) => (
-                              <Col
-                                key={module.key}
-                                xs={24}
-                                sm={24}
-                                md={12}
-                                lg={8}
-                                xl={8}
-                              >
-                                <Card
-                                  className={`!rounded-xl border border-gray-200 hover:border-blue-300 transition-all duration-200 ${
-                                    sidebarModulesUser[section.key]?.enabled !==
-                                    false
-                                      ? ''
-                                      : 'opacity-50'
-                                  }`}
-                                  bodyStyle={{ padding: '16px' }}
-                                  hoverable
-                                >
-                                  <div className='flex justify-between items-center h-full'>
-                                    <div className='flex-1 text-left'>
-                                      <div className='font-semibold text-sm text-gray-900 mb-1'>
-                                        {module.title}
+                          {/* 功能模块格 */}
+                          <div className='p-3'>
+                            <Row gutter={[10, 10]}>
+                              {section.modules
+                                .filter((module) =>
+                                  isAllowedByAdmin(section.key, module.key),
+                                )
+                                .map((module) => (
+                                  <Col
+                                    key={module.key}
+                                    xs={24}
+                                    sm={12}
+                                    md={12}
+                                    lg={8}
+                                    xl={8}
+                                  >
+                                    <div
+                                      className={`rounded-lg border border-[var(--semi-color-border)] px-3 py-2.5 flex items-center justify-between gap-2 h-full ${
+                                        sectionOn ? '' : 'opacity-50'
+                                      }`}
+                                    >
+                                      <div className='min-w-0'>
+                                        <div className='font-medium text-sm text-gray-900 truncate'>
+                                          {module.title}
+                                        </div>
+                                        <div className='text-[11px] text-gray-500 mt-0.5 leading-snug'>
+                                          {module.description}
+                                        </div>
                                       </div>
-                                      <Typography.Text
-                                        type='secondary'
-                                        size='small'
-                                        className='block'
-                                        style={{
-                                          fontSize: '12px',
-                                          lineHeight: '1.5',
-                                          color: 'var(--semi-color-text-2)',
-                                          marginTop: '4px',
-                                        }}
-                                      >
-                                        {module.description}
-                                      </Typography.Text>
-                                    </div>
-                                    <div className='ml-4'>
                                       <Switch
+                                        size='small'
                                         checked={
                                           sidebarModulesUser[section.key]?.[
                                             module.key
@@ -921,22 +891,17 @@ const NotificationSettings = ({
                                           section.key,
                                           module.key,
                                         )}
-                                        size='default'
-                                        disabled={
-                                          sidebarModulesUser[section.key]
-                                            ?.enabled === false
-                                        }
+                                        disabled={!sectionOn}
                                       />
                                     </div>
-                                  </div>
-                                </Card>
-                              </Col>
-                            ))}
-                        </Row>
-                      </div>
-                    ))}
-                  </div>{' '}
-                  {/* 关闭边栏设置功能区域容器 */}
+                                  </Col>
+                                ))}
+                            </Row>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </TabPane>
             )}

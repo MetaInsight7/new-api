@@ -18,10 +18,23 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Tag, Space, Skeleton } from '@douyinfe/semi-ui';
+import { Space, Skeleton } from '@douyinfe/semi-ui';
+import { Coins, Activity, Gauge } from 'lucide-react';
 import { renderQuota } from '../../../helpers';
 import CompactModeToggle from '../../common/ui/CompactModeToggle';
 import { useMinimumLoadingTime } from '../../../hooks/common/useMinimumLoadingTime';
+
+const StatChip = ({ tone, icon: Icon, label, value }) => (
+  <div className={`dmit-stat-chip is-${tone}`}>
+    <span className='dmit-stat-chip__icon'>
+      <Icon size={16} />
+    </span>
+    <span className='dmit-stat-chip__body'>
+      <span className='dmit-stat-chip__label'>{label}</span>
+      <span className='dmit-stat-chip__value'>{value}</span>
+    </span>
+  </div>
+);
 
 const LogsActions = ({
   stat,
@@ -36,51 +49,25 @@ const LogsActions = ({
 
   const placeholder = (
     <Space>
-      <Skeleton.Title style={{ width: 108, height: 21, borderRadius: 6 }} />
-      <Skeleton.Title style={{ width: 65, height: 21, borderRadius: 6 }} />
-      <Skeleton.Title style={{ width: 64, height: 21, borderRadius: 6 }} />
+      <Skeleton.Title style={{ width: 140, height: 44, borderRadius: 12 }} />
+      <Skeleton.Title style={{ width: 96, height: 44, borderRadius: 12 }} />
+      <Skeleton.Title style={{ width: 96, height: 44, borderRadius: 12 }} />
     </Space>
   );
 
   return (
     <div className='flex flex-col md:flex-row justify-between items-start md:items-center gap-2 w-full'>
       <Skeleton loading={needSkeleton} active placeholder={placeholder}>
-        <Space>
-          <Tag
-            color='blue'
-            style={{
-              fontWeight: 500,
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-              padding: 13,
-            }}
-            className='!rounded-lg'
-          >
-            {t('消耗额度')}: {renderQuota(stat.quota)}
-          </Tag>
-          <Tag
-            color='pink'
-            style={{
-              fontWeight: 500,
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-              padding: 13,
-            }}
-            className='!rounded-lg'
-          >
-            RPM: {stat.rpm}
-          </Tag>
-          <Tag
-            color='white'
-            style={{
-              border: 'none',
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-              fontWeight: 500,
-              padding: 13,
-            }}
-            className='!rounded-lg'
-          >
-            TPM: {stat.tpm}
-          </Tag>
-        </Space>
+        <div className='flex flex-wrap items-center gap-2'>
+          <StatChip
+            tone='blue'
+            icon={Coins}
+            label={t('消耗额度')}
+            value={renderQuota(stat.quota)}
+          />
+          <StatChip tone='violet' icon={Activity} label='RPM' value={stat.rpm} />
+          <StatChip tone='emerald' icon={Gauge} label='TPM' value={stat.tpm} />
+        </div>
       </Skeleton>
 
       <CompactModeToggle

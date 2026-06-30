@@ -43,6 +43,8 @@ const TransferModal = ({
       visible={openTransfer}
       onOk={transfer}
       onCancel={handleTransferCancel}
+      okButtonProps={{ theme: 'solid' }}
+      cancelButtonProps={{ theme: 'borderless' }}
       maskClosable={false}
       centered
     >

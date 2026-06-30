@@ -219,7 +219,7 @@ const EditDeploymentModal = ({
 
       <div className='p-4 border-t border-gray-200 bg-gray-50 flex justify-end'>
         <Space>
-          <Button theme='outline' onClick={handleClose} disabled={loading}>
+          <Button type='tertiary' theme='light' onClick={handleClose} disabled={loading}>
             <X size={16} className='mr-1' />
             {t('取消')}
           </Button>

@@ -35,6 +35,8 @@ const ContentModal = ({
         visible={isModalOpen}
         onOk={() => setIsModalOpen(false)}
         onCancel={() => setIsModalOpen(false)}
+        okButtonProps={{ theme: 'solid' }}
+        cancelButtonProps={{ theme: 'borderless' }}
         closable={null}
         bodyStyle={{ height: '400px', overflow: 'auto' }}
         width={800}

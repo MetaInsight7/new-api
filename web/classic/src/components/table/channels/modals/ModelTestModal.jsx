@@ -273,15 +273,17 @@ const ModelTestModal = ({
         hasChannel ? (
           <div className='flex justify-end'>
             {isBatchTesting ? (
-              <Button type='danger' onClick={handleCloseModal}>
+              <Button type='danger' theme='solid' onClick={handleCloseModal}>
                 {t('停止测试')}
               </Button>
             ) : (
-              <Button type='tertiary' onClick={handleCloseModal}>
+              <Button type='tertiary' theme='light' onClick={handleCloseModal}>
                 {t('取消')}
               </Button>
             )}
             <Button
+              type='primary'
+              theme='solid'
               onClick={batchTestModels}
               loading={isBatchTesting}
               disabled={isBatchTesting}

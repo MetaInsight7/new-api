@@ -41,7 +41,6 @@ import {
   Typography,
   Card,
   Tag,
-  Avatar,
   Form,
   Col,
   Row,
@@ -303,24 +302,31 @@ const EditTokenModal = (props) => {
 
   return (
     <SideSheet
-      placement={isEdit ? 'right' : 'left'}
+      placement='right'
       title={
-        <Space>
-          {isEdit ? (
-            <Tag color='blue' shape='circle'>
-              {t('更新')}
-            </Tag>
-          ) : (
-            <Tag color='green' shape='circle'>
-              {t('新建')}
-            </Tag>
-          )}
-          <Title heading={4} className='m-0'>
-            {isEdit ? t('更新令牌信息') : t('创建新的令牌')}
-          </Title>
-        </Space>
+        <div className='flex items-center gap-3'>
+          <span
+            className='inline-flex items-center justify-center w-9 h-9 rounded-lg flex-shrink-0'
+            style={{ background: 'rgba(37,99,235,0.1)', color: '#2563eb' }}
+          >
+            <IconKey size={18} />
+          </span>
+          <div className='min-w-0'>
+            <div className='flex items-center gap-2'>
+              <Title heading={5} className='m-0'>
+                {isEdit ? t('更新令牌信息') : t('创建新的令牌')}
+              </Title>
+              <Tag color={isEdit ? 'blue' : 'green'} shape='circle' size='small'>
+                {isEdit ? t('更新') : t('新建')}
+              </Tag>
+            </div>
+            <div className='text-xs text-gray-500'>
+              {t('配置基本信息、额度与访问限制')}
+            </div>
+          </div>
+        </div>
       }
-      bodyStyle={{ padding: '0' }}
+      bodyStyle={{ padding: '0', background: '#f8fafc' }}
       visible={props.visiable}
       width={isMobile ? '100%' : 600}
       footer={
@@ -328,6 +334,7 @@ const EditTokenModal = (props) => {
           <Space>
             <Button
               theme='solid'
+              type='primary'
               className='!rounded-lg'
               onClick={() => formApiRef.current?.submitForm()}
               icon={<IconSave />}
@@ -338,7 +345,7 @@ const EditTokenModal = (props) => {
             <Button
               theme='light'
               className='!rounded-lg'
-              type='primary'
+              type='tertiary'
               onClick={handleCancel}
               icon={<IconClose />}
             >
@@ -360,11 +367,14 @@ const EditTokenModal = (props) => {
           {({ values }) => (
             <div className='p-2'>
               {/* 基本信息 */}
-              <Card className='!rounded-2xl shadow-sm border-0'>
+              <Card className='!rounded-xl border border-[#e2e8f0] !shadow-none'>
                 <div className='flex items-center mb-2'>
-                  <Avatar size='small' color='blue' className='mr-2 shadow-md'>
+                  <span
+                    className='mr-2 inline-flex items-center justify-center w-8 h-8 rounded-lg flex-shrink-0'
+                    style={{ background: 'rgba(37,99,235,0.1)', color: '#2563eb' }}
+                  >
                     <IconKey size={16} />
-                  </Avatar>
+                  </span>
                   <div>
                     <Text className='text-lg font-medium'>{t('基本信息')}</Text>
                     <div className='text-xs text-gray-600'>
@@ -507,11 +517,14 @@ const EditTokenModal = (props) => {
               </Card>
 
               {/* 额度设置 */}
-              <Card className='!rounded-2xl shadow-sm border-0'>
+              <Card className='!rounded-xl border border-[#e2e8f0] !shadow-none'>
                 <div className='flex items-center mb-2'>
-                  <Avatar size='small' color='green' className='mr-2 shadow-md'>
+                  <span
+                    className='mr-2 inline-flex items-center justify-center w-8 h-8 rounded-lg flex-shrink-0'
+                    style={{ background: 'rgba(5,150,105,0.1)', color: '#059669' }}
+                  >
                     <IconCreditCard size={16} />
-                  </Avatar>
+                  </span>
                   <div>
                     <Text className='text-lg font-medium'>{t('额度设置')}</Text>
                     <div className='text-xs text-gray-600'>
@@ -592,15 +605,14 @@ const EditTokenModal = (props) => {
               </Card>
 
               {/* 访问限制 */}
-              <Card className='!rounded-2xl shadow-sm border-0'>
+              <Card className='!rounded-xl border border-[#e2e8f0] !shadow-none'>
                 <div className='flex items-center mb-2'>
-                  <Avatar
-                    size='small'
-                    color='purple'
-                    className='mr-2 shadow-md'
+                  <span
+                    className='mr-2 inline-flex items-center justify-center w-8 h-8 rounded-lg flex-shrink-0'
+                    style={{ background: 'rgba(124,58,237,0.1)', color: '#7c3aed' }}
                   >
                     <IconLink size={16} />
-                  </Avatar>
+                  </span>
                   <div>
                     <Text className='text-lg font-medium'>{t('访问限制')}</Text>
                     <div className='text-xs text-gray-600'>

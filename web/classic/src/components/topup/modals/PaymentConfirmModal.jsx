@@ -55,6 +55,8 @@ const PaymentConfirmModal = ({
       visible={open}
       onOk={onlineTopUp}
       onCancel={handleCancel}
+      okButtonProps={{ theme: 'solid' }}
+      cancelButtonProps={{ theme: 'borderless' }}
       maskClosable={false}
       size='small'
       centered

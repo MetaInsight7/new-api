@@ -44,6 +44,8 @@ const ChangePasswordModal = ({
       visible={showChangePasswordModal}
       onCancel={() => setShowChangePasswordModal(false)}
       onOk={changePassword}
+      okButtonProps={{ theme: 'solid' }}
+      cancelButtonProps={{ theme: 'borderless' }}
       size={'small'}
       centered={true}
       className='modern-modal'

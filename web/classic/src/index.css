@@ -194,42 +194,60 @@ body {
   line-height: 1.2;
 }
 
-/* ===== 二级 pill 导航（还原 DMIT proxmox 模块样式） ===== */
+/* ===== 二级导航：下划线标签栏(GitHub/Vercel/Linear 式页面切换) ===== */
 .dmit-subnav {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 8px;
-  margin-bottom: 16px;
+  flex-wrap: nowrap;
+  gap: 2px;
+  /* 无独立卡壳:一条基线把标签托住,激活项用蓝下划线指示位置,
+     与下方内容卡自然衔接,不再是漂浮 pill / 孤立容器 */
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid #e2e8f0;
+  border-radius: 0;
+  padding: 0;
+  margin-bottom: 18px;
+  /* 与各页面内容容器的 px-2(8px) 对齐 */
+  margin-left: 8px;
+  margin-right: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.dmit-subnav::-webkit-scrollbar {
+  display: none;
 }
 
 .dmit-subnav__item {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 20px;
-  border-radius: 6px;
+  gap: 7px;
+  padding: 11px 16px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  border-radius: 0;
   font-size: 15px;
   font-weight: 500;
-  color: #475569;
+  color: #64748b;
   text-decoration: none;
   white-space: nowrap;
-  transition: background 0.2s ease, color 0.2s ease;
+  flex-shrink: 0;
+  transition: color 0.15s ease, border-color 0.15s ease;
 }
 
 .dmit-subnav__item:hover {
-  background: #f1f5f9;
+  background: transparent;
   color: #0f172a;
   text-decoration: none;
 }
 
 .dmit-subnav__item--active,
 .dmit-subnav__item--active:hover {
-  background: #2563eb;
-  color: #ffffff;
+  background: transparent;
+  color: #2563eb;
+  border-bottom-color: #2563eb;
+  font-weight: 600;
 }
 
 .dmit-subnav__icon {

@@ -92,8 +92,10 @@ const MjLogsFilters = ({
           <div></div>
           <div className='flex gap-2'>
             <Button
-              type='tertiary'
+              type='primary'
+              theme='solid'
               htmlType='submit'
+              icon={<IconSearch />}
               loading={loading}
               size='small'
             >
@@ -101,6 +103,7 @@ const MjLogsFilters = ({
             </Button>
             <Button
               type='tertiary'
+              theme='light'
               onClick={() => {
                 if (formApi) {
                   formApi.reset();
@@ -115,6 +118,7 @@ const MjLogsFilters = ({
             </Button>
             <Button
               type='tertiary'
+              theme='light'
               onClick={() => setShowColumnSelector(true)}
               size='small'
             >

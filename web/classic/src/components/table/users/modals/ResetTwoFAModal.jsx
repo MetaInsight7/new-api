@@ -28,6 +28,9 @@ const ResetTwoFAModal = ({ visible, onCancel, onConfirm, user, t }) => {
       onCancel={onCancel}
       onOk={onConfirm}
       type='warning'
+      okType='danger'
+      okButtonProps={{ theme: 'solid' }}
+      cancelButtonProps={{ theme: 'borderless' }}
     >
       {t(
         '此操作将禁用该用户当前的两步验证配置，下次登录将不再强制输入验证码，直到用户重新启用。',

@@ -27,7 +27,6 @@ import {
   Tabs,
   TabPane,
   Typography,
-  Avatar,
 } from '@douyinfe/semi-ui';
 import {
   IllustrationNoContent,
@@ -55,9 +54,12 @@ const ModelsList = ({ t, models, modelsLoading, copyText }) => {
     <div className='py-4'>
       {/* 卡片头部 */}
       <div className='flex items-center mb-4'>
-        <Avatar size='small' color='green' className='mr-3 shadow-md'>
-          <Settings size={16} />
-        </Avatar>
+        <span
+          className='mr-3 inline-flex items-center justify-center w-9 h-9 rounded-lg'
+          style={{ background: 'rgba(5,150,105,0.1)', color: '#059669' }}
+        >
+          <Settings size={18} />
+        </span>
         <div>
           <Typography.Text className='text-lg font-medium'>
             {t('可用模型')}

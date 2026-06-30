@@ -73,16 +73,27 @@ const AddUserModal = (props) => {
   return (
     <>
       <SideSheet
-        placement={'left'}
+        placement='right'
         title={
-          <Space>
-            <Tag color='green' shape='circle'>
-              {t('新建')}
-            </Tag>
-            <Title heading={4} className='m-0'>
-              {t('添加用户')}
-            </Title>
-          </Space>
+          <div className='flex items-center gap-3'>
+            <span
+              className='inline-flex items-center justify-center w-9 h-9 rounded-lg flex-shrink-0'
+              style={{ background: 'rgba(37,99,235,0.1)', color: '#2563eb' }}
+            >
+              <IconUserAdd size={18} />
+            </span>
+            <div className='min-w-0'>
+              <div className='flex items-center gap-2'>
+                <Title heading={5} className='m-0'>
+                  {t('添加用户')}
+                </Title>
+                <Tag color='green' shape='circle' size='small'>
+                  {t('新建')}
+                </Tag>
+              </div>
+              <div className='text-xs text-gray-500'>{t('创建新用户账户')}</div>
+            </div>
+          </div>
         }
         bodyStyle={{ padding: '0' }}
         visible={props.visible}
@@ -91,6 +102,7 @@ const AddUserModal = (props) => {
           <div className='flex justify-end bg-white'>
             <Space>
               <Button
+                type='primary'
                 theme='solid'
                 onClick={() => formApiRef.current?.submitForm()}
                 icon={<IconSave />}
@@ -100,7 +112,7 @@ const AddUserModal = (props) => {
               </Button>
               <Button
                 theme='light'
-                type='primary'
+                type='tertiary'
                 onClick={handleCancel}
                 icon={<IconClose />}
               >

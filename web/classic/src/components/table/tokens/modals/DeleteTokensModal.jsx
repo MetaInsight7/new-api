@@ -33,6 +33,9 @@ const DeleteTokensModal = ({
       visible={visible}
       onCancel={onCancel}
       onOk={onConfirm}
+      okType='danger'
+      okButtonProps={{ theme: 'solid' }}
+      cancelButtonProps={{ theme: 'borderless' }}
       type='warning'
     >
       <div>

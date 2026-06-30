@@ -138,6 +138,8 @@ export default function CCSwitchModal({
       onOk={handleSubmit}
       okText={t('打开 CC Switch')}
       cancelText={t('取消')}
+      okButtonProps={{ theme: 'solid' }}
+      cancelButtonProps={{ theme: 'borderless' }}
       maskClosable={false}
       width={480}
     >

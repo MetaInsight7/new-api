@@ -117,7 +117,7 @@ const CodexOAuthModal = ({ visible, onCancel, onSuccess }) => {
       width={720}
       footer={
         <Space>
-          <Button theme='borderless' onClick={onCancel} disabled={loading}>
+          <Button theme='light' type='tertiary' onClick={onCancel} disabled={loading}>
             {t('取消')}
           </Button>
           <Button

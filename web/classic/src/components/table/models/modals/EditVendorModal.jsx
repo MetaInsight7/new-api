@@ -123,6 +123,8 @@ const EditVendorModal = ({ visible, handleClose, refresh, editingVendor }) => {
       onOk={() => formApiRef.current?.submitForm()}
       onCancel={handleCancel}
       confirmLoading={loading}
+      okButtonProps={{ theme: 'solid' }}
+      cancelButtonProps={{ theme: 'borderless' }}
       size={isMobile ? 'full-width' : 'small'}
     >
       <Form

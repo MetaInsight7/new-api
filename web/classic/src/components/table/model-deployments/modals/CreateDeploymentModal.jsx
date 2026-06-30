@@ -843,6 +843,8 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
       cancelText={t('取消')}
       width={800}
       confirmLoading={submitting}
+      okButtonProps={{ theme: 'solid' }}
+      cancelButtonProps={{ theme: 'borderless' }}
       style={{ top: 20 }}
     >
       <Form

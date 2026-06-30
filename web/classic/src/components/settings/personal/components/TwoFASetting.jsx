@@ -366,15 +366,15 @@ const TwoFASetting = ({ t }) => {
 
   return (
     <>
-      <Card className='!rounded-xl w-full'>
+      <div className='px-4 py-3.5'>
         <div className='flex flex-col sm:flex-row items-start sm:justify-between gap-4'>
           <div className='flex items-start w-full sm:w-auto'>
-            <div className='w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center mr-4 flex-shrink-0'>
-              <IconShield
-                size='large'
-                className='text-slate-600 dark:text-slate-300'
-              />
-            </div>
+            <span
+              className='mr-4 inline-flex items-center justify-center w-10 h-10 rounded-lg flex-shrink-0'
+              style={{ background: 'rgba(37,99,235,0.1)', color: '#2563eb' }}
+            >
+              <IconShield size='large' />
+            </span>
             <div className='flex-1'>
               <div className='flex items-center gap-2 mb-1'>
                 <Typography.Title heading={6} className='mb-0'>
@@ -450,7 +450,7 @@ const TwoFASetting = ({ t }) => {
             )}
           </div>
         </div>
-      </Card>
+      </div>
 
       {/* 2FA设置模态框 */}
       <Modal
