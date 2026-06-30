@@ -62,17 +62,23 @@ const ChatArea = ({
       {styleState.isMobile ? (
         <div className='pt-4'></div>
       ) : (
-        <div className='px-6 py-4 bg-gradient-to-r from-purple-500 to-blue-500 rounded-t-2xl'>
+        <div className='px-6 py-4 border-b border-[#e2e8f0]'>
           <div className='flex items-center justify-between'>
             <div className='flex items-center gap-3'>
-              <div className='w-10 h-10 rounded-full bg-white/20 backdrop-blur flex items-center justify-center'>
-                <MessageSquare size={20} className='text-white' />
+              <div
+                className='w-9 h-9 rounded-lg flex items-center justify-center'
+                style={{ background: 'rgba(37,99,235,0.1)', color: '#2563eb' }}
+              >
+                <MessageSquare size={18} />
               </div>
               <div>
-                <Typography.Title heading={5} className='!text-white mb-0'>
+                <Typography.Title heading={5} className='mb-0'>
                   {t('AI 对话')}
                 </Typography.Title>
-                <Typography.Text className='!text-white/80 text-sm hidden sm:inline'>
+                <Typography.Text
+                  type='tertiary'
+                  className='text-sm hidden sm:inline'
+                >
                   {inputs.model || t('选择模型开始对话')}
                 </Typography.Text>
               </div>
@@ -84,7 +90,7 @@ const ChatArea = ({
                 theme='borderless'
                 type='primary'
                 size='small'
-                className='!rounded-lg !text-white/80 hover:!text-white hover:!bg-white/10'
+                className='!rounded-lg'
               >
                 {showDebugPanel ? t('隐藏调试') : t('显示调试')}
               </Button>
