@@ -48,8 +48,34 @@ const getBalanceCaption = (user, t) => {
   return { text: t('可正常调用'), tone: 'green' };
 };
 
-const formatTrendPercent = (percent) => {
-  const absPercent = Math.abs(percent);
+// 当前所选时间范围的简短文案(用于随范围联动的副标题)
+const getRangeLabel = (activeTimeRange, t) => {
+  switch (activeTimeRange) {
+    case 'last_24h':
+      return t('近 24 小时');
+    case 'last_7d':
+      return t('近 7 天');
+    case 'last_30d':
+      return t('近 30 天');
+    case 'custom':
+      return t('自定义范围');
+    case 'today':
+    default:
+      return t('今日');
+  }
+};
+
+// 全站消耗副标题:今日精确到 00:00,其余显示"近 X 累计"
+const getConsumeCaption = (activeTimeRange, t) => {
+  if (activeTimeRange === 'today') return t('今日 00:00 至当前');
+  return `${getRangeLabel(activeTimeRange, t)}累计`;
+};
+
+// 活跃用户副标题:随范围变
+const getActiveUsersCaption = (activeTimeRange, t) =>
+  `${getRangeLabel(activeTimeRange, t)}有调用记录`;
+
+const formatTrendPercent = (percent) => {  const absPercent = Math.abs(percent);
   const digits = absPercent >= 10 ? 0 : 1;
   const prefix = percent > 0 ? '+' : percent < 0 ? '-' : '';
   return `${prefix}${absPercent.toFixed(digits)}%`;
@@ -135,7 +161,7 @@ export const useDashboardStats = (
         {
           title: hasAdminUserFilter ? t('消耗') : t('全站消耗'),
           value: renderQuota(consumeQuota),
-          caption: t('今日 00:00 至当前'),
+          caption: getConsumeCaption(activeTimeRange, t),
           statusText: hasAdminUserFilter
             ? `${t('用户筛选')} · ${trimmedAdminUsername}`
             : t('全站口径'),
@@ -183,7 +209,7 @@ export const useDashboardStats = (
           : {
               title: t('活跃用户'),
               value: activeUsers.toLocaleString(),
-              caption: t('当前范围有调用记录'),
+              caption: getActiveUsersCaption(activeTimeRange, t),
               icon: 'users',
               tone: 'blue',
               captionTone: 'green',
@@ -191,7 +217,7 @@ export const useDashboardStats = (
       ];
     }
 
-    const isTodayRange = activeTimeRange === 'today';
+    const rangeLabel = getRangeLabel(activeTimeRange, t);
     return [
       {
         title: t('当前余额'),
@@ -203,7 +229,7 @@ export const useDashboardStats = (
         captionTone: balanceCaption.tone,
       },
       {
-        title: isTodayRange ? t('今日消耗') : t('消耗'),
+        title: `${rangeLabel}${t('消耗')}`,
         value: renderQuota(consumeQuota),
         caption: `${t('历史消耗')} ${renderQuota(user?.used_quota || 0)}`,
         icon: 'coins',
@@ -212,7 +238,7 @@ export const useDashboardStats = (
         trend: metricTrends.quota,
       },
       {
-        title: isTodayRange ? t('今日请求') : t('请求'),
+        title: `${rangeLabel}${t('请求')}`,
         value: Number(times || 0).toLocaleString(),
         caption: `${t('历史请求')} ${Number(user?.request_count || 0).toLocaleString()}`,
         icon: 'activity',
@@ -221,9 +247,9 @@ export const useDashboardStats = (
         trend: metricTrends.times,
       },
       {
-        title: isTodayRange ? t('今日 Tokens') : t('Tokens'),
+        title: `${rangeLabel} Tokens`,
         value: formatDashboardTokenMetric(consumeTokens),
-        caption: `${t('近 30 天 Tokens')} ${formatDashboardTokenMetric(recentTokens)}`,
+        caption: `${t('近 30 天累计')} ${formatDashboardTokenMetric(recentTokens)}`,
         icon: 'tokens',
         tone: 'cyan',
         captionTone: 'cyan',

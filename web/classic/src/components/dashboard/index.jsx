@@ -21,11 +21,13 @@ import React, { useContext, useEffect, useMemo, useRef } from 'react';
 import { Tooltip } from '@douyinfe/semi-ui';
 import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
-import { BarChart3, BookOpen, Gauge, Globe, KeyRound, Server } from 'lucide-react';
+import { BarChart3, BookOpen, KeyRound, Server, Wallet } from 'lucide-react';
 
 import DashboardHeader from './DashboardHeader';
 import StatsCards from './StatsCards';
 import ChartsPanel from './ChartsPanel';
+import AvailabilityRail from './AvailabilityRail';
+import BalanceCard from './BalanceCard';
 import WorkspacePanel from './WorkspacePanel';
 import SearchModal from './modals/SearchModal';
 import NoticeModal from '../layout/NoticeModal';
@@ -268,93 +270,62 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Column 3: 服务可用性 */}
-        {dashboardData.uptimeEnabled && (
-          <div className='dashboard-main-section'>
-            <div className='dashboard-main-section__header'>
-              <Gauge size={16} />
-              <span>{dashboardData.t('服务可用性')}</span>
-            </div>
-            <div className='dashboard-main-section__body'>
-              {allMonitors.length > 0 ? (
-                <>
-                  <div className='dashboard-availability-list'>
-                    {allMonitors.map((monitor, idx) => {
-                      const pct = Math.min(
-                        (monitor.uptime || 0) * 100,
-                        100,
-                      );
-                      const statusInfo =
-                        UPTIME_STATUS_MAP[monitor.status] ||
-                        UPTIME_STATUS_MAP[1];
-                      return (
-                        <div
-                          key={monitor.name || idx}
-                          className='dashboard-availability-item'
-                        >
-                          <div className='dashboard-availability-item__header'>
-                            <div className='dashboard-availability-item__name'>
-                              <Globe size={14} />
-                              <span>{monitor.name}</span>
-                            </div>
-                            <span
-                              className='dashboard-availability-item__percent'
-                              style={{ color: statusInfo.color }}
-                            >
-                              {pct.toFixed(2)}%
-                            </span>
-                          </div>
-                          <div className='dashboard-availability-bar'>
-                            <div
-                              className='dashboard-availability-bar__fill'
-                              style={{ width: `${pct}%` }}
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <div className='dashboard-availability-legend'>
-                    {uptimeLegendData.map((legend) => (
-                      <div
-                        key={legend.status}
-                        className='dashboard-availability-legend__item'
-                      >
-                        <span
-                          className='dashboard-availability-legend__dot'
-                          style={{ backgroundColor: legend.color }}
-                        />
-                        <span>{legend.label}</span>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <div className='dashboard-availability-empty'>
-                  <Gauge size={24} />
-                  <span>{dashboardData.t('暂无监控数据')}</span>
-                </div>
-              )}
+        {/* Column 3: 余额 & 充值（原服务可用性位置） */}
+        <div className='dashboard-main-section'>
+          <div className='dashboard-main-section__header'>
+            <Wallet size={16} />
+            <span>{dashboardData.t('余额充值')}</span>
+            <div className='dashboard-main-section__header-actions'>
+              <button
+                type='button'
+                title={dashboardData.t('充值记录')}
+                onClick={() => dashboardData.navigate('/console/topup')}
+              >
+                <Wallet size={13} />
+                {dashboardData.t('充值')}
+              </button>
             </div>
           </div>
-        )}
+          <div className='dashboard-main-section__body'>
+            <BalanceCard
+              quota={userState?.user?.quota}
+              usedQuota={userState?.user?.used_quota}
+              balanceCaption={balanceStatus}
+              onTopUp={() => dashboardData.navigate('/console/topup')}
+              t={dashboardData.t}
+            />
+          </div>
+        </div>
       </div>
 
-      {/* Chart section with sidebar navigation */}
-      <div className='mb-4'>
-        <ChartsPanel
-          activeChartTab={dashboardData.activeChartTab}
-          setActiveChartTab={dashboardData.setActiveChartTab}
-          spec_line={dashboardCharts.spec_line}
-          spec_model_line={dashboardCharts.spec_model_line}
-          spec_pie={dashboardCharts.spec_pie}
-          spec_rank_bar={dashboardCharts.spec_rank_bar}
-          spec_user_rank={dashboardCharts.spec_user_rank}
-          spec_user_trend={dashboardCharts.spec_user_trend}
-          isAdminUser={dashboardData.isAdminUser}
-          CHART_CONFIG={CHART_CONFIG}
-          t={dashboardData.t}
-        />
+      {/* Chart section + 服务可用性侧栏 */}
+      <div
+        className={`dashboard-chart-row mb-4${
+          dashboardData.uptimeEnabled ? ' has-rail' : ''
+        }`}
+      >
+        <div className='dashboard-chart-row__main'>
+          <ChartsPanel
+            activeChartTab={dashboardData.activeChartTab}
+            setActiveChartTab={dashboardData.setActiveChartTab}
+            spec_line={dashboardCharts.spec_line}
+            spec_model_line={dashboardCharts.spec_model_line}
+            spec_pie={dashboardCharts.spec_pie}
+            spec_rank_bar={dashboardCharts.spec_rank_bar}
+            spec_user_rank={dashboardCharts.spec_user_rank}
+            spec_user_trend={dashboardCharts.spec_user_trend}
+            isAdminUser={dashboardData.isAdminUser}
+            CHART_CONFIG={CHART_CONFIG}
+            t={dashboardData.t}
+          />
+        </div>
+        {dashboardData.uptimeEnabled && (
+          <AvailabilityRail
+            monitors={allMonitors}
+            legend={uptimeLegendData}
+            t={dashboardData.t}
+          />
+        )}
       </div>
     </div>
   );

@@ -278,20 +278,11 @@ const iconMap = {
   users: Users,
 };
 
-const toneColorMap = {
-  blue: '#2563eb',
-  amber: '#d97706',
-  green: '#059669',
-  cyan: '#0891b2',
-  red: '#ef4444',
-};
-
 const StatsCards = ({ statsData = [], loading, t }) => {
   return (
     <div className='dashboard-usage-grid'>
       {statsData.map((item, index) => {
         const Icon = iconMap[item.icon] || Wallet;
-        const color = toneColorMap[item.tone] || '#2563eb';
         const Wrapper = item.onClick ? 'button' : 'div';
         const wrapperProps = item.onClick
           ? {
@@ -308,11 +299,19 @@ const StatsCards = ({ statsData = [], loading, t }) => {
             title={item.caption}
             {...wrapperProps}
           >
+            <Icon
+              size={40}
+              strokeWidth={1.5}
+              className='dashboard-usage-item__corner'
+              aria-hidden='true'
+            />
             <div className='dashboard-usage-item__header'>
-              <Icon size={14} style={{ color }} />
-              <span className='dashboard-usage-item__label' style={{ color }}>
-                {item.title}
-              </span>
+              <Icon
+                size={15}
+                strokeWidth={1.75}
+                className='dashboard-usage-item__icon'
+              />
+              <span className='dashboard-usage-item__label'>{item.title}</span>
             </div>
             <div className='dashboard-usage-item__value'>
               <MetricValue
