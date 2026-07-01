@@ -284,18 +284,18 @@ html:not(.dark) .semi-portal .semi-select-focus {
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
 }
 
-/* 浮层内表单分区标题:同样的 DMIT 蓝强调条 */
-html:not(.dark) .semi-portal .semi-form-section-text {
+/* 浮层内表单分区标题:蓝强调条(仅纯文字单行标题;富自定义头部不加,避免错位) */
+html:not(.dark) .semi-portal .semi-form-section-text:not(:has(*)) {
   position: relative;
   padding-left: 11px;
   font-weight: 800;
 }
 
-html:not(.dark) .semi-portal .semi-form-section-text::before {
+html:not(.dark) .semi-portal .semi-form-section-text:not(:has(*))::before {
   content: '';
   position: absolute;
   left: 0;
-  top: 50%;
+  top: calc(50% - 2px);
   transform: translateY(-50%);
   width: 3px;
   height: 14px;
@@ -451,18 +451,22 @@ html:not(.dark) .semi-portal .semi-form-section-text::before {
 
 /* ---------- 设置表单:分区标题做成 DMIT 区块头(左侧蓝色强调条) ---------- */
 html:not(.dark) .app-console .semi-form-section-text {
-  position: relative;
-  padding-left: 11px;
   font-size: 14px;
   font-weight: 800;
   color: var(--semi-color-text-0);
 }
 
-html:not(.dark) .app-console .semi-form-section-text::before {
+/* 蓝色强调条仅用于纯文字单行分区标题;富自定义头部(自带图标/多行)不加,避免竖线与文字错位 */
+html:not(.dark) .app-console .semi-form-section-text:not(:has(*)) {
+  position: relative;
+  padding-left: 11px;
+}
+
+html:not(.dark) .app-console .semi-form-section-text:not(:has(*))::before {
   content: '';
   position: absolute;
   left: 0;
-  top: 50%;
+  top: calc(50% - 2px);
   transform: translateY(-50%);
   width: 3px;
   height: 14px;
