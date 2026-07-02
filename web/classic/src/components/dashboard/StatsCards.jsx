@@ -283,6 +283,58 @@ const StatsCards = ({ statsData = [], loading, t }) => {
     <div className='dashboard-usage-grid'>
       {statsData.map((item, index) => {
         const Icon = iconMap[item.icon] || Wallet;
+        const isBalance = item.variant === 'balance';
+
+        if (isBalance) {
+          const statusTone = item.statusTone || item.captionTone || 'green';
+          return (
+            <div
+              key={item.icon || item.title || index}
+              className='dashboard-usage-item is-balance'
+              title={item.caption}
+            >
+              {item.onTopUp && (
+                <button
+                  type='button'
+                  className='dashboard-usage-item__topup'
+                  onClick={item.onTopUp}
+                  aria-label={item.topUpLabel || t('充值')}
+                >
+                  {item.topUpLabel || t('充值')}
+                </button>
+              )}
+              <div className='dashboard-usage-item__header'>
+                <Icon
+                  size={15}
+                  strokeWidth={1.75}
+                  className='dashboard-usage-item__icon'
+                />
+                <span className='dashboard-usage-item__label'>{item.title}</span>
+              </div>
+              <div className='dashboard-usage-item__value'>
+                <MetricValue
+                  value={item.value}
+                  width={88}
+                  height={24}
+                  loading={loading}
+                />
+              </div>
+              <div className='dashboard-usage-item__caption'>
+                {item.statusText && (
+                  <span
+                    className={`dashboard-usage-item__status is-${statusTone}`}
+                  >
+                    <span className='dashboard-usage-item__status-dot' />
+                    {item.statusText}
+                  </span>
+                )}
+                {item.statusText && item.caption ? ' · ' : ''}
+                {item.caption}
+              </div>
+            </div>
+          );
+        }
+
         const Wrapper = item.onClick ? 'button' : 'div';
         const wrapperProps = item.onClick
           ? {

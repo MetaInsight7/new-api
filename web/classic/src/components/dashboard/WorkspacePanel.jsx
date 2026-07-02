@@ -17,8 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Button, Card, Dropdown, Skeleton, Tooltip } from '@douyinfe/semi-ui';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Button, Card, Dropdown, Tooltip } from '@douyinfe/semi-ui';
 import {
   BookOpen,
   ChevronDown,
@@ -97,7 +97,7 @@ const getApiEndpoints = (status) => {
   ];
 };
 
-const WorkspacePanel = ({ user, status, t }) => {
+const WorkspacePanel = ({ user, status, t, onStateChange }) => {
   const navigate = useNavigate();
   const [tokens, setTokens] = useState([]);
   const [selectedTokenId, setSelectedTokenId] = useState();
@@ -107,6 +107,27 @@ const WorkspacePanel = ({ user, status, t }) => {
   const [loading, setLoading] = useState(false);
   const [keyLoading, setKeyLoading] = useState(false);
   const [copyKeyLoading, setCopyKeyLoading] = useState(false);
+  const [lineMenuOpen, setLineMenuOpen] = useState(false);
+  const [tokenMenuOpen, setTokenMenuOpen] = useState(false);
+  const linePickRef = useRef(null);
+  const tokenPickRef = useRef(null);
+  const fieldsRef = useRef(null);
+  const [menuWidth, setMenuWidth] = useState(undefined);
+
+  useEffect(() => {
+    const el = fieldsRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    // 菜单锚定在触发器(表头右侧,左右各 13px 内边距)的右缘。
+    // 宽度取字段卡宽减去两侧 13px,则菜单左右各内缩 13px,居中对齐且不溢出。
+    const update = () =>
+      setMenuWidth(Math.max(0, el.getBoundingClientRect().width - 26));
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const menuStyle = menuWidth ? { width: `${menuWidth}px` } : undefined;
 
   const docsLink = status?.docs_link || localStorage.getItem('docs_link') || '';
   const apiEndpoints = useMemo(() => getApiEndpoints(status), [status]);
@@ -270,96 +291,55 @@ const WorkspacePanel = ({ user, status, t }) => {
     tokenCount: tokens.length,
   });
 
+  useEffect(() => {
+    onStateChange?.({
+      ready: statusReady,
+      lineCount: apiEndpoints.length,
+      tokenCount: tokens.length,
+    });
+  }, [onStateChange, statusReady, apiEndpoints.length, tokens.length]);
+
   return (
     <Card
       className='dashboard-api-access-card !rounded-2xl'
       bodyStyle={{ padding: 0 }}
     >
       <div className='dashboard-api-access'>
-        {/* 1. 概要汇总:可用标识 + 线路/令牌数量 + 当前线路/令牌 */}
-        <div className='dashboard-api-access__summary'>
-          <div className='dashboard-api-access__summary-top'>
-            <span
-              className={`dashboard-api-access__status is-${
-                statusReady ? 'ready' : 'pending'
-              }`}
-            >
-              <span className='dashboard-api-access__status-dot' />
-              {statusReady ? t('已就绪') : t('待配置')}
-            </span>
-            <span className='dashboard-api-access__summary-meta'>
-              {switchMeta}
-            </span>
-          </div>
-          <div className='dashboard-api-access__summary-current'>
-            <Dropdown
-              trigger='click'
-              position='bottomLeft'
-              render={
-                <Dropdown.Menu className='dashboard-api-access__menu'>
-                  {endpointOptions.map((option) => (
-                    <Dropdown.Item
-                      key={option.value}
-                      active={option.value === selectedEndpointId}
-                      className={
-                        option.value === selectedEndpointId
-                          ? 'dashboard-api-access__menu-li is-active'
-                          : 'dashboard-api-access__menu-li'
-                      }
-                      onClick={() => setSelectedEndpointId(option.value)}
-                    >
-                      <div className='dashboard-api-access__menu-item'>
-                        <div className='dashboard-api-access__menu-main'>
-                          <strong>{option.label}</strong>
-                          {option.description && (
-                            <small>{option.description}</small>
-                          )}
-                        </div>
-                      </div>
-                    </Dropdown.Item>
-                  ))}
-                </Dropdown.Menu>
-              }
-            >
-              <button
-                type='button'
-                className='dashboard-api-access__switch is-line'
-                aria-label={t('切换线路')}
-              >
-                <span className='dashboard-api-access__switch-label'>
-                  <Globe2 size={12} />
-                  {t('当前线路')}
-                </span>
-                <span className='dashboard-api-access__switch-value'>
-                  <strong>{currentLineLabel}</strong>
-                  <ChevronDown
-                    size={15}
-                    className='dashboard-api-access__switch-caret'
-                  />
-                </span>
-              </button>
-            </Dropdown>
-
-            <Dropdown
-              trigger='click'
-              position='bottomLeft'
-              render={
-                <Dropdown.Menu className='dashboard-api-access__menu'>
-                  {tokenOptions.length === 0 ? (
-                    <Dropdown.Item disabled>
-                      {t('暂无可用令牌')}
-                    </Dropdown.Item>
-                  ) : (
-                    tokenOptions.map((option) => (
+        <div className='dashboard-api-access__fields' ref={fieldsRef}>
+          {/* 线路字段:上排标签+可切换,发丝线,下排 Base URL + 复制 */}
+          <div className='dashboard-api-access__field'>
+            <div className='dashboard-api-access__field-head'>
+              <span className='dashboard-api-access__field-label'>
+                <Globe2 size={13} />
+                {t('当前线路')}
+              </span>
+              <Dropdown
+                trigger='custom'
+                position='bottomRight'
+                visible={lineMenuOpen}
+                onClickOutSide={(e) => {
+                  if (!linePickRef.current?.contains(e?.target)) {
+                    setLineMenuOpen(false);
+                  }
+                }}
+                render={
+                  <Dropdown.Menu
+                    className='dashboard-api-access__menu'
+                    style={menuStyle}
+                  >
+                    {endpointOptions.map((option) => (
                       <Dropdown.Item
                         key={option.value}
-                        active={option.value === selectedTokenId}
+                        active={option.value === selectedEndpointId}
                         className={
-                          option.value === selectedTokenId
+                          option.value === selectedEndpointId
                             ? 'dashboard-api-access__menu-li is-active'
                             : 'dashboard-api-access__menu-li'
                         }
-                        onClick={() => setSelectedTokenId(option.value)}
+                        onClick={() => {
+                          setSelectedEndpointId(option.value);
+                          setLineMenuOpen(false);
+                        }}
                       >
                         <div className='dashboard-api-access__menu-item'>
                           <div className='dashboard-api-access__menu-main'>
@@ -375,115 +355,159 @@ const WorkspacePanel = ({ user, status, t }) => {
                           )}
                         </div>
                       </Dropdown.Item>
-                    ))
-                  )}
-                </Dropdown.Menu>
-              }
-            >
-              <button
-                type='button'
-                className='dashboard-api-access__switch is-token'
-                aria-label={t('切换令牌')}
+                    ))}
+                  </Dropdown.Menu>
+                }
               >
-                <span className='dashboard-api-access__switch-label'>
-                  <KeyRound size={12} />
-                  {t('当前令牌')}
-                </span>
-                <span className='dashboard-api-access__switch-value'>
+                <button
+                  type='button'
+                  ref={linePickRef}
+                  className='dashboard-api-access__field-pick'
+                  aria-label={t('切换线路')}
+                  onClick={() => setLineMenuOpen((open) => !open)}
+                >
+                  <strong>{currentLineLabel}</strong>
+                  <ChevronDown size={15} />
+                </button>
+              </Dropdown>
+            </div>
+            <div className='dashboard-api-access__field-hair' />
+            <div className='dashboard-api-access__field-value'>
+              <Tooltip content={apiBaseUrl}>
+                <code>{apiBaseUrl}</code>
+              </Tooltip>
+              <Tooltip content={t('复制 Base URL')}>
+                <button
+                  type='button'
+                  className='dashboard-api-access__icon-btn'
+                  aria-label={t('复制 Base URL')}
+                  onClick={() => handleCopy(apiBaseUrl)}
+                >
+                  <Copy size={15} />
+                </button>
+              </Tooltip>
+            </div>
+          </div>
+
+          {/* 令牌字段:上排标签+可切换,发丝线,下排 API Key + 显示/复制 */}
+          <div className='dashboard-api-access__field'>
+            <div className='dashboard-api-access__field-head'>
+              <span className='dashboard-api-access__field-label'>
+                <KeyRound size={13} />
+                {t('当前令牌')}
+              </span>
+              <Dropdown
+                trigger='custom'
+                position='bottomRight'
+                visible={tokenMenuOpen}
+                onClickOutSide={(e) => {
+                  if (!tokenPickRef.current?.contains(e?.target)) {
+                    setTokenMenuOpen(false);
+                  }
+                }}
+                render={
+                  <Dropdown.Menu
+                    className='dashboard-api-access__menu'
+                    style={menuStyle}
+                  >
+                    {tokenOptions.length === 0 ? (
+                      <Dropdown.Item disabled>
+                        {t('暂无可用令牌')}
+                      </Dropdown.Item>
+                    ) : (
+                      tokenOptions.map((option) => (
+                        <Dropdown.Item
+                          key={option.value}
+                          active={option.value === selectedTokenId}
+                          className={
+                            option.value === selectedTokenId
+                              ? 'dashboard-api-access__menu-li is-active'
+                              : 'dashboard-api-access__menu-li'
+                          }
+                          onClick={() => {
+                            setSelectedTokenId(option.value);
+                            setTokenMenuOpen(false);
+                          }}
+                        >
+                          <div className='dashboard-api-access__menu-item'>
+                            <div className='dashboard-api-access__menu-main'>
+                              <strong>{option.label}</strong>
+                              {option.description && (
+                                <small>{option.description}</small>
+                              )}
+                            </div>
+                            {option.badge && (
+                              <span className='dashboard-api-access__menu-badge'>
+                                {option.badge}
+                              </span>
+                            )}
+                          </div>
+                        </Dropdown.Item>
+                      ))
+                    )}
+                  </Dropdown.Menu>
+                }
+              >
+                <button
+                  type='button'
+                  ref={tokenPickRef}
+                  className={`dashboard-api-access__field-pick${
+                    statusReady ? '' : ' is-muted'
+                  }`}
+                  aria-label={t('切换令牌')}
+                  onClick={() => setTokenMenuOpen((open) => !open)}
+                >
                   <strong>{currentTokenLabel}</strong>
-                  <ChevronDown
-                    size={15}
-                    className='dashboard-api-access__switch-caret'
-                  />
-                </span>
-              </button>
-            </Dropdown>
+                  <ChevronDown size={15} />
+                </button>
+              </Dropdown>
+            </div>
+            <div className='dashboard-api-access__field-hair' />
+            <div className='dashboard-api-access__field-value'>
+              {statusReady ? (
+                <>
+                  <Tooltip content={selectedTokenDisplayKey}>
+                    <code>{selectedTokenDisplayKey}</code>
+                  </Tooltip>
+                  <Tooltip
+                    content={
+                      isKeyVisible ? t('隐藏 API Key') : t('显示 API Key')
+                    }
+                  >
+                    <button
+                      type='button'
+                      className='dashboard-api-access__icon-btn'
+                      aria-label={
+                        isKeyVisible ? t('隐藏 API Key') : t('显示 API Key')
+                      }
+                      disabled={keyLoading}
+                      onClick={handleShowKey}
+                    >
+                      {isKeyVisible ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                  </Tooltip>
+                  <Tooltip content={t('复制完整 API Key')}>
+                    <button
+                      type='button'
+                      className='dashboard-api-access__icon-btn'
+                      aria-label={t('复制完整 API Key')}
+                      disabled={copyKeyLoading || !selectedToken}
+                      onClick={handleCopySelectedKey}
+                    >
+                      <Copy size={15} />
+                    </button>
+                  </Tooltip>
+                </>
+              ) : (
+                <code className='is-muted'>
+                  {t('新建令牌后可在此复制 API Key')}
+                </code>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* 2. 凭据子格子:Base URL / API Key 的值放入灰色单行代码块 */}
-        <div className='dashboard-api-access__body'>
-          <Skeleton
-            active
-            loading={loading && tokens.length === 0}
-            placeholder={<Skeleton.Title style={{ width: '100%' }} />}
-          >
-            {statusReady ? (
-              <div className='dashboard-api-access__creds'>
-                <div className='dashboard-api-access__cred'>
-                  <span className='dashboard-api-access__cred-label'>
-                    {t('Base URL')}
-                  </span>
-                  <div className='dashboard-api-access__code'>
-                    <Tooltip content={apiBaseUrl}>
-                      <code>{apiBaseUrl}</code>
-                    </Tooltip>
-                    <Tooltip content={t('复制 Base URL')}>
-                      <button
-                        type='button'
-                        className='dashboard-api-access__icon-btn'
-                        aria-label={t('复制 Base URL')}
-                        onClick={() => handleCopy(apiBaseUrl)}
-                      >
-                        <Copy size={15} />
-                      </button>
-                    </Tooltip>
-                  </div>
-                </div>
-
-                <div className='dashboard-api-access__cred'>
-                  <span className='dashboard-api-access__cred-label'>
-                    {t('API Key')}
-                  </span>
-                  <div className='dashboard-api-access__code'>
-                    <Tooltip content={selectedTokenDisplayKey}>
-                      <code>{selectedTokenDisplayKey}</code>
-                    </Tooltip>
-                    <Tooltip
-                      content={
-                        isKeyVisible ? t('隐藏 API Key') : t('显示 API Key')
-                      }
-                    >
-                      <button
-                        type='button'
-                        className='dashboard-api-access__icon-btn'
-                        aria-label={
-                          isKeyVisible ? t('隐藏 API Key') : t('显示 API Key')
-                        }
-                        disabled={keyLoading}
-                        onClick={handleShowKey}
-                      >
-                        {isKeyVisible ? (
-                          <EyeOff size={15} />
-                        ) : (
-                          <Eye size={15} />
-                        )}
-                      </button>
-                    </Tooltip>
-                    <Tooltip content={t('复制完整 API Key')}>
-                      <button
-                        type='button'
-                        className='dashboard-api-access__icon-btn'
-                        aria-label={t('复制完整 API Key')}
-                        disabled={copyKeyLoading || !selectedToken}
-                        onClick={handleCopySelectedKey}
-                      >
-                        <Copy size={15} />
-                      </button>
-                    </Tooltip>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className='dashboard-api-access__empty'>
-                <KeyRound size={18} />
-                <span>{t('新建令牌后即可在此处选择并复制 API Key')}</span>
-              </div>
-            )}
-          </Skeleton>
-        </div>
-
-        {/* 3. 操作按钮 */}
+        {/* 底部双按钮:令牌(主蓝实心) / 文档(白底蓝描边) */}
         <div className='dashboard-api-access__actions'>
           <Button
             theme='solid'
@@ -491,15 +515,15 @@ const WorkspacePanel = ({ user, status, t }) => {
             icon={<KeyRound size={15} />}
             onClick={() => navigate('/console/token')}
           >
-            {t('管理令牌')}
+            {t('令牌')}
           </Button>
           <Button
-            theme='light'
-            type='tertiary'
+            theme='outline'
+            type='primary'
             icon={<BookOpen size={15} />}
             onClick={handleOpenDocs}
           >
-            {t('使用文档')}
+            {t('文档')}
           </Button>
         </div>
       </div>

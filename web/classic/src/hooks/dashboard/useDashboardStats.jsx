@@ -227,6 +227,9 @@ export const useDashboardStats = (
         icon: 'wallet',
         tone: 'blue',
         captionTone: balanceCaption.tone,
+        variant: 'balance',
+        topUpLabel: t('充值'),
+        onTopUp: () => navigate('/console/topup'),
       },
       {
         title: `${rangeLabel}${t('消耗')}`,

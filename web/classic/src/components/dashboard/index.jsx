@@ -17,17 +17,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useContext, useEffect, useMemo, useRef } from 'react';
+import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Tooltip } from '@douyinfe/semi-ui';
 import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
-import { BarChart3, BookOpen, KeyRound, Server, Wallet } from 'lucide-react';
+import { BarChart3, Megaphone, Server } from 'lucide-react';
 
 import DashboardHeader from './DashboardHeader';
 import StatsCards from './StatsCards';
 import ChartsPanel from './ChartsPanel';
 import AvailabilityRail from './AvailabilityRail';
-import BalanceCard from './BalanceCard';
+import AnnouncementPreview from './AnnouncementPreview';
 import WorkspacePanel from './WorkspacePanel';
 import SearchModal from './modals/SearchModal';
 import NoticeModal from '../layout/NoticeModal';
@@ -79,9 +79,15 @@ const Dashboard = () => {
   );
 
   const timeRangeReady = useRef(false);
+  const [apiState, setApiState] = useState({
+    ready: null,
+    lineCount: 0,
+    tokenCount: 0,
+  });
   const {
     noticeVisible,
     unreadCount,
+    announcements,
     handleNoticeOpen,
     handleNoticeClose,
     markAllAsRead,
@@ -210,52 +216,7 @@ const Dashboard = () => {
 
       {/* DMIT-style 3-column card */}
       <div className='dashboard-main-card mb-4'>
-        {/* Column 1: 概要 (API Info) */}
-        {dashboardData.apiInfoEnabled && (
-          <div className='dashboard-main-section'>
-            <div className='dashboard-main-section__header'>
-              <Server size={16} />
-              <span>{dashboardData.t('概要')}</span>
-              <div className='dashboard-main-section__header-actions'>
-                <button
-                  type='button'
-                  title={dashboardData.t('管理令牌')}
-                  onClick={() => dashboardData.navigate('/console/token')}
-                >
-                  <KeyRound size={13} />
-                  {dashboardData.t('令牌')}
-                </button>
-                <button
-                  type='button'
-                  title={dashboardData.t('查看文档')}
-                  onClick={() => {
-                    const docsLink =
-                      statusState?.status?.docs_link ||
-                      localStorage.getItem('docs_link') ||
-                      '';
-                    if (docsLink) {
-                      window.open(docsLink, '_blank', 'noopener,noreferrer');
-                    } else {
-                      dashboardData.navigate('/about');
-                    }
-                  }}
-                >
-                  <BookOpen size={13} />
-                  {dashboardData.t('文档')}
-                </button>
-              </div>
-            </div>
-            <div className='dashboard-main-section__body'>
-              <WorkspacePanel
-                user={userState?.user}
-                status={statusState?.status}
-                t={dashboardData.t}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Column 2: 使用情况 (4 metric cards) */}
+        {/* Column 1: 使用情况 (4 metric cards) */}
         <div className='dashboard-main-section'>
           <div className='dashboard-main-section__header'>
             <BarChart3 size={16} />
@@ -270,28 +231,67 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Column 3: 余额 & 充值（原服务可用性位置） */}
-        <div className='dashboard-main-section'>
+        {/* Column 2: 概要 (API Info) */}
+        {dashboardData.apiInfoEnabled && (
+          <div className='dashboard-main-section'>
+            <div className='dashboard-main-section__header'>
+              <Server size={16} />
+              <span>{dashboardData.t('概要')}</span>
+              {apiState.ready !== null && (
+                <>
+                  <span
+                    className={`dashboard-api-status-chip is-${
+                      apiState.ready ? 'ready' : 'pending'
+                    }`}
+                  >
+                    <span className='dashboard-api-status-chip__dot' />
+                    {apiState.ready
+                      ? dashboardData.t('已就绪')
+                      : dashboardData.t('待配置')}
+                  </span>
+                  <span className='dashboard-api-status-meta'>
+                    {dashboardData.t(
+                      '{{lineCount}} 条线路 · {{tokenCount}} 个令牌',
+                      {
+                        lineCount: apiState.lineCount,
+                        tokenCount: apiState.tokenCount,
+                      },
+                    )}
+                  </span>
+                </>
+              )}
+            </div>
+            <div className='dashboard-main-section__body'>
+              <WorkspacePanel
+                user={userState?.user}
+                status={statusState?.status}
+                t={dashboardData.t}
+                onStateChange={setApiState}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Column 3: 系统公告预览（原余额充值位置） */}
+        <div className='dashboard-main-section is-notice'>
           <div className='dashboard-main-section__header'>
-            <Wallet size={16} />
-            <span>{dashboardData.t('余额充值')}</span>
+            <Megaphone size={16} />
+            <span>{dashboardData.t('系统公告')}</span>
             <div className='dashboard-main-section__header-actions'>
               <button
                 type='button'
-                title={dashboardData.t('充值记录')}
-                onClick={() => dashboardData.navigate('/console/topup')}
+                title={dashboardData.t('查看全部')}
+                onClick={handleAnnouncementOpen}
               >
-                <Wallet size={13} />
-                {dashboardData.t('充值')}
+                <Megaphone size={13} />
+                {dashboardData.t('查看')}
               </button>
             </div>
           </div>
           <div className='dashboard-main-section__body'>
-            <BalanceCard
-              quota={userState?.user?.quota}
-              usedQuota={userState?.user?.used_quota}
-              balanceCaption={balanceStatus}
-              onTopUp={() => dashboardData.navigate('/console/topup')}
+            <AnnouncementPreview
+              announcements={announcements}
+              onViewAll={handleAnnouncementOpen}
               t={dashboardData.t}
             />
           </div>
