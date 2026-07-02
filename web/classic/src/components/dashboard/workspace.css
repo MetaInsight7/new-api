@@ -1338,16 +1338,7 @@
 }
 
 /* ===== DMIT-style 欢迎条右侧:两行(数据控制 / 快捷入口) ===== */
-.dashboard-user-bar__right {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 0.625rem;
-  flex: 0 0 auto;
-}
-
-.dashboard-user-bar__controls,
-.dashboard-user-bar__actions {
+.dashboard-user-bar__controls {
   display: flex;
   align-items: center;
   gap: 0.625rem;
@@ -1355,134 +1346,27 @@
   justify-content: flex-end;
 }
 
-/* ===== DMIT-style user status bar ===== */
+/* ===== DMIT-style page title: large hero heading | controls ===== */
 .dashboard-user-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 1rem 1.25rem;
-  border: 1px solid #e2e8f0;
-  border-radius: 0.75rem;
-  background: #f8fafc;
-  box-shadow: none;
+  padding-bottom: 1.125rem;
+  border-bottom: 1px solid #e2e8f0;
 }
 
-.dashboard-user-bar__left {
-  display: flex;
-  align-items: center;
-  gap: 0.875rem;
-  min-width: 0;
-}
-
-.dashboard-user-bar__icon {
-  flex: 0 0 auto;
-  width: 3rem;
-  height: 3rem;
-  display: grid;
-  place-items: center;
-  border-radius: 0.75rem;
-  background: rgba(37, 99, 235, 0.1);
-  color: #2563eb;
-}
-
-.dashboard-user-bar__info {
-  min-width: 0;
-}
-
+/* DMIT 实测:35px / 500 / #343a40 —— 控制台落地为 2rem hero 标题 */
 .dashboard-user-bar__greeting {
-  font-size: 1.125rem;
-  font-weight: 700;
-  color: var(--semi-color-text-0);
+  font-size: 2rem;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  color: #1f2937;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.dashboard-user-bar__status {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  margin-top: 0.25rem;
-  font-size: 0.8125rem;
-  font-weight: 600;
-}
-
-.dashboard-status-dot {
-  display: inline-block;
-  width: 0.5rem;
-  height: 0.5rem;
-  border-radius: 50%;
-  flex: 0 0 auto;
-}
-
-.dashboard-status-dot.is-green {
-  background: #10b981;
-}
-
-.dashboard-status-dot.is-amber {
-  background: #f59e0b;
-}
-
-.dashboard-status-dot.is-red {
-  background: #ef4444;
-}
-
-.dashboard-status-dot.is-blue {
-  background: #3b82f6;
-}
-
-.dashboard-status-label.is-green {
-  color: #059669;
-}
-
-.dashboard-status-label.is-amber {
-  color: #d97706;
-}
-
-.dashboard-status-label.is-red {
-  color: #dc2626;
-}
-
-.dashboard-status-label.is-blue {
-  color: #2563eb;
-}
-
-.dashboard-user-bar__right .dashboard-header-action {
-  background: #fff !important;
-}
-
-/* 对齐 DMIT 操作按钮：白底 + 彩色字 + 同色系浅色描边 + 8px 圆角 + 15px/600 */
-.dashboard-header-action {
-  height: auto !important;
-  padding: 0.5625rem 1rem !important;
-  border-radius: 0.5rem !important;
-  font-size: 0.9375rem !important;
-  font-weight: 600 !important;
-  color: #2563eb !important;
-  border: 1px solid #bfdbfe !important;
-}
-
-.dashboard-header-action .semi-icon,
-.dashboard-header-action svg {
-  margin-right: 0.375rem;
-}
-
-.dashboard-header-action:hover {
-  background: #eff6ff !important;
-  border-color: #93c5fd !important;
-  color: #1d4ed8 !important;
-}
-
-.dashboard-header-action.is-notice {
-  border-color: #fecaca !important;
-  color: #dc2626 !important;
-}
-
-.dashboard-header-action.is-notice:hover {
-  background: #fef2f2 !important;
-  border-color: #fca5a5 !important;
-  color: #b91c1c !important;
+  min-width: 0;
 }
 
 /* ===== DMIT-style 3-column main card ===== */
@@ -1549,6 +1433,9 @@
   width: 0.375rem;
   height: 0.375rem;
   border-radius: 999px;
+  /* inherit chip color so `currentColor` isn't overridden by the generic
+     `.dashboard-main-section__header span` color rule */
+  color: inherit;
   background: currentColor;
   font-size: 0;
 }
@@ -1559,8 +1446,8 @@
 }
 
 .dashboard-main-section__header .dashboard-api-status-chip.is-pending {
-  color: #b45309;
-  background: #fffbeb;
+  color: #b91c1c;
+  background: #fef2f2;
 }
 
 .dashboard-main-section__header .dashboard-api-status-meta {
@@ -2329,10 +2216,6 @@ button.dashboard-usage-item:hover {
     flex-wrap: wrap;
     gap: 0.75rem;
   }
-
-  .dashboard-user-bar__right {
-    flex-wrap: wrap;
-  }
 }
 
 @media (max-width: 900px) {
@@ -2432,36 +2315,13 @@ button.dashboard-usage-item:hover {
   .dashboard-user-bar {
     flex-direction: column;
     align-items: flex-start;
-    padding: 0.875rem;
     gap: 0.75rem;
   }
 
-  .dashboard-user-bar__right {
-    width: 100%;
-    align-items: stretch;
-    flex-wrap: wrap;
-  }
-
   .dashboard-user-bar__controls {
+    width: 100%;
     justify-content: flex-start;
-  }
-
-  /* 快捷入口:2 列等宽网格,四个按钮尺寸一致 */
-  .dashboard-user-bar__actions {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.5rem;
-  }
-
-  /* 系统公告按钮外层包了 Badge,让其撑满格子并内部按钮占满 */
-  .dashboard-user-bar__actions > .semi-badge {
-    display: block;
-    width: 100%;
-  }
-
-  .dashboard-user-bar__actions .dashboard-header-action {
-    width: 100%;
-    flex: none;
+    flex-wrap: wrap;
   }
 
   .dashboard-usage-grid {

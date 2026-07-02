@@ -61,7 +61,7 @@ const Dashboard = () => {
     dashboardData.t,
   );
 
-  const { statsData, quickActions, balanceCaption } = useDashboardStats(
+  const { statsData } = useDashboardStats(
     userState,
     dashboardData.consumeQuota,
     dashboardData.consumeTokens,
@@ -86,7 +86,6 @@ const Dashboard = () => {
   });
   const {
     noticeVisible,
-    unreadCount,
     announcements,
     handleNoticeOpen,
     handleNoticeClose,
@@ -134,14 +133,6 @@ const Dashboard = () => {
     handleNoticeOpen();
   };
 
-  const balanceStatus = useMemo(
-    () => ({
-      text: balanceCaption.text,
-      tone: balanceCaption.tone,
-    }),
-    [balanceCaption],
-  );
-
   const allMonitors = useMemo(
     () =>
       (dashboardData.uptimeData || []).flatMap((g) => g.monitors || []),
@@ -182,14 +173,6 @@ const Dashboard = () => {
         showSearchModal={dashboardData.showSearchModal}
         refresh={handleRefresh}
         loading={dashboardData.loading}
-        balanceStatus={balanceStatus}
-        quickActions={quickActions}
-        unreadCount={unreadCount}
-        onNoticeOpen={
-          dashboardData.announcementsEnabled
-            ? handleAnnouncementOpen
-            : undefined
-        }
         t={dashboardData.t}
       />
 

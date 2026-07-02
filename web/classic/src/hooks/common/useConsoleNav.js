@@ -23,7 +23,9 @@ import { useTranslation } from 'react-i18next';
 import {
   LayoutDashboard,
   MessageSquare,
-  Server,
+  KeyRound,
+  ScrollText,
+  Boxes,
   User,
   ShieldCheck,
 } from 'lucide-react';
@@ -137,46 +139,49 @@ export const useConsoleNav = () => {
       });
     }
 
-    // 3. 控制台
-    const consoleChildren = [];
+    // 3. 令牌（直达，独立突出——API 网关最高频页）
     if (isModuleVisible('console', 'token')) {
-      consoleChildren.push({
+      list.push({
         key: 'token',
-        label: t('令牌管理'),
+        label: t('令牌'),
+        icon: KeyRound,
         to: consoleRouterMap.token,
       });
     }
+
+    // 4. 日志（纯观测：使用 / 绘图 / 任务）
+    const logChildren = [];
     if (isModuleVisible('console', 'log')) {
-      consoleChildren.push({
+      logChildren.push({
         key: 'log',
         label: t('使用日志'),
         to: consoleRouterMap.log,
       });
     }
     if (isModuleVisible('console', 'midjourney') && enableDrawing) {
-      consoleChildren.push({
+      logChildren.push({
         key: 'midjourney',
         label: t('绘图日志'),
         to: consoleRouterMap.midjourney,
       });
     }
     if (isModuleVisible('console', 'task') && enableTask) {
-      consoleChildren.push({
+      logChildren.push({
         key: 'task',
         label: t('任务日志'),
         to: consoleRouterMap.task,
       });
     }
-    if (consoleChildren.length) {
+    if (logChildren.length) {
       list.push({
-        key: 'console',
-        label: t('控制台'),
-        icon: Server,
-        children: consoleChildren,
+        key: 'log',
+        label: t('日志'),
+        icon: ScrollText,
+        children: logChildren,
       });
     }
 
-    // 4. 个人中心
+    // 5. 个人中心（钱包 + 个人设置）
     const personalChildren = [];
     if (isModuleVisible('personal', 'topup')) {
       personalChildren.push({
@@ -201,64 +206,76 @@ export const useConsoleNav = () => {
       });
     }
 
-    // 5. 管理（仅管理员）
+    // 6. 运营（仅管理员）：渠道 / 模型 / 模型部署 / 订阅 / 兑换码
+    // 7. 系统（仅管理员）：用户 / 系统设置(仅 root)
+    // 两组均读同一个 admin 配置区，仅展示层拆分以理清层次。
     if (isAdmin()) {
-      const adminChildren = [];
+      const operationChildren = [];
       if (isModuleVisible('admin', 'channel')) {
-        adminChildren.push({
+        operationChildren.push({
           key: 'channel',
           label: t('渠道管理'),
           to: consoleRouterMap.channel,
         });
       }
-      if (isModuleVisible('admin', 'subscription')) {
-        adminChildren.push({
-          key: 'subscription',
-          label: t('订阅管理'),
-          to: consoleRouterMap.subscription,
-        });
-      }
       if (isModuleVisible('admin', 'models')) {
-        adminChildren.push({
+        operationChildren.push({
           key: 'models',
           label: t('模型管理'),
           to: consoleRouterMap.models,
         });
       }
       if (isModuleVisible('admin', 'deployment')) {
-        adminChildren.push({
+        operationChildren.push({
           key: 'deployment',
           label: t('模型部署'),
           to: consoleRouterMap.deployment,
         });
       }
+      if (isModuleVisible('admin', 'subscription')) {
+        operationChildren.push({
+          key: 'subscription',
+          label: t('订阅管理'),
+          to: consoleRouterMap.subscription,
+        });
+      }
       if (isModuleVisible('admin', 'redemption')) {
-        adminChildren.push({
+        operationChildren.push({
           key: 'redemption',
           label: t('兑换码管理'),
           to: consoleRouterMap.redemption,
         });
       }
+      if (operationChildren.length) {
+        list.push({
+          key: 'operation',
+          label: t('运营'),
+          icon: Boxes,
+          children: operationChildren,
+        });
+      }
+
+      const systemChildren = [];
       if (isModuleVisible('admin', 'user')) {
-        adminChildren.push({
+        systemChildren.push({
           key: 'user',
           label: t('用户管理'),
           to: consoleRouterMap.user,
         });
       }
       if (isRoot() && isModuleVisible('admin', 'setting')) {
-        adminChildren.push({
+        systemChildren.push({
           key: 'setting',
           label: t('系统设置'),
           to: consoleRouterMap.setting,
         });
       }
-      if (adminChildren.length) {
+      if (systemChildren.length) {
         list.push({
-          key: 'admin',
-          label: t('管理'),
+          key: 'system',
+          label: t('系统'),
           icon: ShieldCheck,
-          children: adminChildren,
+          children: systemChildren,
         });
       }
     }
