@@ -29,13 +29,16 @@ import {
   copy,
   getQuotaPerUnit,
 } from '../../helpers';
-import { Modal, Toast } from '@douyinfe/semi-ui';
+import { Modal, Toast, Button } from '@douyinfe/semi-ui';
+import { Wallet, Receipt } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
 
 import RechargeCard from './RechargeCard';
 import InvitationCard from './InvitationCard';
+import RedemptionCard from './RedemptionCard';
+import './wallet.css';
 import TransferModal from './modals/TransferModal';
 import PaymentConfirmModal from './modals/PaymentConfirmModal';
 import TopupHistoryModal from './modals/TopupHistoryModal';
@@ -969,8 +972,67 @@ const TopUp = () => {
         )}
       </Modal>
 
-      {/* 主布局区域 */}
-      <div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>
+      {/* 账户余额横幅 */}
+      <div
+        className='mb-6 relative overflow-hidden flex flex-wrap items-center justify-between gap-4 rounded-2xl px-8 py-6 text-white'
+        style={{
+          background:
+            'linear-gradient(135deg,#1e3a8a 0%,#2563eb 58%,#3b82f6 100%)',
+        }}
+      >
+        <div
+          className='absolute rounded-full pointer-events-none'
+          style={{
+            right: '-40px',
+            top: '-70px',
+            width: '260px',
+            height: '260px',
+            background: 'rgba(255,255,255,0.09)',
+          }}
+        />
+        <div className='relative z-10 min-w-0'>
+          <div className='flex items-center gap-2 text-sm mb-2' style={{ color: 'rgba(255,255,255,0.78)' }}>
+            <Wallet size={16} />
+            {t('账户余额')}
+          </div>
+          <div
+            className='text-4xl font-bold tracking-tight leading-none truncate'
+            style={{ color: '#ffffff' }}
+          >
+            {renderQuota(userState?.user?.quota)}
+          </div>
+          <div className='mt-3 flex gap-5 text-sm' style={{ color: 'rgba(255,255,255,0.85)' }}>
+            <span>
+              {t('历史消耗')}{' '}
+              <b className='text-white font-semibold'>
+                {renderQuota(userState?.user?.used_quota)}
+              </b>
+            </span>
+            <span>
+              {t('累计请求')}{' '}
+              <b className='text-white font-semibold'>
+                {userState?.user?.request_count || 0}
+              </b>
+            </span>
+          </div>
+        </div>
+        <div className='relative z-10'>
+          <Button
+            icon={<Receipt size={16} />}
+            onClick={handleOpenHistory}
+            style={{
+              background: 'rgba(255,255,255,0.12)',
+              color: '#fff',
+              borderColor: 'rgba(255,255,255,0.5)',
+            }}
+          >
+            {t('账单明细')}
+          </Button>
+        </div>
+      </div>
+
+      {/* 主布局区域：左充值 / 右(邀请 + 兑换码) */}
+      <div className='grid grid-cols-1 lg:grid-cols-2 gap-6 items-start'>
         <RechargeCard
           t={t}
           enableOnlineTopUp={enableOnlineTopUp}
@@ -1017,15 +1079,29 @@ const TopUp = () => {
           reloadSubscriptionSelf={getSubscriptionSelf}
           enableRedemption={topupInfo.enable_redemption !== false}
         />
-        <InvitationCard
-          t={t}
-          userState={userState}
-          renderQuota={renderQuota}
-          setOpenTransfer={setOpenTransfer}
-          affLink={affLink}
-          handleAffLinkClick={handleAffLinkClick}
-          complianceConfirmed={topupInfo.payment_compliance_confirmed !== false}
-        />
+        <div className='flex flex-col gap-6'>
+          <InvitationCard
+            t={t}
+            userState={userState}
+            renderQuota={renderQuota}
+            setOpenTransfer={setOpenTransfer}
+            affLink={affLink}
+            handleAffLinkClick={handleAffLinkClick}
+            complianceConfirmed={
+              topupInfo.payment_compliance_confirmed !== false
+            }
+          />
+          <RedemptionCard
+            t={t}
+            redemptionCode={redemptionCode}
+            setRedemptionCode={setRedemptionCode}
+            topUp={topUp}
+            isSubmitting={isSubmitting}
+            topUpLink={topUpLink}
+            openTopUpLink={openTopUpLink}
+            enableRedemption={topupInfo.enable_redemption !== false}
+          />
+        </div>
       </div>
     </div>
   );
