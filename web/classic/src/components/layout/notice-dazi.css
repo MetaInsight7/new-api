@@ -36,7 +36,7 @@ For commercial licensing, please contact support@quantumnous.com
 .notice-dazi .semi-modal-content {
   border: 2px solid var(--nd-ink) !important;
   border-radius: 16px !important;
-  box-shadow: 12px 12px 0 #dfe5d7, 0 24px 60px rgba(20, 20, 24, 0.28) !important;
+  box-shadow: 0 24px 60px rgba(20, 20, 24, 0.28) !important;
   overflow: hidden !important;
   padding: 0 !important;
 }
