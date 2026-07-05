@@ -1,0 +1,226 @@
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
+/* ============================================================
+   Token 搭子 · 排行榜品牌样式(对齐首页 / 登录 / 模型广场)
+   作用域收敛在 .rankings-dazi
+   ============================================================ */
+
+.rankings-dazi {
+  --ink: #141418;
+  --ink-soft: #2d3038;
+  --muted: #686d78;
+  --paper: #f7f8f4;
+  --line: #d9ddd4;
+  --green: #15a77a;
+  --blue: #326ef1;
+  --coral: #f06f46;
+  --yellow: #ead343;
+  --hard: 12px 12px 0 #dfe5d7;
+  --mono: 'SFMono-Regular', Consolas, ui-monospace, Menlo, monospace;
+  /* 让内部 Semi 组件的文字/边框跟随品牌色 */
+  --semi-color-text-0: #141418;
+  --semi-color-text-1: #2d3038;
+  --semi-color-text-2: #686d78;
+  --semi-color-border: #d9ddd4;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: Inter, 'PingFang SC', 'Microsoft YaHei', ui-sans-serif, system-ui,
+    -apple-system, sans-serif;
+  min-height: 100vh;
+}
+.rankings-dazi * {
+  box-sizing: border-box;
+}
+.rankings-dazi .shell {
+  width: min(1200px, calc(100% - 48px));
+  margin: 0 auto;
+}
+.rankings-dazi .wrappad {
+  padding: 88px 0 40px;
+}
+
+/* ---------- 品牌 footer(与首页 .token-footer 一致) ---------- */
+.rankings-dazi .rk-footer {
+  border-top: 1px solid var(--line);
+  padding: 24px 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+.rankings-dazi .rk-footer .shell {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+/* ---------- HERO 头 ---------- */
+.rankings-dazi .kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(20, 20, 24, 0.06);
+  color: var(--coral);
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 950;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.rankings-dazi .kicker i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--coral);
+  box-shadow: 0 0 0 5px rgba(240, 111, 70, 0.12);
+}
+.rankings-dazi h1.rk-title {
+  margin: 12px 0 0;
+  font-size: clamp(26px, 2.6vw, 34px);
+  font-weight: 950;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.rankings-dazi h1.rk-title em {
+  font-style: normal;
+  color: var(--green);
+}
+.rankings-dazi .rk-lead {
+  margin: 8px 0 0;
+  max-width: 620px;
+  color: var(--muted);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+/* ---------- 时段 seg ---------- */
+.rankings-dazi .rk-seg {
+  display: inline-flex;
+  gap: 0;
+  margin-top: 20px;
+  padding: 3px;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 4px 4px 0 #dfe5d7;
+}
+.rankings-dazi .rk-seg button {
+  border: 0;
+  background: transparent;
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 900;
+  color: var(--ink-soft);
+  padding: 6px 14px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.rankings-dazi .rk-seg button.on {
+  background: var(--ink);
+  color: #fff;
+}
+
+/* ---------- 卡片:登机牌风(2px 墨边 + 硬阴影) ---------- */
+.rankings-dazi .rk-grid {
+  display: grid;
+  gap: 26px;
+  margin-top: 26px;
+}
+.rankings-dazi .semi-card {
+  border: 2px solid var(--ink) !important;
+  border-radius: 14px !important;
+  background: #fff !important;
+  box-shadow: var(--hard) !important;
+}
+.rankings-dazi .semi-card .semi-card-body {
+  padding: 20px 22px !important;
+}
+
+/* 区块标题 */
+.rankings-dazi .semi-typography-primary,
+.rankings-dazi h1.semi-typography,
+.rankings-dazi h2.semi-typography,
+.rankings-dazi h3.semi-typography,
+.rankings-dazi h4.semi-typography,
+.rankings-dazi h5.semi-typography,
+.rankings-dazi h6.semi-typography {
+  color: var(--ink) !important;
+  font-weight: 950 !important;
+}
+.rankings-dazi .semi-typography-tertiary {
+  color: var(--muted) !important;
+}
+
+/* 大数字统计(0 TOKENS) */
+.rankings-dazi .font-mono {
+  font-family: var(--mono) !important;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 列表分隔线 → 品牌线 */
+.rankings-dazi .semi-card ul li {
+  border-color: var(--line) !important;
+}
+
+/* 名次徽章:方形墨框 mono(覆盖 Semi 蓝) */
+.rankings-dazi .semi-card ul li > span:first-child {
+  border-radius: 6px !important;
+  background: #f0f2ed !important;
+  border: 1.5px solid var(--line) !important;
+  color: var(--ink-soft) !important;
+  font-family: var(--mono) !important;
+  font-weight: 950 !important;
+}
+
+/* 图表容器背景透明 */
+.rankings-dazi .semi-card .h-64,
+.rankings-dazi .semi-card .h-72 {
+  background: transparent;
+}
+
+/* 空态文字 */
+.rankings-dazi .rk-empty {
+  padding: 40px 0;
+  text-align: center;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 850;
+}
+
+@media (max-width: 768px) {
+  .rankings-dazi .wrappad {
+    padding: 76px 0 40px;
+  }
+  .rankings-dazi .semi-card {
+    box-shadow: 6px 6px 0 #dfe5d7 !important;
+  }
+  .rankings-dazi .rk-seg {
+    flex-wrap: wrap;
+  }
+}
