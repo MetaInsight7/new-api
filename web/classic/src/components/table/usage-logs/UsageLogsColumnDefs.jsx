@@ -811,6 +811,24 @@ function getInputUnitPrice(other) {
 }
 
 function renderCostCell(record, ctx) {
+  // 充值(type 1):显示充值额度(还原改造前行为，管理员可见)
+  if (record.type === 1) {
+    if (!ctx.isAdminUser) return null;
+    return (
+      <div
+        style={{
+          fontFamily: CELL_MONO,
+          fontVariantNumeric: 'tabular-nums',
+          fontWeight: 600,
+          fontSize: 16,
+          letterSpacing: '-0.01em',
+          color: '#15803d',
+        }}
+      >
+        +{renderQuota(record.quota, 2)}
+      </div>
+    );
+  }
   if (!isConsumptionRow(record)) return null;
   const other = getLogOther(record.other);
   const isSub = other?.billing_source === 'subscription';
