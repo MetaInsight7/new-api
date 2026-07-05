@@ -17,11 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React from 'react';
+import React, { useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { UserContext } from '../../../../context/User';
 
 const LedgerHero = ({ t }) => {
   const navigate = useNavigate();
+  const [userState] = useContext(UserContext);
+  const loggedIn = !!userState?.user;
 
   return (
     <div className='hero-grid'>
@@ -43,9 +46,9 @@ const LedgerHero = ({ t }) => {
           <button
             type='button'
             className='cta-hero'
-            onClick={() => navigate('/register')}
+            onClick={() => navigate(loggedIn ? '/console/token' : '/register')}
           >
-            {t('免费注册领额度')} <i>›</i>
+            {loggedIn ? t('去创建令牌') : t('免费注册领额度')} <i>›</i>
           </button>
         </div>
       </div>
