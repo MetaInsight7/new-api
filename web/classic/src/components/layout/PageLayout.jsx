@@ -61,9 +61,17 @@ const PageLayout = () => {
     '/console/task',
     '/console/models',
     '/pricing',
+    '/rankings',
   ];
 
-  const shouldHideFooter = cardProPages.includes(location.pathname);
+  const isHomePage = location.pathname === '/';
+
+  const authPages = ['/login', '/register', '/reset', '/user/reset'];
+  const isAuthPage = authPages.includes(location.pathname);
+  const shouldHideHeader = isAuthPage && isMobile;
+
+  const shouldHideFooter =
+    isHomePage || isAuthPage || cardProPages.includes(location.pathname);
 
   const shouldInnerPadding =
     location.pathname.includes('/console') &&
@@ -71,7 +79,7 @@ const PageLayout = () => {
 
   const isConsoleRoute = location.pathname.startsWith('/console');
   const showSider = isConsoleRoute && (!isMobile || drawerOpen);
-  const isFixedLayout = isConsoleRoute || location.pathname === '/pricing' || location.pathname === '/rankings';
+  const isFixedLayout = isConsoleRoute;
 
   // 二级 pill 导航：console 路由显示（聊天/操练场等全屏工具页除外）
   const showConsoleSubNav =
@@ -153,36 +161,38 @@ const PageLayout = () => {
 
   return (
     <Layout
-      className={`app-layout${isFixedLayout ? ' app-layout-fixed' : ''}${isConsoleRoute ? ' app-console' : ''}`}
+      className={`app-layout${isFixedLayout ? ' app-layout-fixed' : ''}${isConsoleRoute ? ' app-console' : ''}${shouldHideHeader ? ' app-layout-auth-mobile' : ''}`}
       style={{
         display: 'flex',
         flexDirection: 'column',
         overflow: isFixedLayout && !isMobile ? 'hidden' : 'visible',
       }}
     >
-      <Header
-        style={{
-          padding: 0,
-          height: 'auto',
-          lineHeight: 'normal',
-          position: 'fixed',
-          top: 0,
-          zIndex: 100,
-          left:
-            isConsoleRoute && !isMobile
-              ? 'var(--sidebar-current-width)'
-              : 0,
-          width:
-            isConsoleRoute && !isMobile
-              ? 'calc(100% - var(--sidebar-current-width))'
-              : '100%',
-        }}
-      >
-        <HeaderBar
-          onMobileMenuToggle={() => setDrawerOpen((prev) => !prev)}
-          drawerOpen={drawerOpen}
-        />
-      </Header>
+      {!shouldHideHeader && (
+        <Header
+          style={{
+            padding: 0,
+            height: 'auto',
+            lineHeight: 'normal',
+            position: 'fixed',
+            top: 0,
+            zIndex: 100,
+            left:
+              isConsoleRoute && !isMobile
+                ? 'var(--sidebar-current-width)'
+                : 0,
+            width:
+              isConsoleRoute && !isMobile
+                ? 'calc(100% - var(--sidebar-current-width))'
+                : '100%',
+          }}
+        >
+          <HeaderBar
+            onMobileMenuToggle={() => setDrawerOpen((prev) => !prev)}
+            drawerOpen={drawerOpen}
+          />
+        </Header>
+      )}
       <Layout
         style={{
           overflow: isFixedLayout && !isMobile ? 'auto' : 'visible',
