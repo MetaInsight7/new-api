@@ -99,7 +99,6 @@ const TokensTable = (tokensData) => {
     <CardTable
       columns={tableColumns}
       dataSource={tokens}
-      scroll={compactMode ? undefined : { x: 'max-content' }}
       pagination={{
         currentPage: activePage,
         pageSize: pageSize,
@@ -114,7 +113,7 @@ const TokensTable = (tokensData) => {
       rowSelection={rowSelection}
       onRow={handleRow}
       empty={<TableEmpty title={t('搜索无结果')} />}
-      className='rounded-xl overflow-hidden'
+      className='dmit-flat-table'
       size='middle'
     />
   );

@@ -49,18 +49,13 @@ export const useLogsData = () => {
   // Define column keys for selection
   const COLUMN_KEYS = {
     TIME: 'time',
+    TOKEN_GROUP: 'token_group',
+    USER: 'user',
     CHANNEL: 'channel',
-    USERNAME: 'username',
-    TOKEN: 'token',
-    GROUP: 'group',
-    TYPE: 'type',
-    MODEL: 'model',
+    REQ_MODEL: 'req_model',
+    USAGE: 'usage',
     USE_TIME: 'use_time',
-    PROMPT: 'prompt',
-    COMPLETION: 'completion',
     COST: 'cost',
-    RETRY: 'retry',
-    IP: 'ip',
     DETAILS: 'details',
   };
 
@@ -112,18 +107,13 @@ export const useLogsData = () => {
   const getDefaultColumnVisibility = () => {
     return {
       [COLUMN_KEYS.TIME]: true,
+      [COLUMN_KEYS.TOKEN_GROUP]: !isAdminUser,
+      [COLUMN_KEYS.USER]: isAdminUser,
       [COLUMN_KEYS.CHANNEL]: isAdminUser,
-      [COLUMN_KEYS.USERNAME]: isAdminUser,
-      [COLUMN_KEYS.TOKEN]: true,
-      [COLUMN_KEYS.GROUP]: true,
-      [COLUMN_KEYS.TYPE]: true,
-      [COLUMN_KEYS.MODEL]: true,
+      [COLUMN_KEYS.REQ_MODEL]: true,
+      [COLUMN_KEYS.USAGE]: true,
       [COLUMN_KEYS.USE_TIME]: true,
-      [COLUMN_KEYS.PROMPT]: true,
-      [COLUMN_KEYS.COMPLETION]: true,
       [COLUMN_KEYS.COST]: true,
-      [COLUMN_KEYS.RETRY]: isAdminUser,
-      [COLUMN_KEYS.IP]: true,
       [COLUMN_KEYS.DETAILS]: true,
     };
   };
@@ -142,8 +132,10 @@ export const useLogsData = () => {
 
       if (!isAdminUser) {
         merged[COLUMN_KEYS.CHANNEL] = false;
-        merged[COLUMN_KEYS.USERNAME] = false;
-        merged[COLUMN_KEYS.RETRY] = false;
+        merged[COLUMN_KEYS.USER] = false;
+        merged[COLUMN_KEYS.TOKEN_GROUP] = true;
+      } else {
+        merged[COLUMN_KEYS.TOKEN_GROUP] = false;
       }
 
       return merged;
@@ -172,6 +164,10 @@ export const useLogsData = () => {
 
   // Compact mode
   const [compactMode, setCompactMode] = useTableCompactMode('logs');
+
+  // Header filter UI state (toolbar lives in the sub-nav row via portal)
+  const [activeTimeRange, setActiveTimeRange] = useState('today');
+  const [showFilterModal, setShowFilterModal] = useState(false);
 
   // User info modal state
   const [showUserInfo, setShowUserInfoModal] = useState(false);
@@ -207,11 +203,11 @@ export const useLogsData = () => {
 
     allKeys.forEach((key) => {
       if (
-        (key === COLUMN_KEYS.CHANNEL ||
-          key === COLUMN_KEYS.USERNAME ||
-          key === COLUMN_KEYS.RETRY) &&
+        (key === COLUMN_KEYS.CHANNEL || key === COLUMN_KEYS.USER) &&
         !isAdminUser
       ) {
+        updatedColumns[key] = false;
+      } else if (key === COLUMN_KEYS.TOKEN_GROUP && isAdminUser) {
         updatedColumns[key] = false;
       } else {
         updatedColumns[key] = checked;
@@ -866,6 +862,12 @@ export const useLogsData = () => {
     // Compact mode
     compactMode,
     setCompactMode,
+
+    // Header filter UI
+    activeTimeRange,
+    setActiveTimeRange,
+    showFilterModal,
+    setShowFilterModal,
 
     // User info modal
     showUserInfo,

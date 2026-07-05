@@ -498,3 +498,277 @@ html:not(.dark) .app-console .semi-table-placeholder {
   color: var(--semi-color-text-2);
 }
 
+/* =====================================================================
+   使用日志:合并列「账本式」表格(DMIT 重设计)
+   原型见 .tmp/log-roles5.html(用户侧)/ .tmp/log-admin.html(管理员侧)
+   - 表头白底、11.5px、弱化;单元格顶对齐、两行紧凑;行分隔更浅
+   - 仅作用亮色;`.usage-log-table-v2` 额外类提升特异性,层叠在 DMIT 基础层之上
+   ===================================================================== */
+html:not(.dark)
+  .app-console
+  .usage-log-table-v2
+  .semi-table-thead
+  > .semi-table-row
+  > .semi-table-row-head,
+html:not(.dark)
+  .app-console
+  .usage-log-table-v2
+  th.semi-table-row-head {
+  background-color: #ffffff !important;
+  color: #334155;
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0;
+  padding: 12px 14px;
+  border-bottom: 1px solid #e5e9f0;
+}
+
+html:not(.dark)
+  .app-console
+  .usage-log-table-v2
+  .semi-table-tbody
+  > .semi-table-row
+  > .semi-table-row-cell {
+  padding: 12px 14px;
+  vertical-align: top;
+  border-bottom: 1px solid #eef1f5;
+  font-size: 14px;
+}
+
+html:not(.dark)
+  .app-console
+  .usage-log-table-v2
+  .semi-table-tbody
+  > .semi-table-row:hover
+  > .semi-table-row-cell {
+  background-color: #fbfcff;
+}
+
+/* 展开的详情行:去掉 hover 变色干扰,内容区留白 */
+html:not(.dark)
+  .app-console
+  .usage-log-table-v2
+  .semi-table-row-expand
+  > .semi-table-row-cell {
+  background-color: #fafbff;
+}
+
+/* 固定表格布局:严格按列宽渲染,防止长内容(花费明细/大数字)撑破列导致横向滚动 */
+html:not(.dark) .app-console .usage-log-table-v2 table {
+  table-layout: fixed !important;
+}
+
+/* =====================================================================
+   通用「扁平账本式表格」:单层盒子 + 固定布局 + 紧凑白底表头
+   供 日志 / 令牌 / 任务 等表格复用(加 .dmit-flat-table / .dmit-flat-card)
+   ===================================================================== */
+html:not(.dark) .app-console .dmit-flat-table table {
+  table-layout: fixed !important;
+}
+html:not(.dark)
+  .app-console
+  .dmit-flat-table
+  .semi-table-thead
+  > .semi-table-row
+  > .semi-table-row-head,
+html:not(.dark) .app-console .dmit-flat-table th.semi-table-row-head {
+  background-color: #ffffff !important;
+  color: #334155;
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0;
+  padding: 12px 14px;
+  border-bottom: 1px solid #e5e9f0;
+}
+html:not(.dark)
+  .app-console
+  .dmit-flat-table
+  .semi-table-tbody
+  > .semi-table-row
+  > .semi-table-row-cell {
+  padding: 12px 12px;
+  vertical-align: top;
+  border-bottom: 1px solid #eef1f5;
+  font-size: 14px;
+}
+html:not(.dark)
+  .app-console
+  .dmit-flat-table
+  .semi-table-tbody
+  > .semi-table-row:hover
+  > .semi-table-row-cell {
+  background-color: #fbfcff;
+}
+/* 单层盒子:去掉内层表格边框/圆角,表体贴合卡片 */
+html:not(.dark) .app-console .dmit-flat-card {
+  overflow: hidden;
+}
+html:not(.dark) .app-console .dmit-flat-card .semi-table {
+  border: none !important;
+  border-radius: 0 !important;
+}
+html:not(.dark) .app-console .dmit-flat-card .semi-card-body {
+  padding: 0 !important;
+}
+
+/* 令牌页:状态彩色信号灯(静态光晕 + 涟漪脉冲) */
+.app-console .token-status-dot {
+  position: relative;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  background: var(--dot);
+  box-shadow: 0 0 0 3px var(--glow);
+}
+.app-console .token-status-dot::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--dot);
+  animation: token-status-ripple 1.9s cubic-bezier(0.22, 0.61, 0.36, 1) infinite;
+}
+@keyframes token-status-ripple {
+  0% { transform: scale(1); opacity: 0.55; }
+  70% { opacity: 0; }
+  100% { transform: scale(3); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-console .token-status-dot::after { animation: none; }
+}
+
+/* 通用信号灯:静态光晕 + 可选涟漪脉冲(.dmit-sig--live,用于活跃态) */
+.app-console .dmit-sig {
+  position: relative;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  background: var(--dot);
+  box-shadow: 0 0 0 3px var(--glow);
+}
+.app-console .dmit-sig--live::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--dot);
+  animation: token-status-ripple 1.9s cubic-bezier(0.22, 0.61, 0.36, 1) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-console .dmit-sig--live::after { animation: none; }
+}
+
+/* 令牌页:操作图标(无边框,hover 变色) */
+.app-console .token-op {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: transparent;
+  color: #6b7686;
+  cursor: pointer;
+  display: inline-grid;
+  place-items: center;
+  transition: background 0.12s, color 0.12s;
+}
+.app-console .token-op.del { color: #dc2626; }
+.app-console .token-op.edit:hover { color: #2563eb; background: #f1f5f9; }
+.app-console .token-op.pow:hover { color: #c2410c; background: #fff7ed; }
+.app-console .token-op.del:hover { color: #b91c1c; background: #fef2f2; }
+
+/* 令牌页:密钥代码框内的显示/复制小图标 */
+.app-console .token-keyic {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  display: grid;
+  place-items: center;
+  color: #9aa4b2;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.app-console .token-keyic:hover { background: #e9edf2; color: #3c4650; }
+
+/* 令牌页:密钥可横向滚动看全 key(细滚动条) */
+.app-console .token-keyscroll {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+.app-console .token-keyscroll::-webkit-scrollbar { height: 4px; }
+.app-console .token-keyscroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 2px; }
+.app-console .token-keyscroll::-webkit-scrollbar-track { background: transparent; }
+
+/* 令牌页:表头工具栏 */
+.app-console .token-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+}
+.app-console .token-toolbar__title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #141a1f;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+.app-console .token-toolbar__count { font-size: 12px; font-weight: 500; color: #9aa4b2; }
+.app-console .token-toolbar__actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.app-console .token-toolbar__search { width: 240px; }
+.app-console .token-toolbar__search .semi-input-wrapper { border-radius: 9px; }
+
+/* 操作列(详情按钮):垂直居中,不随两行内容顶对齐 */
+html:not(.dark)
+  .app-console
+  .usage-log-table-v2
+  .semi-table-tbody
+  > .semi-table-row
+  > .semi-table-row-cell:last-child {
+  vertical-align: middle;
+}
+
+/* 日志统计条上的快捷时间区间(复用数据看板右上角的分段胶囊样式) */
+.log-time-range {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid var(--semi-color-border);
+  border-radius: 10px;
+  background: var(--semi-color-fill-0);
+}
+.log-time-range .semi-button {
+  height: 30px;
+  min-width: 0;
+  border-radius: 7px;
+  font-weight: 700;
+}
+.log-time-range .semi-button.semi-button-primary,
+.log-time-range .semi-button.semi-button-primary:hover,
+.log-time-range .semi-button.semi-button-primary:focus {
+  background-color: #2563eb !important;
+}
+
+/* 收紧使用日志卡片:去掉内层表格自带的边框/圆角(避免盒中盒),表格贴合单层卡片 */
+html:not(.dark) .app-console .usage-log-card {
+  overflow: hidden;
+}
+html:not(.dark) .app-console .usage-log-card .semi-table {
+  border: none !important;
+  border-radius: 0 !important;
+}
+html:not(.dark) .app-console .usage-log-card .semi-card-body {
+  padding: 0 !important;
+}
+
+
+

@@ -50,6 +50,8 @@ const ConsoleSubNav = () => {
           </Link>
         );
       })}
+      {/* 右侧动作槽:各页面通过 portal 注入(如日志的时间区间 + 筛选) */}
+      <div className='dmit-subnav__actions' id='console-subnav-actions' />
     </div>
   );
 };

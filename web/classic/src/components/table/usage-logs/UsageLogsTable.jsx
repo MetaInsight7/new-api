@@ -17,8 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useMemo } from 'react';
-import { Descriptions } from '@douyinfe/semi-ui';
+import React, { useMemo, useState, useCallback } from 'react';
+import { Descriptions, Modal, Typography } from '@douyinfe/semi-ui';
 import CardTable from '../../common/ui/CardTable';
 import TableEmpty from '../../common/ui/TableEmpty';
 import { getLogsColumns } from './UsageLogsColumnDefs';
@@ -45,6 +45,13 @@ const LogsTable = (logsData) => {
     COLUMN_KEYS,
   } = logsData;
 
+  // The 详情 action button opens a modal with the full row breakdown (replaces
+  // the legacy row-expand so there is no expand-arrow column).
+  const [detailRecord, setDetailRecord] = useState(null);
+  const onOpenDetail = useCallback((record) => {
+    setDetailRecord(record);
+  }, []);
+
   // Get all columns
   const allColumns = useMemo(() => {
     return getLogsColumns({
@@ -55,6 +62,7 @@ const LogsTable = (logsData) => {
       openChannelAffinityUsageCacheModal,
       isAdminUser,
       billingDisplayMode,
+      onOpenDetail,
     });
   }, [
     t,
@@ -64,6 +72,7 @@ const LogsTable = (logsData) => {
     openChannelAffinityUsageCacheModal,
     isAdminUser,
     billingDisplayMode,
+    onOpenDetail,
   ]);
 
   // Filter columns based on visibility settings
@@ -81,39 +90,51 @@ const LogsTable = (logsData) => {
       : visibleColumnsList;
   }, [compactMode, visibleColumnsList]);
 
-  const expandRowRender = (record, index) => {
-    return <Descriptions data={expandData[record.key]} />;
-  };
+  const detailData =
+    detailRecord && expandData[detailRecord.key]
+      ? expandData[detailRecord.key]
+      : [];
 
   return (
-    <CardTable
-      columns={tableColumns}
-      {...(hasExpandableRows() && {
-        expandedRowRender: expandRowRender,
-        expandRowByClick: true,
-        rowExpandable: (record) =>
-          expandData[record.key] && expandData[record.key].length > 0,
-      })}
-      dataSource={logs}
-      rowKey='key'
-      loading={loading}
-      scroll={compactMode ? undefined : { x: 'max-content' }}
-      className='rounded-xl overflow-hidden'
-      size='small'
-      empty={<TableEmpty title={t('搜索无结果')} />}
-      pagination={{
-        currentPage: activePage,
-        pageSize: pageSize,
-        total: logCount,
-        pageSizeOptions: [10, 20, 50, 100],
-        showSizeChanger: true,
-        onPageSizeChange: (size) => {
-          handlePageSizeChange(size);
-        },
-        onPageChange: handlePageChange,
-      }}
-      hidePagination={true}
-    />
+    <>
+      <CardTable
+        className='usage-log-table-v2'
+        columns={tableColumns}
+        dataSource={logs}
+        rowKey='key'
+        loading={loading}
+        size='small'
+        empty={<TableEmpty title={t('搜索无结果')} />}
+        pagination={{
+          currentPage: activePage,
+          pageSize: pageSize,
+          total: logCount,
+          pageSizeOptions: [10, 20, 50, 100],
+          showSizeChanger: true,
+          onPageSizeChange: (size) => {
+            handlePageSizeChange(size);
+          },
+          onPageChange: handlePageChange,
+        }}
+        hidePagination={true}
+      />
+
+      <Modal
+        title={t('详情')}
+        visible={!!detailRecord}
+        onCancel={() => setDetailRecord(null)}
+        footer={null}
+        width={560}
+      >
+        {detailData.length > 0 ? (
+          <Descriptions data={detailData} />
+        ) : (
+          <Typography.Paragraph style={{ marginBottom: 0, whiteSpace: 'pre-wrap' }}>
+            {detailRecord?.content || t('暂无更多详情')}
+          </Typography.Paragraph>
+        )}
+      </Modal>
+    </>
   );
 };
 

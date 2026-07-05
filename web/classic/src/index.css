@@ -255,6 +255,21 @@ body {
   flex-shrink: 0;
 }
 
+/* 右侧动作槽:时间区间 + 筛选等页面级控件,垂直居中贴住标签基线 */
+.dmit-subnav__actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  align-self: center;
+  position: relative;
+  top: -2px;
+}
+.dmit-subnav__actions:empty {
+  display: none;
+}
+
 /* SubNav 清除固定顶栏(60px)，并吸收紧随其后页面的 mt-[60px]，避免双重间距/被顶栏遮挡 */
 .semi-layout-content > .dmit-subnav {
   margin-top: 60px;

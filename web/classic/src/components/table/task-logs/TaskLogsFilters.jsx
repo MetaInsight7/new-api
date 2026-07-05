@@ -18,11 +18,13 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Button, Form } from '@douyinfe/semi-ui';
+import { Button, Form, Modal } from '@douyinfe/semi-ui';
 import { IconSearch } from '@douyinfe/semi-icons';
 
 import { DATE_RANGE_PRESETS } from '../../../constants/console.constants';
 
+// 全部搜索条件集中在一个弹窗内(时间 + 任务 ID + 渠道 ID)。
+// Form 常驻挂载(弹窗 keepDOM),保证二级导航上的快捷区间能通过 formApi 写入 dateRange。
 const TaskLogsFilters = ({
   formInitValues,
   setFormApi,
@@ -31,8 +33,24 @@ const TaskLogsFilters = ({
   formApi,
   loading,
   isAdminUser,
+  showFilterModal,
+  setShowFilterModal,
+  setActiveTimeRange,
   t,
 }) => {
+  const handleReset = () => {
+    if (!formApi) return;
+    formApi.reset();
+    setActiveTimeRange('today');
+    setTimeout(() => refresh(), 100);
+  };
+
+  const handleSearch = () => {
+    setActiveTimeRange(null);
+    setShowFilterModal(false);
+    setTimeout(() => refresh(), 0);
+  };
+
   return (
     <Form
       initValues={formInitValues}
@@ -44,90 +62,77 @@ const TaskLogsFilters = ({
       trigger='change'
       stopValidateWithError={false}
     >
-      <div className='flex flex-col gap-2'>
-        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2'>
-          {/* 时间选择器 */}
-          <div className='col-span-1 lg:col-span-2'>
-            <Form.DatePicker
-              field='dateRange'
-              className='w-full'
-              type='dateTimeRange'
-              placeholder={[t('开始时间'), t('结束时间')]}
-              showClear
-              pure
-              size='small'
-              presets={DATE_RANGE_PRESETS.map((preset) => ({
-                text: t(preset.text),
-                start: preset.start(),
-                end: preset.end(),
-              }))}
-            />
-          </div>
-
-          {/* 任务 ID */}
-          <Form.Input
-            field='task_id'
-            prefix={<IconSearch />}
-            placeholder={t('任务 ID')}
-            showClear
-            pure
-            size='small'
-          />
-
-          {/* 渠道 ID - 仅管理员可见 */}
-          {isAdminUser && (
-            <Form.Input
-              field='channel_id'
-              prefix={<IconSearch />}
-              placeholder={t('渠道 ID')}
-              showClear
-              pure
-              size='small'
-            />
-          )}
-        </div>
-
-        {/* 操作按钮区域 */}
-        <div className='flex justify-between items-center'>
-          <div></div>
-          <div className='flex gap-2'>
-            <Button
-              type='primary'
-              theme='solid'
-              htmlType='submit'
-              icon={<IconSearch />}
-              loading={loading}
-              size='small'
-            >
-              {t('查询')}
-            </Button>
-            <Button
-              type='tertiary'
-              theme='light'
-              onClick={() => {
-                if (formApi) {
-                  formApi.reset();
-                  // 重置后立即查询，使用setTimeout确保表单重置完成
-                  setTimeout(() => {
-                    refresh();
-                  }, 100);
-                }
-              }}
-              size='small'
-            >
+      <Modal
+        title={t('筛选')}
+        visible={showFilterModal}
+        onCancel={() => setShowFilterModal(false)}
+        keepDOM
+        lazyRender={false}
+        width={480}
+        footer={
+          <div className='flex justify-end gap-2'>
+            <Button type='tertiary' theme='light' size='small' onClick={handleReset}>
               {t('重置')}
             </Button>
             <Button
               type='tertiary'
               theme='light'
-              onClick={() => setShowColumnSelector(true)}
               size='small'
+              onClick={() => setShowColumnSelector(true)}
             >
               {t('列设置')}
             </Button>
+            <Button
+              type='primary'
+              theme='solid'
+              size='small'
+              icon={<IconSearch />}
+              loading={loading}
+              onClick={handleSearch}
+            >
+              {t('查询')}
+            </Button>
+          </div>
+        }
+      >
+        <div className='flex flex-col gap-3'>
+          <Form.DatePicker
+            field='dateRange'
+            label={t('时间范围')}
+            className='w-full'
+            type='dateTimeRange'
+            placeholder={[t('开始时间'), t('结束时间')]}
+            showClear
+            size='small'
+            presets={DATE_RANGE_PRESETS.map((preset) => ({
+              text: t(preset.text),
+              start: preset.start(),
+              end: preset.end(),
+            }))}
+          />
+
+          <div className='grid grid-cols-2 gap-x-3 gap-y-1'>
+            <Form.Input
+              field='task_id'
+              label={t('任务 ID')}
+              prefix={<IconSearch />}
+              placeholder={t('任务 ID')}
+              showClear
+              size='small'
+            />
+            {isAdminUser && (
+              <Form.Input
+                field='channel_id'
+                label={t('渠道 ID')}
+                prefix={<IconSearch />}
+                placeholder={t('渠道 ID')}
+                showClear
+                size='small'
+              />
+            )}
           </div>
         </div>
-      </div>
+      </Modal>
     </Form>
   );
 };

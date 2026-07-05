@@ -1333,14 +1333,8 @@ const EditChannelModal = (props) => {
         loadChannel();
       } else {
         formApiRef.current?.setValues(getInitValues());
-        try {
-          navigator?.clipboard?.readText()?.then((text) => {
-            const parsed = parseChannelConnectionString(text);
-            if (parsed) {
-              setClipboardConfig(parsed);
-            }
-          }).catch(() => {});
-        } catch {}
+        // 不在打开时自动读取剪贴板(会触发浏览器剪贴板权限弹窗);
+        // 用户需要时可点「从剪贴板粘贴」按钮手动触发。
       }
       fetchModelGroups();
       // 重置手动输入模式状态
@@ -3739,7 +3733,6 @@ const EditChannelModal = (props) => {
                   right: 600,
                   backgroundColor: 'var(--semi-color-bg-0)',
                   borderRight: '1px solid var(--semi-color-border)',
-                  animation: 'slideInLeft 0.3s ease-out',
                 }}
               >
                 <div className='semi-sidesheet-header'>

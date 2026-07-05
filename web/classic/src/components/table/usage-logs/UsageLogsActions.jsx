@@ -18,64 +18,65 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Space, Skeleton } from '@douyinfe/semi-ui';
-import { Coins, Activity, Gauge } from 'lucide-react';
-import { renderQuota } from '../../../helpers';
-import CompactModeToggle from '../../common/ui/CompactModeToggle';
-import { useMinimumLoadingTime } from '../../../hooks/common/useMinimumLoadingTime';
+import { Button } from '@douyinfe/semi-ui';
+import { SlidersHorizontal } from 'lucide-react';
+import dayjs from 'dayjs';
 
-const StatChip = ({ tone, icon: Icon, label, value }) => (
-  <div className={`dmit-stat-chip is-${tone}`}>
-    <span className='dmit-stat-chip__icon'>
-      <Icon size={16} />
-    </span>
-    <span className='dmit-stat-chip__body'>
-      <span className='dmit-stat-chip__label'>{label}</span>
-      <span className='dmit-stat-chip__value'>{value}</span>
-    </span>
-  </div>
-);
+const FMT = 'YYYY-MM-DD HH:mm:ss';
 
+// 渲染在二级导航右侧(portal):快捷时间区间 + 筛选按钮。参考数据看板右上角。
 const LogsActions = ({
-  stat,
-  loadingStat,
-  showStat,
-  compactMode,
-  setCompactMode,
+  formApi,
+  refresh,
+  activeTimeRange,
+  setActiveTimeRange,
+  setShowFilterModal,
   t,
 }) => {
-  const showSkeleton = useMinimumLoadingTime(loadingStat);
-  const needSkeleton = !showStat || showSkeleton;
+  const timeRanges = [
+    { value: 'today', label: t('今日'), range: () => [dayjs().startOf('day'), dayjs()] },
+    { value: '24h', label: t('近 24 小时'), range: () => [dayjs().subtract(24, 'hour'), dayjs()] },
+    { value: '7d', label: t('近 7 天'), range: () => [dayjs().subtract(7, 'day'), dayjs()] },
+    { value: '30d', label: t('近 30 天'), range: () => [dayjs().subtract(30, 'day'), dayjs()] },
+  ];
 
-  const placeholder = (
-    <Space>
-      <Skeleton.Title style={{ width: 140, height: 44, borderRadius: 12 }} />
-      <Skeleton.Title style={{ width: 96, height: 44, borderRadius: 12 }} />
-      <Skeleton.Title style={{ width: 96, height: 44, borderRadius: 12 }} />
-    </Space>
-  );
+  const handleRangeChange = (value) => {
+    const opt = timeRanges.find((o) => o.value === value);
+    if (!opt || !formApi) return;
+    const [s, e] = opt.range();
+    formApi.setValue('dateRange', [s.format(FMT), e.format(FMT)]);
+    setActiveTimeRange(value);
+    setTimeout(() => refresh && refresh(), 0);
+  };
 
   return (
-    <div className='flex flex-col md:flex-row justify-between items-start md:items-center gap-2 w-full'>
-      <Skeleton loading={needSkeleton} active placeholder={placeholder}>
-        <div className='flex flex-wrap items-center gap-2'>
-          <StatChip
-            tone='blue'
-            icon={Coins}
-            label={t('消耗额度')}
-            value={renderQuota(stat.quota)}
-          />
-          <StatChip tone='violet' icon={Activity} label='RPM' value={stat.rpm} />
-          <StatChip tone='emerald' icon={Gauge} label='TPM' value={stat.tpm} />
-        </div>
-      </Skeleton>
-
-      <CompactModeToggle
-        compactMode={compactMode}
-        setCompactMode={setCompactMode}
-        t={t}
-      />
-    </div>
+    <>
+      <div className='log-time-range' role='group' aria-label={t('时间范围')}>
+        {timeRanges.map((opt) => {
+          const active = activeTimeRange === opt.value;
+          return (
+            <Button
+              key={opt.value}
+              size='small'
+              theme={active ? 'solid' : 'borderless'}
+              type={active ? 'primary' : 'tertiary'}
+              onClick={() => handleRangeChange(opt.value)}
+            >
+              {opt.label}
+            </Button>
+          );
+        })}
+      </div>
+      <Button
+        type='tertiary'
+        theme='light'
+        size='small'
+        icon={<SlidersHorizontal size={15} />}
+        onClick={() => setShowFilterModal(true)}
+      >
+        {t('筛选')}
+      </Button>
+    </>
   );
 };
 

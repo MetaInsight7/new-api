@@ -18,11 +18,13 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Button, Form } from '@douyinfe/semi-ui';
+import { Button, Form, Modal } from '@douyinfe/semi-ui';
 import { IconSearch } from '@douyinfe/semi-icons';
 
 import { DATE_RANGE_PRESETS } from '../../../constants/console.constants';
 
+// 全部搜索条件集中在一个弹窗内(时间 + 模型/令牌/分组/RequestID/类型/渠道/用户)。
+// Form 常驻挂载(弹窗 keepDOM),保证二级导航上的快捷区间能通过 formApi 写入 dateRange。
 const LogsFilters = ({
   formInitValues,
   setFormApi,
@@ -32,8 +34,25 @@ const LogsFilters = ({
   setLogType,
   loading,
   isAdminUser,
+  showFilterModal,
+  setShowFilterModal,
+  setActiveTimeRange,
   t,
 }) => {
+  const handleReset = () => {
+    if (!formApi) return;
+    formApi.reset();
+    setLogType(0);
+    setActiveTimeRange('today');
+    setTimeout(() => refresh(), 100);
+  };
+
+  const handleSearch = () => {
+    setActiveTimeRange(null);
+    setShowFilterModal(false);
+    setTimeout(() => refresh(), 0);
+  };
+
   return (
     <Form
       initValues={formInitValues}
@@ -45,101 +64,94 @@ const LogsFilters = ({
       trigger='change'
       stopValidateWithError={false}
     >
-      <div className='flex flex-col gap-2'>
-        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2'>
-          {/* 时间选择器 */}
-          <div className='col-span-1 lg:col-span-2'>
-            <Form.DatePicker
-              field='dateRange'
-              className='w-full'
-              type='dateTimeRange'
-              placeholder={[t('开始时间'), t('结束时间')]}
-              showClear
-              pure
+      <Modal
+        title={t('筛选')}
+        visible={showFilterModal}
+        onCancel={() => setShowFilterModal(false)}
+        keepDOM
+        lazyRender={false}
+        width={560}
+        footer={
+          <div className='flex justify-end gap-2'>
+            <Button type='tertiary' theme='light' size='small' onClick={handleReset}>
+              {t('重置')}
+            </Button>
+            <Button
+              type='tertiary'
+              theme='light'
               size='small'
-              presets={DATE_RANGE_PRESETS.map((preset) => ({
-                text: t(preset.text),
-                start: preset.start(),
-                end: preset.end(),
-              }))}
-            />
+              onClick={() => setShowColumnSelector(true)}
+            >
+              {t('列设置')}
+            </Button>
+            <Button
+              type='primary'
+              theme='solid'
+              size='small'
+              icon={<IconSearch />}
+              loading={loading}
+              onClick={handleSearch}
+            >
+              {t('查询')}
+            </Button>
           </div>
-
-          {/* 其他搜索字段 */}
-          <Form.Input
-            field='token_name'
-            prefix={<IconSearch />}
-            placeholder={t('令牌名称')}
+        }
+      >
+        <div className='flex flex-col gap-3'>
+          <Form.DatePicker
+            field='dateRange'
+            label={t('时间范围')}
+            className='w-full'
+            type='dateTimeRange'
+            placeholder={[t('开始时间'), t('结束时间')]}
             showClear
-            pure
             size='small'
+            presets={DATE_RANGE_PRESETS.map((preset) => ({
+              text: t(preset.text),
+              start: preset.start(),
+              end: preset.end(),
+            }))}
           />
 
-          <Form.Input
-            field='model_name'
-            prefix={<IconSearch />}
-            placeholder={t('模型名称')}
-            showClear
-            pure
-            size='small'
-          />
-
-          <Form.Input
-            field='group'
-            prefix={<IconSearch />}
-            placeholder={t('分组')}
-            showClear
-            pure
-            size='small'
-          />
-
-          <Form.Input
-            field='request_id'
-            prefix={<IconSearch />}
-            placeholder={t('Request ID')}
-            showClear
-            pure
-            size='small'
-          />
-
-          {isAdminUser && (
-            <>
-              <Form.Input
-                field='channel'
-                prefix={<IconSearch />}
-                placeholder={t('渠道 ID')}
-                showClear
-                pure
-                size='small'
-              />
-              <Form.Input
-                field='username'
-                prefix={<IconSearch />}
-                placeholder={t('用户名称')}
-                showClear
-                pure
-                size='small'
-              />
-            </>
-          )}
-        </div>
-
-        {/* 操作按钮区域 */}
-        <div className='flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3'>
-          {/* 日志类型选择器 */}
-          <div className='w-full sm:w-auto'>
+          <div className='grid grid-cols-2 gap-x-3 gap-y-1'>
+            <Form.Input
+              field='model_name'
+              label={t('模型名称')}
+              prefix={<IconSearch />}
+              placeholder={t('模型名称')}
+              showClear
+              size='small'
+            />
+            <Form.Input
+              field='token_name'
+              label={t('令牌名称')}
+              prefix={<IconSearch />}
+              placeholder={t('令牌名称')}
+              showClear
+              size='small'
+            />
+            <Form.Input
+              field='group'
+              label={t('分组')}
+              prefix={<IconSearch />}
+              placeholder={t('分组')}
+              showClear
+              size='small'
+            />
+            <Form.Input
+              field='request_id'
+              label={t('Request ID')}
+              prefix={<IconSearch />}
+              placeholder={t('Request ID')}
+              showClear
+              size='small'
+            />
             <Form.Select
               field='logType'
+              label={t('日志类型')}
               placeholder={t('日志类型')}
-              className='w-full sm:w-auto min-w-[120px]'
+              className='w-full'
               showClear
-              pure
-              onChange={() => {
-                // 延迟执行搜索，让表单值先更新
-                setTimeout(() => {
-                  refresh();
-                }, 0);
-              }}
               size='small'
             >
               <Form.Select.Option value='0'>{t('全部')}</Form.Select.Option>
@@ -150,46 +162,29 @@ const LogsFilters = ({
               <Form.Select.Option value='5'>{t('错误')}</Form.Select.Option>
               <Form.Select.Option value='6'>{t('退款')}</Form.Select.Option>
             </Form.Select>
-          </div>
-
-          <div className='flex gap-2 w-full sm:w-auto justify-end'>
-            <Button
-              type='primary'
-              theme='solid'
-              htmlType='submit'
-              icon={<IconSearch />}
-              loading={loading}
-              size='small'
-            >
-              {t('查询')}
-            </Button>
-            <Button
-              type='tertiary'
-              theme='light'
-              onClick={() => {
-                if (formApi) {
-                  formApi.reset();
-                  setLogType(0);
-                  setTimeout(() => {
-                    refresh();
-                  }, 100);
-                }
-              }}
-              size='small'
-            >
-              {t('重置')}
-            </Button>
-            <Button
-              type='tertiary'
-              theme='light'
-              onClick={() => setShowColumnSelector(true)}
-              size='small'
-            >
-              {t('列设置')}
-            </Button>
+            {isAdminUser && (
+              <>
+                <Form.Input
+                  field='channel'
+                  label={t('渠道 ID')}
+                  prefix={<IconSearch />}
+                  placeholder={t('渠道 ID')}
+                  showClear
+                  size='small'
+                />
+                <Form.Input
+                  field='username'
+                  label={t('用户名称')}
+                  prefix={<IconSearch />}
+                  placeholder={t('用户名称')}
+                  showClear
+                  size='small'
+                />
+              </>
+            )}
           </div>
         </div>
-      </div>
+      </Modal>
     </Form>
   );
 };

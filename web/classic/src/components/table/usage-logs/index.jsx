@@ -17,7 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import CardPro from '../../common/ui/CardPro';
 import LogsTable from './UsageLogsTable';
 import LogsActions from './UsageLogsActions';
@@ -29,6 +30,25 @@ import ParamOverrideModal from './modals/ParamOverrideModal';
 import { useLogsData } from '../../../hooks/usage-logs/useUsageLogsData';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
 import { createCardProPagination } from '../../../helpers/utils';
+
+// 将内容注入二级导航右侧动作槽(ConsoleSubNav 里的 #console-subnav-actions)。
+const SubnavActionsPortal = ({ children }) => {
+  const [target, setTarget] = useState(null);
+  useEffect(() => {
+    let raf;
+    const find = () => {
+      const el = document.getElementById('console-subnav-actions');
+      if (el) {
+        setTarget(el);
+      } else {
+        raf = requestAnimationFrame(find);
+      }
+    };
+    find();
+    return () => raf && cancelAnimationFrame(raf);
+  }, []);
+  return target ? createPortal(children, target) : null;
+};
 
 const LogsPage = () => {
   const logsData = useLogsData();
@@ -42,11 +62,18 @@ const LogsPage = () => {
       <ChannelAffinityUsageCacheModal {...logsData} />
       <ParamOverrideModal {...logsData} />
 
-      {/* Main Content */}
+      {/* 二级导航右侧:快捷时间区间 + 筛选按钮 */}
+      <SubnavActionsPortal>
+        <LogsActions {...logsData} />
+      </SubnavActionsPortal>
+
+      {/* 筛选弹窗(Form 常驻挂载,供快捷区间写入 dateRange) */}
+      <LogsFilters {...logsData} />
+
+      {/* Main Content:纯表格,无统计 / 无内嵌筛选 */}
       <CardPro
         type='type2'
-        statsArea={<LogsActions {...logsData} />}
-        searchArea={<LogsFilters {...logsData} />}
+        className='usage-log-card'
         paginationArea={createCardProPagination({
           currentPage: logsData.activePage,
           pageSize: logsData.pageSize,

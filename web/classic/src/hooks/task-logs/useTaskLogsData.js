@@ -34,20 +34,14 @@ import { useTableCompactMode } from '../common/useTableCompactMode';
 export const useTaskLogsData = () => {
   const { t } = useTranslation();
 
-  // Define column keys for selection
+  // Merged composite columns (DMIT flat ledger redesign)
   const COLUMN_KEYS = {
-    SUBMIT_TIME: 'submit_time',
-    FINISH_TIME: 'finish_time',
-    DURATION: 'duration',
+    TASK: 'task',
     CHANNEL: 'channel',
     USERNAME: 'username',
-    PLATFORM: 'platform',
-    TYPE: 'type',
-    TASK_ID: 'task_id',
-    TASK_STATUS: 'task_status',
-    PROGRESS: 'progress',
-    FAIL_REASON: 'fail_reason',
-    RESULT_URL: 'result_url',
+    STATUS: 'status',
+    TIME: 'time',
+    DETAIL: 'detail',
   };
 
   // Basic state
@@ -61,8 +55,8 @@ export const useTaskLogsData = () => {
   const isAdminUser = isAdmin();
   // Role-specific storage key to prevent different roles from overwriting each other
   const STORAGE_KEY = isAdminUser
-    ? 'task-logs-table-columns-admin'
-    : 'task-logs-table-columns-user';
+    ? 'task-logs-table-columns-admin-v2'
+    : 'task-logs-table-columns-user-v2';
 
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -98,6 +92,10 @@ export const useTaskLogsData = () => {
   const [visibleColumns, setVisibleColumns] = useState({});
   const [showColumnSelector, setShowColumnSelector] = useState(false);
 
+  // 快捷时间区间(二级导航右侧)+ 筛选弹窗(与使用日志一致)
+  const [activeTimeRange, setActiveTimeRange] = useState('today');
+  const [showFilterModal, setShowFilterModal] = useState(false);
+
   // Compact mode
   const [compactMode, setCompactMode] = useTableCompactMode('taskLogs');
 
@@ -128,18 +126,12 @@ export const useTaskLogsData = () => {
   // Get default column visibility based on user role
   const getDefaultColumnVisibility = () => {
     return {
-      [COLUMN_KEYS.SUBMIT_TIME]: true,
-      [COLUMN_KEYS.FINISH_TIME]: true,
-      [COLUMN_KEYS.DURATION]: true,
+      [COLUMN_KEYS.TASK]: true,
       [COLUMN_KEYS.CHANNEL]: isAdminUser,
       [COLUMN_KEYS.USERNAME]: isAdminUser,
-      [COLUMN_KEYS.PLATFORM]: true,
-      [COLUMN_KEYS.TYPE]: true,
-      [COLUMN_KEYS.TASK_ID]: true,
-      [COLUMN_KEYS.TASK_STATUS]: true,
-      [COLUMN_KEYS.PROGRESS]: true,
-      [COLUMN_KEYS.FAIL_REASON]: true,
-      [COLUMN_KEYS.RESULT_URL]: true,
+      [COLUMN_KEYS.STATUS]: true,
+      [COLUMN_KEYS.TIME]: true,
+      [COLUMN_KEYS.DETAIL]: true,
     };
   };
 
@@ -347,6 +339,12 @@ export const useTaskLogsData = () => {
     handleSelectAll,
     initDefaultColumns,
     COLUMN_KEYS,
+
+    // 快捷时间区间 + 筛选弹窗
+    activeTimeRange,
+    setActiveTimeRange,
+    showFilterModal,
+    setShowFilterModal,
 
     // Compact mode
     compactMode,

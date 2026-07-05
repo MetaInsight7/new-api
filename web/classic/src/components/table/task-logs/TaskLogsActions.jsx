@@ -18,25 +18,65 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Typography } from '@douyinfe/semi-ui';
-import { IconEyeOpened } from '@douyinfe/semi-icons';
-import CompactModeToggle from '../../common/ui/CompactModeToggle';
+import { Button } from '@douyinfe/semi-ui';
+import { SlidersHorizontal } from 'lucide-react';
+import dayjs from 'dayjs';
 
-const { Text } = Typography;
+const FMT = 'YYYY-MM-DD HH:mm:ss';
 
-const TaskLogsActions = ({ compactMode, setCompactMode, t }) => {
+// 渲染在二级导航右侧(portal):快捷时间区间 + 筛选按钮。与使用日志一致。
+const TaskLogsActions = ({
+  formApi,
+  refresh,
+  activeTimeRange,
+  setActiveTimeRange,
+  setShowFilterModal,
+  t,
+}) => {
+  const timeRanges = [
+    { value: 'today', label: t('今日'), range: () => [dayjs().startOf('day'), dayjs()] },
+    { value: '24h', label: t('近 24 小时'), range: () => [dayjs().subtract(24, 'hour'), dayjs()] },
+    { value: '7d', label: t('近 7 天'), range: () => [dayjs().subtract(7, 'day'), dayjs()] },
+    { value: '30d', label: t('近 30 天'), range: () => [dayjs().subtract(30, 'day'), dayjs()] },
+  ];
+
+  const handleRangeChange = (value) => {
+    const opt = timeRanges.find((o) => o.value === value);
+    if (!opt || !formApi) return;
+    const [s, e] = opt.range();
+    formApi.setValue('dateRange', [s.format(FMT), e.format(FMT)]);
+    setActiveTimeRange(value);
+    setTimeout(() => refresh && refresh(), 0);
+  };
+
   return (
-    <div className='flex flex-col md:flex-row justify-between items-start md:items-center gap-2 w-full'>
-      <div className='flex items-center text-orange-500 mb-2 md:mb-0'>
-        <IconEyeOpened className='mr-2' />
-        <Text>{t('任务记录')}</Text>
+    <>
+      <div className='log-time-range' role='group' aria-label={t('时间范围')}>
+        {timeRanges.map((opt) => {
+          const active = activeTimeRange === opt.value;
+          return (
+            <Button
+              key={opt.value}
+              size='small'
+              theme={active ? 'solid' : 'borderless'}
+              type={active ? 'primary' : 'tertiary'}
+              onClick={() => handleRangeChange(opt.value)}
+            >
+              {opt.label}
+            </Button>
+          );
+        })}
       </div>
-      <CompactModeToggle
-        compactMode={compactMode}
-        setCompactMode={setCompactMode}
-        t={t}
-      />
-    </div>
+      <Button
+        type='tertiary'
+        theme='light'
+        size='small'
+        icon={<SlidersHorizontal size={15} />}
+        onClick={() => setShowFilterModal(true)}
+      >
+        {t('筛选')}
+      </Button>
+    </>
   );
 };
 

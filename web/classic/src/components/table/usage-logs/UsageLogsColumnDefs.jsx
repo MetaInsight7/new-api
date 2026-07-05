@@ -410,7 +410,7 @@ function renderCompactDetailSummary(summarySegments) {
           style={{
             display: 'block',
             maxWidth: '100%',
-            fontSize: 12,
+            fontSize: 13,
             marginTop: index === 0 ? 0 : 2,
             whiteSpace: 'nowrap',
             overflow: 'hidden',
@@ -474,6 +474,384 @@ function getUsageLogDetailSummary(record, text, billingDisplayMode, t) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Composite-column renderers (DMIT ledger redesign — see .tmp/log-roles5.html /
+// .tmp/log-admin.html prototypes). Merges the legacy 14 columns into role-aware
+// composite cells. Inline styles mirror the prototype px values exactly.
+// ---------------------------------------------------------------------------
+
+const CELL_MONO = '"SFMono-Regular", ui-monospace, Menlo, monospace';
+const CC = {
+  ink: '#141a1f',
+  ink2: '#3c4650',
+  mut: '#6b7686',
+  mut2: '#9aa4b2',
+  purple: '#7c3aed',
+};
+
+const CONSUMPTION_TYPES = [0, 2, 5, 6];
+const isConsumptionRow = (record) => CONSUMPTION_TYPES.includes(record?.type);
+
+function compactRatio(r) {
+  const n = Number(r);
+  if (!Number.isFinite(n)) return null;
+  return (Number.isInteger(n) ? n : parseFloat(n.toFixed(2))).toString();
+}
+
+function getGroupRatioValue(other) {
+  const u = Number(other?.user_group_ratio);
+  const useU = Number.isFinite(u) && u !== -1;
+  const ratio = useU ? other?.user_group_ratio : other?.group_ratio;
+  return compactRatio(ratio);
+}
+
+function getGroupName(record, other) {
+  return record?.group || other?.group || '';
+}
+
+function renderRatioBadge(ratioText, isAdminUser) {
+  if (!ratioText) return null;
+  if (isAdminUser) {
+    return (
+      <span
+        style={{
+          display: 'inline-flex', alignItems: 'center', height: 16,
+          padding: '0 6px', border: '1px solid #c7d2fe', borderRadius: 5,
+          color: '#4f46e5', fontSize: 11, fontWeight: 600, lineHeight: 1,
+          marginLeft: 4,
+        }}
+      >
+        {ratioText}x
+      </span>
+    );
+  }
+  return (
+    <span style={{ color: CC.mut, fontWeight: 600, marginLeft: 4 }}>
+      {ratioText}x
+    </span>
+  );
+}
+
+function getTypeChipStyle(type, t) {
+  const map = {
+    1: { text: t('充值'), color: '#b45309', bg: '#fff7ed' },
+    2: { text: t('消费'), color: '#2563eb', bg: '#eff4ff' },
+    3: { text: t('管理'), color: '#6b7686', bg: '#f1f5f9' },
+    4: { text: t('系统'), color: '#7c3aed', bg: '#f3efff' },
+    5: { text: t('错误'), color: '#b91c1c', bg: '#fef2f2' },
+    6: { text: t('退款'), color: '#0f9d6e', bg: '#ecfdf5' },
+  };
+  return map[type] || { text: t('未知'), color: '#6b7686', bg: '#f1f5f9' };
+}
+
+function renderTypeChip(type, t) {
+  const c = getTypeChipStyle(type, t);
+  return (
+    <span
+      style={{
+        display: 'inline-flex', alignItems: 'center', height: 19,
+        padding: '0 9px', borderRadius: 6, fontSize: 12, fontWeight: 600,
+        color: c.color, background: c.bg,
+      }}
+    >
+      {c.text}
+    </span>
+  );
+}
+
+function renderStreamTag(record, t) {
+  if (!(record.type === 2 || record.type === 5)) return null;
+  if (!record.is_stream) return null; // 非流 is shown in the 用时 cell instead
+  const other = getLogOther(record.other);
+  const ss = other?.stream_status;
+  const isErr = ss && ss.status !== 'ok';
+  return (
+    <span
+      style={{
+        position: 'relative', display: 'inline-flex', alignItems: 'center',
+        height: 19, padding: '0 8px', borderRadius: 999, background: '#eff4ff',
+        color: '#2563eb', fontSize: 11, fontWeight: 600,
+      }}
+    >
+      {t('流')}
+      {isErr && (
+        <Tooltip content={buildStreamStatusTooltip(ss, t)}>
+          <span
+            style={{
+              position: 'absolute', right: -3, top: -3, width: 7, height: 7,
+              borderRadius: '50%', background: '#ef4444', cursor: 'pointer',
+            }}
+          />
+        </Tooltip>
+      )}
+    </span>
+  );
+}
+
+function renderTimeCell(record) {
+  const s = String(record.timestamp2string || '');
+  const sp = s.split(' ');
+  const time = sp.length > 1 ? sp[1] : s;
+  const date = sp.length > 1 ? sp[0] : '';
+  return (
+    <div>
+      <div style={{ fontSize: 13, color: CC.ink2, fontFamily: CELL_MONO, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+        {time}
+      </div>
+      {date && (
+        <div style={{ fontSize: 11.5, color: CC.mut2, marginTop: 3, fontFamily: CELL_MONO, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+          {date}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function renderTokenGroupCell(record, ctx) {
+  if (!isConsumptionRow(record)) return null;
+  const other = getLogOther(record.other);
+  const group = getGroupName(record, other);
+  const ratio = getGroupRatioValue(other);
+  return (
+    <div>
+      <div style={{ fontWeight: 500, color: CC.ink }} onClick={(e) => ctx.copyText(e, record.token_name)}>
+        {record.token_name}
+      </div>
+      <div style={{ fontSize: 12, color: CC.mut2, marginTop: 4 }}>
+        {group}
+        {renderRatioBadge(ratio, false)}
+      </div>
+    </div>
+  );
+}
+
+function renderUserCell(record, ctx) {
+  const other = getLogOther(record.other);
+  const group = getGroupName(record, other);
+  const ratio = getGroupRatioValue(other);
+  return (
+    <div>
+      <div
+        style={{ fontWeight: 500, fontSize: 14, color: CC.ink, cursor: 'pointer' }}
+        onClick={(e) => { e.stopPropagation(); ctx.showUserInfoFunc?.(record.user_id); }}
+      >
+        {record.username}
+      </div>
+      {isConsumptionRow(record) && (
+        <div style={{ fontSize: 12, color: CC.mut2, marginTop: 4 }}>
+          {record.token_name}
+          {group ? ` · ${group}` : ''}
+          {renderRatioBadge(ratio, true)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function renderChannelCell(record, ctx) {
+  if (!isConsumptionRow(record)) return null;
+  const other = getLogOther(record.other);
+  const adminInfo = other?.admin_info || {};
+  const useChannel = Array.isArray(adminInfo.use_channel) ? adminInfo.use_channel : null;
+  const retried = useChannel && useChannel.length > 1;
+  const affinity = adminInfo.channel_affinity;
+  const isMultiKey = adminInfo?.is_multi_key;
+  return (
+    <div>
+      <div style={{ whiteSpace: 'nowrap' }}>
+        <Tooltip content={record.channel_name || ctx.t('未知渠道')}>
+          <span style={{ fontWeight: 500, fontFamily: CELL_MONO, fontSize: 14, color: CC.ink2 }}>#{record.channel}</span>
+        </Tooltip>
+        {record.channel_name && (
+          <span style={{ fontSize: 13, color: CC.ink, marginLeft: 5 }}>{record.channel_name}</span>
+        )}
+        {isMultiKey && (
+          <span style={{ fontSize: 12, color: CC.mut2, marginLeft: 4 }}>key#{adminInfo.multi_key_index}</span>
+        )}
+      </div>
+      {(retried || affinity) && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 5, fontSize: 12, color: CC.mut2, fontFamily: CELL_MONO, whiteSpace: 'nowrap' }}>
+          {retried && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', height: 16, padding: '0 5px', borderRadius: 5, background: '#fff7ed', color: '#c2410c', fontSize: 11, fontWeight: 600 }}>
+              {ctx.t('重试')} {useChannel.length - 1}
+            </span>
+          )}
+          {retried && <span>{useChannel.map((c) => `#${c}`).join('→')}</span>}
+          {affinity && (
+            <Tooltip content={buildChannelAffinityTooltip(affinity, ctx.t)}>
+              <span
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 3, color: '#6d28d9', cursor: 'pointer', fontFamily: 'inherit' }}
+                onClick={(e) => { e.stopPropagation(); ctx.openChannelAffinityUsageCacheModal?.(affinity); }}
+              >
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#7c3aed' }} />
+                {ctx.t('亲和')}
+              </span>
+            </Tooltip>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function renderReqModelCell(record, ctx) {
+  const hasModel = record.model_name && isConsumptionRow(record);
+  if (!hasModel) {
+    return <div>{renderTypeChip(record.type, ctx.t)}</div>;
+  }
+  const other = getLogOther(record.other);
+  const dotColor = getTypeChipStyle(record.type, ctx.t).color;
+  const modelMapped = other?.is_model_mapped && other?.upstream_model_name;
+  const showRedirect = ctx.isAdminUser && modelMapped;
+  return (
+    <div>
+      <div style={{ fontSize: 14, color: CC.ink, fontWeight: 500, wordBreak: 'break-all', lineHeight: 1.35 }}>
+        <span style={{ width: 7, height: 7, borderRadius: '50%', display: 'inline-block', verticalAlign: 'middle', marginRight: 7, background: dotColor }} />
+        <span onClick={(e) => ctx.copyText(e, record.model_name)}>{record.model_name}</span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+        {renderTypeChip(record.type, ctx.t)}
+        {renderStreamTag(record, ctx.t)}
+        {showRedirect && (
+          <Popover
+            content={
+              <div style={{ padding: 10, lineHeight: 1.8 }}>
+                <div>
+                  <Typography.Text strong style={{ marginRight: 6 }}>{ctx.t('请求并计费模型')}:</Typography.Text>
+                  {record.model_name}
+                </div>
+                <div>
+                  <Typography.Text strong style={{ marginRight: 6 }}>{ctx.t('实际模型')}:</Typography.Text>
+                  {other.upstream_model_name}
+                </div>
+              </div>
+            }
+          >
+            <span style={{ display: 'inline-flex', alignItems: 'center', height: 19, padding: '0 8px', borderRadius: 5, background: '#f3efff', color: '#7c3aed', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+              {ctx.t('实际模型')}
+            </span>
+          </Popover>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function renderUsageCell(record, ctx) {
+  if (!isConsumptionRow(record)) return null;
+  const other = getLogOther(record.other);
+  const cache = getPromptCacheSummary(other);
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: 18, alignItems: 'baseline', lineHeight: 1.5, color: CC.ink, flexWrap: 'nowrap' }}>
+        <span style={{ whiteSpace: 'nowrap' }}>
+          <span style={{ color: CC.ink, fontSize: 13 }}>{ctx.t('输入')}：</span>
+          <span style={{ fontFamily: CELL_MONO, fontVariantNumeric: 'tabular-nums', fontSize: 14, color: CC.ink }}>{formatTokenCount(record.prompt_tokens)}</span>
+        </span>
+        <span style={{ whiteSpace: 'nowrap' }}>
+          <span style={{ color: CC.ink, fontSize: 13 }}>{ctx.t('输出')}：</span>
+          <span style={{ fontFamily: CELL_MONO, fontVariantNumeric: 'tabular-nums', fontSize: 14, color: CC.ink }}>{formatTokenCount(record.completion_tokens)}</span>
+        </span>
+      </div>
+      {cache ? (
+        <div style={{ display: 'flex', gap: 12, alignItems: 'baseline', marginTop: 5, fontSize: 12, color: CC.mut2, flexWrap: 'nowrap' }}>
+          <span style={{ whiteSpace: 'nowrap' }}>
+            <span style={{ color: CC.mut }}>{ctx.t('缓存')} ·</span>
+            {ctx.t('输入')}：<span style={{ fontFamily: CELL_MONO, color: CC.purple, fontWeight: 600 }}>{formatTokenCount(cache.cacheReadTokens)}</span>
+          </span>
+          {cache.cacheWriteTokens > 0 && (
+            <span style={{ whiteSpace: 'nowrap' }}>
+              {ctx.t('输出')}：<span style={{ fontFamily: CELL_MONO, color: CC.purple, fontWeight: 600 }}>{formatTokenCount(cache.cacheWriteTokens)}</span>
+            </span>
+          )}
+        </div>
+      ) : (
+        <div style={{ marginTop: 5, fontSize: 12, color: CC.mut2 }}>{ctx.t('无缓存')}</div>
+      )}
+    </div>
+  );
+}
+
+function renderUseTimeCell(record, ctx) {
+  if (!(record.type === 2 || record.type === 5)) return null;
+  const other = getLogOther(record.other);
+  const useTime = parseInt(record.use_time);
+  const frt = other?.frt;
+  let sub = null;
+  if (record.is_stream && frt) {
+    sub = `${ctx.t('首字')} ${(parseFloat(frt) / 1000).toFixed(1)}s`;
+  } else if (!record.is_stream) {
+    sub = ctx.t('非流');
+  }
+  return (
+    <div>
+      <div style={{ fontFamily: CELL_MONO, fontVariantNumeric: 'tabular-nums', fontSize: 14, color: CC.ink2, whiteSpace: 'nowrap' }}>
+        {Number.isFinite(useTime) ? `${useTime}s` : ''}
+      </div>
+      {sub && (
+        <div style={{ fontSize: 12, color: CC.mut2, marginTop: 5, fontFamily: CELL_MONO, whiteSpace: 'nowrap' }}>
+          {sub}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// 输入单价:按次计费用 model_price;按 token 计费用 model_ratio×2(= $/1M tokens 基准价)
+function getInputUnitPrice(other) {
+  const mp = other?.model_price;
+  if (mp != null && Number(mp) !== -1) {
+    return { value: Number(mp), perCall: true };
+  }
+  const mr = other?.model_ratio;
+  if (mr != null && Number.isFinite(Number(mr))) {
+    return { value: Number(mr) * 2.0, perCall: false };
+  }
+  return null;
+}
+
+function renderCostCell(record, ctx) {
+  if (!isConsumptionRow(record)) return null;
+  const other = getLogOther(record.other);
+  const isSub = other?.billing_source === 'subscription';
+  const isErr = record.type === 5;
+  const price = getInputUnitPrice(other);
+  // 紧凑:去掉多余小数(整数不补零,原样显示),token→/1M,按次→/次
+  const fmtNum = (v) => parseFloat(Number(v).toFixed(6)).toString();
+  const priceText = price
+    ? `$${fmtNum(price.value)}/${price.perCall ? ctx.t('次') : '1M'}`
+    : '';
+  return (
+    <div>
+      <div style={{ fontFamily: CELL_MONO, fontVariantNumeric: 'tabular-nums', fontWeight: 500, fontSize: 16, letterSpacing: '-0.01em', color: isErr ? '#b91c1c' : CC.ink }}>
+        {isSub ? (
+          <Tooltip content={`${ctx.t('由订阅抵扣')}：${renderQuota(record.quota, 6)}`}>
+            <span>{renderBillingTag(record, ctx.t)}</span>
+          </Tooltip>
+        ) : (
+          renderQuota(record.quota, 6)
+        )}
+      </div>
+      {priceText && (
+        <div style={{ marginTop: 5, fontSize: 12, color: CC.mut, fontFamily: CELL_MONO, whiteSpace: 'nowrap' }}>
+          {priceText}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function renderDetailButton(record, ctx) {
+  return (
+    <span
+      onClick={(e) => { e.stopPropagation(); ctx.onOpenDetail?.(record); }}
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 2, color: '#3557d6', fontSize: 13, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap' }}
+    >
+      {ctx.t('详情')}<span style={{ fontSize: 13 }}>›</span>
+    </span>
+  );
+}
+
 export const getLogsColumns = ({
   t,
   COLUMN_KEYS,
@@ -482,455 +860,89 @@ export const getLogsColumns = ({
   openChannelAffinityUsageCacheModal,
   isAdminUser,
   billingDisplayMode = 'price',
+  onOpenDetail,
 }) => {
-  return [
+  const ctx = {
+    t,
+    copyText,
+    showUserInfoFunc,
+    openChannelAffinityUsageCacheModal,
+    isAdminUser,
+    billingDisplayMode,
+    onOpenDetail,
+  };
+
+  const columns = [
     {
       key: COLUMN_KEYS.TIME,
       title: t('时间'),
       dataIndex: 'timestamp2string',
+      width: isAdminUser ? 92 : 100,
+      render: (_text, record) => renderTimeCell(record),
     },
-    {
+  ];
+
+  if (isAdminUser) {
+    columns.push({
+      key: COLUMN_KEYS.USER,
+      title: t('用户'),
+      dataIndex: 'username',
+      width: 140,
+      render: (_text, record) => renderUserCell(record, ctx),
+    });
+    columns.push({
       key: COLUMN_KEYS.CHANNEL,
       title: t('渠道'),
       dataIndex: 'channel',
-      render: (text, record, index) => {
-        let isMultiKey = false;
-        let multiKeyIndex = -1;
-        let content = t('渠道') + `：${record.channel}`;
-        let affinity = null;
-        let showMarker = false;
-        let other = getLogOther(record.other);
-        if (other?.admin_info) {
-          let adminInfo = other.admin_info;
-          if (adminInfo?.is_multi_key) {
-            isMultiKey = true;
-            multiKeyIndex = adminInfo.multi_key_index;
-          }
-          if (
-            Array.isArray(adminInfo.use_channel) &&
-            adminInfo.use_channel.length > 0
-          ) {
-            content = t('渠道') + `：${adminInfo.use_channel.join('->')}`;
-          }
-          if (adminInfo.channel_affinity) {
-            affinity = adminInfo.channel_affinity;
-            showMarker = true;
-          }
-        }
-
-        return isAdminUser &&
-          (record.type === 0 ||
-            record.type === 2 ||
-            record.type === 5 ||
-            record.type === 6) ? (
-          <Space>
-            <span style={{ position: 'relative', display: 'inline-block' }}>
-              <Tooltip content={record.channel_name || t('未知渠道')}>
-                <span>
-                  <Tag
-                    color={colors[parseInt(text) % colors.length]}
-                    shape='circle'
-                  >
-                    {text}
-                  </Tag>
-                </span>
-              </Tooltip>
-              {showMarker && (
-                <Tooltip
-                  content={
-                    <div style={{ lineHeight: 1.6 }}>
-                      <div>{content}</div>
-                      {affinity ? (
-                        <div style={{ marginTop: 6 }}>
-                          {buildChannelAffinityTooltip(affinity, t)}
-                        </div>
-                      ) : null}
-                    </div>
-                  }
-                >
-                  <span
-                    style={{
-                      position: 'absolute',
-                      right: -4,
-                      top: -4,
-                      lineHeight: 1,
-                      fontWeight: 600,
-                      color: '#f59e0b',
-                      cursor: 'pointer',
-                      userSelect: 'none',
-                    }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openChannelAffinityUsageCacheModal?.(affinity);
-                    }}
-                  >
-                    <Sparkles
-                      size={14}
-                      strokeWidth={2}
-                      color='currentColor'
-                      fill='currentColor'
-                    />
-                  </span>
-                </Tooltip>
-              )}
-            </span>
-            {isMultiKey && (
-              <Tag color='white' shape='circle'>
-                {multiKeyIndex}
-              </Tag>
-            )}
-          </Space>
-        ) : null;
-      },
-    },
-    {
-      key: COLUMN_KEYS.USERNAME,
-      title: t('用户'),
-      dataIndex: 'username',
-      render: (text, record, index) => {
-        return isAdminUser ? (
-          <div>
-            <Avatar
-              size='extra-small'
-              color={stringToColor(text)}
-              style={{ marginRight: 4 }}
-              onClick={(event) => {
-                event.stopPropagation();
-                showUserInfoFunc(record.user_id);
-              }}
-            >
-              {typeof text === 'string' && text.slice(0, 1)}
-            </Avatar>
-            {text}
-          </div>
-        ) : (
-          <></>
-        );
-      },
-    },
-    {
-      key: COLUMN_KEYS.TOKEN,
-      title: t('令牌'),
+      width: 116,
+      render: (_text, record) => renderChannelCell(record, ctx),
+    });
+  } else {
+    columns.push({
+      key: COLUMN_KEYS.TOKEN_GROUP,
+      title: t('令牌 / 分组'),
       dataIndex: 'token_name',
-      render: (text, record, index) => {
-        return record.type === 0 ||
-          record.type === 2 ||
-          record.type === 5 ||
-          record.type === 6 ? (
-          <div>
-            <Tag
-              color='grey'
-              shape='circle'
-              onClick={(event) => {
-                copyText(event, text);
-              }}
-            >
-              {' '}
-              {t(text)}{' '}
-            </Tag>
-          </div>
-        ) : (
-          <></>
-        );
-      },
-    },
-    {
-      key: COLUMN_KEYS.GROUP,
-      title: t('分组'),
-      dataIndex: 'group',
-      render: (text, record, index) => {
-        if (
-          record.type === 0 ||
-          record.type === 2 ||
-          record.type === 5 ||
-          record.type === 6
-        ) {
-          if (record.group) {
-            return <>{renderGroup(record.group)}</>;
-          } else {
-            let other = null;
-            try {
-              other = JSON.parse(record.other);
-            } catch (e) {
-              console.error(
-                `Failed to parse record.other: "${record.other}".`,
-                e,
-              );
-            }
-            if (other === null) {
-              return <></>;
-            }
-            if (other.group !== undefined) {
-              return <>{renderGroup(other.group)}</>;
-            } else {
-              return <></>;
-            }
-          }
-        } else {
-          return <></>;
-        }
-      },
-    },
-    {
-      key: COLUMN_KEYS.TYPE,
-      title: t('类型'),
-      dataIndex: 'type',
-      render: (text, record, index) => {
-        return <>{renderType(text, t)}</>;
-      },
-    },
-    {
-      key: COLUMN_KEYS.MODEL,
-      title: t('模型'),
-      dataIndex: 'model_name',
-      render: (text, record, index) => {
-        return record.type === 0 ||
-          record.type === 2 ||
-          record.type === 5 ||
-          record.type === 6 ? (
-          <>{renderModelName(record, copyText, t)}</>
-        ) : (
-          <></>
-        );
-      },
-    },
-    {
-      key: COLUMN_KEYS.USE_TIME,
-      title: t('用时/首字'),
-      dataIndex: 'use_time',
-      render: (text, record, index) => {
-        if (!(record.type === 2 || record.type === 5)) {
-          return <></>;
-        }
-        if (record.is_stream) {
-          let other = getLogOther(record.other);
-          return (
-            <>
-              <Space>
-                {renderUseTime(text, t)}
-                {renderFirstUseTime(other?.frt, t)}
-                {renderIsStream(record.is_stream, t, other?.stream_status)}
-              </Space>
-            </>
-          );
-        } else {
-          return (
-            <>
-              <Space>
-                {renderUseTime(text, t)}
-                {renderIsStream(record.is_stream, t)}
-              </Space>
-            </>
-          );
-        }
-      },
-    },
-    {
-      key: COLUMN_KEYS.PROMPT,
-      title: (
-        <div className='flex items-center gap-1'>
-          {t('输入')}
-          <Tooltip
-            content={t(
-              '根据 Anthropic 协定，/v1/messages 的输入 tokens 仅统计非缓存输入，不包含缓存读取与缓存写入 tokens。',
-            )}
-          >
-            <IconHelpCircle className='text-gray-400 cursor-help' />
-          </Tooltip>
-        </div>
-      ),
-      dataIndex: 'prompt_tokens',
-      render: (text, record, index) => {
-        const other = getLogOther(record.other);
-        const cacheSummary = getPromptCacheSummary(other);
-        const hasCacheRead = (cacheSummary?.cacheReadTokens || 0) > 0;
-        const hasCacheWrite = (cacheSummary?.cacheWriteTokens || 0) > 0;
-        let cacheText = '';
-        if (hasCacheRead && hasCacheWrite) {
-          cacheText = `${t('缓存读')} ${formatTokenCount(cacheSummary.cacheReadTokens)} · ${t('写')} ${formatTokenCount(cacheSummary.cacheWriteTokens)}`;
-        } else if (hasCacheRead) {
-          cacheText = `${t('缓存读')} ${formatTokenCount(cacheSummary.cacheReadTokens)}`;
-        } else if (hasCacheWrite) {
-          cacheText = `${t('缓存写')} ${formatTokenCount(cacheSummary.cacheWriteTokens)}`;
-        }
+      width: 150,
+      render: (_text, record) => renderTokenGroupCell(record, ctx),
+    });
+  }
 
-        return record.type === 0 ||
-          record.type === 2 ||
-          record.type === 5 ||
-          record.type === 6 ? (
-          <div
-            style={{
-              display: 'inline-flex',
-              flexDirection: 'column',
-              alignItems: 'flex-start',
-              lineHeight: 1.2,
-            }}
-          >
-            <span>{text}</span>
-            {cacheText ? (
-              <span
-                style={{
-                  marginTop: 2,
-                  fontSize: 11,
-                  color: 'var(--semi-color-text-2)',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {cacheText}
-              </span>
-            ) : null}
-          </div>
-        ) : (
-          <></>
-        );
-      },
-    },
-    {
-      key: COLUMN_KEYS.COMPLETION,
-      title: t('输出'),
-      dataIndex: 'completion_tokens',
-      render: (text, record, index) => {
-        return parseInt(text) > 0 &&
-          (record.type === 0 ||
-            record.type === 2 ||
-            record.type === 5 ||
-            record.type === 6) ? (
-          <>{<span> {text} </span>}</>
-        ) : (
-          <></>
-        );
-      },
-    },
-    {
-      key: COLUMN_KEYS.COST,
-      title: t('花费'),
-      dataIndex: 'quota',
-      render: (text, record, index) => {
-        if (
-          !(
-            record.type === 0 ||
-            record.type === 2 ||
-            record.type === 5 ||
-            record.type === 6
-          )
-        ) {
-          return <></>;
-        }
-        const other = getLogOther(record.other);
-        const isSubscription = other?.billing_source === 'subscription';
-        if (isSubscription) {
-          // Subscription billed: show only tag (no $0), but keep tooltip for equivalent cost.
-          return (
-            <Tooltip content={`${t('由订阅抵扣')}：${renderQuota(text, 6)}`}>
-              <span>{renderBillingTag(record, t)}</span>
-            </Tooltip>
-          );
-        }
-        return <>{renderQuota(text, 6)}</>;
-      },
-    },
-    {
-      key: COLUMN_KEYS.IP,
-      title: (
-        <div className='flex items-center gap-1'>
-          {t('IP')}
-          <Tooltip
-            content={t(
-              '只有当用户设置开启IP记录时，才会进行请求和错误类型日志的IP记录',
-            )}
-          >
-            <IconHelpCircle className='text-gray-400 cursor-help' />
-          </Tooltip>
-        </div>
-      ),
-      dataIndex: 'ip',
-      render: (text, record, index) => {
-        const showIp =
-          (record.type === 2 ||
-            record.type === 5 ||
-            (isAdminUser && record.type === 1)) &&
-          text;
-        return showIp ? (
-          <Tooltip content={text}>
-            <span>
-              <Tag
-                color='orange'
-                shape='circle'
-                onClick={(event) => {
-                  copyText(event, text);
-                }}
-              >
-                {text}
-              </Tag>
-            </span>
-          </Tooltip>
-        ) : (
-          <></>
-        );
-      },
-    },
-    {
-      key: COLUMN_KEYS.RETRY,
-      title: t('重试'),
-      dataIndex: 'retry',
-      render: (text, record, index) => {
-        if (!(record.type === 2 || record.type === 5)) {
-          return <></>;
-        }
-        let content = t('渠道') + `：${record.channel}`;
-        if (record.other !== '') {
-          let other = JSON.parse(record.other);
-          if (other === null) {
-            return <></>;
-          }
-          if (other.admin_info !== undefined) {
-            if (
-              other.admin_info.use_channel !== null &&
-              other.admin_info.use_channel !== undefined &&
-              other.admin_info.use_channel !== ''
-            ) {
-              let useChannel = other.admin_info.use_channel;
-              let useChannelStr = useChannel.join('->');
-              content = t('渠道') + `：${useChannelStr}`;
-            }
-          }
-        }
-        return isAdminUser ? <div>{content}</div> : <></>;
-      },
-    },
-    {
-      key: COLUMN_KEYS.DETAILS,
-      title: t('详情'),
-      dataIndex: 'content',
-      fixed: 'right',
-      width: 200,
-      render: (text, record, index) => {
-        const detailSummary = getUsageLogDetailSummary(
-          record,
-          text,
-          billingDisplayMode,
-          t,
-        );
+  columns.push({
+    key: COLUMN_KEYS.REQ_MODEL,
+    title: t('请求 / 模型'),
+    dataIndex: 'model_name',
+    width: isAdminUser ? 204 : 244,
+    render: (_text, record) => renderReqModelCell(record, ctx),
+  });
+  columns.push({
+    key: COLUMN_KEYS.USAGE,
+    title: t('用量'),
+    dataIndex: 'prompt_tokens',
+    width: isAdminUser ? 194 : 236,
+    render: (_text, record) => renderUsageCell(record, ctx),
+  });
+  columns.push({
+    key: COLUMN_KEYS.USE_TIME,
+    title: t('用时'),
+    dataIndex: 'use_time',
+    width: isAdminUser ? 92 : 100,
+    render: (_text, record) => renderUseTimeCell(record, ctx),
+  });
+  columns.push({
+    key: COLUMN_KEYS.COST,
+    title: t('花费'),
+    dataIndex: 'quota',
+    width: isAdminUser ? 132 : 150,
+    render: (_text, record) => renderCostCell(record, ctx),
+  });
+  columns.push({
+    key: COLUMN_KEYS.DETAILS,
+    title: t('操作'),
+    dataIndex: 'operate',
+    width: isAdminUser ? 64 : 72,
+    align: 'center',
+    render: (_text, record) => renderDetailButton(record, ctx),
+  });
 
-        if (!detailSummary) {
-          return (
-            <Typography.Paragraph
-              ellipsis={{
-                rows: 2,
-                showTooltip: {
-                  type: 'popover',
-                  opts: { style: { width: 240 } },
-                },
-              }}
-              style={{ maxWidth: 200, marginBottom: 0 }}
-            >
-              {text}
-            </Typography.Paragraph>
-          );
-        }
-
-        return renderCompactDetailSummary(detailSummary.segments);
-      },
-    },
-  ];
+  return columns;
 };

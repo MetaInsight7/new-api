@@ -11,11 +11,9 @@ For commercial licensing, please contact support@quantumnous.com
 
 /* ===== 钱包「计量账本」风格（仅亮色，作用于充值/邀请/兑换三卡内部呈现）===== */
 
-/* 卡片本体：对齐原型——纯白、无阴影、发丝描边、宽内边距 */
-html:not(.dark) .wallet-card.semi-card {
-  background: #ffffff;
-  border: 1px solid #e7e9e4;
-  box-shadow: none;
+/* 仅去掉卡片阴影，背景/边框保持 DMIT 默认（浅灰卡） */
+html:not(.dark) .app-console .wallet-card.semi-card.semi-card-bordered {
+  box-shadow: none !important;
 }
 .wallet-card.semi-card .semi-card-body {
   padding: 20px 22px !important;

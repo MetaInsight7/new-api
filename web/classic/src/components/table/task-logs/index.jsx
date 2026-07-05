@@ -17,7 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Layout } from '@douyinfe/semi-ui';
 import CardPro from '../../common/ui/CardPro';
 import TaskLogsTable from './TaskLogsTable';
@@ -30,6 +31,25 @@ import { useTaskLogsData } from '../../../hooks/task-logs/useTaskLogsData';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
 import { createCardProPagination } from '../../../helpers/utils';
 
+// 将内容注入二级导航右侧动作槽(ConsoleSubNav 里的 #console-subnav-actions)。
+const SubnavActionsPortal = ({ children }) => {
+  const [target, setTarget] = useState(null);
+  useEffect(() => {
+    let raf;
+    const find = () => {
+      const el = document.getElementById('console-subnav-actions');
+      if (el) {
+        setTarget(el);
+      } else {
+        raf = requestAnimationFrame(find);
+      }
+    };
+    find();
+    return () => raf && cancelAnimationFrame(raf);
+  }, []);
+  return target ? createPortal(children, target) : null;
+};
+
 const TaskLogsPage = () => {
   const taskLogsData = useTaskLogsData();
   const isMobile = useIsMobile();
@@ -39,7 +59,7 @@ const TaskLogsPage = () => {
       {/* Modals */}
       <ColumnSelectorModal {...taskLogsData} />
       <ContentModal {...taskLogsData} isVideo={false} />
-      {/* 新增：视频预览弹窗 */}
+      {/* 视频预览弹窗 */}
       <ContentModal
         isModalOpen={taskLogsData.isVideoModalOpen}
         setIsModalOpen={taskLogsData.setIsVideoModalOpen}
@@ -52,11 +72,19 @@ const TaskLogsPage = () => {
         audioClips={taskLogsData.audioClips}
       />
 
+      {/* 二级导航右侧:快捷时间区间 + 筛选按钮 */}
+      <SubnavActionsPortal>
+        <TaskLogsActions {...taskLogsData} />
+      </SubnavActionsPortal>
+
+      {/* 筛选弹窗(Form 常驻挂载,供快捷区间写入 dateRange) */}
+      <TaskLogsFilters {...taskLogsData} />
+
+      {/* Main Content:纯表格,无统计 / 无内嵌筛选 */}
       <Layout>
         <CardPro
           type='type2'
-          statsArea={<TaskLogsActions {...taskLogsData} />}
-          searchArea={<TaskLogsFilters {...taskLogsData} />}
+          className='dmit-flat-card'
           paginationArea={createCardProPagination({
             currentPage: taskLogsData.activePage,
             pageSize: taskLogsData.pageSize,

@@ -34,9 +34,7 @@ import {
 } from '../../../helpers';
 import CardPro from '../../common/ui/CardPro';
 import TokensTable from './TokensTable';
-import TokensActions from './TokensActions';
-import TokensFilters from './TokensFilters';
-import TokensDescription from './TokensDescription';
+import TokensHeader from './TokensHeader';
 import EditTokenModal from './modals/EditTokenModal';
 import CCSwitchModal from './modals/CCSwitchModal';
 import { useTokensData } from '../../../hooks/tokens/useTokensData';
@@ -393,35 +391,22 @@ function TokensPage() {
 
       <CardPro
         type='type1'
-        descriptionArea={
-          <TokensDescription
-            compactMode={compactMode}
-            setCompactMode={setCompactMode}
+        className='dmit-flat-card'
+        actionsArea={
+          <TokensHeader
+            tokenCount={tokensData.tokenCount}
+            formInitValues={formInitValues}
+            setFormApi={setFormApi}
+            searchTokens={searchTokens}
+            loading={loading}
+            searching={searching}
+            selectedKeys={selectedKeys}
+            batchCopyTokens={batchCopyTokens}
+            batchDeleteTokens={batchDeleteTokens}
+            setEditingToken={setEditingToken}
+            setShowEdit={setShowEdit}
             t={t}
           />
-        }
-        actionsArea={
-          <div className='flex flex-col md:flex-row justify-between items-center gap-2 w-full'>
-            <TokensActions
-              selectedKeys={selectedKeys}
-              setEditingToken={setEditingToken}
-              setShowEdit={setShowEdit}
-              batchCopyTokens={batchCopyTokens}
-              batchDeleteTokens={batchDeleteTokens}
-              t={t}
-            />
-
-            <div className='w-full md:w-full lg:w-auto order-1 md:order-2'>
-              <TokensFilters
-                formInitValues={formInitValues}
-                setFormApi={setFormApi}
-                searchTokens={searchTokens}
-                loading={loading}
-                searching={searching}
-                t={t}
-              />
-            </div>
-          </div>
         }
         paginationArea={createCardProPagination({
           currentPage: tokensData.activePage,

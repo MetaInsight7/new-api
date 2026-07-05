@@ -78,8 +78,7 @@ const TaskLogsTable = (taskLogsData) => {
       dataSource={logs}
       rowKey='key'
       loading={loading}
-      scroll={compactMode ? undefined : { x: 'max-content' }}
-      className='rounded-xl overflow-hidden'
+      className='dmit-flat-table'
       size='middle'
       empty={<TableEmpty title={t('搜索无结果')} />}
       pagination={{
