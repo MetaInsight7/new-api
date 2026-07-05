@@ -1,0 +1,1024 @@
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
+/* ============================================================
+   Token 搭子 · 模型价目表（ledger）品牌样式
+   全部选择器收敛在 .pricing-dazi 作用域内，避免外泄污染其它页面/Semi 组件
+   ============================================================ */
+
+.pricing-dazi {
+  --ink: #141418;
+  --ink-soft: #2d3038;
+  --muted: #686d78;
+  --paper: #f7f8f4;
+  --card: #fff;
+  --line: #d9ddd4;
+  --line-dk: #24262d;
+  --green: #15a77a;
+  --blue: #326ef1;
+  --coral: #f06f46;
+  --yellow: #ead343;
+  --r: 8px;
+  --shadow: 0 18px 48px rgba(20, 20, 24, 0.1);
+  --mono: 'SFMono-Regular', Consolas, ui-monospace, Menlo, monospace;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: Inter, 'PingFang SC', 'Microsoft YaHei', ui-sans-serif, system-ui,
+    -apple-system, sans-serif;
+  min-height: 100vh;
+}
+.pricing-dazi * {
+  box-sizing: border-box;
+}
+.pricing-dazi .shell {
+  width: min(1180px, calc(100% - 48px));
+  margin: 0 auto;
+}
+.pricing-dazi .wrappad {
+  /* 顶部为固定 header(64px)留出空间，避免 hero 被压在其下 */
+  padding: 88px 0 56px;
+}
+
+/* ---------- HERO ---------- */
+.pricing-dazi .kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(20, 20, 24, 0.06);
+  color: var(--green);
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 950;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.pricing-dazi .kicker i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 0 5px rgba(21, 167, 122, 0.12);
+}
+.pricing-dazi h1 {
+  margin: 12px 0 0;
+  font-size: clamp(28px, 3vw, 40px);
+  font-weight: 950;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  max-width: 640px;
+}
+.pricing-dazi h1 em {
+  font-style: normal;
+  color: var(--green);
+}
+.pricing-dazi .lead {
+  margin: 10px 0 0;
+  max-width: 560px;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.6;
+  font-weight: 600;
+}
+.pricing-dazi .herobar {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* hero 两栏 + 吉祥物 */
+.pricing-dazi .hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(290px, 0.7fr);
+  gap: 40px;
+  align-items: center;
+}
+@media (max-width: 900px) {
+  .pricing-dazi .hero-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.pricing-dazi .hero-mascot {
+  display: grid;
+  place-items: center;
+}
+.pricing-dazi .hero-mascot img {
+  width: min(210px, 80%);
+  height: auto;
+  filter: drop-shadow(0 16px 26px rgba(20, 20, 24, 0.16));
+}
+.pricing-dazi .cta-hero {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 46px;
+  padding: 0 20px;
+  border: 2px solid var(--ink);
+  background: var(--ink);
+  color: #fff;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 950;
+  cursor: pointer;
+  box-shadow: 6px 6px 0 #dfe5d7;
+  text-decoration: none;
+}
+.pricing-dazi .cta-hero i {
+  display: inline-grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--yellow);
+  color: var(--ink);
+  font-style: normal;
+  font-size: 15px;
+}
+
+/* ---------- 价目表卡（passport） ---------- */
+.pricing-dazi .manifest {
+  position: relative;
+  margin-top: 22px;
+  border: 2px solid var(--ink);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 12px 12px 0 #dfe5d7, var(--shadow);
+  overflow: hidden;
+}
+.pricing-dazi .m-top {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 14px 22px;
+  border-bottom: 2px solid var(--ink);
+  background: #fff;
+}
+.pricing-dazi .m-seal {
+  position: absolute;
+  top: 50%;
+  right: 22px;
+  z-index: 2;
+  width: 104px;
+  height: 104px;
+  display: grid;
+  place-items: center;
+  border: 3px solid var(--green);
+  border-radius: 50%;
+  color: var(--green);
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 950;
+  text-align: center;
+  line-height: 1.3;
+  letter-spacing: 0.03em;
+  transform: translateY(-50%) rotate(-10deg);
+  background: #fff;
+  pointer-events: none;
+}
+.pricing-dazi .m-seal::before {
+  content: '';
+  position: absolute;
+  inset: 7px;
+  border: 1px dashed currentColor;
+  border-radius: 50%;
+}
+.pricing-dazi .m-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.pricing-dazi .m-vendor-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed #c4cabf;
+}
+.pricing-dazi .m-hint {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  padding: 9px 22px;
+  background: #fbfbf3;
+  border-bottom: 2px solid var(--ink);
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+}
+.pricing-dazi .m-hint b {
+  color: var(--ink-soft);
+  font-weight: 900;
+}
+.pricing-dazi .m-hint .hp {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  border: 1px solid var(--ink);
+  background: var(--yellow);
+  border-radius: 4px;
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 900;
+}
+.pricing-dazi .live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border: 1px solid var(--ink);
+  background: #eaf7f2;
+  color: var(--green);
+  border-radius: 4px;
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 900;
+}
+.pricing-dazi .live-badge i {
+  width: 6px;
+  height: 6px;
+  background: var(--green);
+  border-radius: 50%;
+}
+.pricing-dazi .m-search {
+  flex: 0 1 300px;
+  min-width: 200px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 4px 0 12px;
+  border: 2px solid var(--ink);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+}
+.pricing-dazi .m-search svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+}
+.pricing-dazi .m-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: inherit;
+  color: var(--ink);
+}
+.pricing-dazi .m-search input::placeholder {
+  color: var(--muted);
+  font-weight: 700;
+}
+.pricing-dazi .m-search .s-btn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 12px;
+  background: var(--ink);
+  color: #fff;
+  border: 0;
+  border-radius: 4px;
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 900;
+  cursor: pointer;
+}
+.pricing-dazi .hlabel {
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 950;
+  text-transform: uppercase;
+  color: var(--muted);
+  flex: 0 0 auto;
+}
+.pricing-dazi .fright {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 22px;
+  flex-wrap: wrap;
+}
+.pricing-dazi .vendors {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.pricing-dazi .vpill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #fff;
+  color: var(--ink-soft);
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.pricing-dazi .vpill.on {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #fff;
+}
+.pricing-dazi .vpill .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--c);
+}
+.pricing-dazi .vpill .vc {
+  opacity: 0.5;
+  font-size: 12px;
+  margin-left: 1px;
+}
+.pricing-dazi .vpill.more {
+  border-style: dashed;
+  color: var(--blue);
+}
+
+.pricing-dazi .seg {
+  display: inline-flex;
+  align-items: center;
+  height: 34px;
+  padding: 2px;
+  border: 2px solid var(--ink);
+  border-radius: 6px;
+  background: #fff;
+}
+.pricing-dazi .seg button {
+  border: 0;
+  background: transparent;
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 900;
+  color: var(--ink-soft);
+  padding: 4px 10px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.pricing-dazi .seg button.on {
+  background: var(--ink);
+  color: #fff;
+}
+.pricing-dazi .sel {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 10px;
+  border: 2px solid var(--ink);
+  border-radius: 5px;
+  background: #fff;
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 900;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.pricing-dazi .sel.key {
+  background: #eaf7f2;
+  color: var(--green);
+}
+.pricing-dazi .sel .cr {
+  opacity: 0.5;
+  font-size: 14px;
+}
+
+/* 供应商「更多」面板 */
+.pricing-dazi .vmore-wrap {
+  position: relative;
+  flex: 0 0 auto;
+}
+.pricing-dazi .vpop {
+  position: absolute;
+  top: 34px;
+  left: 0;
+  z-index: 20;
+  width: 320px;
+  max-width: min(320px, calc(100vw - 40px));
+  background: #fff;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  box-shadow: 8px 8px 0 #dfe5d7, var(--shadow);
+  overflow: hidden;
+}
+.pricing-dazi .vpop-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 2px solid var(--ink);
+}
+.pricing-dazi .vpop-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.pricing-dazi .vpop-body {
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 5px;
+}
+.pricing-dazi .vrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 9px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.pricing-dazi .vrow:hover {
+  background: #f4f6f0;
+}
+.pricing-dazi .vrow.on {
+  background: #eaf7f2;
+}
+.pricing-dazi .vrow .vn {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pricing-dazi .vrow .cnt {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--muted);
+}
+.pricing-dazi .vrow .ck {
+  color: var(--green);
+  font-weight: 950;
+}
+
+/* ---------- 表 ---------- */
+.pricing-dazi table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.pricing-dazi thead th {
+  background: #fff;
+  color: var(--ink);
+  font-family: var(--mono);
+  font-weight: 950;
+  font-size: 14px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  text-align: left;
+  padding: 12px 22px;
+  border-bottom: 2px solid var(--ink);
+  white-space: nowrap;
+}
+.pricing-dazi tbody td {
+  padding: 10px 22px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+.pricing-dazi tbody tr.model.exp {
+  cursor: pointer;
+}
+.pricing-dazi tbody tr.model:hover td {
+  background: #fcfdfa;
+}
+
+.pricing-dazi .mdl {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pricing-dazi .chev {
+  flex: 0 0 auto;
+  width: 12px;
+  color: var(--ink);
+  font-size: 14px;
+  transition: transform 0.15s;
+  line-height: 1;
+}
+.pricing-dazi .chev.open {
+  transform: rotate(90deg);
+}
+.pricing-dazi .chev.none {
+  visibility: hidden;
+}
+.pricing-dazi .pico {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  overflow: visible;
+}
+.pricing-dazi .pico > * {
+  display: grid;
+  place-items: center;
+}
+.pricing-dazi .pico svg {
+  width: 28px;
+  height: 28px;
+}
+.pricing-dazi .pico-text {
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  background: #f0f2ed;
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: -0.02em;
+}
+.pricing-dazi .nm {
+  font-size: 16px;
+  font-weight: 950;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.pricing-dazi .nm .nm-txt {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pricing-dazi .nm-btn {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.pricing-dazi .nm-btn:hover .nm-txt {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.pricing-dazi .gpill {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12px;
+  font-weight: 900;
+  padding: 1px 6px;
+  border: 1px solid var(--ink);
+  background: var(--yellow);
+  border-radius: 4px;
+  transition: 0.12s;
+}
+.pricing-dazi .model.exp:hover .gpill {
+  background: #f4d838;
+  box-shadow: 2px 2px 0 rgba(20, 20, 24, 0.85);
+}
+.pricing-dazi .vd {
+  margin-top: 2px;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.pricing-dazi .qt {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+.pricing-dazi .qt i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+.pricing-dazi .qt.tok {
+  color: var(--ink-soft);
+}
+.pricing-dazi .qt.tok i {
+  background: var(--blue);
+}
+.pricing-dazi .qt.call {
+  color: var(--coral);
+}
+.pricing-dazi .qt.call i {
+  background: var(--coral);
+}
+
+.pricing-dazi .v {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.pricing-dazi .u {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--muted);
+  margin-left: 3px;
+}
+.pricing-dazi .low {
+  display: inline-flex;
+  margin-left: 3px;
+  padding: 0 3px;
+  border-radius: 3px;
+  background: var(--green);
+  color: #fff;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 900;
+}
+.pricing-dazi .dyn {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border: 1px solid var(--blue);
+  border-radius: 4px;
+  background: #eaf0ff;
+  color: var(--blue);
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 900;
+}
+.pricing-dazi .dash {
+  color: var(--muted);
+  font-size: 15px;
+  font-weight: 950;
+}
+
+.pricing-dazi .ep,
+.pricing-dazi .tg,
+.pricing-dazi .more {
+  display: inline-flex;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 800;
+  margin: 1px;
+}
+.pricing-dazi .ep {
+  background: #f0f2ed;
+  color: var(--ink-soft);
+}
+.pricing-dazi .more {
+  background: #f0f2ed;
+  color: var(--muted);
+}
+.pricing-dazi .cell-empty {
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 14px;
+}
+/* 端点 / 标签列统一为单行，避免有的两行有的一行 */
+.pricing-dazi .cell-chips {
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* 展开：票根式分组明细 */
+.pricing-dazi .subwrap td {
+  padding: 0;
+  background: #f9f9f6;
+  border-bottom: 1px solid var(--line);
+}
+.pricing-dazi .subinner {
+  padding: 8px 22px 16px 68px;
+}
+.pricing-dazi .subttl {
+  margin: 10px 0 8px;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 950;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.pricing-dazi .subtable {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  overflow: hidden;
+}
+.pricing-dazi .subtable td {
+  padding: 10px 12px;
+  border-bottom: 1px dashed #d9ddd4;
+  background: #fff;
+  vertical-align: middle;
+}
+.pricing-dazi .subtable tr:last-child td {
+  border-bottom: 0;
+}
+.pricing-dazi .subtable tr.best td {
+  background: #eaf7f2;
+}
+.pricing-dazi .subtable .sub-head td {
+  background: #f0f2ed;
+  color: var(--ink-soft);
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 950;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--ink);
+}
+.pricing-dazi .gname {
+  font-size: 14px;
+  font-weight: 950;
+  color: var(--ink);
+}
+.pricing-dazi .lowtag {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 9px;
+  padding: 1px 7px;
+  border-radius: 5px;
+  background: var(--green);
+  color: #fff;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+.pricing-dazi .rbadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 18px;
+  padding: 0 8px;
+  border: 1px solid var(--ink);
+  border-radius: 6px;
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 950;
+}
+.pricing-dazi .vm {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.pricing-dazi .um {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 850;
+  color: var(--muted);
+  margin-left: 2px;
+}
+
+.pricing-dazi .m-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 22px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 850;
+  text-transform: uppercase;
+  flex-wrap: wrap;
+}
+.pricing-dazi .m-page {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.pricing-dazi .m-page button {
+  height: 28px;
+  min-width: 28px;
+  padding: 0 10px;
+  border: 2px solid var(--ink);
+  border-radius: 5px;
+  background: #fff;
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+.pricing-dazi .m-page button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ---------- 加载/空态 ---------- */
+.pricing-dazi .m-state {
+  padding: 48px 22px;
+  text-align: center;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 850;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ============================================================
+   移动端：堆叠卡片式行
+   ============================================================ */
+.pricing-dazi .m-list {
+  display: flex;
+  flex-direction: column;
+}
+.pricing-dazi .m-card {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+}
+.pricing-dazi .m-card:last-child {
+  border-bottom: 0;
+}
+.pricing-dazi .mc-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.pricing-dazi .mc-title {
+  flex: 1;
+  min-width: 0;
+}
+.pricing-dazi .mc-prices {
+  display: flex;
+  gap: 18px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed #c4cabf;
+}
+.pricing-dazi .mc-price {
+  flex: 1;
+  min-width: 0;
+}
+.pricing-dazi .mc-plabel {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 3px;
+}
+.pricing-dazi .mc-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 10px;
+}
+.pricing-dazi .mc-groups {
+  margin-top: 12px;
+}
+/* 分组行：2×2 网格，左列(分组名 / ×倍率) 右列(输入价 / 输出价 上下对齐) */
+.pricing-dazi .mc-grow {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  column-gap: 14px;
+  row-gap: 5px;
+  align-items: center;
+  padding: 9px 11px;
+  border: 1px dashed #d9ddd4;
+  border-radius: 6px;
+  margin-top: 6px;
+  background: #fff;
+}
+.pricing-dazi .mc-grow.best {
+  background: #eaf7f2;
+  border-style: solid;
+  border-color: var(--green);
+}
+.pricing-dazi .mc-gname {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 950;
+  color: var(--ink);
+}
+.pricing-dazi .mc-gratio {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pricing-dazi .mc-gpr {
+  justify-self: start;
+  white-space: nowrap;
+}
+.pricing-dazi .mc-gpr .pl {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 900;
+  color: var(--muted);
+  margin-right: 6px;
+}
+
+/* ============================================================
+   移动端细节优化
+   ============================================================ */
+@media (max-width: 768px) {
+  .pricing-dazi .wrappad {
+    padding: 76px 0 40px;
+  }
+  /* 手机端去掉吉祥物 logo */
+  .pricing-dazi .hero-mascot {
+    display: none;
+  }
+  /* 印章在窄屏易与工具栏重叠，隐藏保持清爽 */
+  .pricing-dazi .m-seal {
+    display: none;
+  }
+  .pricing-dazi .fright {
+    margin-left: 0;
+  }
+  .pricing-dazi .m-search {
+    flex: 1 1 100%;
+  }
+  /* 分组 + 计费 同一行 */
+  .pricing-dazi .fright {
+    margin-left: 0;
+    width: 100%;
+    flex-wrap: nowrap;
+    gap: 5px;
+  }
+  .pricing-dazi .fright .hlabel {
+    font-size: 11px;
+  }
+  .pricing-dazi .sel {
+    flex: 0 1 auto;
+    min-width: 0;
+    height: 32px;
+    padding: 0 6px;
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .pricing-dazi .seg {
+    flex: 0 0 auto;
+    height: 32px;
+  }
+  .pricing-dazi .seg button {
+    padding: 4px 7px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+}
+
