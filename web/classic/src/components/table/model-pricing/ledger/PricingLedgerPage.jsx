@@ -75,6 +75,13 @@ const PricingLedgerPage = () => {
           )}
         </div>
       </div>
+
+      <footer className='pd-footer'>
+        <div className='shell'>
+          <span>Token 搭子 · Model Passport for Vibe Coding</span>
+          <span>tokendazi.com</span>
+        </div>
+      </footer>
     </div>
   );
 };

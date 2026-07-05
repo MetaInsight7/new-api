@@ -42,6 +42,8 @@ For commercial licensing, please contact support@quantumnous.com
   font-family: Inter, 'PingFang SC', 'Microsoft YaHei', ui-sans-serif, system-ui,
     -apple-system, sans-serif;
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 .pricing-dazi * {
   box-sizing: border-box;
@@ -52,7 +54,24 @@ For commercial licensing, please contact support@quantumnous.com
 }
 .pricing-dazi .wrappad {
   /* 顶部为固定 header(64px)留出空间，避免 hero 被压在其下 */
-  padding: 88px 0 56px;
+  padding: 88px 0 28px;
+  flex: 1 0 auto;
+}
+
+/* ---------- 品牌页脚(与首页 / 排行榜一致) ---------- */
+.pricing-dazi .pd-footer {
+  flex-shrink: 0;
+  border-top: 1px solid var(--line);
+  padding: 24px 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+.pricing-dazi .pd-footer .shell {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
 }
 
 /* ---------- HERO ---------- */
