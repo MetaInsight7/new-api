@@ -31,7 +31,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
   return (
     <div className='dmit-sider'>
       <Link to='/' className='dmit-sider__logo' onClick={onNavigate}>
-        {logo && <img src={logo} alt='logo' className='dmit-sider__logo-img' />}
+        {logo && <img src={logo} alt='' className='dmit-sider__logo-img' />}
         <span className='dmit-sider__logo-text'>{systemName}</span>
       </Link>
 

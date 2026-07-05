@@ -27,6 +27,7 @@ import MobileMenuButton from './MobileMenuButton';
 import HeaderLogo from './HeaderLogo';
 import Navigation from './Navigation';
 import ActionButtons from './ActionButtons';
+import './token-nav.css';
 
 const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   const {
@@ -69,7 +70,7 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
 
   return (
     <header
-      className={`text-semi-color-text-0 sticky top-0 z-50 transition-colors duration-300 bg-white/75 dark:bg-zinc-900/75 backdrop-blur-lg${isHomeRoute ? ' token-home-header' : ''}`}
+      className={`token-nav text-semi-color-text-0 sticky top-0 z-50 transition-colors duration-300${isHomeRoute ? ' token-home-header' : ''}`}
     >
       <NoticeModal
         visible={noticeVisible}

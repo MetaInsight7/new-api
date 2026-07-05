@@ -40,12 +40,12 @@ const HeaderLogo = ({
 
   return (
     <Link to='/' className='group flex items-center gap-2'>
-      <div className='relative w-8 h-8 md:w-8 md:h-8'>
+      <div className='tn-logo relative w-7 h-7 md:w-7 md:h-7'>
         <SkeletonWrapper loading={isLoading || !logoLoaded} type='image' />
         <img
           src={logo}
           alt='logo'
-          className={`absolute inset-0 w-full h-full transition-all duration-200 group-hover:scale-110 rounded-full ${!isLoading && logoLoaded ? 'opacity-100' : 'opacity-0'}`}
+          className={`absolute inset-0 w-full h-full object-contain transition-all duration-200 group-hover:scale-105 ${!isLoading && logoLoaded ? 'opacity-100' : 'opacity-0'}`}
         />
       </div>
       <div className='hidden md:flex items-center gap-2'>
@@ -58,7 +58,7 @@ const HeaderLogo = ({
           >
             <Typography.Title
               heading={4}
-              className='!text-lg !font-semibold !mb-0'
+              className='tn-wordmark !text-lg !font-semibold !mb-0'
             >
               {systemName}
             </Typography.Title>

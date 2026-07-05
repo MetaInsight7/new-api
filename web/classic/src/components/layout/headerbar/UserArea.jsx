@@ -41,77 +41,67 @@ const UserArea = ({
 }) => {
   const dropdownRef = useRef(null);
   if (isLoading) {
-    return (
-      <SkeletonWrapper
-        loading={true}
-        type='userArea'
-        width={50}
-        isMobile={isMobile}
-      />
-    );
+    return <span className='tn-av-skeleton' aria-hidden='true' />;
   }
 
   if (userState.user) {
+    const uname = userState.user.username || '';
+    const initial = (uname[0] || '?').toUpperCase();
+    const avColor = stringToColor(uname);
+    const role = userState.user.role || 0;
+    const roleLabel =
+      role >= 100 ? t('站长') : role >= 10 ? t('管理员') : t('用户');
+
     return (
-      <div className='relative' ref={dropdownRef}>
+      <div className='relative tn-userwrap' ref={dropdownRef}>
         <Dropdown
           position='bottomRight'
           getPopupContainer={() => dropdownRef.current}
           render={
-            <Dropdown.Menu className='!bg-semi-color-bg-overlay !border-semi-color-border !shadow-lg !rounded-lg dark:!bg-gray-700 dark:!border-gray-600'>
-              <Dropdown.Item
-                onClick={() => {
-                  navigate('/console/personal');
-                }}
-                className='!px-3 !py-1.5 !text-sm !text-semi-color-text-0 hover:!bg-semi-color-fill-1 dark:!text-gray-200 dark:hover:!bg-blue-500 dark:hover:!text-white'
-              >
-                <div className='flex items-center gap-2'>
-                  <IconUserSetting
-                    size='small'
-                    className='text-gray-500 dark:text-gray-400'
-                  />
-                  <span>{t('个人设置')}</span>
+            <Dropdown.Menu className='tn-userpop'>
+              <div className='tn-userpop-head'>
+                <span className='tn-userpop-av' style={{ background: avColor }}>
+                  {initial}
+                </span>
+                <div className='tn-userpop-meta'>
+                  <div className='tn-userpop-name'>{uname}</div>
+                  <div className='tn-userpop-sub'>
+                    {userState.user.email || roleLabel}
+                  </div>
                 </div>
+                <span className='tn-userpop-role'>{roleLabel}</span>
+              </div>
+
+              <Dropdown.Item
+                className='tn-userpop-item'
+                onClick={() => navigate('/console/personal')}
+              >
+                <IconUserSetting size='small' />
+                <span>{t('个人设置')}</span>
               </Dropdown.Item>
               <Dropdown.Item
-                onClick={() => {
-                  navigate('/console/token');
-                }}
-                className='!px-3 !py-1.5 !text-sm !text-semi-color-text-0 hover:!bg-semi-color-fill-1 dark:!text-gray-200 dark:hover:!bg-blue-500 dark:hover:!text-white'
+                className='tn-userpop-item'
+                onClick={() => navigate('/console/token')}
               >
-                <div className='flex items-center gap-2'>
-                  <IconKey
-                    size='small'
-                    className='text-gray-500 dark:text-gray-400'
-                  />
-                  <span>{t('令牌管理')}</span>
-                </div>
+                <IconKey size='small' />
+                <span>{t('令牌管理')}</span>
               </Dropdown.Item>
               <Dropdown.Item
-                onClick={() => {
-                  navigate('/console/topup');
-                }}
-                className='!px-3 !py-1.5 !text-sm !text-semi-color-text-0 hover:!bg-semi-color-fill-1 dark:!text-gray-200 dark:hover:!bg-blue-500 dark:hover:!text-white'
+                className='tn-userpop-item'
+                onClick={() => navigate('/console/topup')}
               >
-                <div className='flex items-center gap-2'>
-                  <IconCreditCard
-                    size='small'
-                    className='text-gray-500 dark:text-gray-400'
-                  />
-                  <span>{t('钱包管理')}</span>
-                </div>
+                <IconCreditCard size='small' />
+                <span>{t('钱包管理')}</span>
               </Dropdown.Item>
+
+              <Dropdown.Divider />
+
               <Dropdown.Item
+                className='tn-userpop-item tn-logout'
                 onClick={logout}
-                className='!px-3 !py-1.5 !text-sm !text-semi-color-text-0 hover:!bg-semi-color-fill-1 dark:!text-gray-200 dark:hover:!bg-red-500 dark:hover:!text-white'
               >
-                <div className='flex items-center gap-2'>
-                  <IconExit
-                    size='small'
-                    className='text-gray-500 dark:text-gray-400'
-                  />
-                  <span>{t('退出')}</span>
-                </div>
+                <IconExit size='small' />
+                <span>{t('退出')}</span>
               </Dropdown.Item>
             </Dropdown.Menu>
           }
@@ -119,24 +109,12 @@ const UserArea = ({
           <Button
             theme='borderless'
             type='tertiary'
-            className='flex items-center gap-1.5 !p-1 !rounded-full hover:!bg-semi-color-fill-1 dark:hover:!bg-gray-700 !bg-semi-color-fill-0 dark:!bg-semi-color-fill-1 dark:hover:!bg-semi-color-fill-2'
+            className='tn-avatar'
+            aria-label={uname}
           >
-            <Avatar
-              size='extra-small'
-              color={stringToColor(userState.user.username)}
-              className='mr-1'
-            >
-              {userState.user.username[0].toUpperCase()}
-            </Avatar>
-            <span className='hidden md:inline'>
-              <Typography.Text className='!text-xs !font-medium !text-semi-color-text-1 dark:!text-gray-300 mr-1'>
-                {userState.user.username}
-              </Typography.Text>
+            <span className='tn-av' style={{ background: avColor }}>
+              {initial}
             </span>
-            <ChevronDown
-              size={14}
-              className='text-xs text-semi-color-text-2 dark:text-gray-400'
-            />
           </Button>
         </Dropdown>
       </div>
@@ -144,50 +122,18 @@ const UserArea = ({
   } else {
     const showRegisterButton = !isSelfUseMode;
 
-    const commonSizingAndLayoutClass =
-      'flex items-center justify-center !py-[10px] !px-1.5';
-
-    const loginButtonSpecificStyling =
-      '!bg-semi-color-fill-0 dark:!bg-semi-color-fill-1 hover:!bg-semi-color-fill-1 dark:hover:!bg-gray-700 transition-colors';
-    let loginButtonClasses = `${commonSizingAndLayoutClass} ${loginButtonSpecificStyling}`;
-
-    let registerButtonClasses = `${commonSizingAndLayoutClass}`;
-
-    const loginButtonTextSpanClass =
-      '!text-xs !text-semi-color-text-1 dark:!text-gray-300 !p-1.5';
-    const registerButtonTextSpanClass = '!text-xs !text-white !p-1.5';
-
-    if (showRegisterButton) {
-      if (isMobile) {
-        loginButtonClasses += ' !rounded-full';
-      } else {
-        loginButtonClasses += ' !rounded-l-full !rounded-r-none';
-      }
-      registerButtonClasses += ' !rounded-r-full !rounded-l-none';
-    } else {
-      loginButtonClasses += ' !rounded-full';
-    }
-
     return (
-      <div className='flex items-center'>
+      <div className='flex items-center gap-1'>
         <Link to='/login' className='flex'>
-          <Button
-            theme='borderless'
-            type='tertiary'
-            className={loginButtonClasses}
-          >
-            <span className={loginButtonTextSpanClass}>{t('登录')}</span>
+          <Button theme='borderless' type='tertiary' className='tn-login'>
+            <span>{t('登录')}</span>
           </Button>
         </Link>
         {showRegisterButton && (
           <div className='hidden md:block'>
-            <Link to='/register' className='flex -ml-px'>
-              <Button
-                theme='solid'
-                type='primary'
-                className={registerButtonClasses}
-              >
-                <span className={registerButtonTextSpanClass}>{t('注册')}</span>
+            <Link to='/register' className='flex'>
+              <Button theme='solid' type='primary' className='tn-register'>
+                <span>{t('注册')}</span>
               </Button>
             </Link>
           </div>

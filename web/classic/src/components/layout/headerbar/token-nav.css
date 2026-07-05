@@ -1,0 +1,347 @@
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
+/* ============================================================
+   Token 搭子 · 顶部导航(轻量版:V1 极简 + V4 绿下划线)
+   作用域:.token-nav —— 无边框/无阴影/透明按钮,active 绿下划线
+   ============================================================ */
+
+.token-nav {
+  --tn-ink: #141418;
+  --tn-muted: #686d78;
+  --tn-green: #15a77a;
+  background: #fff !important;
+  border-bottom: 0 !important;
+  box-shadow: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+html.dark .token-nav {
+  background: #18181b !important;
+}
+/* 首页保持纸底(与 hero 无缝) */
+.token-nav.token-home-header {
+  background: #f7f8f4 !important;
+}
+html.dark .token-nav.token-home-header {
+  background: #18181b !important;
+}
+
+/* ---------- logo(去圆形裁剪,小巧) ---------- */
+.token-nav .tn-logo img {
+  border-radius: 0 !important;
+}
+.token-nav .tn-wordmark.semi-typography {
+  font-size: 15px !important;
+  font-weight: 850 !important;
+  letter-spacing: -0.01em;
+  color: var(--tn-ink) !important;
+}
+html.dark .token-nav .tn-wordmark.semi-typography {
+  color: #f4f4f5 !important;
+}
+
+/* ---------- 主导航链接(细、留白、active 绿下划线) ---------- */
+.token-nav .tn-link {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 3px;
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--tn-muted);
+  text-decoration: none;
+  white-space: nowrap;
+  background: transparent !important;
+  transition: color 0.14s ease;
+}
+.token-nav .tn-link:hover {
+  color: var(--tn-ink);
+}
+.token-nav .tn-link.tn-on {
+  color: var(--tn-ink);
+  font-weight: 850;
+}
+.token-nav .tn-link.tn-on::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  bottom: 2px;
+  height: 2.5px;
+  border-radius: 2px;
+  background: var(--tn-green);
+}
+.token-nav .tn-ext {
+  font-size: 10px;
+  color: #b8bcc2;
+}
+html.dark .token-nav .tn-link {
+  color: #a1a1aa;
+}
+html.dark .token-nav .tn-link:hover,
+html.dark .token-nav .tn-link.tn-on {
+  color: #fff;
+}
+
+/* ---------- 右侧图标按钮(透明、淡、无盒) ---------- */
+.token-nav .tn-iconbtn.semi-button {
+  width: 34px !important;
+  height: 34px !important;
+  min-width: 34px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 9px !important;
+  background: transparent !important;
+  color: var(--tn-muted) !important;
+}
+.token-nav .tn-iconbtn.semi-button:hover {
+  background: #f3f4ef !important;
+  color: var(--tn-ink) !important;
+}
+html.dark .token-nav .tn-iconbtn.semi-button:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #fff !important;
+}
+
+/* ---------- 登录(文字链接) ---------- */
+.token-nav .tn-login.semi-button {
+  height: 32px !important;
+  padding: 0 8px !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.token-nav .tn-login.semi-button span {
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  color: var(--tn-muted) !important;
+  padding: 0 !important;
+}
+.token-nav .tn-login.semi-button:hover span {
+  color: var(--tn-ink) !important;
+}
+
+/* ---------- 注册(小绿胶囊) ---------- */
+.token-nav .tn-register.semi-button {
+  height: 32px !important;
+  padding: 0 14px !important;
+  border: 0 !important;
+  border-radius: 8px !important;
+  background: var(--tn-green) !important;
+  box-shadow: none !important;
+}
+.token-nav .tn-register.semi-button span {
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  color: #fff !important;
+  padding: 0 !important;
+}
+.token-nav .tn-register.semi-button:hover {
+  background: #128a65 !important;
+}
+
+/* ---------- 已登录头像(保持轻) ---------- */
+.token-nav .tn-avatar.semi-button {
+  width: 42px !important;
+  height: 42px !important;
+  min-width: 42px !important;
+  padding: 0 !important;
+  display: inline-grid !important;
+  place-items: center;
+  border: 0 !important;
+  border-radius: 50% !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.token-nav .tn-avatar.semi-button:hover {
+  background: #f3f4ef !important;
+}
+html.dark .token-nav .tn-avatar.semi-button:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+.token-nav .tn-av {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  /* 绿色在线环 */
+  box-shadow: 0 0 0 2px #fff, 0 0 0 3.5px var(--tn-green);
+}
+html.dark .token-nav .tn-av {
+  box-shadow: 0 0 0 2px #18181b, 0 0 0 3.5px var(--tn-green);
+}
+
+/* 加载占位:与新头像一致的小灰圆(替换旧骨架,避免刷新时闪旧样式) */
+.tn-av-skeleton {
+  display: inline-block;
+  width: 28px;
+  height: 28px;
+  margin: 0 9px;
+  border-radius: 50%;
+  background: #e7e9e2;
+  animation: tn-av-pulse 1.2s ease-in-out infinite;
+}
+html.dark .tn-av-skeleton {
+  background: #3f3f46;
+}
+@keyframes tn-av-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* ============================================================
+   用户下拉面板(轻量卡片)
+   ============================================================ */
+.tn-userwrap .semi-dropdown {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+.tn-userpop.semi-dropdown-menu {
+  width: 250px;
+  padding: 6px !important;
+  border-radius: 14px !important;
+  background: #fff !important;
+  border: 1px solid #ececE7 !important;
+  box-shadow: 0 14px 38px -12px rgba(20, 20, 24, 0.24) !important;
+}
+html.dark .tn-userpop.semi-dropdown-menu {
+  background: #232327 !important;
+  border-color: #3f3f46 !important;
+}
+
+/* 头部用户信息 */
+.tn-userpop-head {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 8px 8px 12px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid #f0f1ec;
+}
+html.dark .tn-userpop-head {
+  border-bottom-color: #3f3f46;
+}
+.tn-userpop-av {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 900;
+}
+.tn-userpop-meta {
+  flex: 1;
+  min-width: 0;
+}
+.tn-userpop-name {
+  font-size: 14px;
+  font-weight: 900;
+  color: var(--tn-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+html.dark .tn-userpop-name {
+  color: #f4f4f5;
+}
+.tn-userpop-sub {
+  margin-top: 1px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tn-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tn-userpop-role {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: #eaf7f2;
+  color: #0f7355;
+  font-family: 'SFMono-Regular', Consolas, ui-monospace, Menlo, monospace;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+/* 菜单项 */
+.tn-userpop-item.semi-dropdown-item {
+  display: flex !important;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px !important;
+  border-radius: 9px !important;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--tn-ink) !important;
+}
+.tn-userpop-item.semi-dropdown-item .semi-icon {
+  color: var(--tn-muted);
+  font-size: 16px;
+}
+.tn-userpop-item.semi-dropdown-item:hover {
+  background: #f4f6f0 !important;
+}
+.tn-userpop-item.semi-dropdown-item:hover .semi-icon {
+  color: var(--tn-ink);
+}
+html.dark .tn-userpop-item.semi-dropdown-item {
+  color: #e4e4e7 !important;
+}
+html.dark .tn-userpop-item.semi-dropdown-item:hover {
+  background: rgba(255, 255, 255, 0.07) !important;
+}
+
+/* 退出:红调 */
+.tn-userpop-item.tn-logout.semi-dropdown-item:hover {
+  background: #fdecec !important;
+  color: #d64545 !important;
+}
+.tn-userpop-item.tn-logout.semi-dropdown-item:hover .semi-icon {
+  color: #d64545;
+}
+html.dark .tn-userpop-item.tn-logout.semi-dropdown-item:hover {
+  background: rgba(214, 69, 69, 0.16) !important;
+  color: #f87171 !important;
+}
+
+.tn-userpop .semi-dropdown-divider {
+  margin: 6px 4px !important;
+  background: #f0f1ec !important;
+}
+html.dark .tn-userpop .semi-dropdown-divider {
+  background: #3f3f46 !important;
+}
+
