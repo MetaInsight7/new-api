@@ -18,21 +18,15 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState } from 'react';
-import {
-  API,
-  getLogo,
-  showError,
-  showInfo,
-  showSuccess,
-  getSystemName,
-} from '../../helpers';
+import { API, getLogo, showError, showInfo, showSuccess } from '../../helpers';
 import Turnstile from 'react-turnstile';
-import { Button, Card, Form, Typography } from '@douyinfe/semi-ui';
+import { Button, Form } from '@douyinfe/semi-ui';
+import Text from '@douyinfe/semi-ui/lib/es/typography/text';
 import { IconMail } from '@douyinfe/semi-icons';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-
-const { Text, Title } = Typography;
+import AuthLayout from './AuthLayout';
+import { AuthButtonContent, AuthFormHeader } from './AuthFormVisuals';
 
 const PasswordResetForm = () => {
   const { t } = useTranslation();
@@ -49,7 +43,6 @@ const PasswordResetForm = () => {
   const [countdown, setCountdown] = useState(30);
 
   const logo = getLogo();
-  const systemName = getSystemName();
 
   useEffect(() => {
     let status = localStorage.getItem('status');
@@ -103,90 +96,71 @@ const PasswordResetForm = () => {
     setLoading(false);
   }
 
+  const renderTurnstile = () => {
+    if (!turnstileEnabled) return null;
+
+    return (
+      <div className='auth-turnstile auth-turnstile-inline'>
+        <Turnstile
+          sitekey={turnstileSiteKey}
+          onVerify={(token) => {
+            setTurnstileToken(token);
+          }}
+        />
+      </div>
+    );
+  };
+
   return (
-    <div className='classic-page-fill relative overflow-hidden bg-gray-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8'>
-      {/* 背景模糊晕染球 */}
-      <div
-        className='blur-ball blur-ball-indigo'
-        style={{ top: '-80px', right: '-80px', transform: 'none' }}
-      />
-      <div
-        className='blur-ball blur-ball-teal'
-        style={{ top: '50%', left: '-120px' }}
-      />
-      <div className='w-full max-w-sm mt-[60px]'>
-        <div className='flex flex-col items-center'>
-          <div className='w-full max-w-md'>
-            <div className='flex items-center justify-center mb-6 gap-2'>
-              <img src={logo} alt='Logo' className='h-10 rounded-full' />
-              <Title heading={3} className='!text-gray-800'>
-                {systemName}
-              </Title>
-            </div>
+    <AuthLayout>
+      <div className='auth-form-shell' key='reset-request'>
+        <AuthFormHeader
+          title={t('找回密码')}
+          subtitle={t('输入邮箱，我们把重置入口发给你。')}
+          logo={logo}
+        />
+        <Form className='auth-minimal-form space-y-4'>
+          <Form.Input
+            field='email'
+            noLabel
+            label={t('邮箱')}
+            placeholder={t('请输入您的邮箱地址')}
+            name='email'
+            type='email'
+            autoComplete='email'
+            value={email}
+            onChange={handleChange}
+            prefix={<IconMail />}
+          />
 
-            <Card className='border-0 !rounded-2xl overflow-hidden'>
-              <div className='flex justify-center pt-6 pb-2'>
-                <Title heading={3} className='text-gray-800 dark:text-gray-200'>
-                  {t('密码重置')}
-                </Title>
-              </div>
-              <div className='px-2 py-8'>
-                <Form className='space-y-3'>
-                  <Form.Input
-                    field='email'
-                    label={t('邮箱')}
-                    placeholder={t('请输入您的邮箱地址')}
-                    name='email'
-                    value={email}
-                    onChange={handleChange}
-                    prefix={<IconMail />}
-                  />
+          {renderTurnstile()}
 
-                  <div className='space-y-2 pt-2'>
-                    <Button
-                      theme='solid'
-                      className='w-full !rounded-full'
-                      type='primary'
-                      htmlType='submit'
-                      onClick={handleSubmit}
-                      loading={loading}
-                      disabled={disableButton}
-                    >
-                      {disableButton
-                        ? `${t('重试')} (${countdown})`
-                        : t('提交')}
-                    </Button>
-                  </div>
-                </Form>
-
-                <div className='mt-6 text-center text-sm'>
-                  <Text>
-                    {t('想起来了？')}{' '}
-                    <Link
-                      to='/login'
-                      className='text-blue-600 hover:text-blue-800 font-medium'
-                    >
-                      {t('登录')}
-                    </Link>
-                  </Text>
-                </div>
-              </div>
-            </Card>
-
-            {turnstileEnabled && (
-              <div className='flex justify-center mt-6'>
-                <Turnstile
-                  sitekey={turnstileSiteKey}
-                  onVerify={(token) => {
-                    setTurnstileToken(token);
-                  }}
-                />
-              </div>
-            )}
+          <div className='pt-2'>
+            <Button
+              theme='solid'
+              className='auth-primary-button'
+              type='primary'
+              htmlType='submit'
+              onClick={handleSubmit}
+              loading={loading}
+              disabled={disableButton}
+            >
+              <AuthButtonContent>
+                {disableButton
+                  ? `${t('重试')} (${countdown})`
+                  : t('发送重置邮件')}
+              </AuthButtonContent>
+            </Button>
           </div>
+        </Form>
+
+        <div className='auth-copy-row'>
+          <Text>
+            {t('想起来了？')} <Link to='/login'>{t('马上登录')}</Link>
+          </Text>
         </div>
       </div>
-    </div>
+    </AuthLayout>
   );
 };
 
