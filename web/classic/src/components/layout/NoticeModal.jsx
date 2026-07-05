@@ -18,23 +18,13 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState, useContext, useMemo } from 'react';
-import {
-  Button,
-  Modal,
-  Empty,
-  Tabs,
-  TabPane,
-  Timeline,
-} from '@douyinfe/semi-ui';
+import { Button, Modal } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import { API, showError, getRelativeTime } from '../../helpers';
 import { marked } from 'marked';
-import {
-  IllustrationNoContent,
-  IllustrationNoContentDark,
-} from '@douyinfe/semi-illustrations';
 import { StatusContext } from '../../context/Status';
 import { Bell, Megaphone } from 'lucide-react';
+import './notice-dazi.css';
 
 const NoticeModal = ({
   visible,
@@ -116,87 +106,72 @@ const NoticeModal = ({
     }
   }, [defaultTab, visible]);
 
+  const dotColor = (type) =>
+    ({
+      success: 'var(--nd-green)',
+      warning: 'var(--nd-yellow)',
+      error: 'var(--nd-coral)',
+      ongoing: 'var(--nd-coral)',
+    })[type] || 'var(--nd-blue)';
+
+  const shortDate = (time) => {
+    const m = /^\d{4}-(\d{2}-\d{2})/.exec(time || '');
+    return m ? m[1] : (time || '').slice(0, 5);
+  };
+
   const renderMarkdownNotice = () => {
     if (loading) {
-      return (
-        <div className='py-12'>
-          <Empty description={t('加载中...')} />
-        </div>
-      );
+      return <div className='nd-empty'>{t('加载中...')}</div>;
     }
-
     if (!noticeContent) {
-      return (
-        <div className='py-12'>
-          <Empty
-            image={
-              <IllustrationNoContent style={{ width: 150, height: 150 }} />
-            }
-            darkModeImage={
-              <IllustrationNoContentDark style={{ width: 150, height: 150 }} />
-            }
-            description={t('暂无公告')}
-          />
-        </div>
-      );
+      return <div className='nd-empty'>{t('暂无公告')}</div>;
     }
-
     return (
       <div
+        className='nd-notice'
         dangerouslySetInnerHTML={{ __html: noticeContent }}
-        className='notice-content-scroll max-h-[55vh] overflow-y-auto pr-2'
       />
     );
   };
 
   const renderAnnouncementTimeline = () => {
     if (processedAnnouncements.length === 0) {
-      return (
-        <div className='py-12'>
-          <Empty
-            image={
-              <IllustrationNoContent style={{ width: 150, height: 150 }} />
-            }
-            darkModeImage={
-              <IllustrationNoContentDark style={{ width: 150, height: 150 }} />
-            }
-            description={t('暂无系统公告')}
-          />
-        </div>
-      );
+      return <div className='nd-empty'>{t('暂无系统公告')}</div>;
     }
-
     return (
-      <div className='max-h-[55vh] overflow-y-auto pr-2 card-content-scroll'>
-        <Timeline mode='left'>
-          {processedAnnouncements.map((item, idx) => {
-            const htmlContent = marked.parse(item.content || '');
-            const htmlExtra = item.extra ? marked.parse(item.extra) : '';
-            return (
-              <Timeline.Item
-                key={idx}
-                type={item.type}
-                time={`${item.relative ? item.relative + ' ' : ''}${item.time}`}
-                extra={
-                  item.extra ? (
-                    <div
-                      className='text-xs text-gray-500'
-                      dangerouslySetInnerHTML={{ __html: htmlExtra }}
-                    />
-                  ) : null
-                }
-                className={item.isUnread ? '' : ''}
-              >
-                <div>
+      <div className='nd-list'>
+        {processedAnnouncements.map((item) => {
+          const htmlContent = marked.parse(item.content || '');
+          const htmlExtra = item.extra ? marked.parse(item.extra) : '';
+          return (
+            <div className='nd-item' key={item.key}>
+              <div className='nd-date'>
+                <b>{shortDate(item.time)}</b>
+                {item.relative && <span>{item.relative}</span>}
+              </div>
+              <div className='nd-rail'>
+                <span
+                  className='nd-dot'
+                  style={{ background: dotColor(item.type) }}
+                />
+                <span className='nd-line' />
+              </div>
+              <div className='nd-main'>
+                {item.isUnread && <span className='nd-new'>NEW</span>}
+                <div
+                  className='nd-content'
+                  dangerouslySetInnerHTML={{ __html: htmlContent }}
+                />
+                {htmlExtra && (
                   <div
-                    className={item.isUnread ? 'shine-text' : ''}
-                    dangerouslySetInnerHTML={{ __html: htmlContent }}
+                    className='nd-extra'
+                    dangerouslySetInnerHTML={{ __html: htmlExtra }}
                   />
-                </div>
-              </Timeline.Item>
-            );
-          })}
-        </Timeline>
+                )}
+              </div>
+            </div>
+          );
+        })}
       </div>
     );
   };
@@ -210,39 +185,54 @@ const NoticeModal = ({
 
   return (
     <Modal
+      className='notice-dazi'
       title={
-        <div className='flex items-center justify-between w-full'>
-          <span>{t('系统公告')}</span>
-          <Tabs activeKey={activeTab} onChange={setActiveTab} type='button'>
-            <TabPane
-              tab={
-                <span className='flex items-center gap-1'>
-                  <Bell size={14} /> {t('通知')}
-                </span>
-              }
-              itemKey='inApp'
-            />
-            <TabPane
-              tab={
-                <span className='flex items-center gap-1'>
-                  <Megaphone size={14} /> {t('系统公告')}
-                </span>
-              }
-              itemKey='system'
-            />
-          </Tabs>
+        <div>
+          <div className='nd-head-row'>
+            <span className='nd-ico'>
+              <Megaphone size={20} />
+            </span>
+            <span className='nd-ttl'>
+              {t('系统公告')}
+              <span className='nd-sub'>Notices · {t('实时同步')}</span>
+            </span>
+          </div>
+          <div className='nd-seg'>
+            <button
+              className={activeTab === 'inApp' ? 'on' : ''}
+              onClick={() => setActiveTab('inApp')}
+            >
+              <Bell size={13} /> {t('通知')}
+            </button>
+            <button
+              className={activeTab === 'system' ? 'on' : ''}
+              onClick={() => setActiveTab('system')}
+            >
+              <Megaphone size={13} /> {t('系统公告')}
+            </button>
+          </div>
         </div>
       }
       visible={visible}
       onCancel={onClose}
       footer={
-        <div className='flex justify-end'>
-          <Button type='secondary' onClick={handleCloseTodayNotice}>
-            {t('今日关闭')}
-          </Button>
-          <Button type='primary' onClick={onClose}>
-            {t('关闭公告')}
-          </Button>
+        <div className='nd-foot'>
+          <span className='nd-hint'>
+            {activeTab === 'system' && processedAnnouncements.length > 0
+              ? t('共 {{n}} 条公告', { n: processedAnnouncements.length })
+              : ''}
+          </span>
+          <div className='nd-btns'>
+            <Button
+              className='nd-btn nd-btn-ghost'
+              onClick={handleCloseTodayNotice}
+            >
+              {t('今日关闭')}
+            </Button>
+            <Button className='nd-btn nd-btn-ink' onClick={onClose}>
+              {t('知道了')}
+            </Button>
+          </div>
         </div>
       }
       size={isMobile ? 'full-width' : 'large'}

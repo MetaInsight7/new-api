@@ -1,0 +1,305 @@
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
+/* ============================================================
+   系统公告弹窗 · Token 搭子品牌化(作用域 .notice-dazi)
+   ============================================================ */
+.notice-dazi {
+  --nd-ink: #141418;
+  --nd-ink-soft: #2d3038;
+  --nd-muted: #686d78;
+  --nd-line: #d9ddd4;
+  --nd-green: #15a77a;
+  --nd-blue: #326ef1;
+  --nd-coral: #f06f46;
+  --nd-yellow: #ead343;
+  --nd-mono: 'SFMono-Regular', Consolas, ui-monospace, Menlo, monospace;
+}
+
+/* 外壳 */
+.notice-dazi .semi-modal-content {
+  border: 2px solid var(--nd-ink) !important;
+  border-radius: 16px !important;
+  box-shadow: 12px 12px 0 #dfe5d7, 0 24px 60px rgba(20, 20, 24, 0.28) !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+}
+
+/* 头部 */
+.notice-dazi .semi-modal-header {
+  padding: 15px 18px 14px !important;
+  margin: 0 !important;
+  border-bottom: 2px solid var(--nd-ink) !important;
+}
+.notice-dazi .semi-modal-title {
+  width: 100%;
+}
+.notice-dazi .semi-modal-close {
+  top: 16px !important;
+  right: 16px !important;
+  width: 30px;
+  height: 30px;
+  border: 2px solid var(--nd-ink) !important;
+  border-radius: 8px !important;
+  display: grid;
+  place-items: center;
+  color: var(--nd-ink) !important;
+  background: #fff !important;
+}
+.notice-dazi .semi-modal-close:hover {
+  background: #f4f6f0 !important;
+}
+
+/* 品牌头内容 */
+.nd-head-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding-right: 40px;
+}
+.nd-ico {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  border: 2px solid var(--nd-ink);
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  background: #fff5ec;
+  color: var(--nd-coral);
+  box-shadow: 3px 3px 0 #dfe5d7;
+}
+.nd-ico svg {
+  width: 20px;
+  height: 20px;
+}
+.nd-ttl {
+  font-size: 17px;
+  font-weight: 950;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+  color: var(--nd-ink);
+}
+.nd-ttl .nd-sub {
+  display: block;
+  margin-top: 2px;
+  font-family: var(--nd-mono);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--nd-muted);
+}
+.nd-seg {
+  display: inline-flex;
+  margin-top: 13px;
+  padding: 3px;
+  border: 2px solid var(--nd-ink);
+  border-radius: 8px;
+  background: #fff;
+}
+.nd-seg button {
+  border: 0;
+  background: transparent;
+  font-family: var(--nd-mono);
+  font-size: 13px;
+  font-weight: 900;
+  color: var(--nd-ink-soft);
+  padding: 5px 12px;
+  border-radius: 5px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.nd-seg button svg {
+  width: 13px;
+  height: 13px;
+}
+.nd-seg button.on {
+  background: var(--nd-ink);
+  color: #fff;
+}
+
+/* 主体 */
+.notice-dazi .semi-modal-body {
+  padding: 6px 18px 2px !important;
+}
+.nd-list {
+  max-height: 56vh;
+  overflow-y: auto;
+}
+.nd-item {
+  display: flex;
+  gap: 14px;
+  padding: 15px 0;
+  border-bottom: 1px dashed var(--nd-line);
+}
+.nd-item:last-child {
+  border-bottom: 0;
+}
+.nd-date {
+  flex: 0 0 56px;
+  text-align: right;
+  padding-top: 2px;
+}
+.nd-date b {
+  display: block;
+  font-family: var(--nd-mono);
+  font-size: 14px;
+  font-weight: 950;
+  color: var(--nd-ink);
+}
+.nd-date span {
+  font-family: var(--nd-mono);
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--nd-muted);
+}
+.nd-rail {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.nd-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 2px solid var(--nd-ink);
+  margin-top: 5px;
+}
+.nd-line {
+  flex: 1;
+  width: 2px;
+  margin-top: 4px;
+  background: repeating-linear-gradient(
+    var(--nd-line) 0 4px,
+    transparent 4px 8px
+  );
+}
+.nd-item:last-child .nd-line {
+  display: none;
+}
+.nd-main {
+  flex: 1;
+  min-width: 0;
+}
+.nd-new {
+  display: inline-flex;
+  align-items: center;
+  margin-bottom: 5px;
+  padding: 0 6px;
+  height: 17px;
+  border-radius: 4px;
+  background: var(--nd-coral);
+  color: #fff;
+  font-family: var(--nd-mono);
+  font-size: 10px;
+  font-weight: 950;
+  letter-spacing: 0.04em;
+}
+.nd-main .nd-content {
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--nd-ink-soft);
+  line-height: 1.6;
+}
+.nd-main .nd-content p {
+  margin: 0 0 4px;
+}
+.nd-main .nd-content a {
+  color: var(--nd-blue);
+  font-weight: 800;
+}
+.nd-main .nd-extra {
+  margin-top: 7px;
+  font-family: var(--nd-mono);
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--nd-green);
+}
+
+/* inApp 通知(markdown) */
+.nd-notice {
+  padding: 8px 2px 12px;
+  max-height: 56vh;
+  overflow-y: auto;
+  font-size: 14px;
+  font-weight: 550;
+  color: var(--nd-ink-soft);
+  line-height: 1.65;
+}
+
+/* 空态 */
+.nd-empty {
+  padding: 44px 0;
+  text-align: center;
+  color: var(--nd-muted);
+  font-family: var(--nd-mono);
+  font-size: 13px;
+  font-weight: 850;
+  letter-spacing: 0.03em;
+}
+
+/* 底部 */
+.notice-dazi .semi-modal-footer {
+  padding: 12px 18px !important;
+  margin: 0 !important;
+  border-top: 2px solid var(--nd-ink) !important;
+  background: #fbfbf3 !important;
+}
+.nd-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+.nd-foot .nd-hint {
+  font-family: var(--nd-mono);
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--nd-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.nd-foot .nd-btns {
+  display: flex;
+  gap: 9px;
+}
+.notice-dazi .nd-btn.semi-button {
+  height: 36px !important;
+  padding: 0 15px !important;
+  border-radius: 8px !important;
+  border: 2px solid var(--nd-ink) !important;
+  font-size: 14px !important;
+  font-weight: 950 !important;
+}
+.notice-dazi .nd-btn-ghost.semi-button {
+  background: #fff !important;
+  color: var(--nd-ink) !important;
+}
+.notice-dazi .nd-btn-ghost.semi-button:hover {
+  background: #f4f6f0 !important;
+}
+.notice-dazi .nd-btn-ink.semi-button {
+  background: var(--nd-ink) !important;
+  color: #fff !important;
+  box-shadow: 3px 3px 0 #dfe5d7 !important;
+}
