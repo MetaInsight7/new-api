@@ -167,6 +167,7 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
               title: t('用户ID'),
               dataIndex: 'user_id',
               key: 'user_id',
+              width: 90,
               render: (userId) => <Text>{userId ?? '-'}</Text>,
             },
           ]
@@ -175,18 +176,25 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
         title: t('订单号'),
         dataIndex: 'trade_no',
         key: 'trade_no',
-        render: (text) => <Text copyable>{text}</Text>,
+        width: 230,
+        render: (text) => (
+          <Text copyable style={{ whiteSpace: 'nowrap' }}>
+            {text}
+          </Text>
+        ),
       },
       {
         title: t('支付方式'),
         dataIndex: 'payment_method',
         key: 'payment_method',
+        width: 110,
         render: renderPaymentMethod,
       },
       {
         title: t('充值额度'),
         dataIndex: 'amount',
         key: 'amount',
+        width: 100,
         render: (amount, record) => {
           if (isSubscriptionTopup(record)) {
             return (
@@ -196,7 +204,7 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
             );
           }
           return (
-            <span className='flex items-center gap-1'>
+            <span className='flex items-center gap-1' style={{ whiteSpace: 'nowrap' }}>
               <Coins size={16} />
               <Text>{amount}</Text>
             </span>
@@ -207,12 +215,18 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
         title: t('支付金额'),
         dataIndex: 'money',
         key: 'money',
-        render: (money) => <Text type='danger'>¥{money.toFixed(2)}</Text>,
+        width: 100,
+        render: (money) => (
+          <Text type='danger' style={{ whiteSpace: 'nowrap' }}>
+            ¥{money.toFixed(2)}
+          </Text>
+        ),
       },
       {
         title: t('状态'),
         dataIndex: 'status',
         key: 'status',
+        width: 110,
         render: renderStatusBadge,
       },
     ];
@@ -222,6 +236,7 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
       baseColumns.push({
         title: t('操作'),
         key: 'action',
+        width: 90,
         render: (_, record) => {
           const actions = [];
           if (record.status === 'pending') {
@@ -246,7 +261,10 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
       title: t('创建时间'),
       dataIndex: 'create_time',
       key: 'create_time',
-      render: (time) => timestamp2string(time),
+      width: 170,
+      render: (time) => (
+        <span style={{ whiteSpace: 'nowrap' }}>{timestamp2string(time)}</span>
+      ),
     });
 
     return baseColumns;
@@ -274,6 +292,7 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
         dataSource={topups}
         loading={loading}
         rowKey='id'
+        scroll={{ x: 'max-content' }}
         pagination={{
           currentPage: page,
           pageSize: pageSize,
