@@ -1303,26 +1303,3 @@ html.dark .with-pastel-balls::before {
 }
 
 .ec-dbcd0a3c01b55203 { forced-color-adjust: auto; }
-
-/* ==================== Token 搭子 · 全局轻提示 Toast ==================== */
-.semi-toast .semi-toast-content {
-  border: 1.5px solid #141418 !important;
-  border-radius: 10px !important;
-  background: #ffffff !important;
-  box-shadow: 0 10px 26px rgba(20, 20, 24, 0.16) !important;
-  padding: 10px 14px !important;
-}
-.semi-toast .semi-toast-content-text,
-.semi-toast .semi-toast-content .semi-typography {
-  color: #141418 !important;
-  font-size: 13.5px !important;
-  font-weight: 750 !important;
-}
-html.dark .semi-toast .semi-toast-content {
-  border-color: #52525b !important;
-  background: #232327 !important;
-}
-html.dark .semi-toast .semi-toast-content-text,
-html.dark .semi-toast .semi-toast-content .semi-typography {
-  color: #e4e4e7 !important;
-}
