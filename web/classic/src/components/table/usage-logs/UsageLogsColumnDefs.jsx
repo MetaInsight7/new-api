@@ -697,7 +697,27 @@ function renderChannelCell(record, ctx) {
 function renderReqModelCell(record, ctx) {
   const hasModel = record.model_name && isConsumptionRow(record);
   if (!hasModel) {
-    return <div>{renderTypeChip(record.type, ctx.t)}</div>;
+    // 非消费行(充值/管理/系统等):类型标签 + 描述文本。
+    // 充值金额记录在 content 里(如「充值额度: 10，支付金额: 73.00」)，quota 恒为 0。
+    return (
+      <div>
+        <div>{renderTypeChip(record.type, ctx.t)}</div>
+        {record.content && (
+          <div
+            style={{
+              marginTop: 6,
+              fontSize: 13,
+              color: CC.ink,
+              fontWeight: 500,
+              lineHeight: 1.45,
+              wordBreak: 'break-all',
+            }}
+          >
+            {record.content}
+          </div>
+        )}
+      </div>
+    );
   }
   const other = getLogOther(record.other);
   const dotColor = getTypeChipStyle(record.type, ctx.t).color;
@@ -811,24 +831,6 @@ function getInputUnitPrice(other) {
 }
 
 function renderCostCell(record, ctx) {
-  // 充值(type 1):显示充值额度(还原改造前行为，管理员可见)
-  if (record.type === 1) {
-    if (!ctx.isAdminUser) return null;
-    return (
-      <div
-        style={{
-          fontFamily: CELL_MONO,
-          fontVariantNumeric: 'tabular-nums',
-          fontWeight: 600,
-          fontSize: 16,
-          letterSpacing: '-0.01em',
-          color: '#15803d',
-        }}
-      >
-        +{renderQuota(record.quota, 2)}
-      </div>
-    );
-  }
   if (!isConsumptionRow(record)) return null;
   const other = getLogOther(record.other);
   const isSub = other?.billing_source === 'subscription';
