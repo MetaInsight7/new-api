@@ -21,6 +21,7 @@ import React, { useState } from 'react';
 import { Form, Button, Dropdown } from '@douyinfe/semi-ui';
 import { Search, Plus, ChevronDown, Copy, Trash2 } from 'lucide-react';
 import { showError } from '../../../helpers';
+import { useIsMobile } from '../../../hooks/common/useIsMobile';
 import CopyTokensModal from './modals/CopyTokensModal';
 import DeleteTokensModal from './modals/DeleteTokensModal';
 
@@ -41,6 +42,7 @@ const TokensHeader = ({
 }) => {
   const [showCopyModal, setShowCopyModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const isMobile = useIsMobile();
 
   const requireSelection = (fn) => () => {
     if (!selectedKeys || selectedKeys.length === 0) {
@@ -119,18 +121,21 @@ const TokensHeader = ({
             </Button>
           </Dropdown>
 
-          <Button
-            type='primary'
-            theme='solid'
-            size='small'
-            icon={<Plus size={15} />}
-            onClick={() => {
-              setEditingToken({ id: undefined });
-              setShowEdit(true);
-            }}
-          >
-            {t('添加令牌')}
-          </Button>
+          {/* 移动端由 CardPro 的 mobilePrimaryAction 常驻显示，此处隐藏避免重复 */}
+          {!isMobile && (
+            <Button
+              type='primary'
+              theme='solid'
+              size='small'
+              icon={<Plus size={15} />}
+              onClick={() => {
+                setEditingToken({ id: undefined });
+                setShowEdit(true);
+              }}
+            >
+              {t('添加令牌')}
+            </Button>
+          )}
         </div>
       </div>
 

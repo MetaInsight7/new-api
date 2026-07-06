@@ -52,6 +52,7 @@ const CardPro = ({
   actionsArea,
   searchArea,
   paginationArea, // 新增分页区域
+  mobilePrimaryAction = null, // 移动端与"显示操作项"开关同行常驻的主操作(如"添加令牌")
   // 卡片属性
   shadows = '',
   bordered = true,
@@ -97,17 +98,19 @@ const CardPro = ({
         {/* 移动端操作切换按钮 */}
         {isMobile && hasMobileHideableContent && (
           <>
-            <div className='w-full mb-2'>
+            <div className='w-full mb-2 flex items-center gap-2'>
               <Button
                 onClick={toggleMobileActions}
                 icon={showMobileActions ? <IconEyeClosed /> : <IconEyeOpened />}
                 type='tertiary'
                 size='small'
                 theme='outline'
-                block
+                block={!mobilePrimaryAction}
+                className={mobilePrimaryAction ? 'flex-1' : ''}
               >
                 {showMobileActions ? t('隐藏操作项') : t('显示操作项')}
               </Button>
+              {mobilePrimaryAction}
             </div>
           </>
         )}
@@ -185,6 +188,7 @@ CardPro.propTypes = {
   statsArea: PropTypes.node,
   descriptionArea: PropTypes.node,
   tabsArea: PropTypes.node,
+  mobilePrimaryAction: PropTypes.node,
   actionsArea: PropTypes.oneOfType([
     PropTypes.node,
     PropTypes.arrayOf(PropTypes.node),
