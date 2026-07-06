@@ -325,6 +325,29 @@ html:not(.dark) .app-console {
   .dmit-subnav__item {
     flex-shrink: 0;
   }
+
+  /* 带筛选动作的二级导航(日志页):筛选区换到 tab 下方整行 */
+  .dmit-subnav:has(.dmit-subnav__actions:not(:empty)) {
+    flex-wrap: wrap;
+    overflow-x: visible;
+    row-gap: 12px;
+  }
+
+  .dmit-subnav__actions:not(:empty) {
+    order: 2;
+    flex-basis: 100%;
+    width: 100%;
+    margin-left: 0;
+    top: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 10px;
+  }
+
+  .dmit-subnav__actions::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 code {
