@@ -45,6 +45,7 @@ const CardTable = ({
   loading = false,
   rowKey = 'key',
   hidePagination = false,
+  mobileCardRender = null,
   ...tableProps
 }) => {
   const isMobile = useIsMobile();
@@ -215,13 +216,19 @@ const CardTable = ({
 
   return (
     <div className='flex flex-col gap-2'>
-      {dataSource.map((record, index) => (
-        <MobileRowCard
-          key={getRowKey(record, index)}
-          record={record}
-          index={index}
-        />
-      ))}
+      {mobileCardRender
+        ? dataSource.map((record, index) => (
+            <React.Fragment key={getRowKey(record, index)}>
+              {mobileCardRender(record, index)}
+            </React.Fragment>
+          ))
+        : dataSource.map((record, index) => (
+            <MobileRowCard
+              key={getRowKey(record, index)}
+              record={record}
+              index={index}
+            />
+          ))}
       {!hidePagination && tableProps.pagination && dataSource.length > 0 && (
         <div className='mt-2 flex justify-center'>
           <Pagination {...tableProps.pagination} />
@@ -237,6 +244,7 @@ CardTable.propTypes = {
   loading: PropTypes.bool,
   rowKey: PropTypes.oneOfType([PropTypes.string, PropTypes.func]),
   hidePagination: PropTypes.bool,
+  mobileCardRender: PropTypes.func,
 };
 
 export default CardTable;

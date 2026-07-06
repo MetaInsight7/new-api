@@ -872,6 +872,122 @@ function renderDetailButton(record, ctx) {
   );
 }
 
+// ============ 移动端卡片 ============
+const M_CARD = {
+  background: '#fff',
+  border: '1.5px solid #e2e5dc',
+  borderRadius: 14,
+  padding: '13px 14px',
+};
+const M_DOT = () => (
+  <span style={{ width: 3, height: 3, borderRadius: '50%', background: '#d9ddd4', flex: '0 0 auto' }} />
+);
+function renderLogMobileCard(record, ctx) {
+  const { t } = ctx;
+  const timeStr = String(record.timestamp2string || '');
+
+  // 非消费行(充值/管理/系统/退款):类型标签 + 时间 + content 描述(金额在 content 里)
+  if (!isConsumptionRow(record)) {
+    return (
+      <div style={M_CARD}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+          <div>{renderTypeChip(record.type, t)}</div>
+          <span style={{ fontFamily: CELL_MONO, fontSize: 11.5, fontWeight: 700, color: CC.mut, whiteSpace: 'nowrap' }}>{timeStr}</span>
+        </div>
+        {record.content && (
+          <div style={{ marginTop: 9, fontSize: 13, fontWeight: 600, color: CC.ink2, lineHeight: 1.5, wordBreak: 'break-all' }}>
+            {record.content}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  const other = getLogOther(record.other);
+  const isSub = other?.billing_source === 'subscription';
+  const isErr = record.type === 5;
+  const dotColor = getTypeChipStyle(record.type, t).color;
+  const price = getInputUnitPrice(other);
+  const fmtNum = (v) => parseFloat(Number(v).toFixed(6)).toString();
+  const priceText = price ? `$${fmtNum(price.value)}/${price.perCall ? t('次') : '1M'}` : '';
+  const groupName = getGroupName(record, other);
+  const ratio = getGroupRatioValue(other);
+
+  return (
+    <div style={M_CARD}>
+      {/* 顶部:模型名 + 花费 */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+        <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 7 }}>
+          <span style={{ width: 7, height: 7, borderRadius: '50%', flex: '0 0 auto', background: dotColor }} />
+          <span onClick={(e) => ctx.copyText(e, record.model_name)} style={{ fontSize: 15, fontWeight: 800, color: CC.ink, letterSpacing: '-0.01em', wordBreak: 'break-all', lineHeight: 1.25 }}>
+            {record.model_name}
+          </span>
+        </div>
+        <div style={{ textAlign: 'right', flex: '0 0 auto' }}>
+          <div style={{ fontFamily: CELL_MONO, fontSize: 16, fontWeight: 800, color: isErr ? '#b91c1c' : CC.ink, letterSpacing: '-0.02em', whiteSpace: 'nowrap' }}>
+            {isSub ? renderBillingTag(record, t) : renderQuota(record.quota, 6)}
+          </div>
+          {priceText && (
+            <div style={{ fontFamily: CELL_MONO, fontSize: 10.5, fontWeight: 700, color: CC.mut2, marginTop: 1 }}>{priceText}</div>
+          )}
+        </div>
+      </div>
+
+      {/* 标签 */}
+      <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+        {renderTypeChip(record.type, t)}
+        {renderStreamTag(record, t)}
+      </div>
+
+      {/* 元信息 */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 9, fontFamily: CELL_MONO, fontSize: 11.5, fontWeight: 700, color: CC.mut, flexWrap: 'wrap' }}>
+        {ctx.isAdminUser && record.username && (<><span style={{ color: CC.ink2, fontWeight: 800 }}>{record.username}</span><M_DOT /></>)}
+        {record.token_name && (<><span style={{ color: CC.ink2, fontWeight: 800 }}>{record.token_name}</span><M_DOT /></>)}
+        {groupName && (<>{groupName}{ratio ? ` ×${ratio}` : ''}<M_DOT /></>)}
+        <span>{timeStr}</span>
+      </div>
+
+      {/* 统计 */}
+      <div style={{ display: 'flex', gap: 20, marginTop: 11, paddingTop: 11, borderTop: '1px dashed #e4e7de' }}>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: CC.mut }}>{t('输入')}</div>
+          <div style={{ fontFamily: CELL_MONO, fontSize: 14, fontWeight: 800, color: CC.ink, marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>{formatTokenCount(record.prompt_tokens)}</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: CC.mut }}>{t('输出')}</div>
+          <div style={{ fontFamily: CELL_MONO, fontSize: 14, fontWeight: 800, color: CC.ink, marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>{formatTokenCount(record.completion_tokens)}</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: CC.mut }}>{t('用时')}</div>
+          <div style={{ fontFamily: CELL_MONO, fontSize: 14, fontWeight: 800, color: CC.ink, marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>{record.use_time ? `${record.use_time}s` : '-'}</div>
+        </div>
+        <div style={{ marginLeft: 'auto', alignSelf: 'flex-end' }}>{renderDetailButton(record, ctx)}</div>
+      </div>
+    </div>
+  );
+}
+
+export const getLogMobileCardRender = ({
+  t,
+  copyText,
+  showUserInfoFunc,
+  openChannelAffinityUsageCacheModal,
+  isAdminUser,
+  billingDisplayMode = 'price',
+  onOpenDetail,
+}) => {
+  const ctx = {
+    t,
+    copyText,
+    showUserInfoFunc,
+    openChannelAffinityUsageCacheModal,
+    isAdminUser,
+    billingDisplayMode,
+    onOpenDetail,
+  };
+  return (record) => renderLogMobileCard(record, ctx);
+};
+
 export const getLogsColumns = ({
   t,
   COLUMN_KEYS,

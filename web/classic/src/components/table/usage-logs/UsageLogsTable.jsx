@@ -21,7 +21,7 @@ import React, { useMemo, useState, useCallback } from 'react';
 import { Descriptions, Modal, Typography } from '@douyinfe/semi-ui';
 import CardTable from '../../common/ui/CardTable';
 import TableEmpty from '../../common/ui/TableEmpty';
-import { getLogsColumns } from './UsageLogsColumnDefs';
+import { getLogsColumns, getLogMobileCardRender } from './UsageLogsColumnDefs';
 
 const LogsTable = (logsData) => {
   const {
@@ -95,6 +95,28 @@ const LogsTable = (logsData) => {
       ? expandData[detailRecord.key]
       : [];
 
+  const mobileCardRender = useMemo(
+    () =>
+      getLogMobileCardRender({
+        t,
+        copyText,
+        showUserInfoFunc,
+        openChannelAffinityUsageCacheModal,
+        isAdminUser,
+        billingDisplayMode,
+        onOpenDetail,
+      }),
+    [
+      t,
+      copyText,
+      showUserInfoFunc,
+      openChannelAffinityUsageCacheModal,
+      isAdminUser,
+      billingDisplayMode,
+      onOpenDetail,
+    ],
+  );
+
   return (
     <>
       <CardTable
@@ -105,6 +127,7 @@ const LogsTable = (logsData) => {
         loading={loading}
         size='small'
         empty={<TableEmpty title={t('搜索无结果')} />}
+        mobileCardRender={mobileCardRender}
         pagination={{
           currentPage: activePage,
           pageSize: pageSize,

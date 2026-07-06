@@ -20,7 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React, { useMemo } from 'react';
 import CardTable from '../../common/ui/CardTable';
 import TableEmpty from '../../common/ui/TableEmpty';
-import { getTokensColumns } from './TokensColumnDefs';
+import { getTokensColumns, getTokenMobileCardRender } from './TokensColumnDefs';
 
 const TokensTable = (tokensData) => {
   const {
@@ -95,10 +95,43 @@ const TokensTable = (tokensData) => {
       : columns;
   }, [compactMode, columns]);
 
+  const mobileCardRender = useMemo(
+    () =>
+      getTokenMobileCardRender({
+        t,
+        showKeys,
+        resolvedTokenKeys,
+        loadingTokenKeys,
+        toggleTokenVisibility,
+        copyTokenKey,
+        copyTokenConnectionString,
+        manageToken,
+        setEditingToken,
+        setShowEdit,
+        refresh,
+        groupRatios,
+      }),
+    [
+      t,
+      showKeys,
+      resolvedTokenKeys,
+      loadingTokenKeys,
+      toggleTokenVisibility,
+      copyTokenKey,
+      copyTokenConnectionString,
+      manageToken,
+      setEditingToken,
+      setShowEdit,
+      refresh,
+      groupRatios,
+    ],
+  );
+
   return (
     <CardTable
       columns={tableColumns}
       dataSource={tokens}
+      mobileCardRender={mobileCardRender}
       pagination={{
         currentPage: activePage,
         pageSize: pageSize,

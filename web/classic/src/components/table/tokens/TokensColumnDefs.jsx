@@ -319,6 +319,124 @@ function renderOpsCell(record, ctx) {
   );
 }
 
+// ============ 移动端卡片 ============
+function renderTokenMobileCard(record, ctx, groupRatios) {
+  const t = ctx.t;
+  const group = record.group;
+  const isAuto = group === 'auto';
+  const ratio = groupRatios[group];
+  const remainText = record.unlimited_quota ? t('无限') : renderQuota(record.remain_quota);
+  const groupText = isAuto ? t('智能熔断') : (group || t('默认'));
+  const ratioText = isAuto ? t('自动') : (ratio !== undefined ? `${ratio}x` : '-');
+  const expiry =
+    record.expired_time === -1
+      ? t('永不过期')
+      : `${t('到期')} ${String(timestamp2string(record.expired_time)).split(' ')[0]}`;
+
+  const models = record.model_limits_enabled && record.model_limits
+    ? String(record.model_limits).split(',').filter(Boolean)
+    : [];
+  const ips = record.allow_ips && record.allow_ips.trim() !== ''
+    ? String(record.allow_ips).split('\n').map((s) => s.trim()).filter(Boolean)
+    : [];
+  const limitParts = [];
+  if (models.length) limitParts.push(`${models.length} ${t('模型')}`);
+  if (ips.length) limitParts.push(`${ips.length} IP`);
+  const limitText = limitParts.length ? limitParts.join(' · ') : t('未限制模型/IP');
+
+  const revealed = !!ctx.showKeys[record.id];
+  const loading = !!ctx.loadingTokenKeys[record.id];
+  const keyValue =
+    revealed && ctx.resolvedTokenKeys[record.id]
+      ? ctx.resolvedTokenKeys[record.id]
+      : record.key || '';
+  const displayedKey = keyValue ? `sk-${keyValue}` : '-';
+  const keyIc = {
+    width: 26, height: 26, flex: '0 0 auto', borderRadius: 6,
+    border: '1px solid #34373d', display: 'grid', placeItems: 'center', color: '#c4c8cf',
+  };
+
+  return (
+    <div style={{ background: '#fff', border: '1.5px solid #e2e5dc', borderRadius: 14, padding: '13px 14px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+        <div style={{ fontSize: 16, fontWeight: 850, color: K.ink, letterSpacing: '-0.01em', wordBreak: 'break-all', minWidth: 0 }}>
+          {record.name || '-'}
+        </div>
+        <div style={{ flex: '0 0 auto' }}>{renderStatusLight(record.status, t)}</div>
+      </div>
+
+      {/* 密钥 深色胶囊 */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 11, padding: '9px 11px', borderRadius: 9, background: '#0f1013' }}>
+        <span className='token-keyscroll' style={{ flex: 1, minWidth: 0, fontFamily: MONO, fontSize: 12.5, color: '#d9f5e2', fontWeight: 600, whiteSpace: 'nowrap', overflowX: 'auto' }}>
+          {displayedKey}
+        </span>
+        <span
+          title={revealed ? t('隐藏') : t('显示')}
+          onClick={async (e) => { e.stopPropagation(); await ctx.toggleTokenVisibility(record); }}
+          style={{ ...keyIc, ...(loading ? { opacity: 0.5, pointerEvents: 'none' } : {}) }}
+        >
+          {revealed ? <EyeOff size={13} /> : <Eye size={13} />}
+        </span>
+        <span
+          title={t('复制密钥')}
+          onClick={(e) => { e.stopPropagation(); ctx.copyTokenKey(record); }}
+          style={keyIc}
+        >
+          <Copy size={13} />
+        </span>
+      </div>
+
+      {/* 三格网格 */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 1, marginTop: 11, background: K.line, border: `1px solid ${K.line}`, borderRadius: 10, overflow: 'hidden' }}>
+        {[[t('剩余额度'), remainText], [t('分组'), groupText], [t('倍率'), ratioText]].map(([l, v], i) => (
+          <div key={i} style={{ background: '#fff', padding: '9px 10px' }}>
+            <div style={{ fontSize: 10.5, fontWeight: 750, color: K.mut, whiteSpace: 'nowrap' }}>{l}</div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: K.ink, marginTop: 3, fontFamily: MONO, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* 底部:过期/限制 + 操作 */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 11, paddingTop: 10, borderTop: '1px dashed #e4e7de' }}>
+        <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 750, color: K.mut, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {expiry} · {limitText}
+        </span>
+        <div style={{ flex: '0 0 auto' }}>{renderOpsCell(record, ctx)}</div>
+      </div>
+    </div>
+  );
+}
+
+export const getTokenMobileCardRender = ({
+  t,
+  showKeys,
+  resolvedTokenKeys,
+  loadingTokenKeys,
+  toggleTokenVisibility,
+  copyTokenKey,
+  copyTokenConnectionString,
+  manageToken,
+  setEditingToken,
+  setShowEdit,
+  refresh,
+  groupRatios = {},
+}) => {
+  const ctx = {
+    t,
+    showKeys,
+    resolvedTokenKeys,
+    loadingTokenKeys,
+    toggleTokenVisibility,
+    copyTokenKey,
+    copyTokenConnectionString,
+    manageToken,
+    setEditingToken,
+    setShowEdit,
+    refresh,
+  };
+  return (record) => renderTokenMobileCard(record, ctx, groupRatios);
+};
+
 export const getTokensColumns = ({
   t,
   showKeys,
