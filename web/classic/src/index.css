@@ -350,6 +350,21 @@ html:not(.dark) .app-console {
   }
 }
 
+/* 移动端:日志/令牌页去掉 CardPro 外层边框(内部已是独立卡片，避免双层框) */
+@media (max-width: 767px) {
+  .semi-card.usage-log-card,
+  .semi-card.dmit-flat-card {
+    border: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+  }
+
+  .semi-card.usage-log-card > .semi-card-body,
+  .semi-card.dmit-flat-card > .semi-card-body {
+    padding: 0 !important;
+  }
+}
+
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
