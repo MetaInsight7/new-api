@@ -155,7 +155,9 @@ body {
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
   padding: 10px;
+  padding-bottom: max(10px, env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -352,6 +354,15 @@ html:not(.dark) .app-console {
 
 /* 移动端:日志/令牌页去掉 CardPro 外层边框(内部已是独立卡片，避免双层框) */
 @media (max-width: 767px) {
+  /* 侧栏紧凑化:减小 logo 与菜单项内边距，常见机型 7 项尽量免滚(滚动仍作兜底) */
+  .dmit-sider__logo {
+    padding: 20px 8px 14px;
+    margin-bottom: 4px;
+  }
+  .dmit-menu-item {
+    padding: 12px 4px;
+    gap: 5px;
+  }
   .semi-card.usage-log-card,
   .semi-card.dmit-flat-card {
     border: none !important;

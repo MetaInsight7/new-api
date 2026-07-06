@@ -208,7 +208,7 @@ const PageLayout = () => {
               position: 'fixed',
               left: 0,
               top: isMobile ? '64px' : 0,
-              height: isMobile ? 'calc(100vh - 64px)' : '100vh',
+              height: isMobile ? 'calc(100dvh - 64px)' : '100dvh',
               zIndex: isMobile ? 99 : 101,
               border: 'none',
               paddingRight: '0',
