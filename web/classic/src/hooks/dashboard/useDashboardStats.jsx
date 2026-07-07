@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import { useMemo } from 'react';
-import { renderQuota } from '../../helpers';
+import { renderQuota, renderQuotaCompact } from '../../helpers';
 import { formatDashboardTokenMetric } from '../../helpers/dashboardFormat';
 
 const getQuotaWarningThreshold = (user) => {
@@ -160,7 +160,8 @@ export const useDashboardStats = (
       return [
         {
           title: hasAdminUserFilter ? t('消耗') : t('全站消耗'),
-          value: renderQuota(consumeQuota),
+          value: renderQuotaCompact(consumeQuota),
+          valueExact: renderQuota(consumeQuota),
           caption: getConsumeCaption(activeTimeRange, t),
           statusText: hasAdminUserFilter
             ? `${t('用户筛选')} · ${trimmedAdminUsername}`
@@ -197,8 +198,11 @@ export const useDashboardStats = (
           ? {
               title: t('当前余额'),
               value: hasSelectedAdminUser
-                ? renderQuota(selectedAdminUser?.quota)
+                ? renderQuotaCompact(selectedAdminUser?.quota)
                 : '--',
+              valueExact: hasSelectedAdminUser
+                ? renderQuota(selectedAdminUser?.quota)
+                : undefined,
               caption: hasSelectedAdminUser
                 ? `${t('历史消耗')} ${renderQuota(selectedAdminUser?.used_quota || 0)}`
                 : t('暂无数据'),
@@ -221,7 +225,8 @@ export const useDashboardStats = (
     return [
       {
         title: t('当前余额'),
-        value: renderQuota(user?.quota),
+        value: renderQuotaCompact(user?.quota),
+        valueExact: renderQuota(user?.quota),
         statusText: balanceCaption.text,
         statusTone: balanceCaption.tone,
         icon: 'wallet',
@@ -233,7 +238,8 @@ export const useDashboardStats = (
       },
       {
         title: `${rangeLabel}${t('消耗')}`,
-        value: renderQuota(consumeQuota),
+        value: renderQuotaCompact(consumeQuota),
+        valueExact: renderQuota(consumeQuota),
         caption: `${t('历史消耗')} ${renderQuota(user?.used_quota || 0)}`,
         icon: 'coins',
         tone: 'amber',

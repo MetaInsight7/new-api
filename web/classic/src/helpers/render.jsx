@@ -1168,6 +1168,76 @@ export function renderQuota(quota, digits = 2) {
   return symbol + fixedResult;
 }
 
+// 全球统一的紧凑缩写（K/M/B/T，不做各国本地化；带 K）。仅用于展示。
+// 阈值以内保持原样，达到阈值才缩写，最多 2 位有效小数并去掉末尾 0。
+function compactSuffix(value) {
+  const abs = Math.abs(value);
+  const units = [
+    [1e12, 'T'],
+    [1e9, 'B'],
+    [1e6, 'M'],
+    [1e3, 'K'],
+  ];
+  for (let i = 0; i < units.length; i++) {
+    const [v, s] = units[i];
+    if (abs >= v) {
+      let str = (value / v).toFixed(2).replace(/\.?0+$/, '');
+      // 边界修正：四舍五入后达到 1000 时进位到更大单位（999999 → 1M 而非 1000K）
+      if (Math.abs(parseFloat(str)) >= 1000 && i > 0) {
+        const [v2, s2] = units[i - 1];
+        return (value / v2).toFixed(2).replace(/\.?0+$/, '') + s2;
+      }
+      return str + s;
+    }
+  }
+  return null;
+}
+
+// 紧凑金额：沿用 renderQuota 的换算(USD/CNY/CUSTOM/TOKENS)，显示值达到阈值(默认 10 万)才切 K/M/B/T，否则精确到 digits 位。
+// 单位/符号与站点设置一致；将来切积分制只需换调用处的取数，无需改本函数。
+export function renderQuotaCompact(quota, { compactThreshold = 100000, digits = 2 } = {}) {
+  const quotaDisplayType = localStorage.getItem('quota_display_type') || 'USD';
+  if (quotaDisplayType === 'TOKENS') {
+    return formatCountCompact(quota, { compactThreshold });
+  }
+  const quotaPerUnit = parseFloat(localStorage.getItem('quota_per_unit'));
+  const resultUSD = quota / quotaPerUnit;
+  let symbol = '$';
+  let value = resultUSD;
+  if (quotaDisplayType === 'CNY') {
+    let usdRate = 1;
+    try {
+      const s = JSON.parse(localStorage.getItem('status') || '{}');
+      usdRate = s?.usd_exchange_rate || 1;
+    } catch (e) {}
+    value = resultUSD * usdRate;
+    symbol = '¥';
+  } else if (quotaDisplayType === 'CUSTOM') {
+    let rate = 1;
+    try {
+      const s = JSON.parse(localStorage.getItem('status') || '{}');
+      symbol = s?.custom_currency_symbol || '¤';
+      rate = s?.custom_currency_exchange_rate || 1;
+    } catch (e) {}
+    value = resultUSD * rate;
+  }
+  if (Math.abs(value) >= compactThreshold) {
+    const c = compactSuffix(value);
+    if (c) return symbol + c;
+  }
+  return symbol + value.toFixed(digits);
+}
+
+// 紧凑计数(请求数/活跃用户等)：达到阈值切 K/M/B/T，否则千分位整数。
+export function formatCountCompact(n, { compactThreshold = 100000 } = {}) {
+  const num = Number(n || 0);
+  if (Math.abs(num) >= compactThreshold) {
+    const c = compactSuffix(num);
+    if (c) return c;
+  }
+  return num.toLocaleString('en-US');
+}
+
 function isValidGroupRatio(ratio) {
   return Number.isFinite(ratio) && ratio !== -1;
 }

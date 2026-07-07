@@ -122,7 +122,7 @@ const TrendChip = ({ trend }) => {
       title={trend.label}
       aria-label={trend.label}
     >
-      <TrendIcon size={13} strokeWidth={2.5} aria-hidden='true' />
+      <TrendIcon size={12} strokeWidth={2.25} aria-hidden='true' />
       <span>{trend.value}</span>
     </span>
   );
@@ -364,13 +364,13 @@ const StatsCards = ({ statsData = [], loading, t }) => {
                 className='dashboard-usage-item__icon'
               />
               <span className='dashboard-usage-item__label'>{item.title}</span>
+              {item.trend && <TrendChip trend={item.trend} />}
             </div>
-            <div className='dashboard-usage-item__value'>
+            <div className='dashboard-usage-item__value' title={item.valueExact}>
               <MetricValue
                 value={item.value}
                 width={88}
                 height={24}
-                trend={item.trend}
                 loading={loading}
               />
             </div>

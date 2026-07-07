@@ -25,16 +25,17 @@ For commercial licensing, please contact support@quantumnous.com
    ===================================================================== */
 
 html:not(.dark) .app-console {
-  --dmit-card-bg: #f8fafc;
+  --dmit-card-bg: #ffffff;
   --dmit-surface: #ffffff;
-  --dmit-soft: #f8fafc;
-  --dmit-thead: #eef2f7;
-  --dmit-border: #e2e8f0;
-  --dmit-blue: #2563eb;
-  --dmit-shadow: 0 14px 36px rgba(15, 23, 42, 0.06);
+  --dmit-soft: #f7f8fa;
+  --dmit-thead: #f7f8fa;
+  --dmit-border: #ececf0;
+  --dmit-border-soft: #f2f3f6;
+  --dmit-blue: #216D51;
+  --dmit-shadow: 0 1px 3px rgba(16, 24, 40, 0.03), 0 12px 32px -14px rgba(16, 24, 40, 0.12);
 }
 
-/* ---------- 卡片:DMIT 灰底(白页面上凸显)+ 浅灰边 + 16px 圆角 + 柔和阴影 ---------- */
+/* ---------- 卡片:纯白浮起卡 + 极浅中性边 + 大圆角 + 柔和层叠阴影 ---------- */
 html:not(.dark) .app-console .semi-card.semi-card-bordered {
   border: 1px solid var(--dmit-border);
   border-radius: 16px;
@@ -42,11 +43,11 @@ html:not(.dark) .app-console .semi-card.semi-card-bordered {
   box-shadow: var(--dmit-shadow);
 }
 
-/* 卡头继承灰底,仅保留分隔线 */
+/* 卡头:仅保留极浅分隔线 */
 html:not(.dark) .app-console .semi-card-header {
-  padding: 14px 16px !important;
+  padding: 16px 18px !important;
   background: transparent;
-  border-bottom: 1px solid var(--dmit-border);
+  border-bottom: 1px solid var(--dmit-border-soft);
 }
 
 html:not(.dark) .app-console .semi-card-header .semi-card-header-title {
@@ -74,19 +75,19 @@ html:not(.dark) .app-console .semi-table-tbody .semi-table-row-cell {
   font-variant-numeric: tabular-nums;
 }
 
-/* 白色表格作为内嵌面板:描边 + 圆角 */
+/* 白色表格内嵌在白卡里:去描边(靠留白+分隔线),圆角 */
 html:not(.dark) .app-console .table-scroll-card .semi-table {
-  border: 1px solid var(--dmit-border);
+  border: 1px solid var(--dmit-border-soft);
   border-radius: 12px;
   overflow: hidden;
 }
 
 html:not(.dark) .app-console .semi-table-thead > .semi-table-row > .semi-table-row-head,
 html:not(.dark) .app-console th.semi-table-row-head {
-  background-color: var(--dmit-thead) !important;
-  color: #475569;
+  background-color: transparent !important;
+  color: #9aa2b1;
   font-weight: 600;
-  font-size: 12px;
+  font-size: 11.5px;
   letter-spacing: 0.02em;
   border-bottom: 1px solid var(--dmit-border);
 }
@@ -96,7 +97,9 @@ html:not(.dark)
   .semi-table-tbody
   > .semi-table-row
   > .semi-table-row-cell {
-  border-bottom: 1px solid var(--dmit-border);
+  border-bottom: 1px solid var(--dmit-border-soft);
+  padding-top: 15px;
+  padding-bottom: 15px;
 }
 
 html:not(.dark)
@@ -138,7 +141,7 @@ html:not(.dark)
 /* ---------- 状态标签:柔和彩色胶囊 ---------- */
 html:not(.dark) .app-console .semi-tag {
   border-radius: 999px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 /* ---------- 分页:激活态 DMIT 蓝 ---------- */
@@ -160,7 +163,7 @@ html:not(.dark) .app-console .semi-input-wrapper-focus,
 html:not(.dark) .app-console .semi-input-wrapper:focus-within,
 html:not(.dark) .app-console .semi-select-focus {
   border-color: var(--dmit-blue);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
+  box-shadow: 0 0 0 3px rgba(33, 109, 81, 0.14);
 }
 
 /* ---------- 弹窗 / 抽屉 / 下拉(Portal 渲染在 .app-console 之外) ---------- */
@@ -168,12 +171,12 @@ html:not(.dark) .app-console .semi-select-focus {
    把 DMIT 主蓝注入到 .semi-portal,使弹窗/抽屉/下拉里的按钮、开关、选中态
    与控制台主体严格一致 */
 html:not(.dark) .semi-portal {
-  --semi-color-primary: rgba(37, 99, 235, 1);
-  --semi-color-primary-hover: rgba(29, 78, 216, 1);
-  --semi-color-primary-active: rgba(30, 64, 175, 1);
-  --semi-color-primary-light-default: rgba(37, 99, 235, 0.1);
-  --semi-color-primary-light-hover: rgba(37, 99, 235, 0.16);
-  --semi-color-primary-light-active: rgba(37, 99, 235, 0.24);
+  --semi-color-primary: rgba(33, 109, 81, 1);
+  --semi-color-primary-hover: rgba(27, 90, 67, 1);
+  --semi-color-primary-active: rgba(20, 75, 56, 1);
+  --semi-color-primary-light-default: rgba(33, 109, 81, 0.1);
+  --semi-color-primary-light-hover: rgba(33, 109, 81, 0.16);
+  --semi-color-primary-light-active: rgba(33, 109, 81, 0.24);
 }
 
 html:not(.dark) .semi-modal-content {
@@ -187,13 +190,13 @@ html:not(.dark) .semi-dropdown-menu {
 /* ---------- 编辑抽屉(SideSheet)DMIT 化:灰底 + 扁平白卡 + 头部分隔 ---------- */
 /* 抽屉正文用浅灰底,内部分区白卡靠边框分层(与控制台一致) */
 html:not(.dark) .semi-portal .semi-sidesheet-body {
-  background: #f8fafc;
+  background: #f7f8fa;
 }
 
-/* 抽屉内所有分区卡:扁平(去阴影 + DMIT 浅边 + 12px 圆角 + 白底),
+/* 抽屉内所有分区卡:扁平(去阴影 + 浅中性边 + 12px 圆角 + 白底),
    覆盖组件里残留的 shadow-sm / border-0 等 Tailwind 类 */
 html:not(.dark) .semi-portal .semi-sidesheet .semi-card {
-  border: 1px solid #e2e8f0;
+  border: 1px solid #ececf0;
   box-shadow: none;
   border-radius: 12px;
   background: #ffffff;
@@ -201,15 +204,15 @@ html:not(.dark) .semi-portal .semi-sidesheet .semi-card {
 
 /* 抽屉头部:底部分隔线 */
 html:not(.dark) .semi-portal .semi-sidesheet-header {
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid #f2f3f6;
 }
 
 /* 抽屉/弹窗里旧的"圆形阴影彩色头像"分区图标 → DMIT 浅底彩色方块
    (只命中具名色头像 semi-avatar-{color},即分区头标志,不影响用户头像) */
 html:not(.dark) .semi-portal .semi-sidesheet .semi-avatar-blue,
 html:not(.dark) .semi-portal .semi-modal-content .semi-avatar-blue {
-  background: rgba(37, 99, 235, 0.1);
-  color: #2563eb;
+  background: rgba(33, 109, 81, 0.1);
+  color: #216D51;
   border-radius: 8px;
   box-shadow: none;
 }
@@ -260,7 +263,7 @@ html:not(.dark) .semi-portal .semi-modal-content .semi-avatar-red {
 /* ---------- 开关:开启态从默认绿改为 DMIT 蓝(亮色,控制台 + 浮层) ---------- */
 html:not(.dark) .app-console .semi-switch-checked,
 html:not(.dark) .semi-portal .semi-switch-checked {
-  background-color: #2563eb;
+  background-color: #216D51;
 }
 html:not(.dark) .app-console .semi-switch-checked:hover,
 html:not(.dark) .semi-portal .semi-switch-checked:hover {
@@ -271,7 +274,7 @@ html:not(.dark) .semi-portal .semi-switch-checked:hover {
 html:not(.dark) .app-console .semi-radioGroup-buttonRadio .semi-radio-checked .semi-radio-addon-buttonRadio,
 html:not(.dark) .semi-portal .semi-radioGroup-buttonRadio .semi-radio-checked .semi-radio-addon-buttonRadio {
   background-color: var(--semi-color-primary-light-default);
-  color: #2563eb;
+  color: #216D51;
 }
 
 
@@ -280,8 +283,8 @@ html:not(.dark) .semi-portal .semi-radioGroup-buttonRadio .semi-radio-checked .s
 html:not(.dark) .semi-portal .semi-input-wrapper-focus,
 html:not(.dark) .semi-portal .semi-input-wrapper:focus-within,
 html:not(.dark) .semi-portal .semi-select-focus {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
+  border-color: #216D51;
+  box-shadow: 0 0 0 3px rgba(33, 109, 81, 0.14);
 }
 
 /* 浮层内表单分区标题:蓝强调条(仅纯文字单行标题;富自定义头部不加,避免错位) */
@@ -300,7 +303,7 @@ html:not(.dark) .semi-portal .semi-form-section-text:not(:has(*))::before {
   width: 3px;
   height: 14px;
   border-radius: 999px;
-  background: #2563eb;
+  background: #216D51;
 }
 
 /* ---------- DMIT 统计 chip(用于日志等页面的顶部统计,亮/暗自适应) ---------- */
@@ -336,14 +339,17 @@ html:not(.dark) .semi-portal .semi-form-section-text:not(:has(*))::before {
 }
 
 .dmit-stat-chip__value {
+  font-family: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;
   font-size: 14px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--semi-color-text-0);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
 }
 
 .dmit-stat-chip.is-blue .dmit-stat-chip__icon {
-  background: rgba(37, 99, 235, 0.1);
-  color: #2563eb;
+  background: rgba(33, 109, 81, 0.1);
+  color: #216D51;
 }
 
 .dmit-stat-chip.is-violet .dmit-stat-chip__icon {
@@ -392,19 +398,21 @@ html:not(.dark) .semi-portal .semi-form-section-text:not(:has(*))::before {
 }
 
 .dmit-stat-tile__value {
+  font-family: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;
   font-size: 20px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--semi-color-text-0);
   line-height: 1.2;
   font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .dmit-stat-tile.is-blue .dmit-stat-tile__icon {
-  background: rgba(37, 99, 235, 0.1);
-  color: #2563eb;
+  background: rgba(33, 109, 81, 0.1);
+  color: #216D51;
 }
 
 .dmit-stat-tile.is-violet .dmit-stat-tile__icon {
@@ -675,7 +683,7 @@ html:not(.dark) .app-console .dmit-flat-card .semi-card-body {
   transition: background 0.12s, color 0.12s;
 }
 .app-console .token-op.del { color: #dc2626; }
-.app-console .token-op.edit:hover { color: #2563eb; background: #f1f5f9; }
+.app-console .token-op.edit:hover { color: #216D51; background: #f1f5f9; }
 .app-console .token-op.pow:hover { color: #c2410c; background: #fff7ed; }
 .app-console .token-op.del:hover { color: #b91c1c; background: #fef2f2; }
 
@@ -773,7 +781,7 @@ html:not(.dark) .app-console .dmit-flat-card .semi-card-body {
   .app-console .token-toolbar__filter-toggle[aria-pressed='true'] {
     background: #eff4ff;
     border-color: #bcd0fe;
-    color: #2563eb;
+    color: #216D51;
   }
   .app-console .token-toolbar__filters {
     order: 2;
@@ -823,7 +831,7 @@ html:not(.dark)
 .log-time-range .semi-button.semi-button-primary,
 .log-time-range .semi-button.semi-button-primary:hover,
 .log-time-range .semi-button.semi-button-primary:focus {
-  background-color: #2563eb !important;
+  background-color: #216D51 !important;
 }
 
 /* 收紧使用日志卡片:去掉内层表格自带的边框/圆角(避免盒中盒),表格贴合单层卡片 */

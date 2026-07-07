@@ -33,10 +33,10 @@ const K = {
 };
 
 const progressColor = (pct) => {
-  if (pct >= 100) return '#0f9d6e';
+  if (pct >= 100) return '#216D51';
   if (pct <= 10) return '#ef4444';
   if (pct <= 30) return '#f59e0b';
-  return '#2563eb';
+  return '#216D51';
 };
 
 // 状态:发光信号灯 + 文字
@@ -96,6 +96,9 @@ function renderQuotaCell(record, t) {
 
   const percent = total > 0 ? (remain / total) * 100 : 0;
   const color = progressColor(percent);
+  const R = 15;
+  const C = 2 * Math.PI * R;
+  const pct = Math.min(100, Math.max(0, percent));
   return (
     <Popover
       position='top'
@@ -107,12 +110,65 @@ function renderQuotaCell(record, t) {
         </div>
       }
     >
-      <div style={{ cursor: 'help' }}>
-        <div style={{ fontFamily: MONO, fontVariantNumeric: 'tabular-nums', fontSize: 14, color: K.ink, whiteSpace: 'nowrap' }}>
-          {renderQuota(remain)}/{renderQuota(total)}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 11, cursor: 'help' }}>
+        <div style={{ position: 'relative', width: 38, height: 38, flex: '0 0 auto' }}>
+          <svg width='38' height='38' viewBox='0 0 38 38'>
+            <circle cx='19' cy='19' r={R} fill='none' stroke={K.line} strokeWidth='3' />
+            <circle
+              cx='19'
+              cy='19'
+              r={R}
+              fill='none'
+              stroke={color}
+              strokeWidth='3'
+              strokeLinecap='round'
+              strokeDasharray={C}
+              strokeDashoffset={C * (1 - pct / 100)}
+              transform='rotate(-90 19 19)'
+            />
+          </svg>
+          <span
+            style={{
+              position: 'absolute',
+              inset: 0,
+              display: 'grid',
+              placeItems: 'center',
+              fontFamily: MONO,
+              fontSize: 10,
+              fontWeight: 600,
+              color: K.ink2,
+              fontVariantNumeric: 'tabular-nums',
+            }}
+          >
+            {percent.toFixed(0)}
+          </span>
         </div>
-        <div style={{ marginTop: 6, height: 4, background: K.line, borderRadius: 2, overflow: 'hidden', maxWidth: 132 }}>
-          <div style={{ width: `${Math.min(100, Math.max(0, percent))}%`, height: '100%', background: color, borderRadius: 2 }} />
+        <div style={{ minWidth: 0 }}>
+          <div
+            style={{
+              fontFamily: MONO,
+              fontVariantNumeric: 'tabular-nums',
+              fontSize: 15,
+              fontWeight: 600,
+              color: K.ink,
+              lineHeight: 1.2,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {renderQuota(remain)}
+          </div>
+          <div
+            style={{
+              fontFamily: MONO,
+              fontVariantNumeric: 'tabular-nums',
+              fontSize: 12,
+              color: K.ink2,
+              marginTop: 2,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            / {renderQuota(total)}
+          </div>
         </div>
       </div>
     </Popover>

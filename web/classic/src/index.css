@@ -14,12 +14,26 @@
 }
 
 /* ==================== 全局基础样式 ==================== */
+/* 自托管 Geist（拉丁字形更利落；中文自动回退系统字体，与 APIMart 同策略） */
+@font-face {
+  font-family: 'Geist Variable';
+  src: url('./fonts/geist-sans.woff2') format('woff2');
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Geist Mono Variable';
+  src: url('./fonts/geist-mono.woff2') format('woff2');
+  font-weight: 100 900;
+  font-display: swap;
+}
+
 :root {
   --sidebar-width: 130px;
   --sidebar-width-collapsed: 60px;
   --sidebar-current-width: var(--sidebar-width);
-  /* 对齐 DMIT 字体栈：system-ui(Mac=San Francisco / 中文=PingFang) */
-  --app-font: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
+  /* Geist 优先(拉丁/数字)，中文回退 PingFang / 微软雅黑 */
+  --app-font: 'Geist Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
     'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', 'Noto Sans',
     sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
 }
@@ -104,8 +118,9 @@ body {
   width: 100%;
   display: flex;
   flex-direction: column;
-  background: linear-gradient(to top, #1e3c72 0%, #2a5298 100%);
-  color: rgba(255, 255, 255, 0.78);
+  background: #ffffff;
+  border-right: 1px solid #ececf0;
+  color: #4a5364;
 }
 
 .dmit-sider__logo {
@@ -127,7 +142,7 @@ body {
   right: 20px;
   bottom: 0;
   height: 1px;
-  background: rgba(255, 255, 255, 0.15);
+  background: #eef1f6;
 }
 
 .dmit-sider__logo-img {
@@ -135,14 +150,14 @@ body {
   height: 42px;
   flex-shrink: 0;
   object-fit: contain;
-  filter: drop-shadow(0 3px 7px rgba(0, 0, 0, 0.3));
+  filter: none;
 }
 
 .dmit-sider__logo-text {
   font-size: 14px;
   font-weight: 800;
   letter-spacing: 0.02em;
-  color: #fff;
+  color: #0f1729;
   max-width: 100%;
   text-align: center;
   white-space: nowrap;
@@ -177,7 +192,7 @@ body {
   align-items: center;
   gap: 6px;
   padding: 16px 4px;
-  color: #c7c7c7;
+  color: #5b6472;
   text-decoration: none;
   border-radius: 12px;
   transition: color 0.2s ease, background 0.2s ease;
@@ -186,13 +201,13 @@ body {
 .dmit-menu-item:hover,
 .dmit-menu-item:focus {
   text-decoration: none;
-  color: #ffffff;
-  background: rgba(255, 255, 255, 0.08);
+  color: #0f1729;
+  background: #f4f6fa;
 }
 
 .dmit-menu-item--active {
-  color: #ffffff;
-  background: rgba(255, 255, 255, 0.14);
+  color: #216D51;
+  background: rgba(33, 109, 81, 0.10);
 }
 
 .dmit-menu-item__icon {
@@ -259,8 +274,8 @@ body {
 .dmit-subnav__item--active,
 .dmit-subnav__item--active:hover {
   background: transparent;
-  color: #2563eb;
-  border-bottom-color: #2563eb;
+  color: #216D51;
+  border-bottom-color: #216D51;
   font-weight: 600;
 }
 
@@ -295,7 +310,7 @@ body {
 
 /* DMIT 配色：页面背景纯白(桌面 + 移动端一致)，卡片用浅灰区分 */
 .app-console .semi-layout-content {
-  background-color: #fff;
+  background-color: #fafafa;
 }
 
 /* 控制台强调色统一为 DMIT 主蓝 #2563eb(Semi 默认偏亮紫蓝)；仅亮色，暗色不动 */
@@ -303,12 +318,12 @@ body {
    solid 按钮直接 background-color: var(--semi-color-primary),所以必须给完整 rgba,
    不能写裸三元组(否则当 background 用时非法→透明白底白字) */
 html:not(.dark) .app-console {
-  --semi-color-primary: rgba(37, 99, 235, 1);
-  --semi-color-primary-hover: rgba(29, 78, 216, 1);
-  --semi-color-primary-active: rgba(30, 64, 175, 1);
-  --semi-color-primary-light-default: rgba(37, 99, 235, 0.1);
-  --semi-color-primary-light-hover: rgba(37, 99, 235, 0.16);
-  --semi-color-primary-light-active: rgba(37, 99, 235, 0.24);
+  --semi-color-primary: rgba(33, 109, 81, 1);
+  --semi-color-primary-hover: rgba(27, 90, 67, 1);
+  --semi-color-primary-active: rgba(20, 75, 56, 1);
+  --semi-color-primary-light-default: rgba(33, 109, 81, 0.1);
+  --semi-color-primary-light-hover: rgba(33, 109, 81, 0.16);
+  --semi-color-primary-light-active: rgba(33, 109, 81, 0.24);
 }
 
 /* 移动端：二级 pill 横向滚动 */
@@ -1352,3 +1367,30 @@ html.dark .with-pastel-balls::before {
 }
 
 .ec-dbcd0a3c01b55203 { forced-color-adjust: auto; }
+
+/* ==================== 可访问性质量底线 ==================== */
+/* 键盘导航时的可见焦点环(鼠标点击不显现) */
+.dmit-menu-item:focus-visible,
+.dmit-subnav__item:focus-visible {
+  outline: 2px solid #216D51;
+  outline-offset: -2px;
+  border-radius: 8px;
+}
+
+/* 尊重系统"减弱动态效果"偏好 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .shine-text {
+    animation: none !important;
+    background: none !important;
+    -webkit-text-fill-color: currentColor !important;
+  }
+}
