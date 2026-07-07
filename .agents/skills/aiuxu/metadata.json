@@ -1,0 +1,11 @@
+{
+  "version": "1.0.0",
+  "organization": "project",
+  "date": "July 2026",
+  "abstract": "Design-system reference extracted (via live getComputedStyle) from APIMart (aiuxu.com) logged-in dashboard. Captures the shadcn/ui 'new-york' minimal aesthetic: Geist typography, neutral grayscale palette with a single deep-green primary (#216d51), flat borderless-shadow cards on a #fafafa canvas, 10px radius, and compact controls. Includes full theme tokens, component recipes (page shell, cards, buttons, badges, flat data tables, pagination, filters), and mapping guidance to the new-api web/classic console (.app-console scope).",
+  "references": [
+    "https://aiuxu.com/zh",
+    "https://ui.shadcn.com",
+    "https://vercel.com/font"
+  ]
+}
