@@ -222,35 +222,23 @@ function renderLimitsCell(record, t) {
   const ips = record.allow_ips && record.allow_ips.trim() !== ''
     ? String(record.allow_ips).split('\n').map((s) => s.trim()).filter(Boolean)
     : [];
-  const none = <span style={{ fontSize: 13, color: K.ink2 }}>{t('无限制')}</span>;
+  const none = <span style={{ fontSize: 13, color: K.mut }}>{t('无限制')}</span>;
+  // 去掉「模型」「IP」标题，只显示值(第一行模型、第二行 IP;IP 用等宽字体区分)
+  const valLine = (items, isIp) =>
+    items.length > 0 ? (
+      <Tooltip content={items.join(', ')}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, fontSize: isIp ? 12 : 13, color: K.ink2, fontFamily: isIp ? MONO : undefined }}>{items[0]}</span>
+          {items.length > 1 && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', height: 16, padding: '0 5px', borderRadius: 5, background: '#f1f5f9', color: K.ink2, fontSize: 11, fontWeight: 600, flex: '0 0 auto' }}>+{items.length - 1}</span>
+          )}
+        </span>
+      </Tooltip>
+    ) : none;
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <span style={{ fontSize: 12, color: K.ink2, flex: '0 0 auto', width: 24 }}>{t('模型')}</span>
-        {models.length > 0 ? (
-          <Tooltip content={models.join(', ')}>
-            <span style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 5 }}>
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, fontSize: 13, color: K.ink2 }}>{models[0]}</span>
-              {models.length > 1 && (
-                <span style={{ display: 'inline-flex', alignItems: 'center', height: 16, padding: '0 5px', borderRadius: 5, background: '#f1f5f9', color: K.ink2, fontSize: 11, fontWeight: 600, flex: '0 0 auto' }}>+{models.length - 1}</span>
-              )}
-            </span>
-          </Tooltip>
-        ) : none}
-      </div>
-      <div style={{ marginTop: 7, display: 'flex', alignItems: 'center', gap: 6 }}>
-        <span style={{ fontSize: 12, color: K.ink2, flex: '0 0 auto', width: 24 }}>IP</span>
-        {ips.length > 0 ? (
-          <Tooltip content={ips.join(', ')}>
-            <span style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 5 }}>
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, fontSize: 12, color: K.ink2, fontFamily: MONO }}>{ips[0]}</span>
-              {ips.length > 1 && (
-                <span style={{ display: 'inline-flex', alignItems: 'center', height: 16, padding: '0 5px', borderRadius: 5, background: '#f1f5f9', color: K.ink2, fontSize: 11, fontWeight: 600, flex: '0 0 auto' }}>+{ips.length - 1}</span>
-              )}
-            </span>
-          </Tooltip>
-        ) : none}
-      </div>
+      <div style={{ display: 'flex', alignItems: 'center' }}>{valLine(models, false)}</div>
+      <div style={{ marginTop: 7, display: 'flex', alignItems: 'center' }}>{valLine(ips, true)}</div>
     </div>
   );
 }
@@ -469,7 +457,7 @@ export const getTokensColumns = ({
     {
       title: t('名称'),
       dataIndex: 'name',
-      width: 142,
+      width: 124,
       render: (text, record) => renderNameCell(record, t),
     },
     {
@@ -493,7 +481,7 @@ export const getTokensColumns = ({
     {
       title: t('密钥'),
       key: 'token_key',
-      width: 140,
+      width: 176,
       render: (text, record) => renderKeyCell(record, ctx),
     },
     {

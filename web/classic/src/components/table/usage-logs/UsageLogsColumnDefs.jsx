@@ -614,9 +614,14 @@ function renderTokenGroupCell(record, ctx) {
   const ratio = getGroupRatioValue(other);
   return (
     <div>
-      <div style={{ fontWeight: 500, color: CC.ink }} onClick={(e) => ctx.copyText(e, record.token_name)}>
-        {record.token_name}
-      </div>
+      <Tooltip content={record.token_name}>
+        <div
+          style={{ fontWeight: 500, color: CC.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'pointer' }}
+          onClick={(e) => ctx.copyText(e, record.token_name)}
+        >
+          {record.token_name}
+        </div>
+      </Tooltip>
       <div style={{ fontSize: 12, color: CC.mut2, marginTop: 4 }}>
         {group}
         {renderRatioBadge(ratio, false)}
@@ -631,17 +636,21 @@ function renderUserCell(record, ctx) {
   const ratio = getGroupRatioValue(other);
   return (
     <div>
-      <div
-        style={{ fontWeight: 500, fontSize: 14, color: CC.ink, cursor: 'pointer' }}
-        onClick={(e) => { e.stopPropagation(); ctx.showUserInfoFunc?.(record.user_id); }}
-      >
-        {record.username}
-      </div>
+      <Tooltip content={record.username}>
+        <div
+          style={{ fontWeight: 500, fontSize: 14, color: CC.ink, cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+          onClick={(e) => { e.stopPropagation(); ctx.showUserInfoFunc?.(record.user_id); }}
+        >
+          {record.username}
+        </div>
+      </Tooltip>
       {isConsumptionRow(record) && (
-        <div style={{ fontSize: 12, color: CC.mut2, marginTop: 4 }}>
-          {record.token_name}
-          {group ? ` · ${group}` : ''}
-          {renderRatioBadge(ratio, true)}
+        <div style={{ display: 'flex', alignItems: 'center', fontSize: 12, color: CC.mut2, marginTop: 4, minWidth: 0 }}>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, flex: '0 1 auto' }}>
+            {record.token_name}
+            {group ? ` · ${group}` : ''}
+          </span>
+          <span style={{ flex: '0 0 auto', whiteSpace: 'nowrap' }}>{renderRatioBadge(ratio, true)}</span>
         </div>
       )}
     </div>
@@ -697,27 +706,8 @@ function renderChannelCell(record, ctx) {
 function renderReqModelCell(record, ctx) {
   const hasModel = record.model_name && isConsumptionRow(record);
   if (!hasModel) {
-    // 非消费行(充值/管理/系统等):类型标签 + 描述文本。
-    // 充值金额记录在 content 里(如「充值额度: 10，支付金额: 73.00」)，quota 恒为 0。
-    return (
-      <div>
-        <div>{renderTypeChip(record.type, ctx.t)}</div>
-        {record.content && (
-          <div
-            style={{
-              marginTop: 6,
-              fontSize: 13,
-              color: CC.ink,
-              fontWeight: 500,
-              lineHeight: 1.45,
-              wordBreak: 'break-all',
-            }}
-          >
-            {record.content}
-          </div>
-        )}
-      </div>
-    );
+    // 非消费行(充值/管理/系统等):只放类型标签;描述信息(content)移到"用量"列。
+    return <div>{renderTypeChip(record.type, ctx.t)}</div>;
   }
   const other = getLogOther(record.other);
   const dotColor = getTypeChipStyle(record.type, ctx.t).color;
@@ -725,10 +715,17 @@ function renderReqModelCell(record, ctx) {
   const showRedirect = ctx.isAdminUser && modelMapped;
   return (
     <div>
-      <div style={{ fontSize: 14, color: CC.ink, fontWeight: 500, wordBreak: 'break-all', lineHeight: 1.35 }}>
-        <span style={{ width: 7, height: 7, borderRadius: '50%', display: 'inline-block', verticalAlign: 'middle', marginRight: 7, background: dotColor }} />
-        <span onClick={(e) => ctx.copyText(e, record.model_name)}>{record.model_name}</span>
-      </div>
+      <Tooltip content={record.model_name}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 14, color: CC.ink, fontWeight: 500, lineHeight: 1.35 }}>
+          <span style={{ width: 7, height: 7, borderRadius: '50%', flex: '0 0 auto', background: dotColor }} />
+          <span
+            onClick={(e) => ctx.copyText(e, record.model_name)}
+            style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, cursor: 'pointer' }}
+          >
+            {record.model_name}
+          </span>
+        </div>
+      </Tooltip>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
         {renderTypeChip(record.type, ctx.t)}
         {renderStreamTag(record, ctx.t)}
@@ -758,7 +755,29 @@ function renderReqModelCell(record, ctx) {
 }
 
 function renderUsageCell(record, ctx) {
-  if (!isConsumptionRow(record)) return null;
+  if (!isConsumptionRow(record)) {
+    // 非消费行(充值/管理/系统等):把描述信息(content)放这里，最多两行
+    if (!record.content) return null;
+    return (
+      <Tooltip content={record.content}>
+        <div
+          style={{
+            fontSize: 13,
+            color: CC.ink2,
+            fontWeight: 500,
+            lineHeight: 1.45,
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+            wordBreak: 'break-all',
+          }}
+        >
+          {record.content}
+        </div>
+      </Tooltip>
+    );
+  }
   const other = getLogOther(record.other);
   const cache = getPromptCacheSummary(other);
   return (

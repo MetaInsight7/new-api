@@ -53,6 +53,7 @@ const CardPro = ({
   searchArea,
   paginationArea, // 新增分页区域
   mobilePrimaryAction = null, // 移动端与"显示操作项"开关同行常驻的主操作(如"添加令牌")
+  disableMobileCollapse = false, // 移动端不折叠 actionsArea(去掉"显示操作项"开关，工具栏常显)
   // 卡片属性
   shadows = '',
   bordered = true,
@@ -96,7 +97,7 @@ const CardPro = ({
         {type === 'type3' && tabsArea && <>{tabsArea}</>}
 
         {/* 移动端操作切换按钮 */}
-        {isMobile && hasMobileHideableContent && (
+        {isMobile && hasMobileHideableContent && !disableMobileCollapse && (
           <>
             <div className='w-full mb-2 flex items-center gap-2'>
               <Button
@@ -117,7 +118,7 @@ const CardPro = ({
 
         {/* 操作按钮和搜索表单的容器 */}
         <div
-          className={`flex flex-col gap-2 ${isMobile && !showMobileActions ? 'hidden' : ''}`}
+          className={`flex flex-col gap-2 ${isMobile && !showMobileActions && !disableMobileCollapse ? 'hidden' : ''}`}
         >
           {/* 操作按钮区域 - 用于type1和type3 */}
           {(type === 'type1' || type === 'type3') &&
@@ -189,6 +190,7 @@ CardPro.propTypes = {
   descriptionArea: PropTypes.node,
   tabsArea: PropTypes.node,
   mobilePrimaryAction: PropTypes.node,
+  disableMobileCollapse: PropTypes.bool,
   actionsArea: PropTypes.oneOfType([
     PropTypes.node,
     PropTypes.arrayOf(PropTypes.node),

@@ -19,9 +19,8 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useState } from 'react';
 import { Form, Button, Dropdown } from '@douyinfe/semi-ui';
-import { Search, Plus, ChevronDown, Copy, Trash2 } from 'lucide-react';
+import { Search, Plus, ChevronDown, Copy, Trash2, SlidersHorizontal } from 'lucide-react';
 import { showError } from '../../../helpers';
-import { useIsMobile } from '../../../hooks/common/useIsMobile';
 import CopyTokensModal from './modals/CopyTokensModal';
 import DeleteTokensModal from './modals/DeleteTokensModal';
 
@@ -42,7 +41,7 @@ const TokensHeader = ({
 }) => {
   const [showCopyModal, setShowCopyModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const isMobile = useIsMobile();
+  const [showFilter, setShowFilter] = useState(false);
 
   const requireSelection = (fn) => () => {
     if (!selectedKeys || selectedKeys.length === 0) {
@@ -72,7 +71,10 @@ const TokensHeader = ({
           </span>
         </div>
 
-        <div className='token-toolbar__actions'>
+        {/* 搜索 + 批量操作:桌面常显;移动端点「筛选」后作为第二行显示 */}
+        <div
+          className={`token-toolbar__filters${showFilter ? ' is-open' : ''}`}
+        >
           <div className='token-toolbar__search'>
             <Form.Input
               field='searchKeyword'
@@ -90,52 +92,63 @@ const TokensHeader = ({
             />
           </div>
 
-          <Dropdown
-            trigger='click'
-            position='bottomRight'
-            clickToHide
-            menu={[
-              {
-                node: 'item',
-                name: t('复制所选令牌'),
-                icon: <Copy size={14} />,
-                onClick: requireSelection(() => setShowCopyModal(true)),
-              },
-              {
-                node: 'item',
-                name: t('删除所选令牌'),
-                type: 'danger',
-                icon: <Trash2 size={14} />,
-                onClick: requireSelection(() => setShowDeleteModal(true)),
-              },
-            ]}
-          >
-            <Button
-              type='tertiary'
-              theme='light'
-              size='small'
-              iconPosition='right'
-              icon={<ChevronDown size={15} />}
+          <span className='token-toolbar__batch'>
+            <Dropdown
+              trigger='click'
+              position='bottomRight'
+              clickToHide
+              menu={[
+                {
+                  node: 'item',
+                  name: t('复制所选令牌'),
+                  icon: <Copy size={14} />,
+                  onClick: requireSelection(() => setShowCopyModal(true)),
+                },
+                {
+                  node: 'item',
+                  name: t('删除所选令牌'),
+                  type: 'danger',
+                  icon: <Trash2 size={14} />,
+                  onClick: requireSelection(() => setShowDeleteModal(true)),
+                },
+              ]}
             >
-              {t('批量操作')}
-            </Button>
-          </Dropdown>
+              <Button
+                type='tertiary'
+                theme='light'
+                size='small'
+                iconPosition='right'
+                icon={<ChevronDown size={15} />}
+              >
+                {t('批量操作')}
+              </Button>
+            </Dropdown>
+          </span>
+        </div>
 
-          {/* 移动端由 CardPro 的 mobilePrimaryAction 常驻显示，此处隐藏避免重复 */}
-          {!isMobile && (
-            <Button
-              type='primary'
-              theme='solid'
-              size='small'
-              icon={<Plus size={15} />}
-              onClick={() => {
-                setEditingToken({ id: undefined });
-                setShowEdit(true);
-              }}
-            >
-              {t('添加令牌')}
-            </Button>
-          )}
+        {/* 右侧主操作:添加令牌 + 筛选开关(仅移动端可见) */}
+        <div className='token-toolbar__primary'>
+          <Button
+            type='primary'
+            theme='solid'
+            size='small'
+            icon={<Plus size={15} />}
+            onClick={() => {
+              setEditingToken({ id: undefined });
+              setShowEdit(true);
+            }}
+          >
+            {t('添加令牌')}
+          </Button>
+          <button
+            type='button'
+            className='token-toolbar__filter-toggle'
+            aria-label={t('筛选')}
+            aria-pressed={showFilter}
+            onClick={() => setShowFilter((v) => !v)}
+          >
+            <SlidersHorizontal size={16} />
+          </button>
         </div>
       </div>
 

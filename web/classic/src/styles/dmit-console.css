@@ -670,6 +670,8 @@ html:not(.dark) .app-console .dmit-flat-card .semi-card-body {
   cursor: pointer;
   display: inline-grid;
   place-items: center;
+  user-select: none;
+  -webkit-user-select: none;
   transition: background 0.12s, color 0.12s;
 }
 .app-console .token-op.del { color: #dc2626; }
@@ -686,18 +688,21 @@ html:not(.dark) .app-console .dmit-flat-card .semi-card-body {
   place-items: center;
   color: #9aa4b2;
   cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
   transition: background 0.12s, color 0.12s;
 }
 .app-console .token-keyic:hover { background: #e9edf2; color: #3c4650; }
 
-/* 令牌页:密钥可横向滚动看全 key(细滚动条) */
+/* 令牌页:密钥可横向滚动看全 key(隐藏滚动条,鼠标在内可选中复制) */
 .app-console .token-keyscroll {
-  scrollbar-width: thin;
-  scrollbar-color: #cbd5e1 transparent;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: text;
 }
-.app-console .token-keyscroll::-webkit-scrollbar { height: 4px; }
-.app-console .token-keyscroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 2px; }
-.app-console .token-keyscroll::-webkit-scrollbar-track { background: transparent; }
+.app-console .token-keyscroll::-webkit-scrollbar { height: 0; width: 0; display: none; }
 
 /* 令牌页:表头工具栏 */
 .app-console .token-toolbar {
@@ -714,16 +719,79 @@ html:not(.dark) .app-console .dmit-flat-card .semi-card-body {
   align-items: baseline;
   gap: 10px;
   flex: 0 0 auto;
+  margin-right: auto;
 }
 .app-console .token-toolbar__count { font-size: 12px; font-weight: 500; color: #9aa4b2; }
-.app-console .token-toolbar__actions {
-  margin-left: auto;
+.app-console .token-toolbar__filters {
   display: flex;
   align-items: center;
   gap: 10px;
 }
+.app-console .token-toolbar__primary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
 .app-console .token-toolbar__search { width: 240px; }
 .app-console .token-toolbar__search .semi-input-wrapper { border-radius: 9px; }
+/* 去掉卡头与内容间的分隔线(工具栏已自成一区,贯穿横线冗余) */
+.app-console .dmit-flat-card .semi-card-header {
+  border-bottom: none !important;
+}
+/* 筛选开关按钮:桌面隐藏,移动端显示 */
+.app-console .token-toolbar__filter-toggle { display: none; }
+
+/* 移动端:左「令牌管理 + 小字数量」,右「筛选开关 + 添加令牌」;点筛选后第二行显示 搜索(左)+ 批量操作(右) */
+@media (max-width: 767px) {
+  .app-console .token-toolbar {
+    flex-wrap: wrap;
+    row-gap: 10px;
+  }
+  .app-console .token-toolbar__title {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    line-height: 1.2;
+    order: 0;
+  }
+  .app-console .token-toolbar__primary {
+    order: 1;
+  }
+  .app-console .token-toolbar__filter-toggle {
+    display: inline-grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: #fff;
+    color: #64748b;
+    cursor: pointer;
+    flex: 0 0 auto;
+  }
+  .app-console .token-toolbar__filter-toggle[aria-pressed='true'] {
+    background: #eff4ff;
+    border-color: #bcd0fe;
+    color: #2563eb;
+  }
+  .app-console .token-toolbar__filters {
+    order: 2;
+    width: 100%;
+    display: none;
+  }
+  .app-console .token-toolbar__filters.is-open {
+    display: flex;
+  }
+  .app-console .token-toolbar__search {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+  }
+  .app-console .token-toolbar__batch {
+    flex: 0 0 auto;
+  }
+}
 
 /* 操作列(详情按钮):垂直居中,不随两行内容顶对齐 */
 html:not(.dark)

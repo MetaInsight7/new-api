@@ -35,7 +35,6 @@ import {
 import CardPro from '../../common/ui/CardPro';
 import TokensTable from './TokensTable';
 import TokensHeader from './TokensHeader';
-import { Plus } from 'lucide-react';
 import EditTokenModal from './modals/EditTokenModal';
 import CCSwitchModal from './modals/CCSwitchModal';
 import { useTokensData } from '../../../hooks/tokens/useTokensData';
@@ -393,20 +392,7 @@ function TokensPage() {
       <CardPro
         type='type1'
         className='dmit-flat-card'
-        mobilePrimaryAction={
-          <Button
-            type='primary'
-            theme='solid'
-            size='small'
-            icon={<Plus size={15} />}
-            onClick={() => {
-              setEditingToken({ id: undefined });
-              setShowEdit(true);
-            }}
-          >
-            {t('添加令牌')}
-          </Button>
-        }
+        disableMobileCollapse
         actionsArea={
           <TokensHeader
             tokenCount={tokensData.tokenCount}
