@@ -420,6 +420,13 @@ html:not(.dark) .wallet-qty .semi-input-wrapper:focus-within {
 
 /* ===== 右列：账户工具卡 ===== */
 .wg__side { display: flex; flex-direction: column; gap: 18px; }
+.wg__siderow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  align-items: start;
+}
+.wg__siderow.is-single { grid-template-columns: 1fr; }
 .wg__card {
   background: #fff;
   border: 1px solid #eaecef;
@@ -579,4 +586,5 @@ html:not(.dark) .wallet-qty .semi-input-wrapper:focus-within {
 
 @media (max-width: 900px) {
   .wg { grid-template-columns: 1fr; }
+  .wg__siderow { grid-template-columns: 1fr; }
 }

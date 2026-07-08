@@ -286,78 +286,81 @@ const WalletRecharge = ({
           </button>
         </div>
 
-        {/* 兑换码 */}
-        <div className='wg__card'>
-          <div className='wg__chead'>
-            <span className='wg__cico'>
-              <Gift size={15} />
-            </span>
-            <span className='wg__ct'>{t('兑换码')}</span>
-            <span className='wg__cn'>Redeem</span>
-          </div>
-          {enableRedemption ? (
-            <div className='wg__redeeminp'>
-              <input
-                className='wg__rinput'
-                value={redemptionCode}
-                placeholder={t('输入兑换码，立即到账')}
-                onChange={(e) => setRedemptionCode(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !isSubmitting) topUp();
-                }}
-              />
-              <button
-                className='wg__sbtn'
-                onClick={topUp}
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? t('兑换中…') : t('兑换')}
-              </button>
+        {/* 最近充值 + 兑换码：并排两列 */}
+        <div className={`wg__siderow${recent.length > 0 ? '' : ' is-single'}`}>
+          {/* 最近充值 —— 有记录才渲染 */}
+          {recent.length > 0 && (
+            <div className='wg__card'>
+              <div className='wg__chead'>
+                <span className='wg__cico'>
+                  <Receipt size={15} />
+                </span>
+                <span className='wg__ct'>{t('最近充值')}</span>
+                <button className='wg__cnbtn' onClick={onOpenHistory}>
+                  {t('全部')}
+                  <ArrowRight size={12} />
+                </button>
+              </div>
+              {recent.map((r) => {
+                const st = ST_MAP[r.status] || { txt: r.status, cls: '' };
+                const ok = r.status === 'success';
+                return (
+                  <div className='wg__log' key={r.id}>
+                    <span className='lt'>
+                      {PM_MAP[r.payment_method] || r.payment_method || '—'}
+                      <span className='ld'>
+                        {timestamp2string(r.create_time).slice(5, 16)}
+                      </span>
+                    </span>
+                    {ok ? (
+                      <span className='lv'>+${Number(r.amount).toFixed(2)}</span>
+                    ) : (
+                      <span className={`lv ${st.cls}`}>{st.txt}</span>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-          ) : (
-            <Banner
-              type='warning'
-              closeIcon={null}
-              className='!rounded-xl'
-              description={t('兑换码功能已禁用，管理员需先确认合规声明。')}
-            />
           )}
-        </div>
 
-        {/* 最近充值 —— 有记录才渲染 */}
-        {recent.length > 0 && (
+          {/* 兑换码 */}
           <div className='wg__card'>
             <div className='wg__chead'>
               <span className='wg__cico'>
-                <Receipt size={15} />
+                <Gift size={15} />
               </span>
-              <span className='wg__ct'>{t('最近充值')}</span>
-              <button className='wg__cnbtn' onClick={onOpenHistory}>
-                {t('全部')}
-                <ArrowRight size={12} />
-              </button>
+              <span className='wg__ct'>{t('兑换码')}</span>
+              <span className='wg__cn'>Redeem</span>
             </div>
-            {recent.map((r) => {
-              const st = ST_MAP[r.status] || { txt: r.status, cls: '' };
-              const ok = r.status === 'success';
-              return (
-                <div className='wg__log' key={r.id}>
-                  <span className='lt'>
-                    {PM_MAP[r.payment_method] || r.payment_method || '—'}
-                    <span className='ld'>
-                      {timestamp2string(r.create_time).slice(5, 16)}
-                    </span>
-                  </span>
-                  {ok ? (
-                    <span className='lv'>+${Number(r.amount).toFixed(2)}</span>
-                  ) : (
-                    <span className={`lv ${st.cls}`}>{st.txt}</span>
-                  )}
-                </div>
-              );
-            })}
+            {enableRedemption ? (
+              <div className='wg__redeeminp'>
+                <input
+                  className='wg__rinput'
+                  value={redemptionCode}
+                  placeholder={t('输入兑换码，立即到账')}
+                  onChange={(e) => setRedemptionCode(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !isSubmitting) topUp();
+                  }}
+                />
+                <button
+                  className='wg__sbtn'
+                  onClick={topUp}
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? t('兑换中…') : t('兑换')}
+                </button>
+              </div>
+            ) : (
+              <Banner
+                type='warning'
+                closeIcon={null}
+                className='!rounded-xl'
+                description={t('兑换码功能已禁用，管理员需先确认合规声明。')}
+              />
+            )}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
