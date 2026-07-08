@@ -33,10 +33,10 @@ const K = {
 };
 
 const progressColor = (pct) => {
-  if (pct >= 100) return '#216D51';
+  if (pct >= 100) return '#2563eb';
   if (pct <= 10) return '#ef4444';
   if (pct <= 30) return '#f59e0b';
-  return '#216D51';
+  return '#2563eb';
 };
 
 // 状态:发光信号灯 + 文字
@@ -111,6 +111,35 @@ function renderQuotaCell(record, t) {
       }
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 11, cursor: 'help' }}>
+        <div style={{ minWidth: 0 }}>
+          <div
+            style={{
+              fontFamily: MONO,
+              fontVariantNumeric: 'tabular-nums',
+              fontSize: 15,
+              fontWeight: 600,
+              color: K.ink,
+              lineHeight: 1.25,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {renderQuota(remain)}
+          </div>
+          <div
+            style={{
+              fontFamily: MONO,
+              fontVariantNumeric: 'tabular-nums',
+              fontSize: 15,
+              fontWeight: 600,
+              color: K.ink,
+              marginTop: 2,
+              lineHeight: 1.25,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {renderQuota(total)}
+          </div>
+        </div>
         <div style={{ position: 'relative', width: 38, height: 38, flex: '0 0 auto' }}>
           <svg width='38' height='38' viewBox='0 0 38 38'>
             <circle cx='19' cy='19' r={R} fill='none' stroke={K.line} strokeWidth='3' />
@@ -142,33 +171,6 @@ function renderQuotaCell(record, t) {
           >
             {percent.toFixed(0)}
           </span>
-        </div>
-        <div style={{ minWidth: 0 }}>
-          <div
-            style={{
-              fontFamily: MONO,
-              fontVariantNumeric: 'tabular-nums',
-              fontSize: 15,
-              fontWeight: 600,
-              color: K.ink,
-              lineHeight: 1.2,
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {renderQuota(remain)}
-          </div>
-          <div
-            style={{
-              fontFamily: MONO,
-              fontVariantNumeric: 'tabular-nums',
-              fontSize: 12,
-              color: K.ink2,
-              marginTop: 2,
-              whiteSpace: 'nowrap',
-            }}
-          >
-            / {renderQuota(total)}
-          </div>
         </div>
       </div>
     </Popover>

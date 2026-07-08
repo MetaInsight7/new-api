@@ -60,11 +60,11 @@
   font-weight: 700;
 }
 
-/* 选中态统一为 DMIT 主蓝 #216D51(默认 Semi primary 偏亮紫) */
+/* 选中态统一为 DMIT 主蓝 #2563eb(默认 Semi primary 偏亮紫) */
 .dashboard-time-range .semi-button.semi-button-primary,
 .dashboard-time-range .semi-button.semi-button-primary:hover,
 .dashboard-time-range .semi-button.semi-button-primary:focus {
-  background-color: #216D51 !important;
+  background-color: #2563eb !important;
 }
 
 .dashboard-overview-grid {
@@ -597,7 +597,7 @@
   border: 1px solid var(--semi-color-border);
   border-radius: 0.75rem;
   background:
-    linear-gradient(135deg, rgba(33, 109, 81, 0.05), transparent 60%),
+    linear-gradient(135deg, rgba(37, 99, 235, 0.05), transparent 60%),
     var(--semi-color-bg-1);
 }
 
@@ -646,14 +646,14 @@
 }
 
 .dashboard-api-access__switch:hover {
-  border-color: rgba(33, 109, 81, 0.45);
+  border-color: rgba(37, 99, 235, 0.45);
   background: var(--semi-color-primary-light-default);
 }
 
 .dashboard-api-access__switch:focus-visible {
   outline: none;
   border-color: var(--semi-color-primary);
-  box-shadow: 0 0 0 3px rgba(33, 109, 81, 0.16);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.16);
 }
 
 .dashboard-api-access__switch-label {
@@ -1491,13 +1491,13 @@
 }
 
 .dashboard-main-section__header-actions button:first-child {
-  background: rgba(33, 109, 81, 0.08);
-  border-color: rgba(33, 109, 81, 0.2);
-  color: #216D51;
+  background: rgba(37, 99, 235, 0.08);
+  border-color: rgba(37, 99, 235, 0.2);
+  color: #2563eb;
 }
 
 .dashboard-main-section__header-actions button:first-child:hover {
-  background: rgba(33, 109, 81, 0.08);
+  background: rgba(37, 99, 235, 0.08);
 }
 
 .dashboard-main-section__body {
@@ -1563,7 +1563,7 @@
   .semi-button:last-child:hover {
   background: #eff6ff;
   border-color: #93c5fd;
-  color: #1B5A43;
+  color: #1d4ed8;
 }
 
 /* 字段值行内的图标按钮:略小以贴合单行 */
@@ -1587,7 +1587,7 @@
   position: relative;
   overflow: hidden;
   min-width: 0;
-  padding: 1.4rem 1.4rem 1.3rem;
+  padding: 1.05rem 1.4rem 1.05rem;
   border: 1px solid #edeef1;
   border-radius: 12px;
   background: #ffffff;
@@ -1620,7 +1620,7 @@ button.dashboard-usage-item:hover {
   display: flex;
   align-items: center;
   gap: 0.625rem;
-  margin-bottom: 0.7rem;
+  margin-bottom: 0.5rem;
 }
 
 /* 指标图标：统一的克制绿芯片（单色，精致靠细节而非多色）——排除余额格 */
@@ -1630,16 +1630,28 @@ button.dashboard-usage-item:hover {
   padding: 8px;
   box-sizing: border-box;
   border-radius: 9px;
-  background: rgba(33, 109, 81, 0.08);
-  color: #216d51;
+  background: rgba(37, 99, 235, 0.08);
+  color: #2563eb;
+  flex: 0 0 auto;
+}
+
+/* 余额卡(绿底)也用同尺寸芯片(白色半透明)，保证头部行高与其它卡一致 → 内容对齐 */
+.dashboard-usage-item.is-balance .dashboard-usage-item__icon {
+  width: 32px;
+  height: 32px;
+  padding: 8px;
+  box-sizing: border-box;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
   flex: 0 0 auto;
 }
 
 /* 指标标签：安静的说明文字，让数字当主角 */
 .dashboard-usage-item__label {
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   font-weight: 600;
-  color: var(--semi-color-text-2);
+  color: var(--semi-color-text-0);
   letter-spacing: 0;
 }
 
@@ -1662,11 +1674,11 @@ button.dashboard-usage-item:hover {
 
 .dashboard-usage-item__caption {
   position: relative;
-  margin-top: 0.5rem;
+  margin-top: 0.4rem;
   font-family: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   font-weight: 500;
-  color: var(--semi-color-text-2);
+  color: var(--semi-color-text-1);
   font-variant-numeric: tabular-nums;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1675,9 +1687,9 @@ button.dashboard-usage-item:hover {
 
 /* 余额格:实心蓝卡 + 右上角「充值」小按钮(与其它卡等高) */
 .dashboard-usage-item.is-balance {
-  background: linear-gradient(135deg, #216D51, #1B5A43);
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
   border-color: transparent;
-  box-shadow: 0 8px 20px rgba(33, 109, 81, 0.28);
+  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.28);
 }
 
 .dashboard-usage-item.is-balance .dashboard-usage-item__icon,
@@ -1723,7 +1735,7 @@ button.dashboard-usage-item:hover {
   z-index: 1;
   border: 0;
   background: #fff;
-  color: #216D51;
+  color: #2563eb;
   font: inherit;
   font-size: 0.71875rem;
   font-weight: 800;
@@ -1822,7 +1834,7 @@ button.dashboard-usage-item:hover {
 .dashboard-notice-item.is-new::before {
   background: var(--semi-color-primary);
   border-color: var(--semi-color-primary);
-  box-shadow: 0 0 0 3px rgba(33, 109, 81, 0.12);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
 
 .dashboard-notice-item__time {
@@ -1868,7 +1880,7 @@ button.dashboard-usage-item:hover {
   height: 2.75rem;
   border-radius: 0.75rem;
   background: #eff6ff;
-  color: #216D51;
+  color: #2563eb;
 }
 
 
@@ -1920,7 +1932,7 @@ button.dashboard-usage-item:hover {
 }
 
 .dashboard-metric-trend.is-up {
-  background: rgba(33, 109, 81, 0.1);
+  background: rgba(37, 99, 235, 0.1);
   color: #1a7f57;
 }
 
@@ -1988,7 +2000,7 @@ button.dashboard-usage-item:hover {
 .dashboard-availability-bar__fill {
   height: 100%;
   border-radius: 0.25rem;
-  background: linear-gradient(90deg, #3b82f6 0%, #06b6d4 50%, #3b82f6 100%);
+  background: linear-gradient(90deg, #2563eb 0%, #3b82f6 50%, #2563eb 100%);
   background-size: 200% 100%;
   animation: gradientShimmer 2.5s ease infinite;
   transition: width 0.6s ease;
@@ -2031,76 +2043,94 @@ button.dashboard-usage-item:hover {
 
 .dashboard-availability-empty {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
+  gap: 0.75rem;
   padding: 2rem 1rem;
   color: var(--semi-color-text-2);
   font-size: 0.8125rem;
   font-weight: 600;
 }
 
+.dashboard-availability-empty svg {
+  box-sizing: border-box;
+  width: 46px;
+  height: 46px;
+  padding: 11px;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.08);
+  color: #2563eb;
+}
+
 /* ===== Chart panel with sidebar ===== */
 .dashboard-chart-layout {
   display: grid;
-  grid-template-columns: 11.25rem minmax(0, 1fr);
-  gap: 1rem;
-  padding: 1rem;
-  border: 1px solid #e2e8f0;
-  border-radius: 0.75rem;
-  background: #f8fafc;
+  grid-template-columns: 9rem minmax(0, 1fr);
+  gap: 1.5rem;
+  padding: 1.25rem 1.5rem;
+  border: 1px solid #eef1f6;
+  border-radius: 1rem;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(16, 24, 40, .03), 0 12px 32px -14px rgba(16, 24, 40, .12);
   min-height: 26.25rem;
 }
 
+/* 指标选择：左侧竖排菜单（右侧分隔线 + 实心绿选中） */
 .dashboard-chart-sidebar {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-  padding: 0.75rem;
-  border: 1px solid var(--semi-color-border);
-  border-radius: 0.5rem;
-  background: var(--semi-color-bg-1);
+  padding: 0;
+  padding-right: 0.75rem;
+  border: none;
+  border-right: 1px solid #eef1f6;
+  background: transparent;
+  overflow: hidden;
 }
 
 .dashboard-chart-sidebar__item {
   display: flex;
   align-items: center;
-  gap: 0.625rem;
-  padding: 0.625rem 0.875rem;
+  gap: 0.5rem;
+  padding: 0.5625rem 0.75rem;
   border: 0;
-  border-radius: 0.625rem;
+  border-radius: 0.5rem;
   background: transparent;
   color: var(--semi-color-text-2);
   font: inherit;
-  font-size: 0.875rem;
-  font-weight: 600;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  white-space: nowrap;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
   cursor: pointer;
   transition:
-    background 0.18s ease,
-    color 0.18s ease;
-  white-space: nowrap;
+    color 0.15s ease,
+    background 0.15s ease;
 }
 
 .dashboard-chart-sidebar__item:hover {
-  background: var(--semi-color-fill-1);
+  background: rgba(16, 24, 40, 0.04);
   color: var(--semi-color-text-0);
 }
 
 .dashboard-chart-sidebar__item.is-active {
-  background: var(--semi-color-primary);
-  color: #fff;
+  background: #2563eb;
+  color: #ffffff;
+  font-weight: 600;
 }
 
 .dashboard-chart-content {
-  padding: 1rem;
+  padding: 0;
   min-height: 0;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--semi-color-border);
-  border-radius: 0.5rem;
-  background: var(--semi-color-bg-1);
+  border: none;
+  background: transparent;
 }
 
 .dashboard-chart-content .dashboard-chart-render {
@@ -2109,11 +2139,23 @@ button.dashboard-usage-item:hover {
 }
 
 /* ===== 图表行：主图 + 服务可用性侧栏 ===== */
+/* 与顶部大卡同款 3 栏比例（1.35/1/0.85），图表卡跨前两栏，右缘落在第二条分隔线；
+   Service Status 落在第三栏，与 System Notice 对齐 */
 .dashboard-chart-row.has-rail {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 18rem;
-  gap: 1rem;
+  grid-template-columns: 1.35fr 1fr 0.85fr;
+  gap: 0;
   align-items: stretch;
+}
+
+.dashboard-chart-row.has-rail .dashboard-chart-row__main {
+  grid-column: 1 / 3;
+  min-width: 0;
+}
+
+.dashboard-chart-row.has-rail .dashboard-availability-rail {
+  grid-column: 3 / 4;
+  margin-left: 1rem;
 }
 
 .dashboard-chart-row__main {
@@ -2125,10 +2167,11 @@ button.dashboard-usage-item:hover {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  padding: 1rem;
-  border: 1px solid #e2e8f0;
-  border-radius: 0.75rem;
-  background: #f8fafc;
+  padding: 1.25rem 1.5rem;
+  border: 1px solid #eef1f6;
+  border-radius: 1rem;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(16, 24, 40, .03), 0 12px 32px -14px rgba(16, 24, 40, .12);
 }
 
 .dashboard-availability-rail__header {
@@ -2150,6 +2193,8 @@ button.dashboard-usage-item:hover {
 }
 
 .dashboard-availability-rail__body {
+  display: flex;
+  flex-direction: column;
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
@@ -2284,6 +2329,14 @@ button.dashboard-usage-item:hover {
 
   .dashboard-chart-row.has-rail {
     grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  /* 复位桌面端的显式栅格定位，避免盖过单列堆叠 */
+  .dashboard-chart-row.has-rail .dashboard-chart-row__main,
+  .dashboard-chart-row.has-rail .dashboard-availability-rail {
+    grid-column: auto;
+    margin-left: 0;
   }
 
   .dashboard-availability-rail__body {
@@ -2293,15 +2346,24 @@ button.dashboard-usage-item:hover {
   .dashboard-chart-sidebar {
     flex-direction: row;
     overflow-x: auto;
+    scrollbar-width: none;
     border-right: 0;
     border-bottom: 1px solid var(--semi-color-border);
-    padding: 0.5rem 0.75rem;
+    padding: 0.375rem 0 0.625rem;
+    padding-right: 0;
     gap: 0.25rem;
   }
 
+  .dashboard-chart-sidebar::-webkit-scrollbar {
+    display: none;
+  }
+
   .dashboard-chart-sidebar__item {
+    flex: 0 0 auto;
     padding: 0.5rem 0.75rem;
     font-size: 0.8125rem;
+    overflow: visible;
+    text-overflow: clip;
   }
 
   .dashboard-chart-content .dashboard-chart-render {
@@ -2349,6 +2411,54 @@ button.dashboard-usage-item:hover {
 
   .dashboard-usage-grid {
     grid-template-columns: 1fr 1fr;
+    gap: 0.625rem;
+  }
+
+  /* 手机端卡片收紧：向 feature-new-aries 的紧凑比例看齐，避免窄卡拥挤/折行 */
+  .dashboard-usage-item {
+    padding: 0.75rem 0.875rem;
+  }
+
+  .dashboard-usage-item__header {
+    gap: 0.4375rem;
+    margin-bottom: 0.375rem;
+    min-width: 0;
+  }
+
+  /* 手机端去掉图标芯片，回归 feature-new-aries 的紧凑细图标：
+     头部更矮、四卡天然等高对齐，并给标题让出空间 */
+  .dashboard-usage-item:not(.is-balance) .dashboard-usage-item__icon,
+  .dashboard-usage-item.is-balance .dashboard-usage-item__icon {
+    width: auto;
+    height: auto;
+    padding: 0;
+    background: transparent;
+    border-radius: 0;
+  }
+
+  /* 标题单行省略，杜绝 “今日 Tokens / Current balance” 折行 */
+  .dashboard-usage-item__label {
+    min-width: 0;
+    font-size: 0.75rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* 数字缩小到适合窄卡，防溢出 */
+  .dashboard-usage-item__value {
+    font-size: 1.5rem;
+    letter-spacing: -0.03em;
+  }
+
+  .dashboard-usage-item__caption {
+    margin-top: 0.3rem;
+    font-size: 0.6875rem;
+  }
+
+  /* 余额卡:为右上角「充值」按钮预留空间，避免标题被顶到按钮下方 */
+  .dashboard-usage-item.is-balance .dashboard-usage-item__header {
+    padding-right: 3rem;
   }
 
   .dashboard-chart-content .dashboard-chart-render {

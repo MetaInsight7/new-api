@@ -366,89 +366,87 @@ const TwoFASetting = ({ t }) => {
 
   return (
     <>
-      <div className='px-4 py-3.5'>
-        <div className='flex flex-col sm:flex-row items-start sm:justify-between gap-4'>
-          <div className='flex items-start w-full sm:w-auto'>
-            <span
-              className='mr-4 inline-flex items-center justify-center w-10 h-10 rounded-lg flex-shrink-0'
-              style={{ background: 'rgba(37,99,235,0.1)', color: '#2563eb' }}
-            >
-              <IconShield size='large' />
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          padding: '13px 0',
+        }}
+      >
+        <span
+          className='inline-flex items-center justify-center flex-shrink-0'
+          style={{
+            width: 34,
+            height: 34,
+            borderRadius: 9,
+            background: 'rgba(37,99,235,0.10)',
+            color: '#2563eb',
+          }}
+        >
+          <IconShield />
+        </span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 13.5, fontWeight: 600, color: '#141a1f' }}>
+              {t('两步验证')}
             </span>
-            <div className='flex-1'>
-              <div className='flex items-center gap-2 mb-1'>
-                <Typography.Title heading={6} className='mb-0'>
-                  {t('两步验证设置')}
-                </Typography.Title>
-                {status.enabled ? (
-                  <Tag color='green' shape='circle' size='small'>
-                    {t('已启用')}
-                  </Tag>
-                ) : (
-                  <Tag color='red' shape='circle' size='small'>
-                    {t('未启用')}
-                  </Tag>
-                )}
-                {status.locked && (
-                  <Tag color='orange' shape='circle' size='small'>
-                    {t('账户已锁定')}
-                  </Tag>
-                )}
-              </div>
-              <Typography.Text type='tertiary' className='text-sm'>
-                {t(
-                  '两步验证（2FA）为您的账户提供额外的安全保护。启用后，登录时需要输入密码和验证器应用生成的验证码。',
-                )}
-              </Typography.Text>
-              {status.enabled && (
-                <div className='mt-2'>
-                  <Text size='small' type='secondary'>
-                    {t('剩余备用码：')}
-                    {status.backup_codes_remaining || 0}
-                    {t('个')}
-                  </Text>
-                </div>
-              )}
-            </div>
-          </div>
-          <div className='flex flex-col space-y-2 w-full sm:w-auto'>
-            {!status.enabled ? (
-              <Button
-                type='primary'
-                theme='solid'
-                size='default'
-                onClick={handleSetup2FA}
-                loading={loading}
-                className='!rounded-lg !bg-slate-600 hover:!bg-slate-700'
-                icon={<IconShield />}
-              >
-                {t('启用验证')}
-              </Button>
+            {status.enabled ? (
+              <Tag color='green' shape='circle' size='small'>
+                {t('已启用')}
+              </Tag>
             ) : (
-              <div className='flex flex-col space-y-2'>
-                <Button
-                  type='danger'
-                  theme='solid'
-                  size='default'
-                  onClick={() => setDisableModalVisible(true)}
-                  className='!rounded-lg !bg-slate-500 hover:!bg-slate-600'
-                  icon={<IconAlertTriangle />}
-                >
-                  {t('禁用两步验证')}
-                </Button>
-                <Button
-                  type='primary'
-                  theme='solid'
-                  size='default'
-                  onClick={() => setBackupModalVisible(true)}
-                  className='!rounded-lg'
-                  icon={<IconRefresh />}
-                >
-                  {t('重新生成备用码')}
-                </Button>
-              </div>
+              <Tag color='grey' shape='circle' size='small'>
+                {t('未启用')}
+              </Tag>
+            )}
+            {status.locked && (
+              <Tag color='orange' shape='circle' size='small'>
+                {t('已锁定')}
+              </Tag>
             )}
           </div>
+          <div style={{ fontSize: 12, color: '#6b7686', marginTop: 1 }}>
+            {t('登录时需密码 + 验证器验证码')}
+            {status.enabled
+              ? ` · ${t('剩余备用码')} ${status.backup_codes_remaining || 0}`
+              : ''}
+          </div>
+        </div>
+        <div style={{ flex: '0 0 auto' }}>
+          {!status.enabled ? (
+            <Button
+              type='primary'
+              theme='solid'
+              size='small'
+              onClick={handleSetup2FA}
+              loading={loading}
+              className='!rounded-lg'
+            >
+              {t('启用')}
+            </Button>
+          ) : (
+            <Space spacing={6}>
+              <Button
+                size='small'
+                theme='light'
+                type='tertiary'
+                onClick={() => setBackupModalVisible(true)}
+                className='!rounded-lg'
+              >
+                {t('备用码')}
+              </Button>
+              <Button
+                type='danger'
+                theme='solid'
+                size='small'
+                onClick={() => setDisableModalVisible(true)}
+                className='!rounded-lg'
+              >
+                {t('禁用')}
+              </Button>
+            </Space>
+          )}
         </div>
       </div>
 

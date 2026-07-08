@@ -18,95 +18,59 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Avatar, Card, Tag } from '@douyinfe/semi-ui';
-import {
-  isRoot,
-  isAdmin,
-  renderQuota,
-  stringToColor,
-} from '../../../../helpers';
-import { Wallet, Coins, BarChart2, Users } from 'lucide-react';
-import StatTile from '../../../common/ui/StatTile';
+import { isRoot, isAdmin } from '../../../../helpers';
 
+// 个人中心顶部：紧凑身份行（头像 + 用户名 + 角色/ID/分组胶囊）
 const UserInfoHeader = ({ t, userState }) => {
-  const getUsername = () => {
-    if (userState.user) {
-      return userState.user.username;
-    } else {
-      return 'null';
-    }
-  };
+  const user = userState?.user || {};
+  const username = user.username || 'null';
+  const avatarText =
+    username && username.length > 0 ? username.slice(0, 2).toUpperCase() : 'NA';
+  const roleLabel = isRoot()
+    ? t('超级管理员')
+    : isAdmin()
+      ? t('管理员')
+      : t('普通用户');
 
-  const getAvatarText = () => {
-    const username = getUsername();
-    if (username && username.length > 0) {
-      return username.slice(0, 2).toUpperCase();
-    }
-    return 'NA';
+  const pill = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    height: 22,
+    padding: '0 10px',
+    borderRadius: 999,
+    fontSize: 12,
+    fontWeight: 600,
+    background: '#eef0f3',
+    color: '#4a5364',
   };
-
-  const roleTag = isRoot() ? (
-    <Tag color='red' shape='circle'>
-      {t('超级管理员')}
-    </Tag>
-  ) : isAdmin() ? (
-    <Tag color='blue' shape='circle'>
-      {t('管理员')}
-    </Tag>
-  ) : (
-    <Tag color='grey' shape='circle'>
-      {t('普通用户')}
-    </Tag>
-  );
 
   return (
-    <Card className='!rounded-2xl'>
-      {/* 头部：头像 + 用户名 + 角色胶囊 */}
-      <div className='flex items-center gap-4 mb-5'>
-        <Avatar size='large' color={stringToColor(getUsername())}>
-          {getAvatarText()}
-        </Avatar>
-        <div className='min-w-0 flex-1'>
-          <div className='text-2xl font-bold truncate text-[var(--semi-color-text-0)]'>
-            {getUsername()}
-          </div>
-          <div className='flex flex-wrap items-center gap-2 mt-1.5'>
-            {roleTag}
-            <Tag color='white' shape='circle'>
-              ID: {userState?.user?.id}
-            </Tag>
-          </div>
+    <div className='flex items-center gap-4'>
+      <div
+        className='flex items-center justify-center flex-shrink-0'
+        style={{
+          width: 50,
+          height: 50,
+          borderRadius: 14,
+          background: '#2563eb',
+          color: '#fff',
+          fontSize: 18,
+          fontWeight: 700,
+        }}
+      >
+        {avatarText}
+      </div>
+      <div className='min-w-0'>
+        <div className='text-xl font-extrabold truncate leading-tight text-[var(--semi-color-text-0)]'>
+          {username}
+        </div>
+        <div className='flex flex-wrap items-center gap-1.5 mt-1.5'>
+          <span style={pill}>{roleLabel}</span>
+          <span style={pill}>ID {user.id}</span>
+          <span style={pill}>{user.group || t('默认')}</span>
         </div>
       </div>
-
-      {/* 统计小卡：余额 / 历史消耗 / 请求次数 / 用户分组 */}
-      <div className='grid grid-cols-2 sm:grid-cols-4 gap-3'>
-        <StatTile
-          tone='blue'
-          icon={Wallet}
-          label={t('当前余额')}
-          value={renderQuota(userState?.user?.quota)}
-        />
-        <StatTile
-          tone='violet'
-          icon={Coins}
-          label={t('历史消耗')}
-          value={renderQuota(userState?.user?.used_quota)}
-        />
-        <StatTile
-          tone='emerald'
-          icon={BarChart2}
-          label={t('请求次数')}
-          value={userState?.user?.request_count || 0}
-        />
-        <StatTile
-          tone='amber'
-          icon={Users}
-          label={t('用户分组')}
-          value={userState?.user?.group || t('默认')}
-        />
-      </div>
-    </Card>
+    </div>
   );
 };
 

@@ -81,7 +81,7 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
       />
 
       <div className='w-full px-2'>
-        <div className='flex items-center justify-between h-16'>
+        <div className='flex items-center justify-between h-16 relative'>
           <div className='flex items-center'>
             <MobileMenuButton
               isConsoleRoute={isConsoleRoute}

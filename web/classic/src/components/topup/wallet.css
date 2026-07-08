@@ -65,36 +65,36 @@ html:not(.dark) .app-console .wallet-card.semi-card.semi-card-bordered {
   margin-bottom: 11px;
 }
 
-/* 预设：账本行 */
+/* 预设：卡片式网格 */
 .wallet-rows {
-  display: flex;
-  flex-direction: column;
-  border: 1px solid #e7e9e4;
-  border-radius: 12px;
-  overflow: hidden;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
 }
 .wallet-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 16px;
+  padding: 12px 14px;
   cursor: pointer;
-  border-bottom: 1px solid #eff0ec;
-  transition: background 0.12s;
-}
-.wallet-row:last-child {
-  border-bottom: 0;
+  border: 1px solid #e7e9e4;
+  border-radius: 12px;
+  transition: border-color 0.12s, background 0.12s;
 }
 html:not(.dark) .wallet-row:hover {
-  background: #fbfcff;
+  border-color: #cbd5e1;
 }
 html:not(.dark) .wallet-row.is-active {
-  background: #f5f8ff;
-  box-shadow: inset 3px 0 0 #2f5bea;
+  background: #eef4ff;
+  border-color: #2563eb;
+  box-shadow: inset 0 0 0 1px #2563eb;
 }
 .wallet-row__amt {
-  font-size: 16px;
-  font-weight: 600;
+  font-family: 'SFMono-Regular', ui-monospace, 'Geist Mono Variable', Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
   color: #141a1f;
 }
 .wallet-row__amt .u {
@@ -106,10 +106,10 @@ html:not(.dark) .wallet-row.is-active {
 .wallet-row__meta {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
 }
 .wallet-row__pay {
-  font-size: 13px;
+  font-size: 12.5px;
   color: #6b7686;
 }
 .wallet-row__save {
@@ -121,15 +121,15 @@ html:not(.dark) .wallet-row.is-active {
   padding: 2px 8px;
 }
 .wallet-row__chk {
-  width: 16px;
-  height: 16px;
+  width: 15px;
+  height: 15px;
   border-radius: 50%;
-  border: 1.5px solid #e7e9e4;
+  border: 1.5px solid #d7dbe2;
   flex: 0 0 auto;
 }
 .wallet-row.is-active .wallet-row__chk {
-  border-color: #2f5bea;
-  background: #2f5bea;
+  border-color: #2563eb;
+  background: #2563eb;
   box-shadow: inset 0 0 0 3px #fff;
 }
 
@@ -234,4 +234,349 @@ html:not(.dark) .wallet-qty .semi-input-wrapper:focus-within {
   font-variant-numeric: tabular-nums;
   font-weight: 600;
   color: #141a1f;
+}
+
+/* ===== 钱包充值 v3（左 蓝 hero 充值流 + 右 账户工具列） ===== */
+.wg {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  align-items: start;
+}
+.wg__main {
+  background: #fff;
+  border: 1px solid #eaecef;
+  border-radius: 18px;
+  box-shadow: 0 1px 3px rgba(16, 24, 40, .03), 0 12px 32px -14px rgba(16, 24, 40, .12);
+  overflow: hidden;
+}
+
+/* 蓝色 hero —— 极细 mono 横向网格纹理，无装饰圆 */
+.wg__hero {
+  background: #2563eb;
+  color: #fff;
+  padding: 22px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  position: relative;
+  overflow: hidden;
+}
+.wg__heromain { position: relative; z-index: 1; }
+.wg__herobtn { position: relative; z-index: 1; }
+.wg__k {
+  font-family: 'Geist Mono Variable', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: 10.5px;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, .7);
+}
+.wg__bal {
+  font-family: 'Geist Mono Variable', 'SFMono-Regular', ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 38px;
+  font-weight: 800;
+  letter-spacing: -.03em;
+  line-height: 1;
+  margin: 5px 0 6px;
+}
+.wg__meta { font-size: 12px; color: rgba(255, 255, 255, .78); }
+.wg__herobtn {
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, .28);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, .12);
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  flex: 0 0 auto;
+  transition: background .12s;
+}
+.wg__herobtn:hover { background: rgba(255, 255, 255, .22); }
+
+.wg__body { padding: 22px 24px; }
+.wg__sec {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -.01em;
+  color: #141a1f;
+  margin-bottom: 12px;
+}
+.wg__amts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.wg__amt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid #e0e3e8;
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color .12s, background .12s;
+}
+.wg__amt:hover { border-color: #cbd5e1; }
+.wg__amt.is-active {
+  border-color: #2563eb;
+  background: rgba(37, 99, 235, .07);
+  box-shadow: inset 0 0 0 1px #2563eb;
+}
+.wg__amtv {
+  font-family: 'Geist Mono Variable', 'SFMono-Regular', ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -.02em;
+  color: #141a1f;
+}
+.wg__amtv .u { font-size: 11px; color: #9aa4b2; font-weight: 600; margin-left: 2px; }
+.wg__amtp { font-size: 12.5px; color: #6b7686; }
+.wg__amt.is-active .wg__amtp { color: #1d4ed8; }
+.wg__lab { font-size: 12px; color: #6b7686; margin: 16px 0 8px; }
+.wg__custom {
+  height: 44px;
+  border: 1px solid #e0e3e8;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  gap: 8px;
+  background: #fff;
+  transition: border-color .12s, box-shadow .12s;
+}
+.wg__custom:focus-within {
+  border-color: #2f5bea;
+  box-shadow: 0 0 0 3px rgba(47, 91, 234, .1);
+}
+.wg__custom .pfx { font-size: 13px; color: #9aa4b2; }
+.wg__custom input {
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-family: 'Geist Mono Variable', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: 16px;
+  font-weight: 600;
+  color: #141a1f;
+  width: 100%;
+}
+.wg__pays { display: flex; gap: 8px; flex-wrap: wrap; }
+.wg__pay {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 40px;
+  padding: 0 15px;
+  border: 1px solid #e0e3e8;
+  border-radius: 11px;
+  background: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  color: #3c4650;
+  cursor: pointer;
+  transition: border-color .12s, background .12s, color .12s;
+}
+.wg__pay:hover { border-color: #cbd5e1; }
+.wg__pay.is-active { border-color: #2563eb; color: #1d4ed8; background: rgba(37, 99, 235, .07); }
+
+.wg__checkout {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 24px;
+  border-top: 1px solid #eaecef;
+  background: #f7f8fa;
+}
+.wg__due { display: flex; align-items: baseline; gap: 10px; }
+.wg__due .k { font-size: 12px; color: #6b7686; }
+.wg__due .v {
+  font-family: 'Geist Mono Variable', 'SFMono-Regular', ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -.02em;
+  color: #141a1f;
+}
+.wg__paybtn {
+  height: 44px;
+  padding: 0 22px;
+  border: 0;
+  border-radius: 12px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .12s;
+}
+.wg__paybtn:hover { background: #1d4ed8; }
+.wg__paybtn:disabled { opacity: .6; cursor: not-allowed; }
+
+/* ===== 右列：账户工具卡 ===== */
+.wg__side { display: flex; flex-direction: column; gap: 18px; }
+.wg__card {
+  background: #fff;
+  border: 1px solid #eaecef;
+  border-radius: 18px;
+  box-shadow: 0 1px 3px rgba(16, 24, 40, .03), 0 12px 32px -14px rgba(16, 24, 40, .12);
+  padding: 18px 20px;
+}
+.wg__chead { display: flex; align-items: center; gap: 9px; margin-bottom: 14px; }
+.wg__cico {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: rgba(37, 99, 235, .08);
+  color: #2563eb;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+.wg__ct { font-size: 14px; font-weight: 600; letter-spacing: -.01em; color: #141a1f; }
+.wg__cn {
+  margin-left: auto;
+  font-family: 'Geist Mono Variable', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: #9aa4b2;
+}
+.wg__cnbtn {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  border: 0;
+  background: transparent;
+  color: #6b7686;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0;
+}
+.wg__cnbtn:hover { color: #2563eb; }
+.wg__kv {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 9px 0;
+  border-bottom: 1px solid #eff0ec;
+  font-size: 13px;
+}
+.wg__kv:last-of-type { border-bottom: 0; }
+.wg__kv .k { color: #6b7686; }
+.wg__kv .v {
+  font-family: 'Geist Mono Variable', 'SFMono-Regular', ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: #141a1f;
+}
+.wg__inviteinp { display: flex; gap: 8px; margin-top: 12px; }
+.wg__field {
+  flex: 1;
+  min-width: 0;
+  height: 38px;
+  border: 1px solid #e0e3e8;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  font-size: 12px;
+  color: #3c4650;
+  font-family: 'Geist Mono Variable', 'SFMono-Regular', ui-monospace, monospace;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.wg__sbtn {
+  height: 38px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 9px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  transition: background .12s;
+}
+.wg__sbtn:hover { background: #1d4ed8; }
+.wg__sbtn:disabled { opacity: .6; cursor: not-allowed; }
+.wg__sbtn.ghost { background: #fff; border: 1px solid #e0e3e8; color: #3c4650; }
+.wg__sbtn.ghost:hover { border-color: #cbd5e1; background: #f7f8fa; }
+.wg__transfer {
+  width: 100%;
+  height: 38px;
+  margin-top: 10px;
+  border: 1px solid #e0e3e8;
+  border-radius: 9px;
+  background: #fff;
+  color: #3c4650;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: border-color .12s, background .12s;
+}
+.wg__transfer:hover:not(:disabled) { border-color: #cbd5e1; background: #f7f8fa; }
+.wg__transfer:disabled { color: #9aa4b2; cursor: not-allowed; }
+.wg__redeeminp { display: flex; gap: 8px; }
+.wg__rinput {
+  flex: 1;
+  min-width: 0;
+  height: 38px;
+  border: 1px solid #e0e3e8;
+  border-radius: 9px;
+  padding: 0 12px;
+  font-size: 13px;
+  color: #141a1f;
+  outline: none;
+  transition: border-color .12s, box-shadow .12s;
+}
+.wg__rinput::placeholder { color: #9aa4b2; }
+.wg__rinput:focus { border-color: #2f5bea; box-shadow: 0 0 0 3px rgba(47, 91, 234, .1); }
+
+/* 最近充值 */
+.wg__log {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  font-size: 12.5px;
+  border-bottom: 1px solid #eff0ec;
+}
+.wg__log:last-child { border-bottom: 0; }
+.wg__log .lt { color: #3c4650; }
+.wg__log .lt .ld {
+  display: block;
+  font-family: 'Geist Mono Variable', 'SFMono-Regular', ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 10.5px;
+  color: #9aa4b2;
+  margin-top: 1px;
+}
+.wg__log .lv {
+  font-family: 'Geist Mono Variable', 'SFMono-Regular', ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: #0f9d6e;
+}
+.wg__log .lv.pend { color: #9aa4b2; }
+.wg__log .lv.fail { color: #e5484d; }
+
+@media (max-width: 900px) {
+  .wg { grid-template-columns: 1fr; }
 }

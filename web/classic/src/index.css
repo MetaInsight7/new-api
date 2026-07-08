@@ -206,8 +206,8 @@ body {
 }
 
 .dmit-menu-item--active {
-  color: #216D51;
-  background: rgba(33, 109, 81, 0.10);
+  color: #2563eb;
+  background: rgba(37, 99, 235, 0.10);
 }
 
 .dmit-menu-item__icon {
@@ -274,8 +274,8 @@ body {
 .dmit-subnav__item--active,
 .dmit-subnav__item--active:hover {
   background: transparent;
-  color: #216D51;
-  border-bottom-color: #216D51;
+  color: #2563eb;
+  border-bottom-color: #2563eb;
   font-weight: 600;
 }
 
@@ -318,12 +318,12 @@ body {
    solid 按钮直接 background-color: var(--semi-color-primary),所以必须给完整 rgba,
    不能写裸三元组(否则当 background 用时非法→透明白底白字) */
 html:not(.dark) .app-console {
-  --semi-color-primary: rgba(33, 109, 81, 1);
-  --semi-color-primary-hover: rgba(27, 90, 67, 1);
-  --semi-color-primary-active: rgba(20, 75, 56, 1);
-  --semi-color-primary-light-default: rgba(33, 109, 81, 0.1);
-  --semi-color-primary-light-hover: rgba(33, 109, 81, 0.16);
-  --semi-color-primary-light-active: rgba(33, 109, 81, 0.24);
+  --semi-color-primary: rgba(37, 99, 235, 1);
+  --semi-color-primary-hover: rgba(29, 78, 216, 1);
+  --semi-color-primary-active: rgba(30, 64, 175, 1);
+  --semi-color-primary-light-default: rgba(37, 99, 235, 0.1);
+  --semi-color-primary-light-hover: rgba(37, 99, 235, 0.16);
+  --semi-color-primary-light-active: rgba(37, 99, 235, 0.24);
 }
 
 /* 移动端：二级 pill 横向滚动 */
@@ -1372,7 +1372,7 @@ html.dark .with-pastel-balls::before {
 /* 键盘导航时的可见焦点环(鼠标点击不显现) */
 .dmit-menu-item:focus-visible,
 .dmit-subnav__item:focus-visible {
-  outline: 2px solid #216D51;
+  outline: 2px solid #2563eb;
   outline-offset: -2px;
   border-radius: 8px;
 }

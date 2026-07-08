@@ -30,16 +30,29 @@ import {
   buildRegistrationResult,
   isPasskeySupported,
   setUserData,
+  renderQuota,
+  isRoot,
+  isAdmin,
+  onGitHubOAuthClicked,
+  onOIDCClicked,
+  onLinuxDOOAuthClicked,
+  onDiscordOAuthClicked,
 } from '../../helpers';
 import { UserContext } from '../../context/User';
-import { Modal } from '@douyinfe/semi-ui';
+import { Modal, Select } from '@douyinfe/semi-ui';
+import {
+  IconMail,
+  IconGithubLogo,
+  IconShield,
+} from '@douyinfe/semi-icons';
+import { SiWechat, SiDiscord, SiTelegram, SiLinux } from 'react-icons/si';
+import { Link2, Bell, SlidersHorizontal } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 // 导入子组件
-import UserInfoHeader from './personal/components/UserInfoHeader';
 import AccountManagement from './personal/cards/AccountManagement';
+import SecuritySettings from './personal/cards/SecuritySettings';
 import NotificationSettings from './personal/cards/NotificationSettings';
-import PreferencesSettings from './personal/cards/PreferencesSettings';
 import CheckinCalendar from './personal/cards/CheckinCalendar';
 import EmailBindModal from './personal/modals/EmailBindModal';
 import WeChatBindModal from './personal/modals/WeChatBindModal';
@@ -51,7 +64,7 @@ import { useSecureVerification } from '../../hooks/common/useSecureVerification'
 const PersonalSetting = () => {
   const [userState, userDispatch] = useContext(UserContext);
   let navigate = useNavigate();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   const [inputs, setInputs] = useState({
     wechat_verification_code: '',
@@ -67,6 +80,8 @@ const PersonalSetting = () => {
   const [showWeChatBindModal, setShowWeChatBindModal] = useState(false);
   const [showEmailBindModal, setShowEmailBindModal] = useState(false);
   const [showAccountDeleteModal, setShowAccountDeleteModal] = useState(false);
+  const [showAccountModal, setShowAccountModal] = useState(false);
+  const [showNotifyModal, setShowNotifyModal] = useState(false);
   const [turnstileEnabled, setTurnstileEnabled] = useState(false);
   const [turnstileSiteKey, setTurnstileSiteKey] = useState('');
   const [turnstileToken, setTurnstileToken] = useState('');
@@ -541,16 +556,236 @@ const PersonalSetting = () => {
     }
   };
 
+  const MONO =
+    "'Geist Mono Variable','SFMono-Regular',ui-monospace,Menlo,monospace";
+  const bentoIco = {
+    width: 30,
+    height: 30,
+    borderRadius: 9,
+    background: 'rgba(37,99,235,0.08)',
+    color: '#2563eb',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: '0 0 auto',
+    fontSize: 15,
+  };
+  const bentoTitle = {
+    fontSize: 14,
+    fontWeight: 600,
+    color: '#141a1f',
+    letterSpacing: '-0.01em',
+  };
+  const bentoCard = {
+    border: '1px solid #eef1f6',
+    borderRadius: 14,
+    padding: '16px 18px',
+    background: '#fff',
+    minWidth: 0,
+  };
+  const bentoHd = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 9,
+    marginBottom: 13,
+  };
+  const bentoFix = {
+    marginLeft: 'auto',
+    background: 'none',
+    border: 0,
+    cursor: 'pointer',
+    fontSize: 12,
+    fontWeight: 600,
+    color: '#1d4ed8',
+  };
+  const checkRow = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 9,
+    padding: '9px 0',
+    fontSize: 13,
+    borderBottom: '1px solid #eef1f6',
+  };
+  const checkMk = {
+    width: 18,
+    height: 18,
+    borderRadius: '50%',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: 11,
+    color: '#fff',
+    flex: '0 0 auto',
+  };
+  const kvRow = {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    fontSize: 13,
+    padding: '8px 0',
+    borderBottom: '1px solid #eef1f6',
+  };
+  const chip = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 7,
+    height: 34,
+    padding: '0 12px',
+    border: '1px solid #e7e9ee',
+    borderRadius: 10,
+    fontSize: 12.5,
+    fontWeight: 600,
+    color: '#3c4650',
+  };
+
+  const user = userState?.user || {};
+  const avatarText = (user.username || 'NA').slice(0, 2).toUpperCase();
+  const roleLabel = isRoot()
+    ? t('超级管理员')
+    : isAdmin()
+      ? t('管理员')
+      : t('普通用户');
+  const wpill = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    height: 21,
+    padding: '0 9px',
+    borderRadius: 999,
+    fontSize: 11.5,
+    fontWeight: 600,
+    background: 'rgba(255,255,255,0.16)',
+    color: '#fff',
+  };
+  const bindings = [
+    {
+      name: t('邮箱'),
+      icon: <IconMail size='small' />,
+      bound: !!user.email,
+      enabled: true,
+      onClick: () => setShowEmailBindModal(true),
+    },
+    {
+      name: t('微信'),
+      icon: <SiWechat size={15} />,
+      bound: !!user.wechat_id,
+      enabled: !!status.wechat_login,
+      onClick: () => setShowWeChatBindModal(true),
+    },
+    {
+      name: 'GitHub',
+      icon: <IconGithubLogo size='small' />,
+      bound: !!user.github_id,
+      enabled: !!status.github_oauth,
+      onClick: () => onGitHubOAuthClicked(status.github_client_id),
+    },
+    {
+      name: 'Discord',
+      icon: <SiDiscord size={15} />,
+      bound: !!user.discord_id,
+      enabled: !!status.discord_oauth,
+      onClick: () => onDiscordOAuthClicked(status.discord_client_id),
+    },
+    {
+      name: 'OIDC',
+      icon: <IconShield size='small' />,
+      bound: !!user.oidc_id,
+      enabled: !!status.oidc_enabled,
+      onClick: () =>
+        onOIDCClicked(status.oidc_authorization_endpoint, status.oidc_client_id),
+    },
+    {
+      name: 'Telegram',
+      icon: <SiTelegram size={15} />,
+      bound: !!user.telegram_id,
+      enabled: !!status.telegram_oauth,
+      // Telegram 需登录挂件，点开「全部管理」弹窗内完成
+      onClick: () => setShowAccountModal(true),
+    },
+    {
+      name: 'LinuxDO',
+      icon: <SiLinux size={15} />,
+      bound: !!user.linux_do_id,
+      enabled: !!status.linuxdo_oauth,
+      onClick: () => onLinuxDOOAuthClicked(status.linuxdo_client_id),
+    },
+  ];
+  const notifyMethodLabel =
+    { email: t('邮件'), webhook: 'Webhook', bark: 'Bark', gotify: 'Gotify' }[
+      notificationSettings.warningType
+    ] || t('邮件');
+
+  const languageOptions = [
+    { value: 'zh-CN', label: '简体中文' },
+    { value: 'zh-TW', label: '繁體中文' },
+    { value: 'en', label: 'English' },
+    { value: 'fr', label: 'Français' },
+    { value: 'ru', label: 'Русский' },
+    { value: 'ja', label: '日本語' },
+    { value: 'vi', label: 'Tiếng Việt' },
+  ];
+  const curLang =
+    languageOptions.find((o) => o.value === i18n.language)?.value ||
+    (String(i18n.language || '').startsWith('zh') ? 'zh-CN' : 'en');
+  const handleLanguageChange = async (lang) => {
+    i18n.changeLanguage(lang);
+    localStorage.setItem('i18nextLng', lang);
+    try {
+      await API.put('/api/user/self', { language: lang });
+      showSuccess(t('语言偏好已保存'));
+    } catch (e) {
+      // ignore
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await API.get('/api/user/logout');
+    } catch (e) {
+      // ignore network error, still clear local session
+    }
+    showSuccess(t('注销成功!'));
+    userDispatch({ type: 'logout' });
+    localStorage.removeItem('user');
+    navigate('/login');
+  };
+
+  const accountProps = {
+    t,
+    userState,
+    status,
+    systemToken,
+    setShowEmailBindModal,
+    setShowWeChatBindModal,
+    generateAccessToken,
+    handleSystemTokenClick,
+    setShowChangePasswordModal,
+    setShowAccountDeleteModal,
+    passkeyStatus,
+    passkeySupported,
+    passkeyRegisterLoading,
+    passkeyDeleteLoading,
+    onPasskeyRegister: handleRegisterPasskey,
+    onPasskeyDelete: handleRemovePasskey,
+  };
+
   return (
     <div className='mt-[60px]'>
+      <style>{`
+        .dmit-personal-split{display:grid;grid-template-columns:288px 1fr;gap:16px;align-items:start}
+        .dmit-personal-split .dpb-content{display:flex;flex-direction:column;gap:14px;min-width:0}
+        .dmit-personal-split .dpb-row2{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+        @media(max-width:900px){
+          .dmit-personal-split{grid-template-columns:1fr}
+        }
+        @media(max-width:640px){
+          .dmit-personal-split .dpb-row2{grid-template-columns:1fr}
+        }
+      `}</style>
       <div className='flex justify-center'>
         <div className='w-full mx-auto px-2'>
-          {/* 顶部用户信息区域 */}
-          <UserInfoHeader t={t} userState={userState} />
-
           {/* 签到日历 - 仅在启用时显示 */}
           {status?.checkin_enabled && (
-            <div className='mt-4 md:mt-6'>
+            <div className='mb-4 md:mb-6'>
               <CheckinCalendar
                 t={t}
                 status={status}
@@ -560,43 +795,325 @@ const PersonalSetting = () => {
             </div>
           )}
 
-          {/* 账户管理和其他设置 */}
-          <div className='grid grid-cols-1 xl:grid-cols-2 items-start gap-4 md:gap-6 mt-4 md:mt-6'>
-            {/* 左侧：账户管理设置 */}
-            <div className='flex flex-col gap-4 md:gap-6'>
-              <AccountManagement
-                t={t}
-                userState={userState}
-                status={status}
-                systemToken={systemToken}
-                setShowEmailBindModal={setShowEmailBindModal}
-                setShowWeChatBindModal={setShowWeChatBindModal}
-                generateAccessToken={generateAccessToken}
-                handleSystemTokenClick={handleSystemTokenClick}
-                setShowChangePasswordModal={setShowChangePasswordModal}
-                setShowAccountDeleteModal={setShowAccountDeleteModal}
-                passkeyStatus={passkeyStatus}
-                passkeySupported={passkeySupported}
-                passkeyRegisterLoading={passkeyRegisterLoading}
-                passkeyDeleteLoading={passkeyDeleteLoading}
-                onPasskeyRegister={handleRegisterPasskey}
-                onPasskeyDelete={handleRemovePasskey}
+          {/* ===== 左侧彩色资料栏 + 右侧设置 ===== */}
+          <div className='dmit-personal-split'>
+            {/* 左侧 rail */}
+            <aside
+              className='dpb-rail'
+              style={{
+                background: '#2563eb',
+                color: '#fff',
+                borderRadius: 16,
+                padding: '22px 20px 18px',
+                position: 'relative',
+                overflow: 'hidden',
+              }}
+            >
+              <div
+                style={{
+                  position: 'absolute',
+                  right: -50,
+                  top: -70,
+                  width: 200,
+                  height: 200,
+                  borderRadius: '50%',
+                  background: 'rgba(255,255,255,0.06)',
+                  pointerEvents: 'none',
+                }}
+              />
+              <div
+                style={{
+                  position: 'relative',
+                  zIndex: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 14,
+                }}
+              >
+                <div
+                  style={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: 16,
+                    background: 'rgba(255,255,255,0.18)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 20,
+                    fontWeight: 700,
+                    flex: '0 0 auto',
+                  }}
+                >
+                  {avatarText}
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div
+                    className='truncate'
+                    style={{
+                      fontSize: 20,
+                      fontWeight: 700,
+                      lineHeight: 1.15,
+                      letterSpacing: '-0.01em',
+                    }}
+                  >
+                    {user.username || '-'}
+                  </div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      gap: 6,
+                      marginTop: 7,
+                    }}
+                  >
+                    <span style={wpill}>{roleLabel}</span>
+                    <span style={wpill}>ID {user.id}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  height: 1,
+                  background: 'rgba(255,255,255,0.16)',
+                  margin: '18px 0',
+                }}
               />
 
-              {/* 偏好设置（语言等） */}
-              <PreferencesSettings t={t} />
-            </div>
+              {[
+                { k: t('当前余额'), v: renderQuota(user.quota), hl: true },
+                { k: t('历史消耗'), v: renderQuota(user.used_quota) },
+                { k: t('请求次数'), v: (user.request_count || 0).toLocaleString() },
+                { k: t('用户分组'), v: user.group || t('默认'), small: true },
+              ].map((s, i) => (
+                <div
+                  key={i}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'baseline',
+                    padding: '9px 0',
+                  }}
+                >
+                  <span style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.72)' }}>
+                    {s.k}
+                  </span>
+                  <span
+                    style={{
+                      fontFamily: MONO,
+                      fontVariantNumeric: 'tabular-nums',
+                      fontSize: 15,
+                      fontWeight: 600,
+                      letterSpacing: '-0.01em',
+                    }}
+                  >
+                    {s.v}
+                  </span>
+                </div>
+              ))}
 
-            {/* 右侧：其他设置 */}
-            <NotificationSettings
-              t={t}
-              notificationSettings={notificationSettings}
-              handleNotificationSettingChange={handleNotificationSettingChange}
-              saveNotificationSettings={saveNotificationSettings}
-            />
+              <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+                <button
+                  onClick={() => navigate('/console/topup')}
+                  style={{
+                    flex: 1,
+                    height: 36,
+                    border: 0,
+                    borderRadius: 9,
+                    cursor: 'pointer',
+                    background: '#fff',
+                    color: '#1d4ed8',
+                    fontSize: 13,
+                    fontWeight: 700,
+                  }}
+                >
+                  {t('去充值')}
+                </button>
+                <button
+                  onClick={() => navigate('/console/topup?show_history=true')}
+                  style={{
+                    flex: 1,
+                    height: 36,
+                    border: 0,
+                    borderRadius: 9,
+                    cursor: 'pointer',
+                    background: 'rgba(255,255,255,0.16)',
+                    color: '#fff',
+                    fontSize: 13,
+                    fontWeight: 600,
+                  }}
+                >
+                  {t('账单明细')}
+                </button>
+              </div>
+              <div
+                onClick={handleLogout}
+                style={{
+                  marginTop: 14,
+                  textAlign: 'center',
+                  fontSize: 12,
+                  fontWeight: 500,
+                  color: 'rgba(255,255,255,0.75)',
+                  cursor: 'pointer',
+                }}
+              >
+                {t('退出登录')}
+              </div>
+            </aside>
+
+            {/* 右侧内容 */}
+            <div className='dpb-content'>
+              {/* 账户绑定（通栏） */}
+              <div style={bentoCard}>
+                <div style={bentoHd}>
+                  <span style={bentoIco}>
+                    <Link2 size={16} />
+                  </span>
+                  <span style={bentoTitle}>{t('账户绑定')}</span>
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {bindings.map((b) => {
+                    const disabled = !b.bound && !b.enabled;
+                    return (
+                      <button
+                        key={b.name}
+                        type='button'
+                        disabled={disabled}
+                        title={
+                          b.bound
+                            ? t('已绑定，点击管理')
+                            : b.enabled
+                              ? t('点击绑定')
+                              : t('未启用')
+                        }
+                        onClick={
+                          b.bound
+                            ? () => setShowAccountModal(true)
+                            : b.enabled
+                              ? b.onClick
+                              : undefined
+                        }
+                        style={{
+                          ...chip,
+                          background: '#fff',
+                          cursor: disabled ? 'not-allowed' : 'pointer',
+                          opacity: disabled ? 0.5 : 1,
+                          borderColor: b.bound
+                            ? 'rgba(15,157,110,0.45)'
+                            : '#e7e9ee',
+                        }}
+                      >
+                        <span
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            color: '#3c4650',
+                          }}
+                        >
+                          {b.icon}
+                        </span>
+                        <span>{b.name}</span>
+                        <span
+                          style={{
+                            width: 6,
+                            height: 6,
+                            borderRadius: '50%',
+                            background: b.bound ? '#0f9d6e' : '#c2c8d0',
+                          }}
+                        />
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 安全（左） + 通知/偏好（右） */}
+              <div className='dpb-row2'>
+                {/* 安全设置（功能直接放在页面上） */}
+                <SecuritySettings {...accountProps} />
+
+                {/* 通知 + 偏好（竖排） */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <div style={bentoCard}>
+                    <div style={bentoHd}>
+                      <span style={bentoIco}>
+                        <Bell size={16} />
+                      </span>
+                      <span style={bentoTitle}>{t('通知')}</span>
+                      <button
+                        style={bentoFix}
+                        onClick={() => setShowNotifyModal(true)}
+                      >
+                        {t('配置')} →
+                      </button>
+                    </div>
+                    <div style={kvRow}>
+                      <span style={{ color: '#6b7686' }}>{t('方式')}</span>
+                      <span style={{ fontWeight: 600 }}>{notifyMethodLabel}</span>
+                    </div>
+                    <div style={{ ...kvRow, borderBottom: 'none' }}>
+                      <span style={{ color: '#6b7686' }}>{t('预警阈值')}</span>
+                      <span style={{ fontWeight: 600, fontFamily: MONO }}>
+                        {renderQuota(notificationSettings.warningThreshold)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div style={bentoCard}>
+                    <div style={bentoHd}>
+                      <span style={bentoIco}>
+                        <SlidersHorizontal size={16} />
+                      </span>
+                      <span style={bentoTitle}>{t('偏好')}</span>
+                    </div>
+                    <div style={{ ...kvRow, borderBottom: 'none' }}>
+                      <span style={{ color: '#6b7686' }}>{t('界面语言')}</span>
+                      <Select
+                        value={curLang}
+                        onChange={handleLanguageChange}
+                        size='small'
+                        style={{ width: 140 }}
+                        optionList={languageOptions}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
+
+      {/* 账户与安全 · 复用现有组件的弹窗 */}
+      <Modal
+        title={t('账户与安全')}
+        visible={showAccountModal}
+        onCancel={() => setShowAccountModal(false)}
+        footer={null}
+        width={720}
+        centered
+        bodyStyle={{ padding: 0, maxHeight: '72vh', overflowY: 'auto' }}
+      >
+        <AccountManagement {...accountProps} />
+      </Modal>
+
+      {/* 通知设置 · 复用现有组件的弹窗 */}
+      <Modal
+        title={t('通知设置')}
+        visible={showNotifyModal}
+        onCancel={() => setShowNotifyModal(false)}
+        footer={null}
+        width={720}
+        centered
+        bodyStyle={{ padding: 0, maxHeight: '72vh', overflowY: 'auto' }}
+      >
+        <NotificationSettings
+          t={t}
+          notificationSettings={notificationSettings}
+          handleNotificationSettingChange={handleNotificationSettingChange}
+          saveNotificationSettings={saveNotificationSettings}
+        />
+      </Modal>
 
       {/* 模态框组件 */}
       <EmailBindModal
