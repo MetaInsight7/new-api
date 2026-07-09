@@ -156,6 +156,19 @@ func composeTieredTextQuota(relayInfo *relaycommon.RelayInfo, summary textQuotaS
 	return tieredQuota + int(summary.ToolCallSurchargeQuota.Round(0).IntPart())
 }
 
+func shouldZeroLocalUsage(ctx *gin.Context, info *relaycommon.RelayInfo, usage *dto.Usage) bool {
+	if !info.IsStream {
+		return false
+	}
+	if !common.GetContextKeyBool(ctx, constant.ContextKeyLocalCountTokens) {
+		return false
+	}
+	if usage != nil && usage.CompletionTokens > 0 {
+		return false
+	}
+	return !info.HasSendResponse()
+}
+
 func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.Usage) textQuotaSummary {
 	summary := textQuotaSummary{
 		ModelName:            relayInfo.OriginModelName,
@@ -173,6 +186,17 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 		UsageSemantic:        usageSemanticFromUsage(relayInfo, usage),
 	}
 	summary.IsClaudeUsageSemantic = summary.UsageSemantic == "anthropic"
+
+	if shouldZeroLocalUsage(ctx, relayInfo, usage) {
+		endReason := relaycommon.StreamEndReasonNone
+		if relayInfo.StreamStatus != nil {
+			endReason = relayInfo.StreamStatus.EndReason
+		}
+		logger.LogInfo(ctx, fmt.Sprintf(
+			"zeroing locally estimated usage: no real output delivered (end_reason=%s, received=%d)",
+			endReason, relayInfo.ReceivedResponseCount))
+		usage = &dto.Usage{}
+	}
 
 	if usage == nil {
 		usage = &dto.Usage{
