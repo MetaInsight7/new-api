@@ -21,15 +21,47 @@ type AuditContentProvider interface {
 
 const auditMediaMark = "[非文本内容]"
 
+// openaiContentMark 根据消息内容判断具体的非文本类型标记。
+func openaiContentMark(m *Message) string {
+	if m.ToolCalls != nil && len(m.ToolCalls) > 0 {
+		return "[工具调用]"
+	}
+	if m.Content == nil {
+		return "[工具调用]"
+	}
+	parsed := m.ParseContent()
+	hasImage, hasAudio, hasFile := false, false, false
+	for _, c := range parsed {
+		switch c.Type {
+		case ContentTypeImageURL:
+			hasImage = true
+		case ContentTypeInputAudio:
+			hasAudio = true
+		case ContentTypeFile:
+			hasFile = true
+		}
+	}
+	if hasImage {
+		return "[图片]"
+	}
+	if hasAudio {
+		return "[音频]"
+	}
+	if hasFile {
+		return "[文件]"
+	}
+	return auditMediaMark
+}
+
 // ---- OpenAI 兼容(GeneralOpenAIRequest)—— 同时覆盖 Grok/xAI 等 OpenAI 同构协议 ----
 
 func (r *GeneralOpenAIRequest) GetAuditMessages() []AuditMessage {
 	out := make([]AuditMessage, 0, len(r.Messages))
 	for i := range r.Messages {
 		m := &r.Messages[i]
-		text := strings.TrimSpace(m.StringContent()) // 仅文本,天然剥离 base64 媒体
-		if text == "" && m.Content != nil {
-			text = auditMediaMark
+		text := strings.TrimSpace(m.StringContent())
+		if text == "" {
+			text = openaiContentMark(m)
 		}
 		out = append(out, AuditMessage{Role: m.Role, Text: text})
 	}
@@ -65,7 +97,7 @@ func (c *ClaudeRequest) GetAuditMessages() []AuditMessage {
 		}
 		text = strings.TrimSpace(text)
 		if text == "" {
-			text = auditMediaMark
+			text = claudeContentMark(m)
 		}
 		out = append(out, AuditMessage{Role: m.Role, Text: text})
 	}
@@ -84,6 +116,24 @@ func claudeMediaText(items []ClaudeMediaMessage) string {
 	return strings.Join(parts, "\n")
 }
 
+// claudeContentMark 判断 Claude 消息的非文本类型。
+func claudeContentMark(m *ClaudeMessage) string {
+	content, _ := m.ParseContent()
+	for _, it := range content {
+		switch it.Type {
+		case "tool_use":
+			return "[工具调用]"
+		case "tool_result":
+			return "[工具结果]"
+		case "image":
+			return "[图片]"
+		case "document":
+			return "[文件]"
+		}
+	}
+	return auditMediaMark
+}
+
 // ---- Gemini(GeminiChatRequest)----
 
 func (r *GeminiChatRequest) GetAuditMessages() []AuditMessage {
@@ -98,7 +148,7 @@ func (r *GeminiChatRequest) GetAuditMessages() []AuditMessage {
 		}
 		text := strings.TrimSpace(strings.Join(parts, "\n"))
 		if text == "" {
-			text = auditMediaMark
+			text = geminiContentMark(c)
 		}
 		// Gemini 角色为 user/model,归一到审计通用角色
 		role := c.Role
@@ -108,4 +158,33 @@ func (r *GeminiChatRequest) GetAuditMessages() []AuditMessage {
 		out = append(out, AuditMessage{Role: role, Text: text})
 	}
 	return out
+}
+
+// geminiContentMark 判断 Gemini 消息的非文本类型。
+func geminiContentMark(c *GeminiChatContent) string {
+	for _, p := range c.Parts {
+		if p.FunctionCall != nil {
+			return "[工具调用]"
+		}
+		if p.FunctionResponse != nil {
+			return "[工具结果]"
+		}
+		if p.InlineData != nil {
+			mime := p.InlineData.MimeType
+			if strings.HasPrefix(mime, "image/") {
+				return "[图片]"
+			}
+			if strings.HasPrefix(mime, "audio/") {
+				return "[音频]"
+			}
+			if strings.HasPrefix(mime, "video/") {
+				return "[视频]"
+			}
+			return "[文件]"
+		}
+		if p.FileData != nil {
+			return "[文件]"
+		}
+	}
+	return auditMediaMark
 }

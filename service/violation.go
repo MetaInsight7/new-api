@@ -115,11 +115,8 @@ func RecordViolation(c *gin.Context, result ViolationResult, scan AuditScan) {
 	channelId := c.GetInt("channel_id")
 	requestId := c.GetString(common.RequestIdKey)
 
-	// 是否记录 IP:复用用户设置(与 RecordErrorLog 一致)
-	ip := ""
-	if settingMap, err := model.GetUserSetting(userId, false); err == nil && settingMap.RecordIpLog {
-		ip = c.ClientIP()
-	}
+	// 违规审计直接记录 IP(安全审计需要,不受用户个人隐私开关控制)
+	ip := c.ClientIP()
 
 	action := model.ViolationActionAllowed
 	// 命中处片段取自被判定的文本:拦截取全量文本,放行取最新 user 文本
