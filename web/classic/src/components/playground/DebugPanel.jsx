@@ -107,7 +107,7 @@ const DebugPanel = ({
         flexDirection: 'column',
       }}
     >
-      <div className='flex items-center justify-between mb-6 flex-shrink-0'>
+      <div className='flex items-center justify-between mb-2 flex-shrink-0'>
         <div className='flex items-center'>
           <div
             className='w-9 h-9 rounded-lg flex items-center justify-center mr-3'

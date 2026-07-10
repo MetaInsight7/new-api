@@ -32,7 +32,7 @@ const TableEmpty = ({ title, description, icon: Icon = Inbox, action }) => (
     </span>
     <div
       className='text-[15px] font-semibold'
-      style={{ color: 'var(--semi-color-text-0)' }}
+      style={{ color: 'var(--semi-color-text-2)' }}
     >
       {title}
     </div>

@@ -47,13 +47,13 @@ html:not(.dark) .app-console .wallet-card.semi-card.semi-card-bordered {
   margin-bottom: 18px;
 }
 .wallet-phead__t {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
   letter-spacing: -0.01em;
   color: #141a1f;
 }
 .wallet-phead__n {
-  font-size: 11px;
+  font-size: 12px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: #9aa4b2;
@@ -92,7 +92,7 @@ html:not(.dark) .wallet-row.is-active {
 .wallet-row__amt {
   font-family: 'SFMono-Regular', ui-monospace, 'Geist Mono Variable', Menlo, monospace;
   font-variant-numeric: tabular-nums;
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 700;
   letter-spacing: -0.02em;
   color: #141a1f;
@@ -109,11 +109,11 @@ html:not(.dark) .wallet-row.is-active {
   gap: 10px;
 }
 .wallet-row__pay {
-  font-size: 12.5px;
+  font-size: 13px;
   color: #6b7686;
 }
 .wallet-row__save {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   color: #1f7a5a;
   background: #ebf7f1;
@@ -160,7 +160,7 @@ html:not(.dark) .wallet-qty .semi-input-wrapper:focus-within {
 .wallet-qty .semi-input.semi-input-large {
   font-family: 'SFMono-Regular', ui-monospace, 'JetBrains Mono', Menlo, monospace;
   font-variant-numeric: tabular-nums;
-  font-size: 19px;
+  font-size: 20px;
   font-weight: 600;
   color: #141a1f;
 }
@@ -180,7 +180,7 @@ html:not(.dark) .wallet-qty .semi-input-wrapper:focus-within {
 }
 .wallet-invite .semi-input {
   font-family: 'SFMono-Regular', ui-monospace, 'JetBrains Mono', Menlo, monospace;
-  font-size: 12.5px;
+  font-size: 13px;
   color: #3c4650;
 }
 
@@ -200,7 +200,7 @@ html:not(.dark) .wallet-qty .semi-input-wrapper:focus-within {
   text-align: right;
 }
 .wallet-due__k {
-  font-size: 11px;
+  font-size: 12px;
   color: #6b7686;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -267,7 +267,7 @@ html:not(.dark) .wallet-qty .semi-input-wrapper:focus-within {
 .wg__herobtn { position: relative; z-index: 1; }
 .wg__k {
   font-family: 'Geist Mono Variable', 'SFMono-Regular', ui-monospace, monospace;
-  font-size: 10.5px;
+  font-size: 12px;
   letter-spacing: .2em;
   text-transform: uppercase;
   color: rgba(255, 255, 255, .7);
@@ -275,7 +275,7 @@ html:not(.dark) .wallet-qty .semi-input-wrapper:focus-within {
 .wg__bal {
   font-family: 'Geist Mono Variable', 'SFMono-Regular', ui-monospace, monospace;
   font-variant-numeric: tabular-nums;
-  font-size: 38px;
+  font-size: 30px;
   font-weight: 800;
   letter-spacing: -.03em;
   line-height: 1;
@@ -289,7 +289,7 @@ html:not(.dark) .wallet-qty .semi-input-wrapper:focus-within {
   border-radius: 9px;
   background: rgba(255, 255, 255, .12);
   color: #fff;
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   flex: 0 0 auto;
@@ -335,8 +335,8 @@ html:not(.dark) .wallet-qty .semi-input-wrapper:focus-within {
   letter-spacing: -.02em;
   color: #141a1f;
 }
-.wg__amtv .u { font-size: 11px; color: #9aa4b2; font-weight: 600; margin-left: 2px; }
-.wg__amtp { font-size: 12.5px; color: #6b7686; }
+.wg__amtv .u { font-size: 12px; color: #9aa4b2; font-weight: 600; margin-left: 2px; }
+.wg__amtp { font-size: 13px; color: #6b7686; }
 .wg__amt.is-active .wg__amtp { color: #1d4ed8; }
 .wg__lab { font-size: 12px; color: #6b7686; margin: 16px 0 8px; }
 .wg__custom {
@@ -450,7 +450,7 @@ html:not(.dark) .wallet-qty .semi-input-wrapper:focus-within {
 .wg__cn {
   margin-left: auto;
   font-family: 'Geist Mono Variable', 'SFMono-Regular', ui-monospace, monospace;
-  font-size: 10px;
+  font-size: 12px;
   letter-spacing: .14em;
   text-transform: uppercase;
   color: #9aa4b2;
@@ -562,7 +562,7 @@ html:not(.dark) .wallet-qty .semi-input-wrapper:focus-within {
   align-items: center;
   justify-content: space-between;
   padding: 8px 0;
-  font-size: 12.5px;
+  font-size: 13px;
   border-bottom: 1px solid #eff0ec;
 }
 .wg__log:last-child { border-bottom: 0; }
@@ -571,7 +571,7 @@ html:not(.dark) .wallet-qty .semi-input-wrapper:focus-within {
   display: block;
   font-family: 'Geist Mono Variable', 'SFMono-Regular', ui-monospace, monospace;
   font-variant-numeric: tabular-nums;
-  font-size: 10.5px;
+  font-size: 12px;
   color: #9aa4b2;
   margin-top: 1px;
 }

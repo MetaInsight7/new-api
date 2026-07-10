@@ -25,8 +25,8 @@ import { Pencil, Power, Trash2, Eye, EyeOff, Copy } from 'lucide-react';
 // 与使用日志一致的视觉语言 —— 原型见 .tmp/token-proto5.html
 const MONO = '"SFMono-Regular", ui-monospace, Menlo, monospace';
 const K = {
-  ink: '#141a1f',
-  ink2: '#3c4650',
+  ink: '#33394e',
+  ink2: '#33394e',
   mut: '#6b7686',
   mut2: '#9aa4b2',
   line: '#eef1f5',
@@ -111,35 +111,6 @@ function renderQuotaCell(record, t) {
       }
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 11, cursor: 'help' }}>
-        <div style={{ minWidth: 0 }}>
-          <div
-            style={{
-              fontFamily: MONO,
-              fontVariantNumeric: 'tabular-nums',
-              fontSize: 15,
-              fontWeight: 600,
-              color: K.ink,
-              lineHeight: 1.25,
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {renderQuota(remain)}
-          </div>
-          <div
-            style={{
-              fontFamily: MONO,
-              fontVariantNumeric: 'tabular-nums',
-              fontSize: 15,
-              fontWeight: 600,
-              color: K.ink,
-              marginTop: 2,
-              lineHeight: 1.25,
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {renderQuota(total)}
-          </div>
-        </div>
         <div style={{ position: 'relative', width: 38, height: 38, flex: '0 0 auto' }}>
           <svg width='38' height='38' viewBox='0 0 38 38'>
             <circle cx='19' cy='19' r={R} fill='none' stroke={K.line} strokeWidth='3' />
@@ -171,6 +142,35 @@ function renderQuotaCell(record, t) {
           >
             {percent.toFixed(0)}
           </span>
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div
+            style={{
+              fontFamily: MONO,
+              fontVariantNumeric: 'tabular-nums',
+              fontSize: 15,
+              fontWeight: 600,
+              color: K.ink,
+              lineHeight: 1.25,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {renderQuota(remain)}
+          </div>
+          <div
+            style={{
+              fontFamily: MONO,
+              fontVariantNumeric: 'tabular-nums',
+              fontSize: 15,
+              fontWeight: 600,
+              color: K.ink,
+              marginTop: 2,
+              lineHeight: 1.25,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {renderQuota(total)}
+          </div>
         </div>
       </div>
     </Popover>
@@ -280,7 +280,7 @@ function renderLimitsCell(record, t) {
   const ips = record.allow_ips && record.allow_ips.trim() !== ''
     ? String(record.allow_ips).split('\n').map((s) => s.trim()).filter(Boolean)
     : [];
-  const none = <span style={{ fontSize: 13, color: K.mut }}>{t('无限制')}</span>;
+  const none = <span style={{ fontSize: 13, color: K.ink2 }}>{t('无限制')}</span>;
   // 去掉「模型」「IP」标题，只显示值(第一行模型、第二行 IP;IP 用等宽字体区分)
   const valLine = (items, isIp) =>
     items.length > 0 ? (

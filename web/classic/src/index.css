@@ -217,7 +217,7 @@ body {
 }
 
 .dmit-menu-item__title {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
   text-align: center;
   line-height: 1.2;
@@ -256,7 +256,7 @@ body {
   border-bottom: 2px solid transparent;
   margin-bottom: -1px;
   border-radius: 0;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 500;
   color: #64748b;
   text-decoration: none;
@@ -704,7 +704,7 @@ code {
   height: 18px;
   padding: 0 6px;
   border-radius: 9px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   line-height: 1;
@@ -817,7 +817,7 @@ html.dark .sbg-variant-green {
 
 /* 页脚样式 */
 .custom-footer {
-  font-size: 1.1em;
+  font-size: 14px;
 }
 .custom-footer.na-cb6feafeb3990c78 {
   position: relative;
@@ -850,6 +850,8 @@ html.dark .sbg-variant-green {
 
 .debug-panel .semi-tabs-bar {
   flex-shrink: 0 !important;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
 }
 
 .debug-panel .semi-tabs-content {
@@ -1220,7 +1222,7 @@ html.dark .with-pastel-balls::before {
   }
 
   .semi-input-suffix-text {
-    font-size: 11px;
+    font-size: 12px;
     padding: 0;
     white-space: nowrap;
     overflow: hidden;
