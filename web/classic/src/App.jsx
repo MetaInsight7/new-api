@@ -35,6 +35,7 @@ import Channel from './pages/Channel';
 import Token from './pages/Token';
 import Redemption from './pages/Redemption';
 import TopUp from './pages/TopUp';
+import ViolationAudit from './pages/ViolationAudit';
 import Log from './pages/Log';
 import Chat from './pages/Chat';
 import Chat2Link from './pages/Chat2Link';
@@ -160,6 +161,14 @@ function App() {
             <PrivateRoute>
               <Token />
             </PrivateRoute>
+          }
+        />
+        <Route
+          path='/console/violation-audit'
+          element={
+            <AdminRoute>
+              <ViolationAudit />
+            </AdminRoute>
           }
         />
         <Route

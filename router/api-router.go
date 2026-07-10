@@ -303,6 +303,14 @@ func SetApiRouter(router *gin.Engine) {
 			redemptionRoute.DELETE("/invalid", controller.DeleteInvalidRedemption)
 			redemptionRoute.DELETE("/:id", controller.DeleteRedemption)
 		}
+		violationRoute := apiRouter.Group("/violation")
+		violationRoute.Use(middleware.AdminAuth())
+		{
+			violationRoute.GET("/logs", controller.GetViolationLogs)
+			violationRoute.GET("/stat", controller.GetViolationStat)
+			violationRoute.GET("/words", controller.GetViolationWords)
+			violationRoute.PUT("/words", controller.UpdateViolationWords)
+		}
 		logRoute := apiRouter.Group("/log")
 		logRoute.GET("/", middleware.AdminAuth(), controller.GetAllLogs)
 		logRoute.DELETE("/", middleware.AdminAuth(), controller.DeleteHistoryLogs)

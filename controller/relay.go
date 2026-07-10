@@ -21,7 +21,6 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
-	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 
@@ -123,7 +122,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		return
 	}
 
-	needSensitiveCheck := setting.ShouldCheckPromptSensitive()
+	needSensitiveCheck := service.ShouldCheckViolation()
 	needCountToken := constant.CountToken
 	// Avoid building huge CombineText (strings.Join) when token counting and sensitive check are both disabled.
 	var meta *types.TokenCountMeta
@@ -134,11 +133,21 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	}
 
 	if needSensitiveCheck && meta != nil {
-		contains, words := service.CheckSensitiveText(meta.CombineText)
-		if contains {
-			logger.LogWarn(c, fmt.Sprintf("user sensitive words detected: %s", strings.Join(words, ", ")))
-			newAPIError = types.NewError(err, types.ErrorCodeSensitiveWordsDetected)
-			return
+		scan := service.BuildAuditScan(request, meta)
+		if scan.FullText != "" {
+			// 全量扫(不分角色):命中高危 → 拦截 + 记录(堵伪造角色绕过)
+			if rFull := service.CheckViolation(scan.FullText); rFull.Block {
+				service.RecordViolation(c, rFull, scan)
+				logger.LogWarn(c, fmt.Sprintf("user violation detected (blocked): %s", strings.Join(rFull.Words, ", ")))
+				newAPIError = types.NewError(errors.New("sensitive words detected"), types.ErrorCodeSensitiveWordsDetected)
+				return
+			} else if scan.LatestUserText != "" {
+				// 低危只看最新 user 消息 → 放行 + 记录(避免历史回传重复命中)
+				if rNew := service.CheckViolation(scan.LatestUserText); rNew.Hit {
+					service.RecordViolation(c, rNew, scan)
+					logger.LogWarn(c, fmt.Sprintf("user violation detected (allowed, low severity): %s", strings.Join(rNew.Words, ", ")))
+				}
+			}
 		}
 	}
 

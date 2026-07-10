@@ -240,7 +240,18 @@ const PageLayout = () => {
             style={{
               flex: isFixedLayout ? '1 0 auto' : '1 1 auto',
               overflowY: isFixedLayout && !isMobile ? 'hidden' : 'visible',
-              WebkitOverflowScrolling: 'touch',
+              // 注意:此处不能加 -webkit-overflow-scrolling: touch。
+              // Content 自身 overflowY:hidden(不滚动),该属性会让 Safari 把它
+              // 提升为合成层却不绘制折叠线以下的内容,导致长页面(如运营设置)
+              // 下滑变空白。真正的滚动容器是外层 Layout(overflow:auto)。
+              //
+              // Safari 合成层重绘 bug:桌面 /console 下,长内容在外层
+              // overflow:auto 容器里滚动时,WebKit 不刷新折叠线以下的画面
+              // (缩放/改窗口大小能强制重绘让内容回来)。给被滚动的内容层一个
+              // 稳定的 GPU 背衬,强制其随滚动正确重绘。Content 内无 position:fixed
+              // 后代,提升为合成层不会影响固定侧边栏/头部布局。
+              transform:
+                isFixedLayout && !isMobile ? 'translateZ(0)' : undefined,
               padding: shouldInnerPadding ? (isMobile ? '5px' : '24px') : '0',
               position: 'relative',
               minHeight: 0,

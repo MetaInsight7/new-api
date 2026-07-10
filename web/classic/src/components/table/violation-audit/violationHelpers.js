@@ -1,0 +1,45 @@
+// 违规审计前端共享工具:分类/分级/动作 → Semi Tag 颜色 + 标签,时间格式化。
+// 颜色走 Semi 语义色(受 .app-console DMIT 主题统一控制),不自造。
+
+export const VIOLATION_CATEGORIES = [
+  { value: 'politics', label: '涉政', color: 'red' },
+  { value: 'porn', label: '涉黄', color: 'violet' },
+  { value: 'abuse', label: '辱骂', color: 'amber' },
+  { value: 'other', label: '其他', color: 'grey' },
+];
+
+export const VIOLATION_SEVERITIES = [
+  { value: 'high', label: '高危', color: 'red' },
+  { value: 'low', label: '低危', color: 'amber' },
+];
+
+export const VIOLATION_ACTIONS = [
+  { value: 'blocked', label: '已拦截', color: 'red' },
+  { value: 'allowed', label: '已放行', color: 'green' },
+];
+
+const cat = (v) => VIOLATION_CATEGORIES.find((c) => c.value === v);
+
+export function categoryLabel(t, v) {
+  const m = cat(v);
+  return m ? t(m.label) : v || '-';
+}
+export function categoryColor(v) {
+  const m = cat(v);
+  return m ? m.color : 'grey';
+}
+export function severityTag(t, v) {
+  const m = VIOLATION_SEVERITIES.find((s) => s.value === v);
+  return { label: m ? t(m.label) : v, color: m ? m.color : 'grey' };
+}
+export function actionTag(t, v) {
+  const m = VIOLATION_ACTIONS.find((a) => a.value === v);
+  return { label: m ? t(m.label) : v, color: m ? m.color : 'grey' };
+}
+
+export function fmtTime(unixSec) {
+  if (!unixSec) return '-';
+  const d = new Date(unixSec * 1000);
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}

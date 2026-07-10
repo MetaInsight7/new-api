@@ -22,7 +22,7 @@ import { Card, Spin } from '@douyinfe/semi-ui';
 import SettingsGeneral from '../../pages/Setting/Operation/SettingsGeneral';
 import SettingsHeaderNavModules from '../../pages/Setting/Operation/SettingsHeaderNavModules';
 import SettingsSidebarModulesAdmin from '../../pages/Setting/Operation/SettingsSidebarModulesAdmin';
-import SettingsSensitiveWords from '../../pages/Setting/Operation/SettingsSensitiveWords';
+import SettingsContentSecurity from './SettingsContentSecurity';
 import SettingsLog from '../../pages/Setting/Operation/SettingsLog';
 import SettingsMonitoring from '../../pages/Setting/Operation/SettingsMonitoring';
 import SettingsCreditLimit from '../../pages/Setting/Operation/SettingsCreditLimit';
@@ -134,9 +134,9 @@ const OperationSetting = () => {
         <div style={{ marginTop: '10px' }}>
           <SettingsSidebarModulesAdmin options={inputs} refresh={onRefresh} />
         </div>
-        {/* 屏蔽词过滤设置 */}
+        {/* 屏蔽词过滤设置(已由「内容安全 / 违规审计」取代,保留组件不再渲染) */}
         <Card style={{ marginTop: '10px' }}>
-          <SettingsSensitiveWords options={inputs} refresh={onRefresh} />
+          <SettingsContentSecurity options={inputs} refresh={onRefresh} />
         </Card>
         {/* 日志设置 */}
         <Card style={{ marginTop: '10px' }}>

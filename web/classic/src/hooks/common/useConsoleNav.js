@@ -49,6 +49,7 @@ export const consoleRouterMap = {
   redemption: '/console/redemption',
   user: '/console/user',
   setting: '/console/setting',
+  violationAudit: '/console/violation-audit',
 };
 
 /**
@@ -67,6 +68,16 @@ export const useConsoleNav = () => {
     localStorage.getItem('enable_data_export') === 'true';
   const enableDrawing = localStorage.getItem('enable_drawing') === 'true';
   const enableTask = localStorage.getItem('enable_task') === 'true';
+  const violationAuditEnabled = (() => {
+    try {
+      return (
+        JSON.parse(localStorage.getItem('status') || '{}')
+          .violation_audit_enabled === true
+      );
+    } catch (e) {
+      return false;
+    }
+  })();
 
   // 加载聊天项（与历史逻辑一致）
   useEffect(() => {
@@ -270,6 +281,13 @@ export const useConsoleNav = () => {
           to: consoleRouterMap.setting,
         });
       }
+      if (violationAuditEnabled) {
+        systemChildren.push({
+          key: 'violationAudit',
+          label: t('违规审计'),
+          to: consoleRouterMap.violationAudit,
+        });
+      }
       if (systemChildren.length) {
         list.push({
           key: 'system',
@@ -288,6 +306,7 @@ export const useConsoleNav = () => {
     enableDataExport,
     enableDrawing,
     enableTask,
+    violationAuditEnabled,
   ]);
 
   // 当前选中的子项 key（用于高亮）

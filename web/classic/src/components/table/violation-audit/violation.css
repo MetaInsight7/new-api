@@ -1,0 +1,261 @@
+/* 违规审计面板样式 —— 对齐 DMIT console(扁平、无重阴影、蓝主色、Semi Tag 承担 chip) */
+
+.va-wrap {
+  padding: 0 2px;
+}
+
+/* 子 tab 与正文卡片之间的间距(对齐设置页 tab 内容留白) */
+.va-tab-body {
+  margin-top: 12px;
+}
+
+.va-mono {
+  font-family: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 13px;
+  color: var(--semi-color-text-2);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 用户单元格下方的分组 / IP 副行 */
+.va-usermeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  font-size: 11.5px;
+  color: var(--semi-color-text-2);
+  margin-top: 1px;
+}
+.va-usermeta .va-mono {
+  font-size: 11.5px;
+}
+
+/* 子 tab 右侧:快捷时间区间 + 筛选按钮 */
+.va-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ---------- 工具栏(标题 + 计数),对齐令牌页 toolbar ---------- */
+.va-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  width: 100%;
+}
+.va-toolbar__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--semi-color-text-0);
+}
+.va-toolbar__count {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--semi-color-text-2);
+  background: var(--semi-color-fill-0);
+  border-radius: 999px;
+  padding: 2px 9px;
+}
+.va-toolbar__filters {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: auto;
+}
+.va-toolbar__filters .semi-form {
+  display: contents;
+}
+
+/* ---------- 移动端卡片 ---------- */
+.va-mcard {
+  background: var(--semi-color-bg-1);
+  border: 1px solid var(--semi-color-border);
+  border-radius: 12px;
+  padding: 12px 13px;
+  cursor: pointer;
+}
+.va-mcard__head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.va-mcard__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 8px;
+}
+.va-mcard__time {
+  font-size: 11.5px;
+}
+
+/* ---------- 详情弹窗 ---------- */
+.va-detail {
+  padding-bottom: 18px;
+}
+.va-detail__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.va-detail__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 16px;
+}
+.va-kv {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.va-kv__k {
+  font-size: 12px;
+  color: var(--semi-color-text-2);
+}
+.va-kv__v {
+  font-size: 14px;
+  color: var(--semi-color-text-0);
+  word-break: break-all;
+}
+.va-detail__block {
+  margin-top: 16px;
+}
+.va-detail__block-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--semi-color-text-0);
+  margin-bottom: 8px;
+}
+.va-hl {
+  background: #fde68a;
+  color: #7c2d12;
+  padding: 0 2px;
+  border-radius: 3px;
+  font-weight: 600;
+}
+
+/* 命中内容:固定统一大小,直接展示原始 JSON,可滚动 */
+.va-ctx__box {
+  height: 280px;
+  overflow: auto;
+  margin: 0 0 10px;
+  border: 1px solid var(--semi-color-border);
+  border-radius: 10px;
+  background: var(--semi-color-fill-0);
+  padding: 12px 14px;
+  font-family: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 12.5px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--semi-color-text-0);
+}
+
+/* ---------- 监控 ---------- */
+.va-center {
+  display: flex;
+  justify-content: center;
+  padding: 60px 0;
+}
+.va-kpis {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.va-charts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.va-chart-card {
+  background: var(--semi-color-bg-1);
+  border: 1px solid var(--semi-color-border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  min-width: 0;
+}
+.va-chart-card--wide {
+  grid-column: 1 / -1;
+}
+.va-chart-card__title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--semi-color-text-0);
+  margin-bottom: 8px;
+}
+
+/* ---------- 词库管理:分类切换 + 高危/低危双文本框 ---------- */
+.va-words__bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.va-words__bar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+.va-words__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.va-wordbox {
+  background: var(--semi-color-bg-1);
+  border: 1px solid var(--semi-color-border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  min-width: 0;
+}
+.va-wordbox__title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--semi-color-text-0);
+  margin-bottom: 8px;
+}
+.va-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+.va-dot--high {
+  background: #dc2626;
+}
+.va-dot--low {
+  background: #d97706;
+}
+
+@media (max-width: 767px) {
+  .va-kpis {
+    grid-template-columns: 1fr;
+  }
+  .va-charts {
+    grid-template-columns: 1fr;
+  }
+  .va-words__grid {
+    grid-template-columns: 1fr;
+  }
+  .va-toolbar__filters {
+    margin-left: 0;
+    width: 100%;
+  }
+}

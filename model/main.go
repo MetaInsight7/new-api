@@ -264,6 +264,7 @@ func migrateDB() error {
 		&Redemption{},
 		&Ability{},
 		&Log{},
+		&ViolationLog{},
 		&Midjourney{},
 		&TopUp{},
 		&QuotaData{},
@@ -370,6 +371,9 @@ func migrateDBFast() error {
 func migrateLOGDB() error {
 	var err error
 	if err = LOG_DB.AutoMigrate(&Log{}); err != nil {
+		return err
+	}
+	if err = LOG_DB.AutoMigrate(&ViolationLog{}); err != nil {
 		return err
 	}
 	return nil
