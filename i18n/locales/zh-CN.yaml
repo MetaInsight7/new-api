@@ -278,3 +278,11 @@ custom_oauth.name_empty: "提供商名称不能为空"
 custom_oauth.has_bindings: "无法删除已有用户绑定的提供商"
 custom_oauth.binding_not_found: "OAuth 绑定不存在"
 custom_oauth.provider_id_field_invalid: "无法从提供商响应中提取用户 ID"
+
+# Upstream error sanitization
+upstream.rate_limited: "请求频率过高，请稍后再试"
+upstream.service_unavailable: "服务暂时不可用，请稍后再试"
+upstream.timeout: "上游服务响应超时，请重试"
+upstream.server_error: "上游服务异常，请稍后再试"
+upstream.request_failed: "请求处理失败，请稍后再试"
+upstream.platform_error: "服务内部错误，请稍后重试"

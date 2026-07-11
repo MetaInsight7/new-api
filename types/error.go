@@ -87,11 +87,21 @@ const (
 	ErrorCodePreConsumeTokenQuotaFailed ErrorCode = "pre_consume_token_quota_failed"
 )
 
+// ErrorOrigin 标记错误的来源,用于决定返回给用户时是否脱敏。
+type ErrorOrigin int
+
+const (
+	ErrorOriginUser     ErrorOrigin = 0 // 用户请求问题(默认,向后兼容)
+	ErrorOriginUpstream ErrorOrigin = 1 // 上游渠道返回的错误
+	ErrorOriginPlatform ErrorOrigin = 2 // 平台内部错误(配置/资源)
+)
+
 type NewAPIError struct {
 	Err            error
 	RelayError     any
 	skipRetry      bool
 	recordErrorLog *bool
+	origin         ErrorOrigin
 	errorType      ErrorType
 	errorCode      ErrorCode
 	StatusCode     int
@@ -414,4 +424,49 @@ func IsRecordErrorLog(e *NewAPIError) bool {
 		return true
 	}
 	return *e.recordErrorLog
+}
+
+// ---- ErrorOrigin 方法 ----
+
+func (e *NewAPIError) SetOrigin(origin ErrorOrigin) {
+	if e != nil {
+		e.origin = origin
+	}
+}
+
+func (e *NewAPIError) GetOrigin() ErrorOrigin {
+	if e == nil {
+		return ErrorOriginUser
+	}
+	return e.origin
+}
+
+func (e *NewAPIError) IsUser() bool     { return e.GetOrigin() == ErrorOriginUser }
+func (e *NewAPIError) IsUpstream() bool { return e.GetOrigin() == ErrorOriginUpstream }
+func (e *NewAPIError) IsPlatform() bool { return e.GetOrigin() == ErrorOriginPlatform }
+
+func ErrOptionWithOrigin(origin ErrorOrigin) NewAPIErrorOptions {
+	return func(e *NewAPIError) {
+		e.origin = origin
+	}
+}
+
+// ReplaceMessage 替换用户可见的错误消息(同时更新 Err 和 RelayError 里的 message)。
+func (e *NewAPIError) ReplaceMessage(msg string) {
+	if e == nil {
+		return
+	}
+	e.Err = errors.New(msg)
+	switch e.errorType {
+	case ErrorTypeOpenAIError:
+		if oai, ok := e.RelayError.(OpenAIError); ok {
+			oai.Message = msg
+			e.RelayError = oai
+		}
+	case ErrorTypeClaudeError:
+		if claude, ok := e.RelayError.(ClaudeError); ok {
+			claude.Message = msg
+			e.RelayError = claude
+		}
+	}
 }

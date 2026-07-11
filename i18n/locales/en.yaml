@@ -277,3 +277,11 @@ custom_oauth.name_empty: "Provider name cannot be empty"
 custom_oauth.has_bindings: "Cannot delete provider with existing user bindings"
 custom_oauth.binding_not_found: "OAuth binding not found"
 custom_oauth.provider_id_field_invalid: "Could not extract user ID from provider response"
+
+# Upstream error sanitization
+upstream.rate_limited: "Rate limited, please try again later"
+upstream.service_unavailable: "Service temporarily unavailable, please try again later"
+upstream.timeout: "Upstream service timed out, please retry"
+upstream.server_error: "Upstream service error, please try again later"
+upstream.request_failed: "Request processing failed, please try again later"
+upstream.platform_error: "Internal service error, please try again later"

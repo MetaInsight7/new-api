@@ -330,3 +330,13 @@ const (
 	MsgCustomOAuthBindingNotFound   = "custom_oauth.binding_not_found"
 	MsgCustomOAuthProviderIdInvalid = "custom_oauth.provider_id_field_invalid"
 )
+
+// Upstream error sanitization messages
+const (
+	MsgUpstreamRateLimited    = "upstream.rate_limited"
+	MsgUpstreamServiceUnavail = "upstream.service_unavailable"
+	MsgUpstreamTimeout        = "upstream.timeout"
+	MsgUpstreamServerError    = "upstream.server_error"
+	MsgUpstreamRequestFailed  = "upstream.request_failed"
+	MsgUpstreamPlatformError  = "upstream.platform_error"
+)
