@@ -43,3 +43,13 @@ export function fmtTime(unixSec) {
   const p = (n) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
+
+export function fmtTimeSplit(unixSec) {
+  if (!unixSec) return { time: '-', date: '' };
+  const d = new Date(unixSec * 1000);
+  const p = (n) => String(n).padStart(2, '0');
+  return {
+    time: `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`,
+    date: `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`,
+  };
+}

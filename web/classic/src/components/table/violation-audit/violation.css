@@ -12,9 +12,14 @@
 .va-mono {
   font-family: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;
   font-size: 13px;
-  color: var(--semi-color-text-2);
+  color: var(--semi-color-text-1);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
+}
+.va-time-date {
+  font-size: 11.5px;
+  color: var(--semi-color-text-3);
+  margin-top: 3px;
 }
 
 /* 用户单元格下方的分组 / IP 副行 */

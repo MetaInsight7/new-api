@@ -24,6 +24,7 @@ import {
   severityTag,
   actionTag,
   fmtTime,
+  fmtTimeSplit,
 } from './violationHelpers';
 
 const tag = (label, color) => (
@@ -44,8 +45,16 @@ const ViolationLogsView = ({ data }) => {
       {
         title: t('时间'),
         dataIndex: 'created_at',
-        width: 150,
-        render: (v) => <span className='va-mono'>{fmtTime(v)}</span>,
+        width: 100,
+        render: (v) => {
+          const s = fmtTimeSplit(v);
+          return (
+            <div>
+              <div>{s.time}</div>
+              {s.date && <div className='va-time-date'>{s.date}</div>}
+            </div>
+          );
+        },
       },
       {
         title: t('用户'),
@@ -63,14 +72,23 @@ const ViolationLogsView = ({ data }) => {
       {
         title: 'IP',
         dataIndex: 'ip',
-        width: 118,
+        width: 120,
         render: (v) => v || '-',
       },
-      { title: t('模型'), dataIndex: 'model_name', width: 108 },
+      {
+        title: t('模型'),
+        dataIndex: 'model_name',
+        width: 170,
+        render: (v) => (
+          <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 155 }}>
+            {v || '-'}
+          </Typography.Text>
+        ),
+      },
       {
         title: t('分类'),
         dataIndex: 'category',
-        width: 116,
+        width: 80,
         render: (v) => (
           <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
             {(v || '')
@@ -85,7 +103,7 @@ const ViolationLogsView = ({ data }) => {
       {
         title: t('分级'),
         dataIndex: 'severity',
-        width: 74,
+        width: 70,
         render: (v) => {
           const m = severityTag(t, v);
           return tag(m.label, m.color);
@@ -94,7 +112,7 @@ const ViolationLogsView = ({ data }) => {
       {
         title: t('处理'),
         dataIndex: 'action',
-        width: 84,
+        width: 80,
         render: (v) => {
           const m = actionTag(t, v);
           return tag(m.label, m.color);
@@ -103,39 +121,19 @@ const ViolationLogsView = ({ data }) => {
       {
         title: t('命中词'),
         dataIndex: 'matched_words',
-        width: 130,
         render: (v) => (
           <Typography.Text
             type='danger'
             ellipsis={{ showTooltip: true }}
-            style={{ maxWidth: 116 }}
           >
             {v}
           </Typography.Text>
         ),
       },
       {
-        title: 'Request ID',
-        dataIndex: 'request_id',
-        width: 148,
-        render: (v) =>
-          v ? (
-            <Typography.Text
-              size='small'
-              ellipsis={{ showTooltip: true }}
-              copyable={{ content: v }}
-              style={{ maxWidth: 126 }}
-            >
-              {v}
-            </Typography.Text>
-          ) : (
-            '-'
-          ),
-      },
-      {
         title: '',
         dataIndex: 'operate',
-        width: 70,
+        width: 60,
         render: (_, r) => (
           <Button size='small' theme='borderless' type='primary' onClick={() => setDetail(r)}>
             {t('详情')}
@@ -353,11 +351,13 @@ const ViolationDetail = ({ t, detail }) => {
   const sev = severityTag(t, detail.severity);
   const act = actionTag(t, detail.action);
   const kv = [
-    [t('时间'), <span className='va-mono'>{fmtTime(detail.created_at)}</span>],
+    [t('时间'), fmtTime(detail.created_at)],
     [t('用户'), `${detail.username || '-'} (#${detail.user_id})`],
     [t('分组'), detail.user_group || '-'],
     [t('令牌'), detail.token_name || '-'],
     [t('模型'), detail.model_name || '-'],
+    ['IP', detail.ip || '-'],
+    ['Request ID', detail.request_id || '-'],
     [
       t('命中词'),
       <Typography.Text type='danger'>{detail.matched_words || '-'}</Typography.Text>,
