@@ -184,7 +184,8 @@ export default function SettingsLog(props) {
     const currentInputs = {};
     for (let key in props.options) {
       if (Object.keys(inputs).includes(key)) {
-        currentInputs[key] = props.options[key];
+        const v = props.options[key];
+        currentInputs[key] = typeof inputs[key] === 'boolean' ? (v === true || v === 'true') : v;
       }
     }
     currentInputs['historyTimestamp'] = inputs.historyTimestamp;
