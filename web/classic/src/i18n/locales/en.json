@@ -3876,6 +3876,7 @@
     "启用违规审计": "Enable violation audit",
     "开启后,用户输入将按「违规审计」页面配置的分类分级词库检查:高危拦截、低危放行并记录。词库、审计记录与监控请前往「违规审计」页面配置。": "When enabled, user input is checked against the categorized/tiered word library configured on the Violation Audit page: high-severity blocked, low-severity allowed and logged. Configure the word library, audit logs and monitoring on the Violation Audit page.",
     "前往违规审计页面": "Go to Violation Audit page",
-    "导入旧屏蔽词": "Import legacy blocked words"
+    "导入旧屏蔽词": "Import legacy blocked words",
+    "启用错误日志记录": "Enable error log recording"
   }
 }
