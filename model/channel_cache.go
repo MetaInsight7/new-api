@@ -94,7 +94,7 @@ func SyncChannelCache(frequency int) {
 	}
 }
 
-func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel, error) {
+func GetRandomSatisfiedChannel(group string, model string, retry int, excludeIDs map[int]struct{}, excludeBaseURLs map[string]struct{}) (*Channel, error) {
 	// if memory cache is disabled, get channel directly from database
 	if !common.MemoryCacheEnabled {
 		return GetChannel(group, model, retry)
@@ -116,13 +116,7 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 		return nil, nil
 	}
 
-	if len(channels) == 1 {
-		if channel, ok := channelsIDM[channels[0]]; ok {
-			return channel, nil
-		}
-		return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channels[0])
-	}
-
+	// 收集所有优先级并排序(高→低)
 	uniquePriorities := make(map[int]bool)
 	for _, channelId := range channels {
 		if channel, ok := channelsIDM[channelId]; ok {
@@ -137,27 +131,55 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 	}
 	sort.Sort(sort.Reverse(sort.IntSlice(sortedUniquePriorities)))
 
-	if retry >= len(uniquePriorities) {
-		retry = len(uniquePriorities) - 1
-	}
-	targetPriority := int64(sortedUniquePriorities[retry])
-
-	// get the priority for the given retry number
-	var sumWeight = 0
-	var targetChannels []*Channel
-	for _, channelId := range channels {
-		if channel, ok := channelsIDM[channelId]; ok {
-			if channel.GetPriority() == targetPriority {
-				sumWeight += channel.GetWeight()
-				targetChannels = append(targetChannels, channel)
-			}
-		} else {
-			return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channelId)
+	// 从最高优先级开始,同级穷尽再降级
+	for _, priority := range sortedUniquePriorities {
+		targetPriority := int64(priority)
+		targetChannels := filterAvailableChannels(channels, targetPriority, excludeIDs, excludeBaseURLs)
+		if len(targetChannels) == 0 {
+			continue // 此级无可用渠道,降级
 		}
+		return weightedRandomSelect(targetChannels, group, model, targetPriority)
 	}
+	return nil, nil
+}
 
+// filterAvailableChannels 从同优先级渠道中过滤掉已排除的。
+func filterAvailableChannels(channelIDs []int, targetPriority int64, excludeIDs map[int]struct{}, excludeBaseURLs map[string]struct{}) []*Channel {
+	var result []*Channel
+	for _, channelId := range channelIDs {
+		channel, ok := channelsIDM[channelId]
+		if !ok || channel.GetPriority() != targetPriority {
+			continue
+		}
+		if excludeIDs != nil {
+			if _, excluded := excludeIDs[channelId]; excluded {
+				continue
+			}
+		}
+		if excludeBaseURLs != nil && len(excludeBaseURLs) > 0 {
+			baseURL := channel.GetBaseURL()
+			if _, excluded := excludeBaseURLs[baseURL]; excluded {
+				continue
+			}
+		}
+		result = append(result, channel)
+	}
+	return result
+}
+
+// weightedRandomSelect 按权重随机选一个渠道(原有逻辑提取)。
+func weightedRandomSelect(targetChannels []*Channel, group, model string, targetPriority int64) (*Channel, error) {
 	if len(targetChannels) == 0 {
 		return nil, errors.New(fmt.Sprintf("no channel found, group: %s, model: %s, priority: %d", group, model, targetPriority))
+	}
+
+	if len(targetChannels) == 1 {
+		return targetChannels[0], nil
+	}
+
+	var sumWeight int
+	for _, ch := range targetChannels {
+		sumWeight += ch.GetWeight()
 	}
 
 	// smoothing factor and adjustment
@@ -165,22 +187,15 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 	smoothingAdjustment := 0
 
 	if sumWeight == 0 {
-		// when all channels have weight 0, set sumWeight to the number of channels and set smoothing adjustment to 100
-		// each channel's effective weight = 100
 		sumWeight = len(targetChannels) * 100
 		smoothingAdjustment = 100
 	} else if sumWeight/len(targetChannels) < 10 {
-		// when the average weight is less than 10, set smoothing factor to 100
 		smoothingFactor = 100
 	}
 
-	// Calculate the total weight of all channels up to endIdx
 	totalWeight := sumWeight * smoothingFactor
-
-	// Generate a random value in the range [0, totalWeight)
 	randomWeight := rand.Intn(totalWeight)
 
-	// Find a channel based on its weight
 	for _, channel := range targetChannels {
 		randomWeight -= channel.GetWeight()*smoothingFactor + smoothingAdjustment
 		if randomWeight < 0 {

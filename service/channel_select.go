@@ -12,11 +12,13 @@ import (
 )
 
 type RetryParam struct {
-	Ctx          *gin.Context
-	TokenGroup   string
-	ModelName    string
-	Retry        *int
-	resetNextTry bool
+	Ctx               *gin.Context
+	TokenGroup        string
+	ModelName         string
+	Retry             *int
+	resetNextTry      bool
+	ExcludeChannelIDs map[int]struct{}
+	ExcludeBaseURLs   map[string]struct{}
 }
 
 func (p *RetryParam) GetRetry() int {
@@ -43,6 +45,47 @@ func (p *RetryParam) IncreaseRetry() {
 
 func (p *RetryParam) ResetRetryNextTry() {
 	p.resetNextTry = true
+}
+
+// AddExcludeChannel 排除已用渠道 ID。
+func (p *RetryParam) AddExcludeChannel(channelId int) {
+	if p.ExcludeChannelIDs == nil {
+		p.ExcludeChannelIDs = make(map[int]struct{})
+	}
+	p.ExcludeChannelIDs[channelId] = struct{}{}
+}
+
+// AddExcludeBaseURL 排除同 BaseURL 的所有渠道(供应商级故障)。
+func (p *RetryParam) AddExcludeBaseURL(baseURL string) {
+	if baseURL == "" {
+		return
+	}
+	if p.ExcludeBaseURLs == nil {
+		p.ExcludeBaseURLs = make(map[string]struct{})
+	}
+	p.ExcludeBaseURLs[baseURL] = struct{}{}
+}
+
+// ShouldExcludeBaseURL 根据错误状态码判断是否排除同 BaseURL:
+// 500-503 + 连接失败(0) = 供应商级故障,排除;429/401/403/408/504 = key 级或临时,不排除。
+func ShouldExcludeBaseURL(statusCode int) bool {
+	if statusCode == 0 {
+		return true // 连接失败
+	}
+	return statusCode >= 500 && statusCode <= 503
+}
+
+// IsDefaultBaseURL 判断渠道是否使用官方默认 BaseURL(官方渠道不排除)。
+// channel.GetBaseURL() 在空时返回默认值,所以这里判断原始值是否为空或等于默认。
+func IsDefaultBaseURL(channelType int, rawBaseURL string) bool {
+	if channelType < 0 || channelType >= len(constant.ChannelBaseURLs) {
+		return false
+	}
+	defaultURL := constant.ChannelBaseURLs[channelType]
+	if defaultURL == "" {
+		return false // 该类型没有官方默认 URL(如 Custom)
+	}
+	return rawBaseURL == "" || rawBaseURL == defaultURL
 }
 
 // CacheGetRandomSatisfiedChannel tries to get a random channel that satisfies the requirements.
@@ -115,7 +158,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			}
 			logger.LogDebug(param.Ctx, "Auto selecting group: %s, priorityRetry: %d", autoGroup, priorityRetry)
 
-			channel, _ = model.GetRandomSatisfiedChannel(autoGroup, param.ModelName, priorityRetry)
+			channel, _ = model.GetRandomSatisfiedChannel(autoGroup, param.ModelName, priorityRetry, param.ExcludeChannelIDs, param.ExcludeBaseURLs)
 			if channel == nil {
 				// Current group has no available channel for this model, try next group
 				// 当前分组没有该模型的可用渠道，尝试下一个分组
@@ -153,7 +196,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			break
 		}
 	} else {
-		channel, err = model.GetRandomSatisfiedChannel(param.TokenGroup, param.ModelName, param.GetRetry())
+		channel, err = model.GetRandomSatisfiedChannel(param.TokenGroup, param.ModelName, param.GetRetry(), param.ExcludeChannelIDs, param.ExcludeBaseURLs)
 		if err != nil {
 			return nil, param.TokenGroup, err
 		}

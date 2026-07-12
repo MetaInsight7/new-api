@@ -240,6 +240,18 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
 
+		// 排除已失败渠道:始终排除渠道 ID;供应商级故障(5xx/连接失败)且非官方 BaseURL 时排除同 BaseURL
+		retryParam.AddExcludeChannel(channel.Id)
+		if service.ShouldExcludeBaseURL(newAPIError.StatusCode) {
+			rawBaseURL := ""
+			if channel.BaseURL != nil {
+				rawBaseURL = *channel.BaseURL
+			}
+			if !service.IsDefaultBaseURL(channel.Type, rawBaseURL) {
+				retryParam.AddExcludeBaseURL(channel.GetBaseURL())
+			}
+		}
+
 		if !shouldRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry()) {
 			break
 		}
