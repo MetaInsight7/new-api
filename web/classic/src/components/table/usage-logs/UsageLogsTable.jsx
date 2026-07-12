@@ -18,10 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useMemo, useState, useCallback } from 'react';
-import { Descriptions, Modal, Typography } from '@douyinfe/semi-ui';
 import CardTable from '../../common/ui/CardTable';
 import TableEmpty from '../../common/ui/TableEmpty';
 import { getLogsColumns, getLogMobileCardRender } from './UsageLogsColumnDefs';
+import UsageLogInlineDetail from './UsageLogInlineDetail';
 
 const LogsTable = (logsData) => {
   const {
@@ -38,18 +38,17 @@ const LogsTable = (logsData) => {
     copyText,
     showUserInfoFunc,
     openChannelAffinityUsageCacheModal,
-    hasExpandableRows,
     isAdminUser,
     billingDisplayMode,
     t,
     COLUMN_KEYS,
   } = logsData;
 
-  // The 详情 action button opens a modal with the full row breakdown (replaces
-  // the legacy row-expand so there is no expand-arrow column).
-  const [detailRecord, setDetailRecord] = useState(null);
+  const [expandedRowKeys, setExpandedRowKeys] = useState([]);
   const onOpenDetail = useCallback((record) => {
-    setDetailRecord(record);
+    setExpandedRowKeys((current) =>
+      current[0] === record.key ? [] : [record.key],
+    );
   }, []);
 
   // Get all columns
@@ -63,6 +62,7 @@ const LogsTable = (logsData) => {
       isAdminUser,
       billingDisplayMode,
       onOpenDetail,
+      expandedRowKeys,
     });
   }, [
     t,
@@ -73,6 +73,7 @@ const LogsTable = (logsData) => {
     isAdminUser,
     billingDisplayMode,
     onOpenDetail,
+    expandedRowKeys,
   ]);
 
   // Filter columns based on visibility settings
@@ -90,10 +91,18 @@ const LogsTable = (logsData) => {
       : visibleColumnsList;
   }, [compactMode, visibleColumnsList]);
 
-  const detailData =
-    detailRecord && expandData[detailRecord.key]
-      ? expandData[detailRecord.key]
-      : [];
+  const expandedRowRender = useCallback(
+    (record) => (
+      <UsageLogInlineDetail
+        record={record}
+        detailData={expandData[record.key] || []}
+        isAdminUser={isAdminUser}
+        copyText={copyText}
+        t={t}
+      />
+    ),
+    [expandData, isAdminUser, copyText, t],
+  );
 
   const mobileCardRender = useMemo(
     () =>
@@ -105,6 +114,8 @@ const LogsTable = (logsData) => {
         isAdminUser,
         billingDisplayMode,
         onOpenDetail,
+        expandedRowKeys,
+        expandedRowRender,
       }),
     [
       t,
@@ -114,50 +125,46 @@ const LogsTable = (logsData) => {
       isAdminUser,
       billingDisplayMode,
       onOpenDetail,
+      expandedRowKeys,
+      expandedRowRender,
     ],
   );
 
   return (
-    <>
-      <CardTable
-        className='usage-log-table-v2'
-        columns={tableColumns}
-        dataSource={logs}
-        rowKey='key'
-        loading={loading}
-        size='small'
-        empty={<TableEmpty title={t('搜索无结果')} />}
-        mobileCardRender={mobileCardRender}
-        pagination={{
-          currentPage: activePage,
-          pageSize: pageSize,
-          total: logCount,
-          pageSizeOptions: [10, 20, 50, 100],
-          showSizeChanger: true,
-          onPageSizeChange: (size) => {
-            handlePageSizeChange(size);
-          },
-          onPageChange: handlePageChange,
-        }}
-        hidePagination={true}
-      />
-
-      <Modal
-        title={t('详情')}
-        visible={!!detailRecord}
-        onCancel={() => setDetailRecord(null)}
-        footer={null}
-        width={560}
-      >
-        {detailData.length > 0 ? (
-          <Descriptions data={detailData} />
-        ) : (
-          <Typography.Paragraph style={{ marginBottom: 0, whiteSpace: 'pre-wrap' }}>
-            {detailRecord?.content || t('暂无更多详情')}
-          </Typography.Paragraph>
-        )}
-      </Modal>
-    </>
+    <CardTable
+      className='usage-log-table-v2'
+      columns={tableColumns}
+      dataSource={logs}
+      rowKey='key'
+      loading={loading}
+      size='small'
+      empty={<TableEmpty title={t('搜索无结果')} />}
+      mobileCardRender={mobileCardRender}
+      mobileBreakpoint={1180}
+      expandedRowKeys={expandedRowKeys}
+      expandedRowRender={expandedRowRender}
+      rowExpandable={(record) =>
+        Boolean(
+          expandData[record.key]?.length || record.content || record.request_id,
+        )
+      }
+      hideExpandedColumn
+      expandIcon={false}
+      expandRowByClick={false}
+      onExpandedRowsChange={(keys) => setExpandedRowKeys(keys.slice(-1))}
+      pagination={{
+        currentPage: activePage,
+        pageSize: pageSize,
+        total: logCount,
+        pageSizeOptions: [10, 20, 50, 100],
+        showSizeChanger: true,
+        onPageSizeChange: (size) => {
+          handlePageSizeChange(size);
+        },
+        onPageChange: handlePageChange,
+      }}
+      hidePagination={true}
+    />
   );
 };
 

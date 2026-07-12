@@ -34,6 +34,7 @@ import {
   renderModelTag,
   renderModelPriceSimple,
   renderTieredModelPriceSimple,
+  getModelCategories,
 } from '../../../helpers';
 import { IconHelpCircle } from '@douyinfe/semi-icons';
 import { CircleAlert, Route, Sparkles } from 'lucide-react';
@@ -144,10 +145,7 @@ function renderType(type, t) {
 
 function buildStreamStatusTooltip(ss, t) {
   if (!ss) return null;
-  const lines = [
-    t('流状态') + '：' + t('异常'),
-    (ss.end_reason || 'unknown'),
-  ];
+  const lines = [t('流状态') + '：' + t('异常'), ss.end_reason || 'unknown'];
   if (ss.error_count > 0) {
     lines.push(`${t('软错误')}: ${ss.error_count}`);
   }
@@ -170,7 +168,7 @@ function renderIsStream(bool, t, streamStatus) {
     return (
       <span style={{ position: 'relative', display: 'inline-block' }}>
         <Tag color='blue' shape='circle'>
-          {t('流')}
+          {t('流式')}
         </Tag>
         {isError && (
           <Tooltip content={buildStreamStatusTooltip(streamStatus, t)}>
@@ -185,11 +183,7 @@ function renderIsStream(bool, t, streamStatus) {
                 userSelect: 'none',
               }}
             >
-              <CircleAlert
-                size={14}
-                strokeWidth={2.5}
-                color='currentColor'
-              />
+              <CircleAlert size={14} strokeWidth={2.5} color='currentColor' />
             </span>
           </Tooltip>
         )}
@@ -410,7 +404,7 @@ function renderCompactDetailSummary(summarySegments) {
           style={{
             display: 'block',
             maxWidth: '100%',
-            fontSize: 13,
+            fontSize: 12,
             marginTop: index === 0 ? 0 : 2,
             whiteSpace: 'nowrap',
             overflow: 'hidden',
@@ -461,7 +455,11 @@ function getUsageLogDetailSummary(record, text, billingDisplayMode, t) {
     };
   }
 
-  const summaryOpts = { ...other, displayMode: billingDisplayMode, outputMode: 'segments' };
+  const summaryOpts = {
+    ...other,
+    displayMode: billingDisplayMode,
+    outputMode: 'segments',
+  };
 
   if (other?.billing_mode === 'tiered_expr') {
     return { segments: renderTieredModelPriceSimple(summaryOpts) };
@@ -480,7 +478,10 @@ function getUsageLogDetailSummary(record, text, billingDisplayMode, t) {
 // composite cells. Inline styles mirror the prototype px values exactly.
 // ---------------------------------------------------------------------------
 
-const CELL_MONO = '"SFMono-Regular", ui-monospace, Menlo, monospace';
+// Keep one typeface across the ledger. Numeric columns use tabular figures
+// instead of switching to a code font, so Chinese, Latin text and numbers
+// share the same weight and visual rhythm.
+const CELL_MONO = 'var(--usage-log-font)';
 const CC = {
   ink: '#141a1f',
   ink2: '#3c4650',
@@ -488,7 +489,6 @@ const CC = {
   mut2: '#9aa4b2',
   purple: '#7c3aed',
 };
-
 const CONSUMPTION_TYPES = [0, 2, 5, 6];
 const isConsumptionRow = (record) => CONSUMPTION_TYPES.includes(record?.type);
 
@@ -511,22 +511,8 @@ function getGroupName(record, other) {
 
 function renderRatioBadge(ratioText, isAdminUser) {
   if (!ratioText) return null;
-  if (isAdminUser) {
-    return (
-      <span
-        style={{
-          display: 'inline-flex', alignItems: 'center', height: 16,
-          padding: '0 6px', border: '1px solid #c7d2fe', borderRadius: 5,
-          color: '#4f46e5', fontSize: 11, fontWeight: 600, lineHeight: 1,
-          marginLeft: 4,
-        }}
-      >
-        {ratioText}x
-      </span>
-    );
-  }
   return (
-    <span style={{ color: CC.mut, fontWeight: 600, marginLeft: 4 }}>
+    <span className='usage-log-meta-pill usage-log-meta-pill--ratio'>
       {ratioText}x
     </span>
   );
@@ -549,9 +535,15 @@ function renderTypeChip(type, t) {
   return (
     <span
       style={{
-        display: 'inline-flex', alignItems: 'center', height: 19,
-        padding: '0 9px', borderRadius: 6, fontSize: 12, fontWeight: 600,
-        color: c.color, background: c.bg,
+        display: 'inline-flex',
+        alignItems: 'center',
+        height: 24,
+        padding: '0 9px',
+        borderRadius: 6,
+        fontSize: 13,
+        fontWeight: 600,
+        color: c.color,
+        background: c.bg,
       }}
     >
       {c.text}
@@ -566,20 +558,20 @@ function renderStreamTag(record, t) {
   const ss = other?.stream_status;
   const isErr = ss && ss.status !== 'ok';
   return (
-    <span
-      style={{
-        position: 'relative', display: 'inline-flex', alignItems: 'center',
-        height: 19, padding: '0 8px', borderRadius: 999, background: '#eff4ff',
-        color: '#2563eb', fontSize: 11, fontWeight: 600,
-      }}
-    >
-      {t('流')}
+    <span className='usage-log-meta-pill usage-log-meta-pill--stream'>
+      {t('流式')}
       {isErr && (
         <Tooltip content={buildStreamStatusTooltip(ss, t)}>
           <span
             style={{
-              position: 'absolute', right: -3, top: -3, width: 7, height: 7,
-              borderRadius: '50%', background: '#ef4444', cursor: 'pointer',
+              position: 'absolute',
+              right: -3,
+              top: -3,
+              width: 7,
+              height: 7,
+              borderRadius: '50%',
+              background: '#ef4444',
+              cursor: 'pointer',
             }}
           />
         </Tooltip>
@@ -595,11 +587,28 @@ function renderTimeCell(record) {
   const date = sp.length > 1 ? sp[0] : '';
   return (
     <div>
-      <div style={{ fontSize: 13, color: CC.ink2, fontFamily: CELL_MONO, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+      <div
+        style={{
+          fontSize: 14,
+          fontWeight: 500,
+          color: CC.ink2,
+          fontFamily: CELL_MONO,
+          whiteSpace: 'nowrap',
+        }}
+      >
         {time}
       </div>
       {date && (
-        <div style={{ fontSize: 11.5, color: CC.mut2, marginTop: 3, fontFamily: CELL_MONO, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+        <div
+          style={{
+            fontSize: 12,
+            fontWeight: 500,
+            color: CC.mut2,
+            marginTop: 3,
+            fontFamily: CELL_MONO,
+            whiteSpace: 'nowrap',
+          }}
+        >
           {date}
         </div>
       )}
@@ -616,13 +625,22 @@ function renderTokenGroupCell(record, ctx) {
     <div>
       <Tooltip content={record.token_name}>
         <div
-          style={{ fontWeight: 500, color: CC.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'pointer' }}
+          style={{
+            fontWeight: 600,
+            color: CC.ink,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            cursor: 'pointer',
+          }}
           onClick={(e) => ctx.copyText(e, record.token_name)}
         >
           {record.token_name}
         </div>
       </Tooltip>
-      <div style={{ fontSize: 12, color: CC.mut2, marginTop: 4 }}>
+      <div
+        style={{ fontSize: 12, fontWeight: 500, color: CC.mut2, marginTop: 4 }}
+      >
         {group}
         {renderRatioBadge(ratio, false)}
       </div>
@@ -638,19 +656,49 @@ function renderUserCell(record, ctx) {
     <div>
       <Tooltip content={record.username}>
         <div
-          style={{ fontWeight: 500, fontSize: 14, color: CC.ink, cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-          onClick={(e) => { e.stopPropagation(); ctx.showUserInfoFunc?.(record.user_id); }}
+          style={{
+            fontWeight: 600,
+            fontSize: 14,
+            color: CC.ink,
+            cursor: 'pointer',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            ctx.showUserInfoFunc?.(record.user_id);
+          }}
         >
           {record.username}
         </div>
       </Tooltip>
       {isConsumptionRow(record) && (
-        <div style={{ display: 'flex', alignItems: 'center', fontSize: 12, color: CC.mut2, marginTop: 4, minWidth: 0 }}>
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, flex: '0 1 auto' }}>
-            {record.token_name}
-            {group ? ` · ${group}` : ''}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            fontSize: 12,
+            fontWeight: 500,
+            color: CC.mut2,
+            marginTop: 4,
+            minWidth: 0,
+          }}
+        >
+          <span
+            style={{
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              minWidth: 0,
+              flex: '0 1 auto',
+            }}
+          >
+            {group || ctx.t('默认分组')}
           </span>
-          <span style={{ flex: '0 0 auto', whiteSpace: 'nowrap' }}>{renderRatioBadge(ratio, true)}</span>
+          <span style={{ flex: '0 0 auto', whiteSpace: 'nowrap' }}>
+            {renderRatioBadge(ratio, true)}
+          </span>
         </div>
       )}
     </div>
@@ -661,39 +709,85 @@ function renderChannelCell(record, ctx) {
   if (!isConsumptionRow(record)) return null;
   const other = getLogOther(record.other);
   const adminInfo = other?.admin_info || {};
-  const useChannel = Array.isArray(adminInfo.use_channel) ? adminInfo.use_channel : null;
+  const useChannel = Array.isArray(adminInfo.use_channel)
+    ? adminInfo.use_channel
+    : null;
   const retried = useChannel && useChannel.length > 1;
   const affinity = adminInfo.channel_affinity;
   const isMultiKey = adminInfo?.is_multi_key;
   return (
-    <div>
+    <div
+      style={{
+        minHeight: 44,
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'flex-start',
+      }}
+    >
       <div style={{ whiteSpace: 'nowrap' }}>
         <Tooltip content={record.channel_name || ctx.t('未知渠道')}>
-          <span style={{ fontWeight: 500, fontFamily: CELL_MONO, fontSize: 14, color: CC.ink2 }}>#{record.channel}</span>
+          <span
+            style={{
+              fontWeight: 600,
+              fontFamily: CELL_MONO,
+              fontSize: 14,
+              color: CC.ink2,
+            }}
+          >
+            #{record.channel}
+          </span>
         </Tooltip>
         {record.channel_name && (
-          <span style={{ fontSize: 13, color: CC.ink, marginLeft: 5 }}>{record.channel_name}</span>
+          <span
+            style={{
+              fontSize: 14,
+              fontWeight: 600,
+              color: CC.ink,
+              marginLeft: 5,
+            }}
+          >
+            {record.channel_name}
+          </span>
         )}
         {isMultiKey && (
-          <span style={{ fontSize: 12, color: CC.mut2, marginLeft: 4 }}>key#{adminInfo.multi_key_index}</span>
+          <span style={{ fontSize: 11, color: CC.mut2, marginLeft: 4 }}>
+            key#{adminInfo.multi_key_index}
+          </span>
         )}
       </div>
       {(retried || affinity) && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 5, fontSize: 12, color: CC.mut2, fontFamily: CELL_MONO, whiteSpace: 'nowrap' }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            marginTop: 5,
+            fontSize: 12,
+            fontWeight: 500,
+            color: CC.mut2,
+            fontFamily: CELL_MONO,
+            whiteSpace: 'nowrap',
+          }}
+        >
           {retried && (
-            <span style={{ display: 'inline-flex', alignItems: 'center', height: 16, padding: '0 5px', borderRadius: 5, background: '#fff7ed', color: '#c2410c', fontSize: 11, fontWeight: 600 }}>
-              {ctx.t('重试')} {useChannel.length - 1}
-            </span>
+            <Tooltip
+              content={`${ctx.t('完整路由')}：${useChannel.map((c) => `#${c}`).join(' → ')}`}
+            >
+              <span className='usage-log-meta-pill usage-log-meta-pill--route'>
+                {ctx.t('重试')} {useChannel.length - 1}
+              </span>
+            </Tooltip>
           )}
-          {retried && <span>{useChannel.map((c) => `#${c}`).join('→')}</span>}
           {affinity && (
             <Tooltip content={buildChannelAffinityTooltip(affinity, ctx.t)}>
               <span
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 3, color: '#6d28d9', cursor: 'pointer', fontFamily: 'inherit' }}
-                onClick={(e) => { e.stopPropagation(); ctx.openChannelAffinityUsageCacheModal?.(affinity); }}
+                className='usage-log-meta-pill usage-log-meta-pill--route'
+                onClick={(e) => {
+                  e.stopPropagation();
+                  ctx.openChannelAffinityUsageCacheModal?.(affinity);
+                }}
               >
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#7c3aed' }} />
-                {ctx.t('亲和')}
+                {ctx.t('亲和命中')}
               </span>
             </Tooltip>
           )}
@@ -706,45 +800,100 @@ function renderChannelCell(record, ctx) {
 function renderReqModelCell(record, ctx) {
   const hasModel = record.model_name && isConsumptionRow(record);
   if (!hasModel) {
-    // 非消费行(充值/管理/系统等):只放类型标签;描述信息(content)移到"用量"列。
-    return <div>{renderTypeChip(record.type, ctx.t)}</div>;
+    return (
+      <div style={{ minHeight: 44, color: CC.mut2, textAlign: 'left' }}>—</div>
+    );
   }
   const other = getLogOther(record.other);
-  const dotColor = getTypeChipStyle(record.type, ctx.t).color;
+  const categories = getModelCategories(ctx.t);
+  const modelCategory = Object.entries(categories).find(
+    ([key, category]) =>
+      key !== 'all' && category.filter({ model_name: record.model_name }),
+  );
+  const modelIcon = modelCategory?.[1]?.icon;
   const modelMapped = other?.is_model_mapped && other?.upstream_model_name;
   const showRedirect = ctx.isAdminUser && modelMapped;
   return (
-    <div>
+    <div
+      style={{
+        minHeight: 44,
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'flex-start',
+      }}
+    >
       <Tooltip content={record.model_name}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 14, color: CC.ink, fontWeight: 500, lineHeight: 1.35 }}>
-          <span style={{ width: 7, height: 7, borderRadius: '50%', flex: '0 0 auto', background: dotColor }} />
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 7,
+            fontSize: 14,
+            color: CC.ink,
+            fontWeight: 600,
+            lineHeight: 1.35,
+          }}
+        >
+          <span className='usage-log-model-icon'>
+            {modelIcon || <span className='usage-log-model-icon__fallback' />}
+          </span>
           <span
             onClick={(e) => ctx.copyText(e, record.model_name)}
-            style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, cursor: 'pointer' }}
+            style={{
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              minWidth: 0,
+              cursor: 'pointer',
+            }}
           >
             {record.model_name}
           </span>
         </div>
       </Tooltip>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
-        {renderTypeChip(record.type, ctx.t)}
-        {renderStreamTag(record, ctx.t)}
+      <div
+        style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 5 }}
+      >
+        {record.is_stream ? (
+          renderStreamTag(record, ctx.t)
+        ) : (
+          <span className='usage-log-meta-pill usage-log-meta-pill--non-stream'>
+            {ctx.t('非流式')}
+          </span>
+        )}
         {showRedirect && (
           <Popover
             content={
               <div style={{ padding: 10, lineHeight: 1.8 }}>
                 <div>
-                  <Typography.Text strong style={{ marginRight: 6 }}>{ctx.t('请求并计费模型')}:</Typography.Text>
+                  <Typography.Text strong style={{ marginRight: 6 }}>
+                    {ctx.t('请求并计费模型')}:
+                  </Typography.Text>
                   {record.model_name}
                 </div>
                 <div>
-                  <Typography.Text strong style={{ marginRight: 6 }}>{ctx.t('实际模型')}:</Typography.Text>
+                  <Typography.Text strong style={{ marginRight: 6 }}>
+                    {ctx.t('实际模型')}:
+                  </Typography.Text>
                   {other.upstream_model_name}
                 </div>
               </div>
             }
           >
-            <span style={{ display: 'inline-flex', alignItems: 'center', height: 19, padding: '0 8px', borderRadius: 5, background: '#f3efff', color: '#7c3aed', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                height: 19,
+                padding: '0 8px',
+                borderRadius: 5,
+                background: '#f3efff',
+                color: '#7c3aed',
+                fontSize: 12,
+                fontWeight: 500,
+                cursor: 'pointer',
+              }}
+            >
               {ctx.t('实际模型')}
             </span>
           </Popover>
@@ -762,7 +911,7 @@ function renderUsageCell(record, ctx) {
       <Tooltip content={record.content}>
         <div
           style={{
-            fontSize: 13,
+            fontSize: 12,
             color: CC.ink2,
             fontWeight: 500,
             lineHeight: 1.45,
@@ -780,32 +929,118 @@ function renderUsageCell(record, ctx) {
   }
   const other = getLogOther(record.other);
   const cache = getPromptCacheSummary(other);
+  if (!ctx.isAdminUser) {
+    const userUsageLineStyle = {
+      display: 'block',
+      fontFamily: CELL_MONO,
+      fontSize: 14,
+      fontWeight: 500,
+      lineHeight: 1.45,
+      color: CC.ink,
+      whiteSpace: 'nowrap',
+    };
+    return (
+      <div>
+        <span style={userUsageLineStyle}>
+          {ctx.t('输入')}：{formatTokenCount(record.prompt_tokens)}
+        </span>
+        <span style={userUsageLineStyle}>
+          {ctx.t('输出')}：{formatTokenCount(record.completion_tokens)}
+        </span>
+      </div>
+    );
+  }
   return (
     <div>
-      <div style={{ display: 'flex', gap: 18, alignItems: 'baseline', lineHeight: 1.5, color: CC.ink, flexWrap: 'nowrap' }}>
+      <div
+        style={{
+          display: 'flex',
+          gap: 18,
+          alignItems: 'baseline',
+          lineHeight: 1.5,
+          color: CC.ink,
+          flexWrap: 'nowrap',
+        }}
+      >
         <span style={{ whiteSpace: 'nowrap' }}>
           <span style={{ color: CC.ink, fontSize: 13 }}>{ctx.t('输入')}：</span>
-          <span style={{ fontFamily: CELL_MONO, fontVariantNumeric: 'tabular-nums', fontSize: 14, color: CC.ink }}>{formatTokenCount(record.prompt_tokens)}</span>
+          <span
+            style={{
+              fontFamily: CELL_MONO,
+              fontSize: 14,
+              fontWeight: 500,
+              color: CC.ink,
+            }}
+          >
+            {formatTokenCount(record.prompt_tokens)}
+          </span>
         </span>
         <span style={{ whiteSpace: 'nowrap' }}>
           <span style={{ color: CC.ink, fontSize: 13 }}>{ctx.t('输出')}：</span>
-          <span style={{ fontFamily: CELL_MONO, fontVariantNumeric: 'tabular-nums', fontSize: 14, color: CC.ink }}>{formatTokenCount(record.completion_tokens)}</span>
+          <span
+            style={{
+              fontFamily: CELL_MONO,
+              fontSize: 14,
+              fontWeight: 500,
+              color: CC.ink,
+            }}
+          >
+            {formatTokenCount(record.completion_tokens)}
+          </span>
         </span>
       </div>
       {cache ? (
-        <div style={{ display: 'flex', gap: 12, alignItems: 'baseline', marginTop: 5, fontSize: 12, color: CC.mut2, flexWrap: 'nowrap' }}>
+        <div
+          style={{
+            display: 'flex',
+            gap: 12,
+            alignItems: 'baseline',
+            marginTop: 5,
+            fontSize: 12,
+            fontWeight: 500,
+            color: CC.mut2,
+            flexWrap: 'nowrap',
+          }}
+        >
           <span style={{ whiteSpace: 'nowrap' }}>
             <span style={{ color: CC.mut }}>{ctx.t('缓存')} ·</span>
-            {ctx.t('输入')}：<span style={{ fontFamily: CELL_MONO, color: CC.purple, fontWeight: 600 }}>{formatTokenCount(cache.cacheReadTokens)}</span>
+            {ctx.t('读')}：
+            <span
+              style={{
+                fontFamily: CELL_MONO,
+                color: '#2563eb',
+                fontWeight: 500,
+              }}
+            >
+              {formatTokenCount(cache.cacheReadTokens)}
+            </span>
           </span>
           {cache.cacheWriteTokens > 0 && (
             <span style={{ whiteSpace: 'nowrap' }}>
-              {ctx.t('输出')}：<span style={{ fontFamily: CELL_MONO, color: CC.purple, fontWeight: 600 }}>{formatTokenCount(cache.cacheWriteTokens)}</span>
+              {ctx.t('写')}：
+              <span
+                style={{
+                  fontFamily: CELL_MONO,
+                  color: '#2563eb',
+                  fontWeight: 500,
+                }}
+              >
+                {formatTokenCount(cache.cacheWriteTokens)}
+              </span>
             </span>
           )}
         </div>
       ) : (
-        <div style={{ marginTop: 5, fontSize: 12, color: CC.mut2 }}>{ctx.t('无缓存')}</div>
+        <div
+          style={{
+            marginTop: 5,
+            fontSize: 12,
+            fontWeight: 500,
+            color: CC.mut2,
+          }}
+        >
+          {ctx.t('无缓存')}
+        </div>
       )}
     </div>
   );
@@ -816,77 +1051,106 @@ function renderUseTimeCell(record, ctx) {
   const other = getLogOther(record.other);
   const useTime = parseInt(record.use_time);
   const frt = other?.frt;
-  let sub = null;
-  if (record.is_stream && frt) {
-    sub = `${ctx.t('首字')} ${(parseFloat(frt) / 1000).toFixed(1)}s`;
-  } else if (!record.is_stream) {
-    sub = ctx.t('非流');
-  }
+  const hasUseTime = Number.isFinite(useTime);
+  if (!hasUseTime && !frt) return null;
   return (
     <div>
-      <div style={{ fontFamily: CELL_MONO, fontVariantNumeric: 'tabular-nums', fontSize: 14, color: CC.ink2, whiteSpace: 'nowrap' }}>
-        {Number.isFinite(useTime) ? `${useTime}s` : ''}
-      </div>
-      {sub && (
-        <div style={{ fontSize: 12, color: CC.mut2, marginTop: 5, fontFamily: CELL_MONO, whiteSpace: 'nowrap' }}>
-          {sub}
+      {hasUseTime && (
+        <div
+          style={{
+            fontFamily: CELL_MONO,
+            fontSize: 14,
+            fontWeight: 500,
+            color: CC.ink2,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {useTime}s
+        </div>
+      )}
+      {frt && (
+        <div
+          style={{
+            fontSize: 12,
+            fontWeight: 500,
+            color: CC.mut2,
+            marginTop: hasUseTime ? 5 : 0,
+            fontFamily: CELL_MONO,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {ctx.t('首字')} {(parseFloat(frt) / 1000).toFixed(1)}s
         </div>
       )}
     </div>
   );
 }
 
-// 输入单价:按次计费用 model_price;按 token 计费用 model_ratio×2(= $/1M tokens 基准价)
-function getInputUnitPrice(other) {
-  const mp = other?.model_price;
-  if (mp != null && Number(mp) !== -1) {
-    return { value: Number(mp), perCall: true };
-  }
-  const mr = other?.model_ratio;
-  if (mr != null && Number.isFinite(Number(mr))) {
-    return { value: Number(mr) * 2.0, perCall: false };
-  }
-  return null;
-}
-
 function renderCostCell(record, ctx) {
+  if (record.type === 1) {
+    return (
+      <div
+        style={{
+          fontFamily: CELL_MONO,
+          fontWeight: 600,
+          fontSize: 15,
+          color: '#0f9d6e',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        +{renderQuota(record.quota, 6)}
+      </div>
+    );
+  }
   if (!isConsumptionRow(record)) return null;
   const other = getLogOther(record.other);
   const isSub = other?.billing_source === 'subscription';
   const isErr = record.type === 5;
-  const price = getInputUnitPrice(other);
-  // 紧凑:去掉多余小数(整数不补零,原样显示),token→/1M,按次→/次
-  const fmtNum = (v) => parseFloat(Number(v).toFixed(6)).toString();
-  const priceText = price
-    ? `$${fmtNum(price.value)}/${price.perCall ? ctx.t('次') : '1M'}`
-    : '';
   return (
     <div>
-      <div style={{ fontFamily: CELL_MONO, fontVariantNumeric: 'tabular-nums', fontWeight: 500, fontSize: 16, letterSpacing: '-0.01em', color: isErr ? '#b91c1c' : CC.ink }}>
+      <div
+        style={{
+          fontFamily: CELL_MONO,
+          fontWeight: 600,
+          fontSize: 15,
+          color: isErr ? '#b91c1c' : CC.ink,
+        }}
+      >
         {isSub ? (
-          <Tooltip content={`${ctx.t('由订阅抵扣')}：${renderQuota(record.quota, 6)}`}>
+          <Tooltip
+            content={`${ctx.t('由订阅抵扣')}：${renderQuota(record.quota, 6)}`}
+          >
             <span>{renderBillingTag(record, ctx.t)}</span>
           </Tooltip>
         ) : (
           renderQuota(record.quota, 6)
         )}
       </div>
-      {priceText && (
-        <div style={{ marginTop: 5, fontSize: 12, color: CC.mut, fontFamily: CELL_MONO, whiteSpace: 'nowrap' }}>
-          {priceText}
-        </div>
-      )}
     </div>
   );
 }
 
 function renderDetailButton(record, ctx) {
+  const isExpanded = ctx.expandedRowKeys?.includes(record.key);
   return (
     <span
-      onClick={(e) => { e.stopPropagation(); ctx.onOpenDetail?.(record); }}
-      style={{ display: 'inline-flex', alignItems: 'center', gap: 2, color: '#3557d6', fontSize: 13, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap' }}
+      onClick={(e) => {
+        e.stopPropagation();
+        ctx.onOpenDetail?.(record);
+      }}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 2,
+        color: '#3557d6',
+        fontSize: 13,
+        fontWeight: 600,
+        cursor: 'pointer',
+        whiteSpace: 'nowrap',
+      }}
     >
-      {ctx.t('详情')}<span style={{ fontSize: 13 }}>›</span>
+      {isExpanded ? ctx.t('收起') : ctx.t('详情')}
+      <span style={{ fontSize: 13 }}>{isExpanded ? '⌃' : '›'}</span>
     </span>
   );
 }
@@ -894,30 +1158,93 @@ function renderDetailButton(record, ctx) {
 // ============ 移动端卡片 ============
 const M_CARD = {
   background: '#fff',
-  border: '1.5px solid #e2e5dc',
-  borderRadius: 14,
-  padding: '13px 14px',
+  border: '1px solid #e2e8f0',
+  borderRadius: 10,
+  padding: '12px 13px 10px',
+  boxShadow: '0 1px 2px rgba(15, 23, 42, 0.025)',
 };
-const M_DOT = () => (
-  <span style={{ width: 3, height: 3, borderRadius: '50%', background: '#d9ddd4', flex: '0 0 auto' }} />
-);
 function renderLogMobileCard(record, ctx) {
   const { t } = ctx;
   const timeStr = String(record.timestamp2string || '');
+  const timeParts = timeStr.split(' ');
+  const dateText = timeParts[0] || '';
+  const clockText = timeParts[1] || timeStr;
 
   // 非消费行(充值/管理/系统/退款):类型标签 + 时间 + content 描述(金额在 content 里)
   if (!isConsumptionRow(record)) {
+    const isTopup = record.type === 1;
     return (
       <div style={M_CARD}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div>{renderTypeChip(record.type, t)}</div>
-          <span style={{ fontFamily: CELL_MONO, fontSize: 11.5, fontWeight: 700, color: CC.mut, whiteSpace: 'nowrap' }}>{timeStr}</span>
+          {isTopup && (
+            <span
+              style={{
+                marginLeft: 'auto',
+                fontFamily: CELL_MONO,
+                fontSize: 15,
+                fontWeight: 700,
+                color: '#0f9d6e',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              +{renderQuota(record.quota, 6)}
+            </span>
+          )}
+        </div>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: 12,
+            marginTop: 10,
+          }}
+        >
+          <span style={{ fontSize: 13, fontWeight: 650, color: CC.ink }}>
+            {record.username || record.token_name || '—'}
+          </span>
+          <span style={{ fontFamily: CELL_MONO, fontSize: 12, color: CC.ink2 }}>
+            {clockText}
+          </span>
+        </div>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: 12,
+            marginTop: 3,
+            fontSize: 11,
+            color: CC.mut,
+          }}
+        >
+          <span>{record.group || ''}</span>
+          <span style={{ fontFamily: CELL_MONO }}>{dateText}</span>
         </div>
         {record.content && (
-          <div style={{ marginTop: 9, fontSize: 13, fontWeight: 600, color: CC.ink2, lineHeight: 1.5, wordBreak: 'break-all' }}>
+          <div
+            style={{
+              marginTop: 9,
+              fontSize: 13,
+              fontWeight: 600,
+              color: CC.ink2,
+              lineHeight: 1.5,
+              wordBreak: 'break-all',
+            }}
+          >
             {record.content}
           </div>
         )}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'flex-start',
+            marginTop: 10,
+            paddingTop: 9,
+            borderTop: '1px dashed #e4e7de',
+          }}
+        >
+          {renderDetailButton(record, ctx)}
+        </div>
       </div>
     );
   }
@@ -925,62 +1252,217 @@ function renderLogMobileCard(record, ctx) {
   const other = getLogOther(record.other);
   const isSub = other?.billing_source === 'subscription';
   const isErr = record.type === 5;
-  const dotColor = getTypeChipStyle(record.type, t).color;
-  const price = getInputUnitPrice(other);
-  const fmtNum = (v) => parseFloat(Number(v).toFixed(6)).toString();
-  const priceText = price ? `$${fmtNum(price.value)}/${price.perCall ? t('次') : '1M'}` : '';
   const groupName = getGroupName(record, other);
   const ratio = getGroupRatioValue(other);
+  const categories = getModelCategories(t);
+  const modelCategory = Object.entries(categories).find(
+    ([key, category]) =>
+      key !== 'all' && category.filter({ model_name: record.model_name }),
+  );
+  const modelIcon = modelCategory?.[1]?.icon;
 
   return (
     <div style={M_CARD}>
-      {/* 顶部:模型名 + 花费 */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
-        <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 7 }}>
-          <span style={{ width: 7, height: 7, borderRadius: '50%', flex: '0 0 auto', background: dotColor }} />
-          <span onClick={(e) => ctx.copyText(e, record.model_name)} style={{ fontSize: 15, fontWeight: 800, color: CC.ink, letterSpacing: '-0.01em', wordBreak: 'break-all', lineHeight: 1.25 }}>
-            {record.model_name}
-          </span>
-        </div>
-        <div style={{ textAlign: 'right', flex: '0 0 auto' }}>
-          <div style={{ fontFamily: CELL_MONO, fontSize: 16, fontWeight: 800, color: isErr ? '#b91c1c' : CC.ink, letterSpacing: '-0.02em', whiteSpace: 'nowrap' }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12,
+        }}
+      >
+        {renderTypeChip(record.type, t)}
+        <div style={{ textAlign: 'right', minWidth: 0 }}>
+          <div
+            style={{
+              fontFamily: CELL_MONO,
+              fontSize: 12,
+              fontWeight: 700,
+              color: isErr ? '#b91c1c' : CC.ink,
+              whiteSpace: 'nowrap',
+            }}
+          >
             {isSub ? renderBillingTag(record, t) : renderQuota(record.quota, 6)}
           </div>
-          {priceText && (
-            <div style={{ fontFamily: CELL_MONO, fontSize: 10.5, fontWeight: 700, color: CC.mut2, marginTop: 1 }}>{priceText}</div>
-          )}
         </div>
       </div>
 
-      {/* 标签 */}
-      <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
-        {renderTypeChip(record.type, t)}
-        {renderStreamTag(record, t)}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          gap: 12,
+          marginTop: 9,
+        }}
+      >
+        <span
+          style={{
+            fontSize: 13,
+            fontWeight: 650,
+            color: CC.ink,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {ctx.isAdminUser ? record.username : record.token_name}
+        </span>
+        <span
+          style={{
+            fontFamily: CELL_MONO,
+            fontSize: 12,
+            color: CC.ink2,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {clockText}
+        </span>
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: 12,
+          marginTop: 3,
+          fontSize: 11,
+          color: CC.mut,
+        }}
+      >
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+          {groupName || t('默认分组')}
+          {renderRatioBadge(ratio, true)}
+        </span>
+        <span style={{ fontFamily: CELL_MONO, whiteSpace: 'nowrap' }}>
+          {dateText}
+        </span>
       </div>
 
-      {/* 元信息 */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 9, fontFamily: CELL_MONO, fontSize: 11.5, fontWeight: 700, color: CC.mut, flexWrap: 'wrap' }}>
-        {ctx.isAdminUser && record.username && (<><span style={{ color: CC.ink2, fontWeight: 800 }}>{record.username}</span><M_DOT /></>)}
-        {record.token_name && (<><span style={{ color: CC.ink2, fontWeight: 800 }}>{record.token_name}</span><M_DOT /></>)}
-        {groupName && (<>{groupName}{ratio ? ` ×${ratio}` : ''}<M_DOT /></>)}
-        <span>{timeStr}</span>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          marginTop: 8,
+          minWidth: 0,
+        }}
+      >
+        <span className='usage-log-model-icon'>
+          {modelIcon || <span className='usage-log-model-icon__fallback' />}
+        </span>
+        <span
+          onClick={(e) => ctx.copyText(e, record.model_name)}
+          style={{
+            minWidth: 0,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            fontSize: 13,
+            fontWeight: 700,
+            color: CC.ink,
+          }}
+        >
+          {record.model_name}
+        </span>
+        {record.is_stream ? (
+          renderStreamTag(record, t)
+        ) : (
+          <span className='usage-log-meta-pill usage-log-meta-pill--non-stream'>
+            {t('非流式')}
+          </span>
+        )}
       </div>
 
-      {/* 统计 */}
-      <div style={{ display: 'flex', gap: 20, marginTop: 11, paddingTop: 11, borderTop: '1px dashed #e4e7de' }}>
-        <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: CC.mut }}>{t('输入')}</div>
-          <div style={{ fontFamily: CELL_MONO, fontSize: 14, fontWeight: 800, color: CC.ink, marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>{formatTokenCount(record.prompt_tokens)}</div>
+      {ctx.isAdminUser && (
+        <div
+          style={{
+            marginTop: 7,
+            fontSize: 12,
+            fontWeight: 600,
+            color: CC.ink2,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          #{record.channel} · {record.channel_name || t('未知渠道')}
         </div>
-        <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: CC.mut }}>{t('输出')}</div>
-          <div style={{ fontFamily: CELL_MONO, fontSize: 14, fontWeight: 800, color: CC.ink, marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>{formatTokenCount(record.completion_tokens)}</div>
-        </div>
-        <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: CC.mut }}>{t('用时')}</div>
-          <div style={{ fontFamily: CELL_MONO, fontSize: 14, fontWeight: 800, color: CC.ink, marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>{record.use_time ? `${record.use_time}s` : '-'}</div>
-        </div>
-        <div style={{ marginLeft: 'auto', alignSelf: 'flex-end' }}>{renderDetailButton(record, ctx)}</div>
+      )}
+
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr auto',
+          rowGap: 5,
+          columnGap: 12,
+          marginTop: 10,
+          paddingTop: 9,
+          borderTop: '1px dashed #e2e8f0',
+          fontSize: 11,
+          color: CC.mut,
+        }}
+      >
+        <span>
+          {t('输入')}{' '}
+          <b style={{ fontFamily: CELL_MONO, color: CC.ink2 }}>
+            {formatTokenCount(record.prompt_tokens)}
+          </b>
+          　{t('输出')}{' '}
+          <b style={{ fontFamily: CELL_MONO, color: CC.ink2 }}>
+            {formatTokenCount(record.completion_tokens)}
+          </b>
+        </span>
+        {(record.use_time || other?.frt) && (
+          <div
+            style={{
+              gridColumn: 2,
+              gridRow: '1 / span 2',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'flex-end',
+              justifyContent: 'center',
+              gap: 3,
+              whiteSpace: 'nowrap',
+              fontFamily: CELL_MONO,
+            }}
+          >
+            {record.use_time && (
+              <span
+                style={{
+                  fontSize: 13,
+                  lineHeight: '18px',
+                  fontWeight: 600,
+                  color: CC.ink2,
+                }}
+              >
+                {record.use_time}s
+              </span>
+            )}
+            {other?.frt && (
+              <span
+                style={{
+                  fontSize: 12,
+                  lineHeight: '17px',
+                  fontWeight: 500,
+                  color: CC.mut2,
+                }}
+              >
+                {t('首字')} {(Number(other.frt) / 1000).toFixed(1)}s
+              </span>
+            )}
+          </div>
+        )}
+        <span>
+          {getPromptCacheSummary(other)
+            ? `${t('缓存')} ${t('读')} ${formatTokenCount(getPromptCacheSummary(other).cacheReadTokens)}${getPromptCacheSummary(other).cacheWriteTokens ? ` · ${t('写')} ${formatTokenCount(getPromptCacheSummary(other).cacheWriteTokens)}` : ''}`
+            : t('无缓存')}
+        </span>
+      </div>
+
+      <div
+        style={{ marginTop: 9, paddingTop: 8, borderTop: '1px solid #eef2f7' }}
+      >
+        {renderDetailButton(record, ctx)}
       </div>
     </div>
   );
@@ -994,6 +1476,8 @@ export const getLogMobileCardRender = ({
   isAdminUser,
   billingDisplayMode = 'price',
   onOpenDetail,
+  expandedRowKeys = [],
+  expandedRowRender,
 }) => {
   const ctx = {
     t,
@@ -1003,8 +1487,17 @@ export const getLogMobileCardRender = ({
     isAdminUser,
     billingDisplayMode,
     onOpenDetail,
+    expandedRowKeys,
+    expandedRowRender,
   };
-  return (record) => renderLogMobileCard(record, ctx);
+  return (record) => (
+    <div className='usage-log-mobile-row'>
+      {renderLogMobileCard(record, ctx)}
+      {expandedRowKeys.includes(record.key) &&
+        expandedRowRender &&
+        expandedRowRender(record)}
+    </div>
+  );
 };
 
 export const getLogsColumns = ({
@@ -1016,6 +1509,7 @@ export const getLogsColumns = ({
   isAdminUser,
   billingDisplayMode = 'price',
   onOpenDetail,
+  expandedRowKeys = [],
 }) => {
   const ctx = {
     t,
@@ -1025,6 +1519,7 @@ export const getLogsColumns = ({
     isAdminUser,
     billingDisplayMode,
     onOpenDetail,
+    expandedRowKeys,
   };
 
   const columns = [
@@ -1036,6 +1531,14 @@ export const getLogsColumns = ({
       render: (_text, record) => renderTimeCell(record),
     },
   ];
+
+  columns.push({
+    key: COLUMN_KEYS.TYPE,
+    title: t('类型'),
+    dataIndex: 'type',
+    width: 72,
+    render: (_text, record) => renderTypeChip(record.type, t),
+  });
 
   if (isAdminUser) {
     columns.push({
@@ -1049,13 +1552,13 @@ export const getLogsColumns = ({
       key: COLUMN_KEYS.CHANNEL,
       title: t('渠道'),
       dataIndex: 'channel',
-      width: 116,
+      width: 132,
       render: (_text, record) => renderChannelCell(record, ctx),
     });
   } else {
     columns.push({
       key: COLUMN_KEYS.TOKEN_GROUP,
-      title: t('令牌 / 分组'),
+      title: t('令牌名称'),
       dataIndex: 'token_name',
       width: 150,
       render: (_text, record) => renderTokenGroupCell(record, ctx),
@@ -1064,35 +1567,35 @@ export const getLogsColumns = ({
 
   columns.push({
     key: COLUMN_KEYS.REQ_MODEL,
-    title: t('请求 / 模型'),
+    title: t('调用信息'),
     dataIndex: 'model_name',
-    width: isAdminUser ? 204 : 244,
+    width: isAdminUser ? 180 : 210,
     render: (_text, record) => renderReqModelCell(record, ctx),
   });
   columns.push({
     key: COLUMN_KEYS.USAGE,
-    title: t('用量'),
+    title: t('Tokens 用量'),
     dataIndex: 'prompt_tokens',
-    width: isAdminUser ? 194 : 236,
+    width: isAdminUser ? 190 : 170,
     render: (_text, record) => renderUsageCell(record, ctx),
   });
   columns.push({
     key: COLUMN_KEYS.USE_TIME,
-    title: t('用时'),
+    title: t('响应时间'),
     dataIndex: 'use_time',
     width: isAdminUser ? 92 : 100,
     render: (_text, record) => renderUseTimeCell(record, ctx),
   });
   columns.push({
     key: COLUMN_KEYS.COST,
-    title: t('花费'),
+    title: t('费用'),
     dataIndex: 'quota',
     width: isAdminUser ? 132 : 150,
     render: (_text, record) => renderCostCell(record, ctx),
   });
   columns.push({
     key: COLUMN_KEYS.DETAILS,
-    title: t('操作'),
+    title: t('详情'),
     dataIndex: 'operate',
     width: isAdminUser ? 64 : 72,
     align: 'center',

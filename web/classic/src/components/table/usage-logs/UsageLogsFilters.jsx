@@ -47,10 +47,11 @@ const LogsFilters = ({
     setTimeout(() => refresh(), 100);
   };
 
-  const handleSearch = () => {
+  const handleSearch = async () => {
+    if (formApi) await formApi.validate();
     setActiveTimeRange(null);
     setShowFilterModal(false);
-    setTimeout(() => refresh(), 0);
+    await refresh();
   };
 
   return (
@@ -73,7 +74,12 @@ const LogsFilters = ({
         width={560}
         footer={
           <div className='flex justify-end gap-2'>
-            <Button type='tertiary' theme='light' size='small' onClick={handleReset}>
+            <Button
+              type='tertiary'
+              theme='light'
+              size='small'
+              onClick={handleReset}
+            >
               {t('重置')}
             </Button>
             <Button

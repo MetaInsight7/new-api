@@ -46,9 +46,22 @@ const CardTable = ({
   rowKey = 'key',
   hidePagination = false,
   mobileCardRender = null,
+  mobileBreakpoint = 768,
   ...tableProps
 }) => {
-  const isMobile = useIsMobile();
+  const defaultIsMobile = useIsMobile();
+  const [viewportWidth, setViewportWidth] = useState(() =>
+    typeof window === 'undefined' ? 1280 : window.innerWidth,
+  );
+  useEffect(() => {
+    const onResize = () => setViewportWidth(window.innerWidth);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  const isMobile =
+    mobileBreakpoint === 768
+      ? defaultIsMobile
+      : viewportWidth < mobileBreakpoint;
   const { t } = useTranslation();
 
   const showSkeleton = useMinimumLoadingTime(loading);
@@ -245,6 +258,7 @@ CardTable.propTypes = {
   rowKey: PropTypes.oneOfType([PropTypes.string, PropTypes.func]),
   hidePagination: PropTypes.bool,
   mobileCardRender: PropTypes.func,
+  mobileBreakpoint: PropTypes.number,
 };
 
 export default CardTable;
