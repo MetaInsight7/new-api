@@ -849,6 +849,13 @@ html:not(.dark) .app-console .usage-log-table-v2 table {
    ===================================================================== */
 html:not(.dark) .app-console .dmit-flat-table table {
   table-layout: fixed !important;
+  font-variant-numeric: tabular-nums;
+}
+html:not(.dark) .app-console .token-table-v2 table {
+  --usage-log-font:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Microsoft YaHei', Arial, sans-serif;
+  font-family: var(--usage-log-font) !important;
 }
 html:not(.dark)
   .app-console
@@ -894,6 +901,135 @@ html:not(.dark) .app-console .dmit-flat-card .semi-table {
 }
 html:not(.dark) .app-console .dmit-flat-card .semi-card-body {
   padding: 0 !important;
+}
+
+/* 令牌页桌面表格:与日志表格共用 13/600 + 12/500 的信息层级 */
+.app-console .dmit-flat-table .token-table-primary,
+.app-console .dmit-flat-table .token-table-status {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+  color: #141a1f;
+}
+.app-console .dmit-flat-table .token-table-secondary {
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 17px;
+  color: #6b7686;
+}
+.app-console .dmit-flat-table .token-table-secondary--single {
+  display: inline-block;
+  margin-top: 0;
+}
+.app-console .dmit-flat-table .token-table-name {
+  word-break: break-word;
+}
+.app-console .dmit-flat-table .token-table-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.app-console .dmit-flat-table .token-table-stack {
+  min-width: 0;
+}
+.app-console .dmit-flat-table .token-table-stack--interactive {
+  cursor: help;
+}
+.app-console .dmit-flat-table .token-table-line {
+  display: flex;
+  align-items: baseline;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+  color: #3c4650;
+}
+.app-console
+  .dmit-flat-table
+  .token-table-secondary
+  .token-table-line {
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+  color: inherit;
+}
+.app-console .dmit-flat-table .token-table-field-label {
+  flex: 0 0 auto;
+  color: #6b7686;
+  font-weight: 500;
+}
+.app-console
+  .dmit-flat-table
+  .token-table-primary
+  > .token-table-field-label {
+  color: #141a1f;
+  font-weight: 600;
+}
+.app-console .dmit-flat-table .token-table-key {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
+  color: #3c4650;
+  font-variant-numeric: tabular-nums;
+}
+.app-console .dmit-flat-table .token-table-limit-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.app-console .dmit-flat-table .token-table-limit-row {
+  display: flex;
+  align-items: center;
+  min-height: 18px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+  color: #141a1f;
+}
+.app-console .dmit-flat-table .token-table-limit-row + .token-table-limit-row {
+  margin-top: 4px;
+}
+.app-console .dmit-flat-table .token-table-limit-line {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+.app-console .dmit-flat-table .token-table-model-icon {
+  width: 16px;
+  height: 18px;
+}
+.app-console .dmit-flat-table .token-table-model-icon > svg {
+  width: 16px;
+  height: 16px;
+}
+.app-console .dmit-flat-table .token-table-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  min-width: 22px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: #eff4ff;
+  color: #2563eb;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 18px;
+}
+.app-console .dmit-flat-table .token-table-time {
+  white-space: nowrap;
+  font-weight: 500;
+  color: #3c4650;
 }
 
 /* 令牌页:状态彩色信号灯(静态光晕 + 涟漪脉冲) */

@@ -19,7 +19,11 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { Tooltip, Popover, Typography, Modal } from '@douyinfe/semi-ui';
-import { timestamp2string, renderQuota } from '../../../helpers';
+import {
+  timestamp2string,
+  renderQuota,
+  getModelCategories,
+} from '../../../helpers';
 import { Pencil, Power, Trash2, Eye, EyeOff, Copy } from 'lucide-react';
 
 // 与使用日志一致的视觉语言 —— 原型见 .tmp/token-proto5.html
@@ -32,13 +36,6 @@ const K = {
   line: '#eef1f5',
 };
 
-const progressColor = (pct) => {
-  if (pct >= 100) return '#2563eb';
-  if (pct <= 10) return '#ef4444';
-  if (pct <= 30) return '#f59e0b';
-  return '#2563eb';
-};
-
 // 状态:发光信号灯 + 文字
 function renderStatusLight(status, t) {
   const map = {
@@ -49,7 +46,7 @@ function renderStatusLight(status, t) {
   };
   const c = map[status] || { text: t('未知'), dot: '#94a3b8', glow: 'rgba(148,163,184,.16)', color: '#6b7686' };
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 13, fontWeight: 500, color: c.color }}>
+    <span className='token-table-status' style={{ color: c.color }}>
       <span className='token-status-dot' style={{ ['--dot']: c.dot, ['--glow']: c.glow }} />
       {c.text}
     </span>
@@ -64,15 +61,15 @@ function renderNameCell(record, t) {
       : `${t('到期')} ${String(timestamp2string(record.expired_time)).split(' ')[0]}`;
   return (
     <div>
-      <div style={{ fontWeight: 600, fontSize: 14, color: K.ink, wordBreak: 'break-all', lineHeight: 1.3 }}>
+      <div className='token-table-primary token-table-name'>
         {record.name || '-'}
       </div>
-      <div style={{ marginTop: 6, fontSize: 13, color: K.ink2, whiteSpace: 'nowrap' }}>{expiry}</div>
+      <div className='token-table-secondary'>{expiry}</div>
     </div>
   );
 }
 
-// 剩余额度 / 总额度 + 进度条
+// 剩余额度 / 总额度（两行数字，详细数据保留在悬浮层）
 function renderQuotaCell(record, t) {
   const { Paragraph } = Typography;
   const used = parseInt(record.used_quota) || 0;
@@ -89,16 +86,21 @@ function renderQuotaCell(record, t) {
           </div>
         }
       >
-        <span style={{ fontSize: 14, color: K.ink2, cursor: 'help' }}>{t('无限额度')}</span>
+        <div className='token-table-stack token-table-stack--interactive'>
+          <div className='token-table-primary'>
+            <span className='token-table-field-label'>{t('剩余')}：</span>
+            {t('无限')}
+          </div>
+          <div className='token-table-secondary'>
+            <span className='token-table-field-label'>{t('已用')}：</span>
+            {renderQuota(used)}
+          </div>
+        </div>
       </Popover>
     );
   }
 
   const percent = total > 0 ? (remain / total) * 100 : 0;
-  const color = progressColor(percent);
-  const R = 15;
-  const C = 2 * Math.PI * R;
-  const pct = Math.min(100, Math.max(0, percent));
   return (
     <Popover
       position='top'
@@ -110,67 +112,14 @@ function renderQuotaCell(record, t) {
         </div>
       }
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 11, cursor: 'help' }}>
-        <div style={{ position: 'relative', width: 38, height: 38, flex: '0 0 auto' }}>
-          <svg width='38' height='38' viewBox='0 0 38 38'>
-            <circle cx='19' cy='19' r={R} fill='none' stroke={K.line} strokeWidth='3' />
-            <circle
-              cx='19'
-              cy='19'
-              r={R}
-              fill='none'
-              stroke={color}
-              strokeWidth='3'
-              strokeLinecap='round'
-              strokeDasharray={C}
-              strokeDashoffset={C * (1 - pct / 100)}
-              transform='rotate(-90 19 19)'
-            />
-          </svg>
-          <span
-            style={{
-              position: 'absolute',
-              inset: 0,
-              display: 'grid',
-              placeItems: 'center',
-              fontFamily: MONO,
-              fontSize: 10,
-              fontWeight: 600,
-              color: K.ink2,
-              fontVariantNumeric: 'tabular-nums',
-            }}
-          >
-            {percent.toFixed(0)}
-          </span>
+      <div className='token-table-stack token-table-stack--interactive'>
+        <div className='token-table-primary'>
+          <span className='token-table-field-label'>{t('剩余')}：</span>
+          {renderQuota(remain)}
         </div>
-        <div style={{ minWidth: 0 }}>
-          <div
-            style={{
-              fontFamily: MONO,
-              fontVariantNumeric: 'tabular-nums',
-              fontSize: 15,
-              fontWeight: 600,
-              color: K.ink,
-              lineHeight: 1.25,
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {renderQuota(remain)}
-          </div>
-          <div
-            style={{
-              fontFamily: MONO,
-              fontVariantNumeric: 'tabular-nums',
-              fontSize: 15,
-              fontWeight: 600,
-              color: K.ink,
-              marginTop: 2,
-              lineHeight: 1.25,
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {renderQuota(total)}
-          </div>
+        <div className='token-table-secondary'>
+          <span className='token-table-field-label'>{t('已用')}：</span>
+          {renderQuota(used)}
         </div>
       </div>
     </Popover>
@@ -181,18 +130,18 @@ function renderQuotaCell(record, t) {
 function renderGroupCell(record, t, groupRatios) {
   const group = record.group;
   const line = (label, value, valStyle) => (
-    <div style={{ display: 'flex', alignItems: 'baseline', whiteSpace: 'nowrap' }}>
-      <span style={{ color: K.ink2, fontSize: 12, flex: '0 0 auto' }}>{label}</span>
-      <span style={{ color: K.ink2, fontSize: 14, ...valStyle }}>{value}</span>
+    <div className='token-table-line'>
+      <span className='token-table-field-label'>{label}</span>
+      <span style={valStyle}>{value}</span>
     </div>
   );
   if (group === 'auto') {
     return (
       <div>
         <Tooltip content={t('当前分组为 auto，会自动选择最优分组，当一个组不可用时自动降级到下一个组（熔断机制）')}>
-          {line(`${t('分组')}：`, t('智能熔断'), { color: '#7c3aed', fontWeight: 600, cursor: 'help' })}
+          {line(`${t('分组')}：`, t('智能熔断'), { color: '#2563eb', fontWeight: 600, cursor: 'help' })}
         </Tooltip>
-        <div style={{ marginTop: 6 }}>{line(`${t('倍率')}：`, t('自动'))}</div>
+        <div className='token-table-secondary'>{line(`${t('倍率')}：`, t('自动'))}</div>
       </div>
     );
   }
@@ -200,7 +149,7 @@ function renderGroupCell(record, t, groupRatios) {
   return (
     <div>
       {line(`${t('分组')}：`, group || t('默认'))}
-      <div style={{ marginTop: 6 }}>
+      <div className='token-table-secondary'>
         {line(`${t('倍率')}：`, ratio !== undefined ? `${ratio}x` : '-', { color: '#4f46e5', fontWeight: 600 })}
       </div>
     </div>
@@ -218,7 +167,7 @@ function renderKeyCell(record, ctx) {
   const displayedKey = keyValue ? `sk-${keyValue}` : '-';
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 2, background: '#f6f8fa', border: '1px solid #eef1f5', borderRadius: 7, padding: '3px 4px 3px 10px', maxWidth: '100%' }}>
-      <span className='token-keyscroll' style={{ fontFamily: MONO, fontSize: 13, color: K.ink2, flex: 1, minWidth: 0, overflowX: 'auto', whiteSpace: 'nowrap' }}>
+      <span className='token-keyscroll token-table-key'>
         {displayedKey}
       </span>
       <span style={{ display: 'flex', alignItems: 'center', gap: 1, flex: '0 0 auto' }}>
@@ -280,39 +229,52 @@ function renderLimitsCell(record, t) {
   const ips = record.allow_ips && record.allow_ips.trim() !== ''
     ? String(record.allow_ips).split('\n').map((s) => s.trim()).filter(Boolean)
     : [];
-  const none = <span style={{ fontSize: 13, color: K.ink2 }}>{t('无限制')}</span>;
-  // 去掉「模型」「IP」标题，只显示值(第一行模型、第二行 IP;IP 用等宽字体区分)
-  const valLine = (items, isIp) =>
+  const categories = getModelCategories(t);
+  const getModelIcon = (modelName) => {
+    const category = Object.entries(categories).find(
+      ([key, item]) =>
+        key !== 'all' && item.filter({ model_name: modelName }),
+    );
+    return category?.[1]?.icon;
+  };
+  const valLine = (items, isModel = false) =>
     items.length > 0 ? (
       <Tooltip content={items.join(', ')}>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, fontSize: isIp ? 12 : 13, color: K.ink2, fontFamily: isIp ? MONO : undefined }}>{items[0]}</span>
+        <span className='token-table-limit-line'>
+          {isModel && (
+            <span className='usage-log-model-icon token-table-model-icon'>
+              {getModelIcon(items[0]) || (
+                <span className='usage-log-model-icon__fallback' />
+              )}
+            </span>
+          )}
+          <span className='token-table-limit-value'>{items[0]}</span>
           {items.length > 1 && (
-            <span style={{ display: 'inline-flex', alignItems: 'center', height: 16, padding: '0 5px', borderRadius: 5, background: '#f1f5f9', color: K.ink2, fontSize: 11, fontWeight: 600, flex: '0 0 auto' }}>+{items.length - 1}</span>
+            <span className='token-table-count-badge'>+{items.length - 1}</span>
           )}
         </span>
       </Tooltip>
-    ) : none;
+    ) : (
+      <span>{isModel ? t('全部模型') : t('不限制 IP')}</span>
+    );
   return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center' }}>{valLine(models, false)}</div>
-      <div style={{ marginTop: 7, display: 'flex', alignItems: 'center' }}>{valLine(ips, true)}</div>
+    <div className='token-table-stack'>
+      <div className='token-table-limit-row'>{valLine(models, true)}</div>
+      <div className='token-table-limit-row'>{valLine(ips)}</div>
     </div>
   );
 }
 
-// 创建 / 最后使用(两行同色同大小,精确到分钟)
+// 最后使用（单行，精确到分钟）
 function renderTimeCell(record, t) {
-  const fmt = (ts) => String(timestamp2string(ts)).slice(0, 16);
+  if (!record.accessed_time) {
+    return <span className='token-table-secondary token-table-secondary--single'>{t('从未使用')}</span>;
+  }
+
   return (
-    <div>
-      <div style={{ fontFamily: MONO, fontVariantNumeric: 'tabular-nums', fontSize: 13, color: K.ink2, whiteSpace: 'nowrap' }}>
-        {fmt(record.created_time)}
-      </div>
-      <div style={{ fontFamily: MONO, fontVariantNumeric: 'tabular-nums', fontSize: 13, marginTop: 5, whiteSpace: 'nowrap', color: record.accessed_time ? K.ink2 : K.mut2 }}>
-        {record.accessed_time ? fmt(record.accessed_time) : t('从未使用')}
-      </div>
-    </div>
+    <span className='token-table-primary token-table-time'>
+      {String(timestamp2string(record.accessed_time)).slice(0, 16)}
+    </span>
   );
 }
 
@@ -513,7 +475,7 @@ export const getTokensColumns = ({
   };
   return [
     {
-      title: t('名称'),
+      title: t('令牌名称'),
       dataIndex: 'name',
       width: 124,
       render: (text, record) => renderNameCell(record, t),
@@ -525,9 +487,15 @@ export const getTokensColumns = ({
       render: (text, record) => renderStatusLight(record.status, t),
     },
     {
-      title: t('剩余额度 / 总额度'),
+      title: t('密钥'),
+      key: 'token_key',
+      width: 194,
+      render: (text, record) => renderKeyCell(record, ctx),
+    },
+    {
+      title: t('额度'),
       key: 'quota_usage',
-      width: 144,
+      width: 132,
       render: (text, record) => renderQuotaCell(record, t),
     },
     {
@@ -537,21 +505,15 @@ export const getTokensColumns = ({
       render: (text, record) => renderGroupCell(record, t, groupRatios),
     },
     {
-      title: t('密钥'),
-      key: 'token_key',
-      width: 176,
-      render: (text, record) => renderKeyCell(record, ctx),
-    },
-    {
       title: t('模型 / IP 限制'),
       key: 'limits',
-      width: 150,
+      width: 156,
       render: (text, record) => renderLimitsCell(record, t),
     },
     {
-      title: t('创建 / 最后使用'),
+      title: t('最后使用'),
       key: 'time',
-      width: 150,
+      width: 132,
       render: (text, record) => renderTimeCell(record, t),
     },
     {

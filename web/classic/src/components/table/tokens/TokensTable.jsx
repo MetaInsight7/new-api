@@ -146,7 +146,7 @@ const TokensTable = (tokensData) => {
       rowSelection={rowSelection}
       onRow={handleRow}
       empty={<TableEmpty title={t('搜索无结果')} />}
-      className='dmit-flat-table'
+      className='dmit-flat-table token-table-v2'
       size='middle'
     />
   );

@@ -1542,7 +1542,7 @@ export const getLogsColumns = ({
       key: COLUMN_KEYS.CHANNEL,
       title: t('渠道'),
       dataIndex: 'channel',
-      width: 132,
+      width: 156,
       render: (_text, record) => renderChannelCell(record, ctx),
     });
   } else {
@@ -1580,7 +1580,7 @@ export const getLogsColumns = ({
     key: COLUMN_KEYS.COST,
     title: t('费用'),
     dataIndex: 'quota',
-    width: isAdminUser ? 132 : 150,
+    width: isAdminUser ? 108 : 150,
     render: (_text, record) => renderCostCell(record, ctx),
   });
   columns.push({

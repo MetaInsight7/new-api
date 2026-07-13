@@ -35,9 +35,12 @@ import {
   getServerAddress,
   encodeChannelConnectionString,
 } from '../../helpers/token';
+import { tokenMockData } from '../../components/table/tokens/tokenMockData';
 
 export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
   const { t } = useTranslation();
+  const mockMode =
+    new URLSearchParams(window.location.search).get('mock') === '1';
 
   // Basic state
   const [tokens, setTokens] = useState([]);
@@ -104,6 +107,16 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
   const loadTokens = async (page = 1, size = pageSize) => {
     setLoading(true);
     setSearchMode(false);
+    if (mockMode) {
+      syncPageData({
+        items: tokenMockData,
+        total: tokenMockData.length,
+        page: 1,
+        page_size: size,
+      });
+      setLoading(false);
+      return;
+    }
     const res = await API.get(`/api/token/?p=${page}&size=${size}`);
     const { success, message, data } = res.data;
     if (success) {
@@ -448,6 +461,10 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
       .catch((reason) => {
         showError(reason);
       });
+    if (mockMode) {
+      setGroupRatios({ default: 1, pro: 0.8 });
+      return;
+    }
     API.get('/api/user/self/groups')
       .then((res) => {
         if (res.data.success && res.data.data) {
