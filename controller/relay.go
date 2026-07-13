@@ -89,7 +89,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		if newAPIError != nil {
 			logger.LogError(c, fmt.Sprintf("relay error: %s", common.LocalLogPreview(newAPIError.Error())))
 			sanitizeErrorForUser(c, newAPIError)
-			newAPIError.SetMessage(common.MessageWithRequestId(newAPIError.Error(), requestId))
+			newAPIError.ReplaceMessage(common.MessageWithRequestId(newAPIError.Error(), requestId))
 			switch relayFormat {
 			case types.RelayFormatOpenAIRealtime:
 				helper.WssError(c, ws, newAPIError.ToOpenAIError())
