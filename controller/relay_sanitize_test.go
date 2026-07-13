@@ -84,6 +84,31 @@ func TestSanitize_MultiRequestId_Gone(t *testing.T) {
 	}
 }
 
+func TestSanitize_UpstreamUserError_PassThrough(t *testing.T) {
+	cases := []struct {
+		status int
+		msg    string
+	}{
+		{400, "This model does not support assistant message prefill"},
+		{413, "Request body too large"},
+		{422, "Unprocessable entity: invalid field type"},
+	}
+	for _, tc := range cases {
+		oai := types.OpenAIError{
+			Message: tc.msg,
+			Type:    "invalid_request_error",
+		}
+		e := types.WithOpenAIError(oai, tc.status)
+		e.SetOrigin(types.ErrorOriginUpstream)
+
+		sanitizeErrorForUser(nil, e)
+
+		if e.Error() != tc.msg {
+			t.Fatalf("upstream %d should pass through, want %q, got %q", tc.status, tc.msg, e.Error())
+		}
+	}
+}
+
 func contains(s, sub string) bool {
 	for i := 0; i+len(sub) <= len(s); i++ {
 		if s[i:i+len(sub)] == sub {

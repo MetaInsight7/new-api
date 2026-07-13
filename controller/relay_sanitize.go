@@ -34,10 +34,17 @@ func sanitizeErrorForUser(c *gin.Context, e *types.NewAPIError) {
 	case types.ErrorOriginUser:
 		return
 	case types.ErrorOriginUpstream:
+		if isUpstreamUserError(e.StatusCode) {
+			return
+		}
 		e.ReplaceMessage(getUpstreamMessage(e.StatusCode))
 	case types.ErrorOriginPlatform:
 		e.ReplaceMessage(defaultPlatformMsg)
 	}
+}
+
+func isUpstreamUserError(statusCode int) bool {
+	return statusCode == 400 || statusCode == 413 || statusCode == 422
 }
 
 func getUpstreamMessage(statusCode int) string {
