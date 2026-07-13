@@ -22,10 +22,19 @@ import { Button, Collapsible, Typography } from '@douyinfe/semi-ui';
 import { IconChevronDown, IconChevronUp, IconCopy } from '@douyinfe/semi-icons';
 import { getLogOther, renderQuota } from '../../../helpers';
 
-const DetailItem = ({ label, value, mono = false, onCopy, strong = false }) => {
+const DetailItem = ({
+  label,
+  value,
+  mono = false,
+  onCopy,
+  strong = false,
+  fullWidth = false,
+}) => {
   if (value === undefined || value === null || value === '') return null;
   return (
-    <div className='usage-log-detail__item'>
+    <div
+      className={`usage-log-detail__item${fullWidth ? ' usage-log-detail__item--full' : ''}`}
+    >
       <div className='usage-log-detail__label'>{label}</div>
       <div
         className={`${mono ? 'usage-log-detail__value usage-log-detail__value--mono' : 'usage-log-detail__value'}${strong ? ' usage-log-detail__value--strong' : ''}`}
@@ -229,15 +238,6 @@ const UsageLogInlineDetail = ({
       <>
         <DetailSection title={t('错误概览')} tone='error'>
           <DetailItem
-            label={t('失败原因')}
-            value={
-              record.content ||
-              other.stream_status?.end_error ||
-              detailValue('失败原因')
-            }
-            strong
-          />
-          <DetailItem
             label={t('错误状态')}
             value={
               other.stream_status?.end_reason ||
@@ -249,6 +249,15 @@ const UsageLogInlineDetail = ({
             label={t('失败耗时')}
             value={record.use_time ? `${record.use_time}s` : null}
             mono
+          />
+          <DetailItem
+            label={t('失败原因')}
+            value={
+              record.content ||
+              other.stream_status?.end_error ||
+              detailValue('失败原因')
+            }
+            fullWidth
           />
         </DetailSection>
         <DetailSection title={t('请求信息')}>

@@ -144,9 +144,8 @@ const LogsTable = (logsData) => {
       expandedRowKeys={expandedRowKeys}
       expandedRowRender={expandedRowRender}
       rowExpandable={(record) =>
-        Boolean(
-          expandData[record.key]?.length || record.content || record.request_id,
-        )
+        ![3, 4].includes(Number(record.type)) &&
+        Boolean(expandData[record.key]?.length || record.content || record.request_id)
       }
       hideExpandedColumn
       expandIcon={false}

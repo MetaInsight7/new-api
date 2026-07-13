@@ -1120,6 +1120,7 @@ function renderCostCell(record, ctx) {
 }
 
 function renderDetailButton(record, ctx) {
+  if ([3, 4].includes(Number(record.type))) return null;
   const isExpanded = ctx.expandedRowKeys?.includes(record.key);
   return (
     <span
@@ -1584,7 +1585,7 @@ export const getLogsColumns = ({
   });
   columns.push({
     key: COLUMN_KEYS.DETAILS,
-    title: t('详情'),
+    title: t('操作'),
     dataIndex: 'operate',
     width: isAdminUser ? 64 : 72,
     align: 'center',

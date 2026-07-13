@@ -705,6 +705,17 @@ html:not(.dark) .app-console .usage-log-table-v2 table {
   gap: 10px;
   min-width: 0;
 }
+.app-console .usage-log-detail__item--full {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px;
+}
+.app-console .usage-log-detail__item--full .usage-log-detail__value {
+  justify-content: flex-start;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 400;
+  color: #334155;
+}
 .app-console .usage-log-detail__label {
   font-size: 11px;
   font-weight: 600;
