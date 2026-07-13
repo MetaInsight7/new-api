@@ -66,8 +66,11 @@ const (
 	LogTypeRefund  = 6
 )
 
-func formatUserLogs(logs []*Log, startIdx int) {
+func formatUserLogs(logs []*Log, startIdx int, showIp bool) {
 	for i := range logs {
+		if !showIp {
+			logs[i].Ip = ""
+		}
 		logs[i].ChannelName = ""
 		var otherMap map[string]interface{}
 		otherMap, _ = common.StrToMap(logs[i].Other)
@@ -82,9 +85,18 @@ func formatUserLogs(logs []*Log, startIdx int) {
 	}
 }
 
+func shouldShowUserLogIp(userId int) bool {
+	settingMap, err := GetUserSetting(userId, false)
+	return err == nil && settingMap.RecordIpLog
+}
+
 func GetLogByTokenId(tokenId int) (logs []*Log, err error) {
 	err = LOG_DB.Model(&Log{}).Where("token_id = ?", tokenId).Order("id desc").Limit(common.MaxRecentItems).Find(&logs).Error
-	formatUserLogs(logs, 0)
+	showIp := false
+	if token, tokenErr := GetTokenById(tokenId); tokenErr == nil {
+		showIp = shouldShowUserLogIp(token.UserId)
+	}
+	formatUserLogs(logs, 0, showIp)
 	return logs, err
 }
 
@@ -165,13 +177,6 @@ func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string,
 	requestId := c.GetString(common.RequestIdKey)
 	upstreamRequestId := c.GetString(common.UpstreamRequestIdKey)
 	otherStr := common.MapToJsonStr(other)
-	// 判断是否需要记录 IP
-	needRecordIp := false
-	if settingMap, err := GetUserSetting(userId, false); err == nil {
-		if settingMap.RecordIpLog {
-			needRecordIp = true
-		}
-	}
 	log := &Log{
 		UserId:           userId,
 		Username:         username,
@@ -188,12 +193,9 @@ func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string,
 		UseTime:          useTimeSeconds,
 		IsStream:         isStream,
 		Group:            group,
-		Ip: func() string {
-			if needRecordIp {
-				return c.ClientIP()
-			}
-			return ""
-		}(),
+		// Always retain the request IP for administrator audit. User-facing
+		// log queries redact it later unless the owner enabled IP logging.
+		Ip:                c.ClientIP(),
 		RequestId:         requestId,
 		UpstreamRequestId: upstreamRequestId,
 		Other:             otherStr,
@@ -228,13 +230,6 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	requestId := c.GetString(common.RequestIdKey)
 	upstreamRequestId := c.GetString(common.UpstreamRequestIdKey)
 	otherStr := common.MapToJsonStr(params.Other)
-	// 判断是否需要记录 IP
-	needRecordIp := false
-	if settingMap, err := GetUserSetting(userId, false); err == nil {
-		if settingMap.RecordIpLog {
-			needRecordIp = true
-		}
-	}
 	log := &Log{
 		UserId:           userId,
 		Username:         username,
@@ -251,12 +246,9 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 		UseTime:          params.UseTimeSeconds,
 		IsStream:         params.IsStream,
 		Group:            params.Group,
-		Ip: func() string {
-			if needRecordIp {
-				return c.ClientIP()
-			}
-			return ""
-		}(),
+		// Always retain the request IP for administrator audit. User-facing
+		// log queries redact it later unless the owner enabled IP logging.
+		Ip:                c.ClientIP(),
 		RequestId:         requestId,
 		UpstreamRequestId: upstreamRequestId,
 		Other:             otherStr,
@@ -444,7 +436,7 @@ func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int
 		return nil, 0, errors.New("查询日志失败")
 	}
 
-	formatUserLogs(logs, startIdx)
+	formatUserLogs(logs, startIdx, shouldShowUserLogIp(userId))
 	return logs, total, err
 }
 

@@ -562,18 +562,7 @@ function renderStreamTag(record, t) {
       {t('流式')}
       {isErr && (
         <Tooltip content={buildStreamStatusTooltip(ss, t)}>
-          <span
-            style={{
-              position: 'absolute',
-              right: -3,
-              top: -3,
-              width: 7,
-              height: 7,
-              borderRadius: '50%',
-              background: '#ef4444',
-              cursor: 'pointer',
-            }}
-          />
+          <span className='usage-log-stream-alert-dot' />
         </Tooltip>
       )}
     </span>

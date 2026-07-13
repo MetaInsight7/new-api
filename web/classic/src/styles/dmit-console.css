@@ -32,7 +32,8 @@ html:not(.dark) .app-console {
   --dmit-border: #ececf0;
   --dmit-border-soft: #f2f3f6;
   --dmit-blue: #2563eb;
-  --dmit-shadow: 0 1px 3px rgba(16, 24, 40, 0.03), 0 12px 32px -14px rgba(16, 24, 40, 0.12);
+  --dmit-shadow:
+    0 1px 3px rgba(16, 24, 40, 0.03), 0 12px 32px -14px rgba(16, 24, 40, 0.12);
 }
 
 /* ---------- 卡片:纯白浮起卡 + 极浅中性边 + 大圆角 + 柔和层叠阴影 ---------- */
@@ -104,10 +105,7 @@ html:not(.dark)
 }
 
 /* 选中行:DMIT 浅蓝 */
-html:not(.dark)
-  .app-console
-  .semi-table-row-selected
-  > .semi-table-row-cell {
+html:not(.dark) .app-console .semi-table-row-selected > .semi-table-row-cell {
   background-color: var(--semi-color-primary-light-default) !important;
 }
 
@@ -263,13 +261,19 @@ html:not(.dark) .semi-portal .semi-switch-checked:hover {
 }
 
 /* ---------- 单选按钮组(type=button)激活态 → DMIT 蓝 ---------- */
-html:not(.dark) .app-console .semi-radioGroup-buttonRadio .semi-radio-checked .semi-radio-addon-buttonRadio,
-html:not(.dark) .semi-portal .semi-radioGroup-buttonRadio .semi-radio-checked .semi-radio-addon-buttonRadio {
+html:not(.dark)
+  .app-console
+  .semi-radioGroup-buttonRadio
+  .semi-radio-checked
+  .semi-radio-addon-buttonRadio,
+html:not(.dark)
+  .semi-portal
+  .semi-radioGroup-buttonRadio
+  .semi-radio-checked
+  .semi-radio-addon-buttonRadio {
   background-color: var(--semi-color-primary-light-default);
   color: #2563eb;
 }
-
-
 
 /* 浮层内的输入/选择:聚焦蓝色环,与控制台一致 */
 html:not(.dark) .semi-portal .semi-input-wrapper-focus,
@@ -486,9 +490,7 @@ html:not(.dark) .app-console .semi-card-header-title svg {
 }
 
 /* ---------- 次要/描边按钮:浅灰边 + hover 浅底,统一 DMIT 观感 ---------- */
-html:not(.dark)
-  .app-console
-  .semi-button-tertiary.semi-button-borderless:hover,
+html:not(.dark) .app-console .semi-button-tertiary.semi-button-borderless:hover,
 html:not(.dark) .app-console .semi-button-tertiary.semi-button-light:hover {
   background-color: var(--dmit-soft);
 }
@@ -510,10 +512,7 @@ html:not(.dark)
   .semi-table-thead
   > .semi-table-row
   > .semi-table-row-head,
-html:not(.dark)
-  .app-console
-  .usage-log-table-v2
-  th.semi-table-row-head {
+html:not(.dark) .app-console .usage-log-table-v2 th.semi-table-row-head {
   background-color: #ffffff !important;
   color: #334155;
   font-weight: 600;
@@ -534,6 +533,7 @@ html:not(.dark)
   border-bottom: 1px solid #eef1f5;
   font-size: 14px;
 }
+
 .app-console
   .usage-log-table-v2
   .semi-table-row-cell
@@ -541,7 +541,6 @@ html:not(.dark)
   > .semi-table-row-cell-expand-icon {
   display: none !important;
 }
-
 
 html:not(.dark)
   .app-console
@@ -562,10 +561,11 @@ html:not(.dark)
 }
 
 /* 固定表格布局:严格按列宽渲染,防止长内容(花费明细/大数字)撑破列导致横向滚动 */
+html:not(.dark) .app-console .usage-log-table-v2 table {
   --usage-log-font:
     -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
     'Microsoft YaHei', Arial, sans-serif;
-html:not(.dark) .app-console .usage-log-table-v2 table {
+  table-layout: fixed !important;
   font-family: var(--usage-log-font) !important;
   font-variant-numeric: tabular-nums;
 }
@@ -614,6 +614,21 @@ html:not(.dark) .app-console .usage-log-table-v2 table {
 .app-console .usage-log-meta-pill--route {
   color: #2563eb;
 }
+.app-console .usage-log-meta-pill--stream {
+  position: relative;
+}
+.app-console .usage-log-stream-alert-dot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 7px;
+  height: 7px;
+  border: 1.5px solid #fff;
+  border-radius: 50%;
+  background: #ef4444;
+  box-sizing: border-box;
+  cursor: help;
+}
 .app-console .usage-log-meta-pill--route {
   cursor: help;
 }
@@ -639,6 +654,12 @@ html:not(.dark) .app-console .usage-log-table-v2 table {
 .app-console .usage-log-detail--admin .usage-log-detail__panels {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
+.app-console
+  .usage-log-detail--admin
+  .usage-log-detail__panels--two,
+.app-console .usage-log-detail__panels--two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
 .app-console .usage-log-detail__section {
   min-width: 0;
   padding: 14px 16px;
@@ -652,6 +673,25 @@ html:not(.dark) .app-console .usage-log-table-v2 table {
   line-height: 1.4;
   font-weight: 700;
   color: #334155;
+}
+.app-console .usage-log-detail__section--error {
+  border-color: #fecaca;
+  background: #fffafa;
+}
+.app-console .usage-log-detail__section--error h4 {
+  color: #b42318;
+}
+.app-console .usage-log-detail__section--refund {
+  border-color: #bbf7d0;
+  background: #fbfffc;
+}
+.app-console .usage-log-detail__section--refund h4,
+.app-console .usage-log-detail__section--topup h4 {
+  color: #0f8a62;
+}
+.app-console .usage-log-detail__section--topup {
+  border-color: #a7f3d0;
+  background: #fbfffd;
 }
 .app-console .usage-log-detail__grid {
   display: flex;
@@ -790,7 +830,6 @@ html:not(.dark) .app-console .usage-log-table-v2 table {
   .app-console .usage-log-detail__section--extra .usage-log-detail__grid {
     grid-template-columns: 1fr;
   }
-  table-layout: fixed !important;
 }
 
 /* =====================================================================
@@ -865,12 +904,22 @@ html:not(.dark) .app-console .dmit-flat-card .semi-card-body {
   animation: token-status-ripple 1.9s cubic-bezier(0.22, 0.61, 0.36, 1) infinite;
 }
 @keyframes token-status-ripple {
-  0% { transform: scale(1); opacity: 0.55; }
-  70% { opacity: 0; }
-  100% { transform: scale(3); opacity: 0; }
+  0% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  70% {
+    opacity: 0;
+  }
+  100% {
+    transform: scale(3);
+    opacity: 0;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
-  .app-console .token-status-dot::after { animation: none; }
+  .app-console .token-status-dot::after {
+    animation: none;
+  }
 }
 
 /* 通用信号灯:静态光晕 + 可选涟漪脉冲(.dmit-sig--live,用于活跃态) */
@@ -892,7 +941,9 @@ html:not(.dark) .app-console .dmit-flat-card .semi-card-body {
   animation: token-status-ripple 1.9s cubic-bezier(0.22, 0.61, 0.36, 1) infinite;
 }
 @media (prefers-reduced-motion: reduce) {
-  .app-console .dmit-sig--live::after { animation: none; }
+  .app-console .dmit-sig--live::after {
+    animation: none;
+  }
 }
 
 /* 令牌页:操作图标(无边框,hover 变色) */
@@ -907,12 +958,25 @@ html:not(.dark) .app-console .dmit-flat-card .semi-card-body {
   place-items: center;
   user-select: none;
   -webkit-user-select: none;
-  transition: background 0.12s, color 0.12s;
+  transition:
+    background 0.12s,
+    color 0.12s;
 }
-.app-console .token-op.del { color: #dc2626; }
-.app-console .token-op.edit:hover { color: #2563eb; background: #f1f5f9; }
-.app-console .token-op.pow:hover { color: #c2410c; background: #fff7ed; }
-.app-console .token-op.del:hover { color: #b91c1c; background: #fef2f2; }
+.app-console .token-op.del {
+  color: #dc2626;
+}
+.app-console .token-op.edit:hover {
+  color: #2563eb;
+  background: #f1f5f9;
+}
+.app-console .token-op.pow:hover {
+  color: #c2410c;
+  background: #fff7ed;
+}
+.app-console .token-op.del:hover {
+  color: #b91c1c;
+  background: #fef2f2;
+}
 
 /* 令牌页:密钥代码框内的显示/复制小图标 */
 .app-console .token-keyic {
@@ -925,9 +989,14 @@ html:not(.dark) .app-console .dmit-flat-card .semi-card-body {
   cursor: pointer;
   user-select: none;
   -webkit-user-select: none;
-  transition: background 0.12s, color 0.12s;
+  transition:
+    background 0.12s,
+    color 0.12s;
 }
-.app-console .token-keyic:hover { background: #e9edf2; color: #3c4650; }
+.app-console .token-keyic:hover {
+  background: #e9edf2;
+  color: #3c4650;
+}
 
 /* 令牌页:密钥可横向滚动看全 key(隐藏滚动条,鼠标在内可选中复制) */
 .app-console .token-keyscroll {
@@ -937,7 +1006,11 @@ html:not(.dark) .app-console .dmit-flat-card .semi-card-body {
   -webkit-user-select: text;
   cursor: text;
 }
-.app-console .token-keyscroll::-webkit-scrollbar { height: 0; width: 0; display: none; }
+.app-console .token-keyscroll::-webkit-scrollbar {
+  height: 0;
+  width: 0;
+  display: none;
+}
 
 /* 令牌页:表头工具栏 */
 .app-console .token-toolbar {
@@ -956,7 +1029,11 @@ html:not(.dark) .app-console .dmit-flat-card .semi-card-body {
   flex: 0 0 auto;
   margin-right: auto;
 }
-.app-console .token-toolbar__count { font-size: 12px; font-weight: 500; color: #9aa4b2; }
+.app-console .token-toolbar__count {
+  font-size: 12px;
+  font-weight: 500;
+  color: #9aa4b2;
+}
 .app-console .token-toolbar__filters {
   display: flex;
   align-items: center;
@@ -968,14 +1045,20 @@ html:not(.dark) .app-console .dmit-flat-card .semi-card-body {
   gap: 8px;
   flex: 0 0 auto;
 }
-.app-console .token-toolbar__search { width: 240px; }
-.app-console .token-toolbar__search .semi-input-wrapper { border-radius: 9px; }
+.app-console .token-toolbar__search {
+  width: 240px;
+}
+.app-console .token-toolbar__search .semi-input-wrapper {
+  border-radius: 9px;
+}
 /* 去掉卡头与内容间的分隔线(工具栏已自成一区,贯穿横线冗余) */
 .app-console .dmit-flat-card .semi-card-header {
   border-bottom: none !important;
 }
 /* 筛选开关按钮:桌面隐藏,移动端显示 */
-.app-console .token-toolbar__filter-toggle { display: none; }
+.app-console .token-toolbar__filter-toggle {
+  display: none;
+}
 
 /* 移动端:左「令牌管理 + 小字数量」,右「筛选开关 + 添加令牌」;点筛选后第二行显示 搜索(左)+ 批量操作(右) */
 @media (max-width: 767px) {
@@ -1072,6 +1155,3 @@ html:not(.dark) .app-console .usage-log-card .semi-table {
 html:not(.dark) .app-console .usage-log-card .semi-card-body {
   padding: 0 !important;
 }
-
-
-
