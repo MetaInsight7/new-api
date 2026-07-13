@@ -109,6 +109,38 @@ func TestSanitize_UpstreamUserError_PassThrough(t *testing.T) {
 	}
 }
 
+func TestSanitize_StripUpstreamRequestIds(t *testing.T) {
+	msg := "This model does not support prefill (request id: req_upstream_aaa) (request id: req_upstream_bbb)"
+	oai := types.OpenAIError{Message: msg, Type: "invalid_request_error"}
+	e := types.WithOpenAIError(oai, 400)
+	e.SetOrigin(types.ErrorOriginUpstream)
+
+	sanitizeErrorForUser(nil, e)
+
+	result := e.Error()
+	if contains(result, "request id:") {
+		t.Fatalf("upstream request ids should be stripped, got: %s", result)
+	}
+	if result != "This model does not support prefill" {
+		t.Fatalf("expected clean message, got: %s", result)
+	}
+}
+
+func TestSanitize_UserError_StripRequestIds(t *testing.T) {
+	e := types.NewError(nil, types.ErrorCodeInvalidRequest)
+	e.SetMessage("invalid model (request id: req_someone)")
+
+	sanitizeErrorForUser(nil, e)
+
+	result := e.Error()
+	if contains(result, "request id:") {
+		t.Fatalf("request ids should be stripped from user errors too, got: %s", result)
+	}
+	if result != "invalid model" {
+		t.Fatalf("expected clean message, got: %s", result)
+	}
+}
+
 func contains(s, sub string) bool {
 	for i := 0; i+len(sub) <= len(s); i++ {
 		if s[i:i+len(sub)] == sub {

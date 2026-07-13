@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"regexp"
+
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 )
@@ -26,15 +28,22 @@ var (
 	defaultPlatformMsg = "服务内部错误，请稍后重试"
 )
 
+var requestIdPattern = regexp.MustCompile(`\s*\(request id: [^)]+\)`)
+
+func stripRequestIds(message string) string {
+	return requestIdPattern.ReplaceAllString(message, "")
+}
+
 func sanitizeErrorForUser(c *gin.Context, e *types.NewAPIError) {
 	if e == nil {
 		return
 	}
 	switch e.GetOrigin() {
 	case types.ErrorOriginUser:
-		return
+		e.ReplaceMessage(stripRequestIds(e.Error()))
 	case types.ErrorOriginUpstream:
 		if isUpstreamUserError(e.StatusCode) {
+			e.ReplaceMessage(stripRequestIds(e.Error()))
 			return
 		}
 		e.ReplaceMessage(getUpstreamMessage(e.StatusCode))
