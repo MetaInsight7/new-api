@@ -28,6 +28,7 @@ import {
   Boxes,
   User,
   ShieldCheck,
+  Headphones,
 } from 'lucide-react';
 import { useSidebar } from './useSidebar';
 import { isAdmin, isRoot, showError } from '../../helpers';
@@ -50,6 +51,7 @@ export const consoleRouterMap = {
   user: '/console/user',
   setting: '/console/setting',
   violationAudit: '/console/violation-audit',
+  support: '/console/support',
 };
 
 /**
@@ -217,8 +219,16 @@ export const useConsoleNav = () => {
       });
     }
 
-    // 6. 运营（仅管理员）：渠道 / 模型 / 模型部署 / 订阅 / 兑换码
-    // 7. 系统（仅管理员）：用户 / 系统设置(仅 root)
+    // 6. 技术支持（所有已登录用户可用）
+    list.push({
+      key: 'support',
+      label: t('技术支持'),
+      icon: Headphones,
+      to: consoleRouterMap.support,
+    });
+
+    // 7. 运营（仅管理员）：渠道 / 模型 / 模型部署 / 订阅 / 兑换码
+    // 8. 系统（仅管理员）：用户 / 系统设置(仅 root)
     // 两组均读同一个 admin 配置区，仅展示层拆分以理清层次。
     if (isAdmin()) {
       const operationChildren = [];
