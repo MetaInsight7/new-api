@@ -244,6 +244,7 @@ html:not(.dark) .wallet-qty .semi-input-wrapper:focus-within {
   align-items: start;
 }
 .wg__main {
+  min-width: 0;
   background: #fff;
   border: 1px solid #eaecef;
   border-radius: 18px;
@@ -419,15 +420,17 @@ html:not(.dark) .wallet-qty .semi-input-wrapper:focus-within {
 .wg__paybtn:disabled { opacity: .6; cursor: not-allowed; }
 
 /* ===== 右列：账户工具卡 ===== */
-.wg__side { display: flex; flex-direction: column; gap: 18px; }
+.wg__side { display: flex; min-width: 0; flex-direction: column; gap: 18px; }
 .wg__siderow {
   display: grid;
+  min-width: 0;
   grid-template-columns: 1fr 1fr;
   gap: 18px;
   align-items: start;
 }
 .wg__siderow.is-single { grid-template-columns: 1fr; }
 .wg__card {
+  min-width: 0;
   background: #fff;
   border: 1px solid #eaecef;
   border-radius: 18px;
@@ -585,6 +588,6 @@ html:not(.dark) .wallet-qty .semi-input-wrapper:focus-within {
 .wg__log .lv.fail { color: #e5484d; }
 
 @media (max-width: 900px) {
-  .wg { grid-template-columns: 1fr; }
-  .wg__siderow { grid-template-columns: 1fr; }
+  .wg { grid-template-columns: minmax(0, 1fr); }
+  .wg__siderow { grid-template-columns: minmax(0, 1fr); }
 }

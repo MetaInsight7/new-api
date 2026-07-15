@@ -1,3 +1,22 @@
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
 import React, { useMemo } from 'react';
 import { Card, Typography } from '@douyinfe/semi-ui';
 import { VChart } from '@visactor/react-vchart';
@@ -97,7 +116,7 @@ export default function ModelsSection({ history, rows, period }) {
         </div>
       </div>
 
-      <div className='h-64 md:h-72'>
+      <div className={`rk-chart-stage${spec ? '' : ' is-empty'}`}>
         {spec ? (
           <VChart key={`models-${period}`} spec={spec} option={CHART_CONFIG} />
         ) : (
@@ -115,7 +134,7 @@ export default function ModelsSection({ history, rows, period }) {
         <Text type='tertiary' size='small'>{t('平台上最受欢迎的模型')}</Text>
 
         {rows.length === 0 ? (
-          <div className='text-center py-8'>
+          <div className='rk-list-empty'>
             <Text type='tertiary'>{t('暂无数据')}</Text>
           </div>
         ) : (

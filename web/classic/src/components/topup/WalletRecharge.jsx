@@ -183,6 +183,7 @@ const WalletRecharge = ({
                   type='number'
                   min={minTopUp}
                   value={topUpCount}
+                  aria-label={t('输入充值金额')}
                   placeholder={t('输入金额')}
                   onChange={(e) => {
                     const v = parseInt(e.target.value, 10);
@@ -337,6 +338,7 @@ const WalletRecharge = ({
                 <input
                   className='wg__rinput'
                   value={redemptionCode}
+                  aria-label={t('输入兑换码')}
                   placeholder={t('输入兑换码，立即到账')}
                   onChange={(e) => setRedemptionCode(e.target.value)}
                   onKeyDown={(e) => {

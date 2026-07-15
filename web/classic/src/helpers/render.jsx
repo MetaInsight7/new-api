@@ -1049,23 +1049,26 @@ export function renderNumberWithPoint(num) {
   return num;
 }
 
+const DEFAULT_QUOTA_PER_UNIT = 500000;
+
+const readQuotaPerUnit = () => {
+  const quotaPerUnit = parseFloat(localStorage.getItem('quota_per_unit'));
+  return Number.isFinite(quotaPerUnit) && quotaPerUnit > 0
+    ? quotaPerUnit
+    : DEFAULT_QUOTA_PER_UNIT;
+};
+
 export function getQuotaPerUnit() {
-  let quotaPerUnit = localStorage.getItem('quota_per_unit');
-  quotaPerUnit = parseFloat(quotaPerUnit);
-  return quotaPerUnit;
+  return readQuotaPerUnit();
 }
 
 export function renderUnitWithQuota(quota) {
-  let quotaPerUnit = localStorage.getItem('quota_per_unit');
-  quotaPerUnit = parseFloat(quotaPerUnit);
-  quota = parseFloat(quota);
-  return quotaPerUnit * quota;
+  const numericQuota = parseFloat(quota);
+  return readQuotaPerUnit() * (Number.isFinite(numericQuota) ? numericQuota : 0);
 }
 
 export function getQuotaWithUnit(quota, digits = 6) {
-  let quotaPerUnit = localStorage.getItem('quota_per_unit');
-  quotaPerUnit = parseFloat(quotaPerUnit);
-  return (quota / quotaPerUnit).toFixed(digits);
+  return (Number(quota || 0) / readQuotaPerUnit()).toFixed(digits);
 }
 
 // amount 为系统内部的美元值
@@ -1126,13 +1129,13 @@ export function convertUSDToCurrency(usdAmount, digits = 2) {
 }
 
 export function renderQuota(quota, digits = 2) {
-  let quotaPerUnit = localStorage.getItem('quota_per_unit');
   const quotaDisplayType = localStorage.getItem('quota_display_type') || 'USD';
-  quotaPerUnit = parseFloat(quotaPerUnit);
   if (quotaDisplayType === 'TOKENS') {
     return renderNumber(quota);
   }
-  const resultUSD = quota / quotaPerUnit;
+  const numericQuota = Number(quota || 0);
+  const resultUSD =
+    (Number.isFinite(numericQuota) ? numericQuota : 0) / readQuotaPerUnit();
   let symbol = '$';
   let value = resultUSD;
   if (quotaDisplayType === 'CNY') {
@@ -1200,8 +1203,9 @@ export function renderQuotaCompact(quota, { compactThreshold = 100000, digits = 
   if (quotaDisplayType === 'TOKENS') {
     return formatCountCompact(quota, { compactThreshold });
   }
-  const quotaPerUnit = parseFloat(localStorage.getItem('quota_per_unit'));
-  const resultUSD = quota / quotaPerUnit;
+  const numericQuota = Number(quota || 0);
+  const resultUSD =
+    (Number.isFinite(numericQuota) ? numericQuota : 0) / readQuotaPerUnit();
   let symbol = '$';
   let value = resultUSD;
   if (quotaDisplayType === 'CNY') {

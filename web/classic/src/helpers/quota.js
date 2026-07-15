@@ -19,8 +19,8 @@ For commercial licensing, please contact support@quantumnous.com
 import { getCurrencyConfig } from './render';
 
 export const getQuotaPerUnit = () => {
-  const raw = parseFloat(localStorage.getItem('quota_per_unit') || '1');
-  return Number.isFinite(raw) && raw > 0 ? raw : 1;
+  const raw = parseFloat(localStorage.getItem('quota_per_unit'));
+  return Number.isFinite(raw) && raw > 0 ? raw : 500000;
 };
 
 export const quotaToDisplayAmount = (quota) => {

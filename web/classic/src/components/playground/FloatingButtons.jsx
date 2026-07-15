@@ -36,6 +36,7 @@ const FloatingButtons = ({
       {!showSettings && (
         <Button
           icon={<Settings size={18} />}
+          aria-label='打开对话设置'
           style={{
             position: 'fixed',
             right: 16,
@@ -59,6 +60,7 @@ const FloatingButtons = ({
       {!showSettings && (
         <Button
           icon={showDebugPanel ? <EyeOff size={18} /> : <Eye size={18} />}
+          aria-label={showDebugPanel ? '隐藏调试信息' : '显示调试信息'}
           onClick={onToggleDebugPanel}
           theme='solid'
           type={showDebugPanel ? 'danger' : 'primary'}

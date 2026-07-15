@@ -330,7 +330,6 @@ const WorkspacePanel = ({ user, status, t, onStateChange }) => {
                     {endpointOptions.map((option) => (
                       <Dropdown.Item
                         key={option.value}
-                        active={option.value === selectedEndpointId}
                         className={
                           option.value === selectedEndpointId
                             ? 'dashboard-api-access__menu-li is-active'
@@ -418,7 +417,6 @@ const WorkspacePanel = ({ user, status, t, onStateChange }) => {
                       tokenOptions.map((option) => (
                         <Dropdown.Item
                           key={option.value}
-                          active={option.value === selectedTokenId}
                           className={
                             option.value === selectedTokenId
                               ? 'dashboard-api-access__menu-li is-active'
@@ -532,4 +530,3 @@ const WorkspacePanel = ({ user, status, t, onStateChange }) => {
 };
 
 export default WorkspacePanel;
-

@@ -151,6 +151,67 @@ For commercial licensing, please contact support@quantumnous.com
   gap: 26px;
   margin-top: 26px;
 }
+
+.rankings-dazi .rk-error {
+  display: flex;
+  max-width: 720px;
+  align-items: center;
+  gap: 13px;
+  margin-top: 26px;
+  padding: 18px 20px;
+  border: 2px solid var(--ink);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 6px 6px 0 #f2d7cc;
+}
+
+.rankings-dazi .rk-error__icon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 9px;
+  background: #fff0eb;
+  color: #d94f2b;
+}
+
+.rankings-dazi .rk-error__copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.rankings-dazi .rk-error__copy strong {
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.rankings-dazi .rk-error__copy span {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rankings-dazi .rk-error button {
+  display: inline-flex;
+  height: 34px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 13px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--ink);
+  color: #fff;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 850;
+}
 .rankings-dazi .semi-card {
   border: 2px solid var(--ink) !important;
   border-radius: 14px !important;
@@ -197,10 +258,25 @@ For commercial licensing, please contact support@quantumnous.com
   font-weight: 950 !important;
 }
 
-/* 图表容器背景透明 */
-.rankings-dazi .semi-card .h-64,
-.rankings-dazi .semi-card .h-72 {
+/* 图表区：有数据时保持可读高度，空数据时收紧，避免整页出现大片空白。 */
+.rankings-dazi .rk-chart-stage {
+  height: 288px;
   background: transparent;
+}
+
+.rankings-dazi .rk-chart-stage.is-empty {
+  display: flex;
+  height: 104px;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  background: #fafbf8;
+}
+
+.rankings-dazi .rk-list-empty {
+  padding: 24px 0 6px;
+  text-align: center;
 }
 
 /* 空态文字 */
@@ -222,5 +298,13 @@ For commercial licensing, please contact support@quantumnous.com
   }
   .rankings-dazi .rk-seg {
     flex-wrap: wrap;
+  }
+  .rankings-dazi .rk-error {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .rankings-dazi .rk-error button {
+    width: 100%;
+    justify-content: center;
   }
 }

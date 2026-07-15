@@ -1,6 +1,24 @@
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
 import { useState, useEffect, useCallback } from 'react';
 import { API } from '../../helpers/api';
-import { showError } from '../../helpers/utils';
 
 const VALID_PERIODS = ['today', 'week', 'month', 'year', 'all'];
 
@@ -22,12 +40,10 @@ export function useRankingsData(initialPeriod = 'week') {
         setSnapshot(data);
       } else {
         setError(message);
-        showError(message);
       }
     } catch (err) {
       const msg = err?.response?.data?.message || err.message;
       setError(msg);
-      showError(msg);
     } finally {
       setLoading(false);
     }
@@ -41,5 +57,7 @@ export function useRankingsData(initialPeriod = 'week') {
     if (VALID_PERIODS.includes(p)) setPeriod(p);
   }, []);
 
-  return { period, changePeriod, snapshot, loading, error };
+  const retry = useCallback(() => fetchRankings(period), [fetchRankings, period]);
+
+  return { period, changePeriod, snapshot, loading, error, retry };
 }

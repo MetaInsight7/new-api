@@ -139,6 +139,7 @@ const LedgerToolbar = (props) => {
           <input
             ref={searchRef}
             value={searchValue}
+            aria-label={t('搜索模型')}
             placeholder={t('搜索 GPT、Claude、Gemini…')}
             onChange={(e) => handleChange(e.target.value)}
             onCompositionStart={handleCompositionStart}
