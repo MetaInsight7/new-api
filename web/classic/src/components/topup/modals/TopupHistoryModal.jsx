@@ -37,6 +37,7 @@ import { IconSearch } from '@douyinfe/semi-icons';
 import { API, timestamp2string } from '../../../helpers';
 import { isAdmin } from '../../../helpers/utils';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
+import { useRequestLifecycle } from '../../../hooks/common/useRequestLifecycle';
 const { Text } = Typography;
 
 // 状态映射配置
@@ -64,8 +65,10 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
   const [pageSize, setPageSize] = useState(10);
   const [keyword, setKeyword] = useState('');
   const isMobile = useIsMobile();
+  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   const loadTopups = async (currentPage, currentPageSize) => {
+    const requestId = beginRequest('topups');
     setLoading(true);
     try {
       const base = isAdmin() ? '/api/user/topup' : '/api/user/topup/self';
@@ -75,22 +78,27 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
       const endpoint = `${base}?${qs}`;
       const res = await API.get(endpoint);
       const { success, message, data } = res.data;
-      if (success) {
+      if (isCurrentRequest('topups', requestId) && success) {
         setTopups(data.items || []);
         setTotal(data.total || 0);
-      } else {
+      } else if (isCurrentRequest('topups', requestId)) {
         Toast.error({ content: message || t('加载失败') });
       }
     } catch (error) {
-      Toast.error({ content: t('加载账单失败') });
+      if (isCurrentRequest('topups', requestId)) {
+        Toast.error({ content: t('加载账单失败') });
+      }
     } finally {
-      setLoading(false);
+      if (isCurrentRequest('topups', requestId)) setLoading(false);
     }
   };
 
   useEffect(() => {
     if (visible) {
       loadTopups(page, pageSize);
+    } else {
+      beginRequest('topups');
+      setLoading(false);
     }
   }, [visible, page, pageSize, keyword]);
 

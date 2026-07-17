@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Avatar, Button, Dropdown, Typography } from '@douyinfe/semi-ui';
+import { Avatar, Button, Dropdown } from '@douyinfe/semi-ui';
 import { ChevronDown } from 'lucide-react';
 import {
   IconExit,
@@ -27,8 +27,34 @@ import {
   IconCreditCard,
   IconKey,
 } from '@douyinfe/semi-icons';
-import { stringToColor } from '../../../helpers';
 import SkeletonWrapper from '../components/SkeletonWrapper';
+
+const AVATAR_COLORS = [
+  'amber',
+  'blue',
+  'cyan',
+  'green',
+  'grey',
+  'indigo',
+  'light-blue',
+  'lime',
+  'orange',
+  'pink',
+  'purple',
+  'red',
+  'teal',
+  'violet',
+  'yellow',
+];
+
+const stringToColor = (value = '') => {
+  let sum = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    sum += value.charCodeAt(index);
+  }
+
+  return AVATAR_COLORS[sum % AVATAR_COLORS.length];
+};
 
 const UserArea = ({
   userState,

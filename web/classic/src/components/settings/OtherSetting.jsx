@@ -28,11 +28,18 @@ import {
   Space,
   Card,
 } from '@douyinfe/semi-ui';
-import { API, showError, showSuccess, timestamp2string } from '../../helpers';
-import { marked } from 'marked';
+import {
+  API,
+  renderSafeMarkdown,
+  sanitizeHtml,
+  showError,
+  showSuccess,
+  timestamp2string,
+} from '../../helpers';
 import { useTranslation } from 'react-i18next';
 import { StatusContext } from '../../context/Status';
 import Text from '@douyinfe/semi-ui/lib/es/typography/text';
+import { useRequestLifecycle } from '../../hooks/common/useRequestLifecycle';
 
 const LEGAL_USER_AGREEMENT_KEY = 'legal.user_agreement';
 const LEGAL_PRIVACY_POLICY_KEY = 'legal.privacy_policy';
@@ -54,22 +61,30 @@ const OtherSetting = () => {
   const [statusState, statusDispatch] = useContext(StatusContext);
   const [updateData, setUpdateData] = useState({
     tag_name: '',
-    content: '',
+    safeContent: '',
   });
+  const mountedRef = useRef(true);
+  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   const updateOption = async (key, value) => {
+    const requestId = beginRequest(`option:${key}`);
     setLoading(true);
-    const res = await API.put('/api/option/', {
-      key,
-      value,
-    });
-    const { success, message } = res.data;
-    if (success) {
-      setInputs((inputs) => ({ ...inputs, [key]: value }));
-    } else {
-      showError(message);
+    try {
+      const res = await API.put('/api/option/', {
+        key,
+        value,
+      });
+      const { success, message } = res.data;
+      if (success) {
+        if (isCurrentRequest(`option:${key}`, requestId)) {
+          setInputs((inputs) => ({ ...inputs, [key]: value }));
+        }
+      } else {
+        showError(message);
+      }
+    } finally {
+      if (isCurrentRequest(`option:${key}`, requestId)) setLoading(false);
     }
-    setLoading(false);
   };
 
   const [loadingInput, setLoadingInput] = useState({
@@ -265,7 +280,7 @@ const OtherSetting = () => {
       } else {
         setUpdateData({
           tag_name: tag_name,
-          content: marked.parse(body),
+          safeContent: renderSafeMarkdown(body),
         });
         setShowUpdateModal(true);
       }
@@ -280,10 +295,10 @@ const OtherSetting = () => {
     }
   };
 
-  const switchToDefaultFrontend = () => {
+  const switchFrontend = (frontend, label) => {
     Modal.confirm({
-      title: t('切换到新版前端'),
-      content: t('切换后页面会自动刷新，并进入新版前端。是否继续？'),
+      title: `${t('切换前端')} · ${label}`,
+      content: t('切换后页面会自动刷新。是否继续？'),
       okText: t('确认切换'),
       cancelText: t('取消'),
       onOk: async () => {
@@ -294,19 +309,19 @@ const OtherSetting = () => {
           }));
           const res = await API.put('/api/option/', {
             key: 'theme.frontend',
-            value: 'default',
+            value: frontend,
           });
           const { success, message } = res.data;
           if (!success) {
             showError(message);
             return;
           }
-          showSuccess(t('已切换到新版前端，正在刷新页面'));
+          showSuccess(t('前端已切换，正在刷新页面'));
           setTimeout(() => {
             window.location.reload();
           }, 600);
         } catch (error) {
-          console.error('切换新版前端失败', error);
+          console.error('切换前端失败', error);
           showError(t('切换失败，请稍后重试'));
         } finally {
           setLoadingInput((loadingInput) => ({
@@ -319,25 +334,39 @@ const OtherSetting = () => {
   };
 
   const getOptions = async () => {
-    const res = await API.get('/api/option/');
-    const { success, message, data } = res.data;
-    if (success) {
-      let newInputs = {};
+    const requestId = beginRequest('options');
+    try {
+      const res = await API.get('/api/option/');
+      const { success, message, data } = res.data;
+      if (!success) {
+        showError(message);
+        return;
+      }
+
+      const newInputs = {};
       data.forEach((item) => {
         if (item.key in inputs) {
           newInputs[item.key] = item.value;
         }
       });
-      setInputs(newInputs);
-      formAPISettingGeneral.current.setValues(newInputs);
-      formAPIPersonalization.current.setValues(newInputs);
-    } else {
-      showError(message);
+
+      if (!mountedRef.current || !isCurrentRequest('options', requestId))
+        return;
+      setInputs((currentInputs) => ({ ...currentInputs, ...newInputs }));
+      formAPISettingGeneral.current?.setValues(newInputs);
+      formAPIPersonalization.current?.setValues(newInputs);
+    } catch (error) {
+      if (mountedRef.current && isCurrentRequest('options', requestId)) {
+        showError(t('加载设置失败，请稍后重试'));
+      }
     }
   };
 
   useEffect(() => {
     getOptions();
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
 
   // Function to open GitHub release page
@@ -345,6 +374,7 @@ const OtherSetting = () => {
     window.open(
       `https://github.com/Calcium-Ion/new-api/releases/tag/${updateData.tag_name}`,
       '_blank',
+      'noopener,noreferrer',
     );
   };
 
@@ -383,10 +413,16 @@ const OtherSetting = () => {
                       {t('检查更新')}
                     </Button>
                     <Button
-                      onClick={switchToDefaultFrontend}
+                      onClick={() => switchFrontend('default', t('新版前端'))}
                       loading={loadingInput['FrontendTheme']}
                     >
                       {t('切换到新版前端')}
+                    </Button>
+                    <Button
+                      onClick={() => switchFrontend('forge', 'Forge')}
+                      loading={loadingInput['FrontendTheme']}
+                    >
+                      {t('切换到 Forge 前端')}
                     </Button>
                   </Space>
                 </Col>
@@ -561,7 +597,11 @@ const OtherSetting = () => {
           </Button>,
         ]}
       >
-        <div dangerouslySetInnerHTML={{ __html: updateData.content }}></div>
+        <div
+          dangerouslySetInnerHTML={{
+            __html: sanitizeHtml(updateData.safeContent),
+          }}
+        ></div>
       </Modal>
     </Row>
   );

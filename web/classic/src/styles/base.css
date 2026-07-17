@@ -1,0 +1,124 @@
+/* Shared reset, font, and layout primitives. Keep page-specific rules out of this layer. */
+@layer tailwind-base, semi, tailwind-components, tailwind-utils;
+
+@layer tailwind-base {
+  @tailwind base;
+}
+
+@layer tailwind-components {
+  @tailwind components;
+}
+
+@layer tailwind-utils {
+  @tailwind utilities;
+}
+
+@font-face {
+  font-family: 'Geist Variable';
+  src: url('../fonts/geist-sans.woff2') format('woff2');
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Geist Mono Variable';
+  src: url('../fonts/geist-mono.woff2') format('woff2');
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+:root {
+  --sidebar-width: 130px;
+  --sidebar-width-collapsed: 60px;
+  --sidebar-current-width: var(--sidebar-width);
+  --app-font:
+    'Geist Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI',
+    Roboto, 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei',
+    'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+}
+
+body.sidebar-collapsed {
+  --sidebar-current-width: var(--sidebar-width-collapsed);
+}
+
+body {
+  font-family: var(--app-font);
+  color: var(--semi-color-text-0);
+  background-color: var(--semi-color-bg-0);
+}
+
+.semi-typography,
+.semi-button,
+.semi-table,
+.semi-input,
+.semi-input-textarea,
+.semi-select,
+.semi-tag,
+.semi-card,
+.semi-descriptions,
+.semi-dropdown,
+.semi-modal,
+.semi-form,
+.semi-navigation,
+.semi-tabs {
+  font-family: var(--app-font);
+}
+
+.app-layout {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.app-layout-fixed {
+  height: 100vh;
+  height: 100dvh;
+}
+
+.app-console > .semi-layout-header,
+.app-console .app-sider,
+.app-console .semi-layout-content {
+  transition:
+    left 0.18s ease,
+    width 0.18s ease,
+    margin-left 0.18s ease;
+}
+
+.app-console > .semi-layout-header {
+  min-height: 64px;
+}
+
+@media (max-width: 767px) {
+  .app-console > .semi-layout-header {
+    left: 0 !important;
+    width: 100% !important;
+  }
+
+  .app-console .app-sider {
+    max-width: min(86vw, 320px);
+    box-shadow: 12px 0 28px rgba(15, 23, 42, 0.12) !important;
+  }
+}
+
+.public-page-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.classic-page-fill {
+  flex: 1 0 auto;
+  min-height: 100%;
+}
+
+.classic-home-page,
+.classic-home-default {
+  display: flex;
+  flex-direction: column;
+}
+
+.classic-home-default {
+  flex: 1 0 auto;
+}
+
+.classic-home-hero {
+  flex: 1 0 auto;
+}

@@ -47,60 +47,59 @@ const PricingCardSkeleton = ({
                 {/* 模型名称和价格区域 */}
                 <div className='flex-1 min-w-0'>
                   {/* 模型名称骨架 */}
-                  <Skeleton.Title
-                    style={{
-                      width: `${120 + (index % 3) * 30}px`,
-                      height: 20,
-                      marginBottom: 8,
-                    }}
+                  <Skeleton
+                    loading={true}
+                    active
+                    placeholder={
+                      <Skeleton.Title
+                        style={{
+                          width: `${120 + (index % 3) * 30}px`,
+                          height: 20,
+                          marginBottom: 8,
+                        }}
+                      />
+                    }
                   />
                   {/* 价格信息骨架 */}
-                  <Skeleton.Title
-                    style={{
-                      width: `${160 + (index % 4) * 20}px`,
-                      height: 20,
-                      marginBottom: 0,
-                    }}
+                  <Skeleton
+                    loading={true}
+                    active
+                    placeholder={
+                      <Skeleton.Title
+                        style={{
+                          width: `${160 + (index % 4) * 20}px`,
+                          height: 20,
+                          marginBottom: 0,
+                        }}
+                      />
+                    }
                   />
                 </div>
               </div>
 
               <div className='flex items-center space-x-2 ml-3'>
                 {/* 复制按钮骨架 */}
-                <Skeleton.Button
-                  size='small'
-                  style={{ width: 16, height: 16, borderRadius: 4 }}
-                />
+                <Skeleton loading={true} active placeholder={<Skeleton.Button size='small' style={{ width: 16, height: 16, borderRadius: 4 }} />} />
                 {/* 勾选框骨架 */}
                 {rowSelection && (
-                  <Skeleton.Button
-                    size='small'
-                    style={{ width: 16, height: 16, borderRadius: 2 }}
-                  />
+                  <Skeleton loading={true} active placeholder={<Skeleton.Button size='small' style={{ width: 16, height: 16, borderRadius: 2 }} />} />
                 )}
               </div>
             </div>
 
             {/* 模型描述骨架 */}
             <div className='mb-4'>
-              <Skeleton.Paragraph
-                rows={2}
-                style={{ marginBottom: 0 }}
-                title={false}
-              />
+              <Skeleton loading={true} active placeholder={<Skeleton.Paragraph rows={2} style={{ marginBottom: 0 }} title={false} />} />
             </div>
 
             {/* 标签区域骨架 */}
             <div className='flex flex-wrap gap-2'>
               {Array.from({ length: 2 + (index % 3) }).map((_, tagIndex) => (
-                <Skeleton.Button
+                <Skeleton
                   key={tagIndex}
-                  size='small'
-                  style={{
-                    width: 64,
-                    height: 18,
-                    borderRadius: 10,
-                  }}
+                  loading={true}
+                  active
+                  placeholder={<Skeleton.Button size='small' style={{ width: 64, height: 18, borderRadius: 10 }} />}
                 />
               ))}
             </div>
@@ -109,19 +108,16 @@ const PricingCardSkeleton = ({
             {showRatio && (
               <div className='mt-4 pt-3 border-t border-gray-100'>
                 <div className='flex items-center space-x-1 mb-2'>
-                  <Skeleton.Title
-                    style={{ width: 60, height: 12, marginBottom: 0 }}
-                  />
-                  <Skeleton.Button
-                    size='small'
-                    style={{ width: 14, height: 14, borderRadius: 7 }}
-                  />
+                  <Skeleton loading={true} active placeholder={<Skeleton.Title style={{ width: 60, height: 12, marginBottom: 0 }} />} />
+                  <Skeleton loading={true} active placeholder={<Skeleton.Button size='small' style={{ width: 14, height: 14, borderRadius: 7 }} />} />
                 </div>
                 <div className='grid grid-cols-3 gap-2'>
                   {Array.from({ length: 3 }).map((_, ratioIndex) => (
-                    <Skeleton.Title
+                    <Skeleton
                       key={ratioIndex}
-                      style={{ width: '100%', height: 12, marginBottom: 0 }}
+                      loading={true}
+                      active
+                      placeholder={<Skeleton.Title style={{ width: '100%', height: 12, marginBottom: 0 }} />}
                     />
                   ))}
                 </div>

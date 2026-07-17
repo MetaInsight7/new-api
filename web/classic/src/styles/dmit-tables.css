@@ -1,0 +1,799 @@
+/*
+ * Product data table primitives and responsive layouts.
+ * Imported by dmit-console.css to keep the product surface layers explicit.
+ */
+
+/* =====================================================================
+   使用日志:合并列「账本式」表格(DMIT 重设计)
+   原型见 .tmp/log-roles5.html(用户侧)/ .tmp/log-admin.html(管理员侧)
+   - 表头白底、11.5px、弱化;单元格顶对齐、两行紧凑;行分隔更浅
+   - 仅作用亮色;`.usage-log-table-v2` 额外类提升特异性,层叠在 DMIT 基础层之上
+   ===================================================================== */
+html:not(.dark)
+  .app-surface-product
+  .usage-log-table-v2
+  .semi-table-thead
+  > .semi-table-row
+  > .semi-table-row-head,
+html:not(.dark) .app-surface-product .usage-log-table-v2 th.semi-table-row-head {
+  background-color: #ffffff !important;
+  color: #334155;
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0;
+  padding: 12px 14px;
+  border-bottom: 1px solid #e5e9f0;
+}
+
+html:not(.dark)
+  .app-surface-product
+  .usage-log-table-v2
+  .semi-table-tbody
+  > .semi-table-row
+  > .semi-table-row-cell {
+  padding: 13px 14px;
+  vertical-align: middle;
+  border-bottom: 1px solid #eef1f5;
+  font-size: 14px;
+}
+
+.app-surface-product
+  .usage-log-table-v2
+  .semi-table-row-cell
+  > .semi-table-row-cell-wrap
+  > .semi-table-row-cell-expand-icon {
+  display: none !important;
+}
+
+html:not(.dark)
+  .app-surface-product
+  .usage-log-table-v2
+  .semi-table-tbody
+  > .semi-table-row:hover
+  > .semi-table-row-cell {
+  background-color: #fbfcff;
+}
+
+/* 展开的详情行:去掉 hover 变色干扰,内容区留白 */
+html:not(.dark)
+  .app-surface-product
+  .usage-log-table-v2
+  .semi-table-row-expand
+  > .semi-table-row-cell {
+  background-color: #fafbff;
+}
+
+/* 固定表格布局:严格按列宽渲染,防止长内容(花费明细/大数字)撑破列导致横向滚动 */
+html:not(.dark) .app-surface-product .usage-log-table-v2 table {
+  --usage-log-font: var(--app-font);
+  table-layout: fixed !important;
+  font-family: var(--usage-log-font) !important;
+  font-variant-numeric: tabular-nums;
+}
+
+.app-surface-product .usage-log-model-icon {
+  width: 18px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+.app-surface-product .usage-log-model-icon > svg {
+  width: 18px;
+  height: 18px;
+}
+.app-surface-product .usage-log-model-icon__fallback {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #2563eb;
+  box-shadow: 0 0 0 3px #dbeafe;
+}
+
+.app-surface-product .usage-log-meta-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  height: 22px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 6px;
+  background: #eff4ff;
+  font-family: var(--usage-log-font, var(--app-font));
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 22px;
+  white-space: nowrap;
+}
+.app-surface-product .usage-log-meta-pill--ratio {
+  margin-left: 4px;
+  color: #2563eb;
+}
+.app-surface-product .usage-log-meta-pill--stream,
+.app-surface-product .usage-log-meta-pill--route {
+  color: #2563eb;
+}
+.app-surface-product .usage-log-meta-pill--stream {
+  position: relative;
+}
+.app-surface-product .usage-log-stream-alert-dot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 7px;
+  height: 7px;
+  border: 1.5px solid #fff;
+  border-radius: 50%;
+  background: #ef4444;
+  box-sizing: border-box;
+  cursor: help;
+}
+.app-surface-product .usage-log-meta-pill--route {
+  cursor: help;
+}
+.app-surface-product .usage-log-meta-pill--non-stream {
+  color: #b42318;
+  background: #fef2f2;
+}
+
+.app-surface-product .usage-log-detail {
+  --usage-log-font: var(--app-font);
+  padding: 14px 20px 16px;
+  background: #f8fafc;
+  color: #172033;
+  font-family: var(--usage-log-font);
+}
+.app-surface-product .usage-log-detail__panels {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.app-surface-product .usage-log-detail--admin .usage-log-detail__panels {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.app-surface-product
+  .usage-log-detail--admin
+  .usage-log-detail__panels--two,
+.app-surface-product .usage-log-detail__panels--two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.app-surface-product .usage-log-detail__section {
+  min-width: 0;
+  padding: 14px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 9px;
+  background: #fff;
+}
+.app-surface-product .usage-log-detail__section h4 {
+  margin: 0 0 11px;
+  font-size: 13px;
+  line-height: 1.4;
+  font-weight: 700;
+  color: #334155;
+}
+.app-surface-product .usage-log-detail__section--error {
+  border-color: #fecaca;
+  background: #fffafa;
+}
+.app-surface-product .usage-log-detail__section--error h4 {
+  color: #b42318;
+}
+.app-surface-product .usage-log-detail__section--refund {
+  border-color: #bbf7d0;
+  background: #fbfffc;
+}
+.app-surface-product .usage-log-detail__section--refund h4,
+.app-surface-product .usage-log-detail__section--topup h4 {
+  color: #0f8a62;
+}
+.app-surface-product .usage-log-detail__section--topup {
+  border-color: #a7f3d0;
+  background: #fbfffd;
+}
+.app-surface-product .usage-log-detail__grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.app-surface-product .usage-log-detail__item {
+  display: grid;
+  grid-template-columns: minmax(84px, 0.8fr) minmax(0, 1.4fr);
+  align-items: start;
+  gap: 10px;
+  min-width: 0;
+}
+.app-surface-product .usage-log-detail__item--full {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px;
+}
+.app-surface-product .usage-log-detail__item--full .usage-log-detail__value {
+  justify-content: flex-start;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 400;
+  color: #334155;
+}
+.app-surface-product .usage-log-detail__label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+}
+.app-surface-product .usage-log-detail__value {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #334155;
+  overflow-wrap: anywhere;
+  justify-content: flex-end;
+  text-align: right;
+}
+.app-surface-product .usage-log-detail__value--mono {
+  font-family: var(--usage-log-font);
+  font-variant-numeric: tabular-nums;
+}
+.app-surface-product .usage-log-detail__value--strong {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+}
+.app-surface-product .usage-log-detail__section--extra {
+  margin-top: 6px;
+  border: 0;
+  border-top: 1px solid #eef2f7;
+  border-radius: 0;
+  padding: 12px 6px 8px;
+}
+.app-surface-product .usage-log-detail__section--extra .usage-log-detail__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px 24px;
+}
+.app-surface-product .usage-log-detail__section--extra .usage-log-detail__item {
+  display: block;
+}
+.app-surface-product .usage-log-detail__section--extra .usage-log-detail__label {
+  margin-bottom: 4px;
+}
+.app-surface-product .usage-log-detail__section--extra .usage-log-detail__value {
+  justify-content: flex-start;
+  text-align: left;
+  font-size: 12px;
+}
+.app-surface-product .usage-log-detail__copy {
+  border: 0;
+  padding: 1px 2px;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+}
+.app-surface-product .usage-log-detail__copy:hover {
+  color: #2563eb;
+}
+.app-surface-product .usage-log-detail__billing {
+  display: flex;
+  flex-direction: column;
+  margin-top: 12px;
+  padding: 5px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 9px;
+  background: #fff;
+}
+.app-surface-product .usage-log-detail__billing > .semi-button {
+  align-self: stretch;
+  justify-content: space-between;
+  color: #3557d6;
+}
+.app-surface-product .usage-log-detail__billing-content {
+  margin-top: 8px;
+  padding: 12px 6px 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  font-size: 12px;
+}
+.app-surface-product
+  .usage-log-detail
+  .usage-log-detail__billing-content
+  .semi-typography {
+  margin: 0;
+  font-family: var(--usage-log-font);
+  font-size: 12px !important;
+  font-weight: 400 !important;
+  line-height: 1.45 !important;
+  color: #334155;
+  text-align: left;
+}
+.app-surface-product .usage-log-mobile-row .usage-log-detail {
+  margin-top: 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+}
+.app-surface-product .usage-log-mobile-row {
+  --usage-log-font: var(--app-font);
+  font-family: var(--usage-log-font);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 1179px) {
+  .app-surface-product .usage-log-card .semi-card-body {
+    padding: 0 !important;
+  }
+  .app-surface-product .usage-log-mobile-row + .usage-log-mobile-row {
+    margin-top: 8px;
+  }
+  .app-surface-product .usage-log-detail--admin .usage-log-detail__panels,
+  .app-surface-product .usage-log-detail__panels {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 600px) {
+  .app-surface-product .usage-log-detail {
+    padding: 15px 14px 17px;
+  }
+  .app-surface-product .usage-log-detail__section--extra .usage-log-detail__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* =====================================================================
+   通用「扁平账本式表格」:单层盒子 + 固定布局 + 紧凑白底表头
+   供 日志 / 令牌 / 任务 等表格复用(加 .dmit-flat-table / .dmit-flat-card)
+   ===================================================================== */
+html:not(.dark) .app-surface-product .dmit-flat-table table {
+  table-layout: fixed !important;
+  font-variant-numeric: tabular-nums;
+}
+html:not(.dark) .app-surface-product .token-table-v2 table {
+  --usage-log-font: var(--app-font);
+  font-family: var(--usage-log-font) !important;
+}
+html:not(.dark)
+  .app-surface-product
+  .dmit-flat-table
+  .semi-table-thead
+  > .semi-table-row
+  > .semi-table-row-head,
+html:not(.dark) .app-surface-product .dmit-flat-table th.semi-table-row-head {
+  background-color: #ffffff !important;
+  color: #334155;
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0;
+  padding: 12px 14px;
+  border-bottom: 1px solid #e5e9f0;
+}
+html:not(.dark)
+  .app-surface-product
+  .dmit-flat-table
+  .semi-table-tbody
+  > .semi-table-row
+  > .semi-table-row-cell {
+  padding: 12px 12px;
+  vertical-align: top;
+  border-bottom: 1px solid #eef1f5;
+  font-size: 14px;
+}
+html:not(.dark)
+  .app-surface-product
+  .dmit-flat-table
+  .semi-table-tbody
+  > .semi-table-row:hover
+  > .semi-table-row-cell {
+  background-color: #fbfcff;
+}
+/* 单层盒子:去掉内层表格边框/圆角,表体贴合卡片 */
+html:not(.dark) .app-surface-product .dmit-flat-card {
+  overflow: hidden;
+}
+html:not(.dark) .app-surface-product .dmit-flat-card .semi-table {
+  border: none !important;
+  border-radius: 0 !important;
+}
+html:not(.dark) .app-surface-product .dmit-flat-card .semi-card-body {
+  padding: 0 !important;
+}
+
+/* 令牌页桌面表格:与日志表格共用 13/600 + 12/500 的信息层级 */
+.app-surface-product .dmit-flat-table .token-table-primary,
+.app-surface-product .dmit-flat-table .token-table-status {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+  color: #141a1f;
+}
+.app-surface-product .dmit-flat-table .token-table-secondary {
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 17px;
+  color: #6b7686;
+}
+.app-surface-product .dmit-flat-table .token-table-secondary--single {
+  display: inline-block;
+  margin-top: 0;
+}
+.app-surface-product .dmit-flat-table .token-table-name {
+  word-break: break-word;
+}
+.app-surface-product .dmit-flat-table .token-table-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.app-surface-product .dmit-flat-table .token-table-stack {
+  min-width: 0;
+}
+.app-surface-product .dmit-flat-table .token-table-stack--interactive {
+  cursor: help;
+}
+.app-surface-product .dmit-flat-table .token-table-line {
+  display: flex;
+  align-items: baseline;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+  color: #3c4650;
+}
+.app-surface-product
+  .dmit-flat-table
+  .token-table-secondary
+  .token-table-line {
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+  color: inherit;
+}
+.app-surface-product .dmit-flat-table .token-table-field-label {
+  flex: 0 0 auto;
+  color: #6b7686;
+  font-weight: 500;
+}
+.app-surface-product
+  .dmit-flat-table
+  .token-table-primary
+  > .token-table-field-label {
+  color: #141a1f;
+  font-weight: 600;
+}
+.app-surface-product .dmit-flat-table .token-table-key {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
+  color: #3c4650;
+  font-variant-numeric: tabular-nums;
+}
+.app-surface-product .dmit-flat-table .token-table-limit-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.app-surface-product .dmit-flat-table .token-table-limit-row {
+  display: flex;
+  align-items: center;
+  min-height: 18px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+  color: #141a1f;
+}
+.app-surface-product .dmit-flat-table .token-table-limit-row + .token-table-limit-row {
+  margin-top: 4px;
+}
+.app-surface-product .dmit-flat-table .token-table-limit-line {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+.app-surface-product .dmit-flat-table .token-table-model-icon {
+  width: 16px;
+  height: 18px;
+}
+.app-surface-product .dmit-flat-table .token-table-model-icon > svg {
+  width: 16px;
+  height: 16px;
+}
+.app-surface-product .dmit-flat-table .token-table-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  min-width: 22px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: #eff4ff;
+  color: #2563eb;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 18px;
+}
+.app-surface-product .dmit-flat-table .token-table-time {
+  white-space: nowrap;
+  font-weight: 500;
+  color: #3c4650;
+}
+
+/* 令牌页:状态彩色信号灯(静态光晕 + 涟漪脉冲) */
+.app-surface-product .token-status-dot {
+  position: relative;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  background: var(--dot);
+  box-shadow: 0 0 0 3px var(--glow);
+}
+.app-surface-product .token-status-dot::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--dot);
+  animation: token-status-ripple 1.9s cubic-bezier(0.22, 0.61, 0.36, 1) infinite;
+}
+@keyframes token-status-ripple {
+  0% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  70% {
+    opacity: 0;
+  }
+  100% {
+    transform: scale(3);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-surface-product .token-status-dot::after {
+    animation: none;
+  }
+}
+
+/* 通用信号灯:静态光晕 + 可选涟漪脉冲(.dmit-sig--live,用于活跃态) */
+.app-surface-product .dmit-sig {
+  position: relative;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  background: var(--dot);
+  box-shadow: 0 0 0 3px var(--glow);
+}
+.app-surface-product .dmit-sig--live::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--dot);
+  animation: token-status-ripple 1.9s cubic-bezier(0.22, 0.61, 0.36, 1) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-surface-product .dmit-sig--live::after {
+    animation: none;
+  }
+}
+
+/* 令牌页:操作图标(无边框,hover 变色) */
+.app-surface-product .token-op {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: transparent;
+  color: #6b7686;
+  cursor: pointer;
+  display: inline-grid;
+  place-items: center;
+  user-select: none;
+  -webkit-user-select: none;
+  transition:
+    background 0.12s,
+    color 0.12s;
+}
+.app-surface-product .token-op.del {
+  color: #dc2626;
+}
+.app-surface-product .token-op.edit:hover {
+  color: #2563eb;
+  background: #f1f5f9;
+}
+.app-surface-product .token-op.pow:hover {
+  color: #c2410c;
+  background: #fff7ed;
+}
+.app-surface-product .token-op.del:hover {
+  color: #b91c1c;
+  background: #fef2f2;
+}
+
+/* 令牌页:密钥代码框内的显示/复制小图标 */
+.app-surface-product .token-keyic {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  display: grid;
+  place-items: center;
+  color: #9aa4b2;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  transition:
+    background 0.12s,
+    color 0.12s;
+}
+.app-surface-product .token-keyic:hover {
+  background: #e9edf2;
+  color: #3c4650;
+}
+
+/* 令牌页:密钥可横向滚动看全 key(隐藏滚动条,鼠标在内可选中复制) */
+.app-surface-product .token-keyscroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: text;
+}
+.app-surface-product .token-keyscroll::-webkit-scrollbar {
+  height: 0;
+  width: 0;
+  display: none;
+}
+
+/* 令牌页:表头工具栏 */
+.app-surface-product .token-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+}
+.app-surface-product .token-toolbar__title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #141a1f;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex: 0 0 auto;
+  margin-right: auto;
+}
+.app-surface-product .token-toolbar__count {
+  font-size: 12px;
+  font-weight: 500;
+  color: #9aa4b2;
+}
+.app-surface-product .token-toolbar__filters {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.app-surface-product .token-toolbar__primary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+.app-surface-product .token-toolbar__search {
+  width: 240px;
+}
+.app-surface-product .token-toolbar__search .semi-input-wrapper {
+  border-radius: 9px;
+}
+/* 去掉卡头与内容间的分隔线(工具栏已自成一区,贯穿横线冗余) */
+.app-surface-product .dmit-flat-card .semi-card-header {
+  border-bottom: none !important;
+}
+/* 筛选开关按钮:桌面隐藏,移动端显示 */
+.app-surface-product .token-toolbar__filter-toggle {
+  display: none;
+}
+
+/* 移动端:左「令牌管理 + 小字数量」,右「筛选开关 + 添加令牌」;点筛选后第二行显示 搜索(左)+ 批量操作(右) */
+@media (max-width: 767px) {
+  .app-surface-product .token-toolbar {
+    flex-wrap: wrap;
+    row-gap: 10px;
+  }
+  .app-surface-product .token-toolbar__title {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    line-height: 1.2;
+    order: 0;
+  }
+  .app-surface-product .token-toolbar__primary {
+    order: 1;
+  }
+  .app-surface-product .token-toolbar__filter-toggle {
+    display: inline-grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: #fff;
+    color: #64748b;
+    cursor: pointer;
+    flex: 0 0 auto;
+  }
+  .app-surface-product .token-toolbar__filter-toggle[aria-pressed='true'] {
+    background: #eff4ff;
+    border-color: #bcd0fe;
+    color: #2563eb;
+  }
+  .app-surface-product .token-toolbar__filters {
+    order: 2;
+    width: 100%;
+    display: none;
+  }
+  .app-surface-product .token-toolbar__filters.is-open {
+    display: flex;
+  }
+  .app-surface-product .token-toolbar__search {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+  }
+  .app-surface-product .token-toolbar__batch {
+    flex: 0 0 auto;
+  }
+}
+
+/* 操作列(详情按钮):垂直居中,不随两行内容顶对齐 */
+html:not(.dark)
+  .app-surface-product
+  .usage-log-table-v2
+  .semi-table-tbody
+  > .semi-table-row
+  > .semi-table-row-cell:last-child {
+  vertical-align: middle;
+}
+
+/* 日志统计条上的快捷时间区间(复用数据看板右上角的分段胶囊样式) */
+.log-time-range {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid var(--semi-color-border);
+  border-radius: 10px;
+  background: var(--semi-color-fill-0);
+}
+.log-time-range .semi-button {
+  height: 30px;
+  min-width: 0;
+  border-radius: 7px;
+  font-weight: 700;
+}
+.log-time-range .semi-button.semi-button-primary,
+.log-time-range .semi-button.semi-button-primary:hover,
+.log-time-range .semi-button.semi-button-primary:focus {
+  background-color: #2563eb !important;
+}
+
+/* 收紧使用日志卡片:去掉内层表格自带的边框/圆角(避免盒中盒),表格贴合单层卡片 */
+html:not(.dark) .app-surface-product .usage-log-card {
+  overflow: hidden;
+}
+html:not(.dark) .app-surface-product .usage-log-card .semi-table {
+  border: none !important;
+  border-radius: 0 !important;
+}
+html:not(.dark) .app-surface-product .usage-log-card .semi-card-body {
+  padding: 0 !important;
+}

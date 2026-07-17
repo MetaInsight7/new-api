@@ -699,7 +699,7 @@ export default function UpstreamRatioSync(props) {
     </div>
   );
 
-  const renderDifferenceTable = () => {
+  const DifferenceTable = () => {
     const dataSource = useMemo(() => {
       return Object.entries(differences).map(([model, ratioTypes]) => {
         const hasPrice = 'model_price' in ratioTypes;
@@ -1059,7 +1059,7 @@ export default function UpstreamRatioSync(props) {
   return (
     <>
       <Form.Section text={renderHeader()}>
-        {renderDifferenceTable()}
+        <DifferenceTable />
       </Form.Section>
 
       <ChannelSelectorModal

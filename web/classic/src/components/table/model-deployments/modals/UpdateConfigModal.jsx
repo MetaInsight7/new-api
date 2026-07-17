@@ -45,6 +45,7 @@ import {
   FaMinus,
 } from 'react-icons/fa';
 import { API, showError, showSuccess } from '../../../../helpers';
+import { useRequestLifecycle } from '../../../../hooks/common/useRequestLifecycle';
 
 const { Text, Title } = Typography;
 
@@ -53,6 +54,7 @@ const UpdateConfigModal = ({ visible, onCancel, deployment, onSuccess, t }) => {
   const [loading, setLoading] = useState(false);
   const [envVars, setEnvVars] = useState([]);
   const [secretEnvVars, setSecretEnvVars] = useState([]);
+  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   // Initialize form data when modal opens
   useEffect(() => {
@@ -87,6 +89,7 @@ const UpdateConfigModal = ({ visible, onCancel, deployment, onSuccess, t }) => {
   }, [visible, deployment]);
 
   const handleUpdate = async () => {
+    const requestId = beginRequest('update');
     try {
       const formValues = formRef.current
         ? await formRef.current.validate()
@@ -137,23 +140,26 @@ const UpdateConfigModal = ({ visible, onCancel, deployment, onSuccess, t }) => {
         payload,
       );
 
-      if (response.data.success) {
+      if (isCurrentRequest('update', requestId) && response.data.success) {
         showSuccess(t('容器配置更新成功'));
         onSuccess?.(response.data.data);
         handleCancel();
       }
     } catch (error) {
-      showError(
-        t('更新配置失败') +
-          ': ' +
-          (error.response?.data?.message || error.message),
-      );
+      if (isCurrentRequest('update', requestId)) {
+        showError(
+          t('更新配置失败') +
+            ': ' +
+            (error.response?.data?.message || error.message),
+        );
+      }
     } finally {
-      setLoading(false);
+      if (isCurrentRequest('update', requestId)) setLoading(false);
     }
   };
 
   const handleCancel = () => {
+    beginRequest('update');
     if (formRef.current) {
       formRef.current.reset();
     }

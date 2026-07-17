@@ -37,14 +37,13 @@ import {
   onOIDCClicked,
   onLinuxDOOAuthClicked,
   onDiscordOAuthClicked,
+  getStoredJSON,
+  removeStoredValue,
+  setStoredValue,
 } from '../../helpers';
 import { UserContext } from '../../context/User';
 import { Modal, Select } from '@douyinfe/semi-ui';
-import {
-  IconMail,
-  IconGithubLogo,
-  IconShield,
-} from '@douyinfe/semi-icons';
+import { IconMail, IconGithubLogo, IconShield } from '@douyinfe/semi-icons';
 import { SiWechat, SiDiscord, SiTelegram, SiLinux } from 'react-icons/si';
 import { Link2, Bell, SlidersHorizontal } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -60,11 +59,13 @@ import AccountDeleteModal from './personal/modals/AccountDeleteModal';
 import ChangePasswordModal from './personal/modals/ChangePasswordModal';
 import SecureVerificationModal from '../common/modals/SecureVerificationModal';
 import { useSecureVerification } from '../../hooks/common/useSecureVerification';
+import { useRequestLifecycle } from '../../hooks/common/useRequestLifecycle';
 
 const PersonalSetting = () => {
   const [userState, userDispatch] = useContext(UserContext);
   let navigate = useNavigate();
   const { t, i18n } = useTranslation();
+  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   const [inputs, setInputs] = useState({
     wechat_verification_code: '',
@@ -141,9 +142,8 @@ const PersonalSetting = () => {
     : passkeyVerificationMethods;
 
   useEffect(() => {
-    let saved = localStorage.getItem('status');
-    if (saved) {
-      const parsed = JSON.parse(saved);
+    const parsed = getStoredJSON('status', null);
+    if (parsed) {
       setStatus(parsed);
       if (parsed.turnstile_check) {
         setTurnstileEnabled(true);
@@ -155,8 +155,10 @@ const PersonalSetting = () => {
     }
     // Always refresh status from server to avoid stale flags (e.g., admin just enabled OAuth)
     (async () => {
+      const requestId = beginRequest('status');
       try {
         const res = await API.get('/api/status');
+        if (!isCurrentRequest('status', requestId)) return;
         const { success, data } = res.data;
         if (success && data) {
           setStatus(data);
@@ -196,7 +198,12 @@ const PersonalSetting = () => {
 
   useEffect(() => {
     if (userState?.user?.setting) {
-      const settings = JSON.parse(userState.user.setting);
+      let settings;
+      try {
+        settings = JSON.parse(userState.user.setting);
+      } catch {
+        settings = {};
+      }
       setNotificationSettings({
         warningType: settings.notify_type || 'email',
         warningThreshold: settings.quota_warning_threshold || 500000,
@@ -375,7 +382,9 @@ const PersonalSetting = () => {
   };
 
   const getUserData = async () => {
+    const requestId = beginRequest('user');
     let res = await API.get(`/api/user/self`);
+    if (!isCurrentRequest('user', requestId)) return;
     const { success, message, data } = res.data;
     if (success) {
       userDispatch({ type: 'login', payload: data });
@@ -405,7 +414,7 @@ const PersonalSetting = () => {
       showSuccess(t('账户已删除！'));
       await API.get('/api/user/logout');
       userDispatch({ type: 'logout' });
-      localStorage.removeItem('user');
+      removeStoredValue('user');
       navigate('/login');
     } else {
       showError(message);
@@ -691,7 +700,10 @@ const PersonalSetting = () => {
       bound: !!user.oidc_id,
       enabled: !!status.oidc_enabled,
       onClick: () =>
-        onOIDCClicked(status.oidc_authorization_endpoint, status.oidc_client_id),
+        onOIDCClicked(
+          status.oidc_authorization_endpoint,
+          status.oidc_client_id,
+        ),
     },
     {
       name: 'Telegram',
@@ -728,7 +740,7 @@ const PersonalSetting = () => {
     (String(i18n.language || '').startsWith('zh') ? 'zh-CN' : 'en');
   const handleLanguageChange = async (lang) => {
     i18n.changeLanguage(lang);
-    localStorage.setItem('i18nextLng', lang);
+    setStoredValue('i18nextLng', lang);
     try {
       await API.put('/api/user/self', { language: lang });
       showSuccess(t('语言偏好已保存'));
@@ -745,7 +757,7 @@ const PersonalSetting = () => {
     }
     showSuccess(t('注销成功!'));
     userDispatch({ type: 'logout' });
-    localStorage.removeItem('user');
+    removeStoredValue('user');
     navigate('/login');
   };
 
@@ -883,7 +895,10 @@ const PersonalSetting = () => {
               {[
                 { k: t('当前余额'), v: renderQuota(user.quota), hl: true },
                 { k: t('历史消耗'), v: renderQuota(user.used_quota) },
-                { k: t('请求次数'), v: (user.request_count || 0).toLocaleString() },
+                {
+                  k: t('请求次数'),
+                  v: (user.request_count || 0).toLocaleString(),
+                },
                 { k: t('用户分组'), v: user.group || t('默认'), small: true },
               ].map((s, i) => (
                 <div
@@ -895,7 +910,9 @@ const PersonalSetting = () => {
                     padding: '9px 0',
                   }}
                 >
-                  <span style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.72)' }}>
+                  <span
+                    style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.72)' }}
+                  >
                     {s.k}
                   </span>
                   <span
@@ -1033,7 +1050,9 @@ const PersonalSetting = () => {
                 <SecuritySettings {...accountProps} />
 
                 {/* 通知 + 偏好（竖排） */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div
+                  style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
+                >
                   <div style={bentoCard}>
                     <div style={bentoHd}>
                       <span style={bentoIco}>
@@ -1049,7 +1068,9 @@ const PersonalSetting = () => {
                     </div>
                     <div style={kvRow}>
                       <span style={{ color: '#6b7686' }}>{t('方式')}</span>
-                      <span style={{ fontWeight: 600 }}>{notifyMethodLabel}</span>
+                      <span style={{ fontWeight: 600 }}>
+                        {notifyMethodLabel}
+                      </span>
                     </div>
                     <div style={{ ...kvRow, borderBottom: 'none' }}>
                       <span style={{ color: '#6b7686' }}>{t('预警阈值')}</span>

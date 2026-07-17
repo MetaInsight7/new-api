@@ -36,6 +36,7 @@ import {
   verifyJSON,
 } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
+import { useRequestLifecycle } from '../../../hooks/common/useRequestLifecycle';
 
 export default function ModelRatioSettings(props) {
   const [loading, setLoading] = useState(false);
@@ -53,8 +54,10 @@ export default function ModelRatioSettings(props) {
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
   const { t } = useTranslation();
+  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   async function onSubmit() {
+    const requestId = beginRequest('submit');
     try {
       await refForm.current
         .validate()
@@ -74,6 +77,7 @@ export default function ModelRatioSettings(props) {
           setLoading(true);
           Promise.all(requestQueue)
             .then((res) => {
+              if (!isCurrentRequest('submit', requestId)) return;
               if (res.includes(undefined)) {
                 return showError(
                   requestQueue.length > 1
@@ -96,7 +100,7 @@ export default function ModelRatioSettings(props) {
               showError(t('保存失败，请重试'));
             })
             .finally(() => {
-              setLoading(false);
+              if (isCurrentRequest('submit', requestId)) setLoading(false);
             });
         })
         .catch(() => {
@@ -109,8 +113,10 @@ export default function ModelRatioSettings(props) {
   }
 
   async function resetModelRatio() {
+    const requestId = beginRequest('reset');
     try {
       let res = await API.post(`/api/option/rest_model_ratio`);
+      if (!isCurrentRequest('reset', requestId)) return;
       if (res.data.success) {
         showSuccess(res.data.message);
         props.refresh();

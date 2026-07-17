@@ -53,6 +53,7 @@ const MjLogsFilters = ({
               className='w-full'
               type='dateTimeRange'
               placeholder={[t('开始时间'), t('结束时间')]}
+              rangeSeparator=''
               showClear
               pure
               size='small'

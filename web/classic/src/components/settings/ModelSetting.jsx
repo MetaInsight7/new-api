@@ -17,11 +17,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useState } from 'react';
-import { Card, Spin, Tabs } from '@douyinfe/semi-ui';
+import React from 'react';
+import { Card, Spin } from '@douyinfe/semi-ui';
 
-import { API, showError, showSuccess, toBoolean } from '../../helpers';
-import { useTranslation } from 'react-i18next';
+import { toBoolean } from '../../helpers';
+import { useOptionSettings } from '../../hooks/settings/useOptionSettings';
 import SettingGeminiModel from '../../pages/Setting/Model/SettingGeminiModel';
 import SettingClaudeModel from '../../pages/Setting/Model/SettingClaudeModel';
 import SettingGlobalModel from '../../pages/Setting/Model/SettingGlobalModel';
@@ -29,34 +29,28 @@ import SettingGrokModel from '../../pages/Setting/Model/SettingGrokModel';
 import SettingsChannelAffinity from '../../pages/Setting/Operation/SettingsChannelAffinity';
 
 const ModelSetting = () => {
-  const { t } = useTranslation();
-  let [inputs, setInputs] = useState({
-    'gemini.safety_settings': '',
-    'gemini.version_settings': '',
-    'gemini.supported_imagine_models': '',
-    'gemini.remove_function_response_id_enabled': true,
-    'claude.model_headers_settings': '',
-    'claude.thinking_adapter_enabled': true,
-    'claude.default_max_tokens': '',
-    'claude.thinking_adapter_budget_tokens_percentage': 0.8,
-    'global.pass_through_request_enabled': false,
-    'global.thinking_model_blacklist': '[]',
-    'global.chat_completions_to_responses_policy': '{}',
-    'general_setting.ping_interval_enabled': false,
-    'general_setting.ping_interval_seconds': 60,
-    'gemini.thinking_adapter_enabled': false,
-    'gemini.thinking_adapter_budget_tokens_percentage': 0.6,
-    'grok.violation_deduction_enabled': true,
-    'grok.violation_deduction_amount': 0.05,
-  });
-
-  let [loading, setLoading] = useState(false);
-
-  const getOptions = async () => {
-    const res = await API.get('/api/option/');
-    const { success, message, data } = res.data;
-    if (success) {
-      let newInputs = {};
+  const { inputs, loading, refresh } = useOptionSettings({
+    initialValues: {
+      'gemini.safety_settings': '',
+      'gemini.version_settings': '',
+      'gemini.supported_imagine_models': '',
+      'gemini.remove_function_response_id_enabled': true,
+      'claude.model_headers_settings': '',
+      'claude.thinking_adapter_enabled': true,
+      'claude.default_max_tokens': '',
+      'claude.thinking_adapter_budget_tokens_percentage': 0.8,
+      'global.pass_through_request_enabled': false,
+      'global.thinking_model_blacklist': '[]',
+      'global.chat_completions_to_responses_policy': '{}',
+      'general_setting.ping_interval_enabled': false,
+      'general_setting.ping_interval_seconds': 60,
+      'gemini.thinking_adapter_enabled': false,
+      'gemini.thinking_adapter_budget_tokens_percentage': 0.6,
+      'grok.violation_deduction_enabled': true,
+      'grok.violation_deduction_amount': 0.05,
+    },
+    parseOptions: (data) => {
+      const newInputs = {};
       data.forEach((item) => {
         if (
           item.key === 'gemini.safety_settings' ||
@@ -84,50 +78,32 @@ const ModelSetting = () => {
         }
       });
 
-      setInputs(newInputs);
-    } else {
-      showError(message);
-    }
-  };
-  async function onRefresh() {
-    try {
-      setLoading(true);
-      await getOptions();
-      // showSuccess('刷新成功');
-    } catch (error) {
-      showError('刷新失败');
-      console.error(error);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    onRefresh();
-  }, []);
+      return newInputs;
+    },
+  });
 
   return (
     <>
       <Spin spinning={loading} size='large'>
         {/* OpenAI */}
         <Card style={{ marginTop: '10px' }}>
-          <SettingGlobalModel options={inputs} refresh={onRefresh} />
+          <SettingGlobalModel options={inputs} refresh={refresh} />
         </Card>
         {/* Channel affinity */}
         <Card style={{ marginTop: '10px' }}>
-          <SettingsChannelAffinity options={inputs} refresh={onRefresh} />
+          <SettingsChannelAffinity options={inputs} refresh={refresh} />
         </Card>
         {/* Gemini */}
         <Card style={{ marginTop: '10px' }}>
-          <SettingGeminiModel options={inputs} refresh={onRefresh} />
+          <SettingGeminiModel options={inputs} refresh={refresh} />
         </Card>
         {/* Claude */}
         <Card style={{ marginTop: '10px' }}>
-          <SettingClaudeModel options={inputs} refresh={onRefresh} />
+          <SettingClaudeModel options={inputs} refresh={refresh} />
         </Card>
         {/* Grok */}
         <Card style={{ marginTop: '10px' }}>
-          <SettingGrokModel options={inputs} refresh={onRefresh} />
+          <SettingGrokModel options={inputs} refresh={refresh} />
         </Card>
       </Spin>
     </>

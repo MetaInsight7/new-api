@@ -17,11 +17,19 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useContext, useEffect, useMemo, useState } from 'react';
+import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { marked } from 'marked';
 import { useTranslation } from 'react-i18next';
-import { API, copy, showSuccess } from '../../helpers';
+import {
+  API,
+  copy,
+  isSafeExternalUrl,
+  renderSafeMarkdown,
+  sanitizeHtml,
+  getStoredJSON,
+  getStoredValue,
+  showSuccess,
+} from '../../helpers';
 import { useIsMobile } from '../../hooks/common/useIsMobile';
 import { useActualTheme } from '../../context/Theme';
 import { StatusContext } from '../../context/Status';
@@ -79,7 +87,7 @@ const getCachedServerAddress = () => {
   if (typeof window === 'undefined') return '';
 
   try {
-    const status = JSON.parse(localStorage.getItem('status') || '{}');
+    const status = getStoredJSON('status', {});
     return typeof status.server_address === 'string'
       ? status.server_address.trim()
       : '';
@@ -204,6 +212,7 @@ const Home = () => {
   const [noticeVisible, setNoticeVisible] = useState(false);
   const [activeLanguage, setActiveLanguage] = useState('python');
   const [copiedButton, setCopiedButton] = useState('');
+  const homepageFrameRef = useRef(null);
   const isMobile = useIsMobile();
   const serverAddress = getServerAddress(statusState?.status);
   const apiBaseURL = getApiBaseURL(serverAddress);
@@ -213,43 +222,23 @@ const Home = () => {
     [apiBaseURL],
   );
   const activeSample = codeSamples[activeLanguage];
+  const safeActiveSampleCode = useMemo(
+    () => sanitizeHtml(activeSample?.code || ''),
+    [activeSample],
+  );
 
-  const displayHomePageContent = async () => {
-    try {
-      const res = await API.get('/api/home_page_content', {
-        skipErrorHandler: true,
-        timeout: 5000,
-      });
-      const { success, data } = res.data;
-      if (success && typeof data === 'string') {
-        let content = data;
-        if (data.trim() === '') {
-          setHomePageContent('');
-          return;
-        }
-        if (!data.startsWith('https://')) {
-          content = marked.parse(data);
-        }
-        setHomePageContent(content);
+  useEffect(() => {
+    const frame = homepageFrameRef.current;
+    if (!frame || !isSafeExternalUrl(homePageContent)) return undefined;
 
-        if (data.startsWith('https://')) {
-          const iframe = document.querySelector('iframe');
-          if (iframe) {
-            iframe.onload = () => {
-              iframe.contentWindow.postMessage({ themeMode: actualTheme }, '*');
-              iframe.contentWindow.postMessage({ lang: i18n.language }, '*');
-            };
-          }
-        }
-      } else {
-        setHomePageContent('');
-      }
-    } catch (error) {
-      console.error('加载首页内容失败:', error);
-      setHomePageContent('');
-    }
-    setHomePageContentLoaded(true);
-  };
+    const sendFrameContext = () => {
+      frame.contentWindow?.postMessage({ themeMode: actualTheme }, '*');
+      frame.contentWindow?.postMessage({ lang: i18n.language }, '*');
+    };
+    frame.addEventListener('load', sendFrameContext);
+    sendFrameContext();
+    return () => frame.removeEventListener('load', sendFrameContext);
+  }, [actualTheme, homePageContent, i18n.language]);
 
   const handleCopyBaseURL = (buttonKey = 'base') => {
     setCopiedButton(buttonKey);
@@ -261,14 +250,16 @@ const Home = () => {
   };
 
   useEffect(() => {
+    let cancelled = false;
+
     const checkNoticeAndShow = async () => {
-      const lastCloseDate = localStorage.getItem('notice_close_date');
+      const lastCloseDate = getStoredValue('notice_close_date', '');
       const today = new Date().toDateString();
       if (lastCloseDate !== today) {
         try {
           const res = await API.get('/api/notice');
           const { success, data } = res.data;
-          if (success && data && data.trim() !== '') {
+          if (!cancelled && success && data && data.trim() !== '') {
             setNoticeVisible(true);
           }
         } catch (error) {
@@ -278,10 +269,49 @@ const Home = () => {
     };
 
     checkNoticeAndShow();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
-    displayHomePageContent().then();
+    let cancelled = false;
+
+    const displayHomePageContent = async () => {
+      try {
+        const res = await API.get('/api/home_page_content', {
+          skipErrorHandler: true,
+          timeout: 5000,
+        });
+        const { success, data } = res.data;
+        if (cancelled) return;
+        if (success && typeof data === 'string') {
+          if (data.trim() === '') {
+            setHomePageContent('');
+            return;
+          }
+          setHomePageContent(
+            isSafeExternalUrl(data) ? data : renderSafeMarkdown(data),
+          );
+        } else {
+          setHomePageContent('');
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error('加载首页内容失败:', error);
+          setHomePageContent('');
+        }
+      } finally {
+        if (!cancelled) setHomePageContentLoaded(true);
+      }
+    };
+
+    displayHomePageContent();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return (
@@ -488,7 +518,7 @@ const Home = () => {
                   </div>
                   <pre>
                     <code
-                      dangerouslySetInnerHTML={{ __html: activeSample.code }}
+                      dangerouslySetInnerHTML={{ __html: safeActiveSampleCode }}
                     />
                   </pre>
                 </div>
@@ -548,15 +578,21 @@ const Home = () => {
         </div>
       ) : (
         <div className='classic-page-fill overflow-x-hidden w-full'>
-          {homePageContent.startsWith('https://') ? (
+          {isSafeExternalUrl(homePageContent) ? (
             <iframe
+              ref={homepageFrameRef}
               src={homePageContent}
+              title={t('首页内容')}
+              sandbox='allow-forms allow-popups allow-scripts'
+              referrerPolicy='no-referrer'
               className='w-full h-full border-none'
             />
           ) : (
             <div
               className='mt-[60px]'
-              dangerouslySetInnerHTML={{ __html: homePageContent }}
+              dangerouslySetInnerHTML={{
+                __html: sanitizeHtml(homePageContent),
+              }}
             />
           )}
         </div>

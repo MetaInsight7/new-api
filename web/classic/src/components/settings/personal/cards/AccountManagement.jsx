@@ -48,9 +48,10 @@ import {
   onLinuxDOOAuthClicked,
   onDiscordOAuthClicked,
   onCustomOAuthClicked,
-  getOAuthProviderIcon,
 } from '../../../../helpers';
+import { getOAuthProviderIcon } from '../../../../helpers/oauthIcons';
 import TwoFASetting from '../components/TwoFASetting';
+import { useRequestLifecycle } from '../../../../hooks/common/useRequestLifecycle';
 
 // DMIT 绑定列表行：方块图标 + 名称/状态 + 操作按钮（分隔线列表，去卡中卡）
 const BindingRow = ({ icon, name, desc, action }) => (
@@ -141,18 +142,28 @@ const AccountManagement = ({
     React.useState(false);
   const [customOAuthBindings, setCustomOAuthBindings] = React.useState([]);
   const [customOAuthLoading, setCustomOAuthLoading] = React.useState({});
+  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   // Fetch custom OAuth bindings
   const loadCustomOAuthBindings = async () => {
+    const requestId = beginRequest('oauthBindings');
     try {
       const res = await API.get('/api/user/oauth/bindings');
-      if (res.data.success) {
+      if (isCurrentRequest('oauthBindings', requestId) && res.data.success) {
         setCustomOAuthBindings(res.data.data || []);
       } else {
-        showError(res.data.message || t('获取绑定信息失败'));
+        if (isCurrentRequest('oauthBindings', requestId)) {
+          showError(res.data.message || t('获取绑定信息失败'));
+        }
       }
     } catch (error) {
-      showError(error.response?.data?.message || error.message || t('获取绑定信息失败'));
+      if (isCurrentRequest('oauthBindings', requestId)) {
+        showError(
+          error.response?.data?.message ||
+            error.message ||
+            t('获取绑定信息失败'),
+        );
+      }
     }
   };
 
@@ -164,19 +175,36 @@ const AccountManagement = ({
       okText: t('确认'),
       cancelText: t('取消'),
       onOk: async () => {
+        const requestId = beginRequest(`unbind:${providerId}`);
         setCustomOAuthLoading((prev) => ({ ...prev, [providerId]: true }));
         try {
-          const res = await API.delete(`/api/user/oauth/bindings/${providerId}`);
-          if (res.data.success) {
+          const res = await API.delete(
+            `/api/user/oauth/bindings/${providerId}`,
+          );
+          if (
+            isCurrentRequest(`unbind:${providerId}`, requestId) &&
+            res.data.success
+          ) {
             showSuccess(t('解绑成功'));
             await loadCustomOAuthBindings();
           } else {
-            showError(res.data.message);
+            if (isCurrentRequest(`unbind:${providerId}`, requestId)) {
+              showError(res.data.message);
+            }
           }
         } catch (error) {
-          showError(error.response?.data?.message || error.message || t('操作失败'));
+          if (isCurrentRequest(`unbind:${providerId}`, requestId)) {
+            showError(
+              error.response?.data?.message || error.message || t('操作失败'),
+            );
+          }
         } finally {
-          setCustomOAuthLoading((prev) => ({ ...prev, [providerId]: false }));
+          if (isCurrentRequest(`unbind:${providerId}`, requestId)) {
+            setCustomOAuthLoading((prev) => ({
+              ...prev,
+              [providerId]: false,
+            }));
+          }
         }
       },
     });
@@ -190,17 +218,24 @@ const AccountManagement = ({
   // Check if custom OAuth provider is bound
   const isCustomOAuthBound = (providerId) => {
     const normalizedId = Number(providerId);
-    return customOAuthBindings.some((b) => Number(b.provider_id) === normalizedId);
+    return customOAuthBindings.some(
+      (b) => Number(b.provider_id) === normalizedId,
+    );
   };
 
   // Get binding info for a provider
   const getCustomOAuthBinding = (providerId) => {
     const normalizedId = Number(providerId);
-    return customOAuthBindings.find((b) => Number(b.provider_id) === normalizedId);
+    return customOAuthBindings.find(
+      (b) => Number(b.provider_id) === normalizedId,
+    );
   };
 
   React.useEffect(() => {
     loadCustomOAuthBindings();
+    return () => {
+      beginRequest('oauthBindings');
+    };
   }, []);
 
   const passkeyEnabled = passkeyStatus?.enabled;
@@ -258,9 +293,7 @@ const AccountManagement = ({
                     size='small'
                     onClick={() => setShowEmailBindModal(true)}
                   >
-                    {isBound(userState.user?.email)
-                      ? t('修改绑定')
-                      : t('绑定')}
+                    {isBound(userState.user?.email) ? t('修改绑定') : t('绑定')}
                   </Button>
                 }
               />
@@ -316,7 +349,9 @@ const AccountManagement = ({
                     type='primary'
                     theme='outline'
                     size='small'
-                    onClick={() => onGitHubOAuthClicked(status.github_client_id)}
+                    onClick={() =>
+                      onGitHubOAuthClicked(status.github_client_id)
+                    }
                     disabled={
                       isBound(userState.user?.github_id) || !status.github_oauth
                     }
@@ -403,7 +438,12 @@ const AccountManagement = ({
                 action={
                   status.telegram_oauth ? (
                     isBound(userState.user?.telegram_id) ? (
-                      <Button disabled size='small' type='primary' theme='outline'>
+                      <Button
+                        disabled
+                        size='small'
+                        type='primary'
+                        theme='outline'
+                      >
                         {t('已绑定')}
                       </Button>
                     ) : (
@@ -417,7 +457,12 @@ const AccountManagement = ({
                       </Button>
                     )
                   ) : (
-                    <Button disabled size='small' type='primary' theme='outline'>
+                    <Button
+                      disabled
+                      size='small'
+                      type='primary'
+                      theme='outline'
+                    >
                       {t('未启用')}
                     </Button>
                   )
@@ -542,109 +587,109 @@ const AccountManagement = ({
           <div className='py-4'>
             {/* 安全设置:令牌/密码/Passkey/两步验证/删除 同一面板内分隔相连 */}
             <div className='rounded-xl border border-[var(--semi-color-border)] divide-y divide-[var(--semi-color-border)] overflow-hidden bg-[var(--semi-color-bg-1)]'>
-                <SecurityRow
-                  tone='blue'
-                  icon={<IconKey size='large' />}
-                  title={t('系统访问令牌')}
-                  desc={t('用于API调用的身份验证令牌，请妥善保管')}
-                  extra={
-                    systemToken && (
-                      <div className='mt-3'>
-                        <Input
-                          readonly
-                          value={systemToken}
-                          onClick={handleSystemTokenClick}
-                          size='large'
-                          prefix={<IconKey />}
-                        />
-                      </div>
-                    )
-                  }
-                  action={
-                    <Button
-                      type='primary'
-                      theme='solid'
-                      onClick={generateAccessToken}
-                      className='w-full sm:w-auto'
-                      icon={<IconKey />}
-                    >
-                      {systemToken ? t('重新生成') : t('生成令牌')}
-                    </Button>
-                  }
-                />
-
-                <SecurityRow
-                  tone='blue'
-                  icon={<IconLock size='large' />}
-                  title={t('密码管理')}
-                  desc={t('定期更改密码可以提高账户安全性')}
-                  action={
-                    <Button
-                      type='primary'
-                      theme='solid'
-                      onClick={() => setShowChangePasswordModal(true)}
-                      className='w-full sm:w-auto'
-                      icon={<IconLock />}
-                    >
-                      {t('修改密码')}
-                    </Button>
-                  }
-                />
-
-                <SecurityRow
-                  tone='blue'
-                  icon={<IconKey size='large' />}
-                  title={t('Passkey 登录')}
-                  desc={
-                    passkeyEnabled
-                      ? t('已启用 Passkey，无需密码即可登录')
-                      : t('使用 Passkey 实现免密且更安全的登录体验')
-                  }
-                  extra={
-                    <div className='mt-2 text-xs text-gray-500 space-y-1'>
-                      <div>
-                        {t('最后使用时间')}：{lastUsedLabel}
-                      </div>
-                      {!passkeySupported && (
-                        <div className='text-amber-600'>
-                          {t('当前设备不支持 Passkey')}
-                        </div>
-                      )}
+              <SecurityRow
+                tone='blue'
+                icon={<IconKey size='large' />}
+                title={t('系统访问令牌')}
+                desc={t('用于API调用的身份验证令牌，请妥善保管')}
+                extra={
+                  systemToken && (
+                    <div className='mt-3'>
+                      <Input
+                        readonly
+                        value={systemToken}
+                        onClick={handleSystemTokenClick}
+                        size='large'
+                        prefix={<IconKey />}
+                      />
                     </div>
-                  }
-                  action={
-                    <Button
-                      type={passkeyEnabled ? 'danger' : 'primary'}
-                      theme='solid'
-                      onClick={
-                        passkeyEnabled
-                          ? () => {
-                              Modal.confirm({
-                                title: t('确认解绑 Passkey'),
-                                content: t(
-                                  '解绑后将无法使用 Passkey 登录，确定要继续吗？',
-                                ),
-                                okText: t('确认解绑'),
-                                cancelText: t('取消'),
-                                okType: 'danger',
-                                onOk: onPasskeyDelete,
-                              });
-                            }
-                          : onPasskeyRegister
-                      }
-                      className='w-full sm:w-auto'
-                      icon={<IconKey />}
-                      disabled={!passkeySupported && !passkeyEnabled}
-                      loading={
-                        passkeyEnabled
-                          ? passkeyDeleteLoading
-                          : passkeyRegisterLoading
-                      }
-                    >
-                      {passkeyEnabled ? t('解绑 Passkey') : t('注册 Passkey')}
-                    </Button>
-                  }
-                />
+                  )
+                }
+                action={
+                  <Button
+                    type='primary'
+                    theme='solid'
+                    onClick={generateAccessToken}
+                    className='w-full sm:w-auto'
+                    icon={<IconKey />}
+                  >
+                    {systemToken ? t('重新生成') : t('生成令牌')}
+                  </Button>
+                }
+              />
+
+              <SecurityRow
+                tone='blue'
+                icon={<IconLock size='large' />}
+                title={t('密码管理')}
+                desc={t('定期更改密码可以提高账户安全性')}
+                action={
+                  <Button
+                    type='primary'
+                    theme='solid'
+                    onClick={() => setShowChangePasswordModal(true)}
+                    className='w-full sm:w-auto'
+                    icon={<IconLock />}
+                  >
+                    {t('修改密码')}
+                  </Button>
+                }
+              />
+
+              <SecurityRow
+                tone='blue'
+                icon={<IconKey size='large' />}
+                title={t('Passkey 登录')}
+                desc={
+                  passkeyEnabled
+                    ? t('已启用 Passkey，无需密码即可登录')
+                    : t('使用 Passkey 实现免密且更安全的登录体验')
+                }
+                extra={
+                  <div className='mt-2 text-xs text-gray-500 space-y-1'>
+                    <div>
+                      {t('最后使用时间')}：{lastUsedLabel}
+                    </div>
+                    {!passkeySupported && (
+                      <div className='text-amber-600'>
+                        {t('当前设备不支持 Passkey')}
+                      </div>
+                    )}
+                  </div>
+                }
+                action={
+                  <Button
+                    type={passkeyEnabled ? 'danger' : 'primary'}
+                    theme='solid'
+                    onClick={
+                      passkeyEnabled
+                        ? () => {
+                            Modal.confirm({
+                              title: t('确认解绑 Passkey'),
+                              content: t(
+                                '解绑后将无法使用 Passkey 登录，确定要继续吗？',
+                              ),
+                              okText: t('确认解绑'),
+                              cancelText: t('取消'),
+                              okType: 'danger',
+                              onOk: onPasskeyDelete,
+                            });
+                          }
+                        : onPasskeyRegister
+                    }
+                    className='w-full sm:w-auto'
+                    icon={<IconKey />}
+                    disabled={!passkeySupported && !passkeyEnabled}
+                    loading={
+                      passkeyEnabled
+                        ? passkeyDeleteLoading
+                        : passkeyRegisterLoading
+                    }
+                  >
+                    {passkeyEnabled ? t('解绑 Passkey') : t('注册 Passkey')}
+                  </Button>
+                }
+              />
 
               {/* 两步验证设置 */}
               <TwoFASetting t={t} />

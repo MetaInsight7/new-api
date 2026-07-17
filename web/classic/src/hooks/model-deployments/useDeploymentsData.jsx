@@ -22,11 +22,13 @@ import { useTranslation } from 'react-i18next';
 import { API, showError, showSuccess } from '../../helpers';
 import { ITEMS_PER_PAGE } from '../../constants';
 import { useTableCompactMode } from '../common/useTableCompactMode';
+import { getStoredJSON, setStoredJSON } from '../../helpers/siteStorage';
 
 export const useDeploymentsData = () => {
   const { t } = useTranslation();
   const [compactMode, setCompactMode] = useTableCompactMode('deployments');
   const requestSeq = useRef(0);
+  const mountedRef = useRef(true);
 
   // State management
   const [deployments, setDeployments] = useState([]);
@@ -124,11 +126,10 @@ export const useDeploymentsData = () => {
   };
 
   const [visibleColumns, setVisibleColumnsState] = useState(() => {
-    const saved = localStorage.getItem('deployments_visible_columns');
-    if (saved) {
+    const saved = getStoredJSON('deployments_visible_columns', null);
+    if (saved && typeof saved === 'object') {
       try {
-        const parsed = JSON.parse(saved);
-        return ensureRequiredColumns(parsed);
+        return ensureRequiredColumns(saved);
       } catch (e) {
         console.error('Failed to parse saved column visibility:', e);
       }
@@ -156,10 +157,7 @@ export const useDeploymentsData = () => {
   // Save column visibility to localStorage
   const saveColumnVisibility = (newVisibleColumns) => {
     const normalized = ensureRequiredColumns(newVisibleColumns);
-    localStorage.setItem(
-      'deployments_visible_columns',
-      JSON.stringify(normalized),
-    );
+    setStoredJSON('deployments_visible_columns', normalized);
     setVisibleColumnsState(normalized);
   };
 
@@ -200,7 +198,7 @@ export const useDeploymentsData = () => {
       }
 
       const res = await API.get(url);
-      if (seq !== requestSeq.current) return;
+      if (!mountedRef.current || seq !== requestSeq.current) return;
 
       const { success, message, data } = res.data;
       if (!success) {
@@ -212,13 +210,13 @@ export const useDeploymentsData = () => {
 
       applyDeploymentsData({ data, page });
     } catch (error) {
-      if (seq !== requestSeq.current) return;
+      if (!mountedRef.current || seq !== requestSeq.current) return;
       console.error(error);
       showError(isSearchMode ? t('搜索失败') : t('获取部署列表失败'));
       setDeployments([]);
       setDeploymentCount(0);
     } finally {
-      if (seq !== requestSeq.current) return;
+      if (!mountedRef.current || seq !== requestSeq.current) return;
       setLoading(false);
       setSearching(false);
     }
@@ -233,6 +231,14 @@ export const useDeploymentsData = () => {
       status: query.status,
     });
   };
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      requestSeq.current += 1;
+    };
+  }, []);
 
   // Handle page change
   const handlePageChange = (page) => {

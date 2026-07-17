@@ -32,14 +32,19 @@ import React from 'react';
 import { useDebouncedCallback } from 'use-debounce';
 import clsx from 'clsx';
 import { Button, Tooltip, Toast } from '@douyinfe/semi-ui';
-import { copy, rehypeSplitWordsIntoSpans } from '../../../helpers';
+import {
+  copy,
+  rehypeSplitWordsIntoSpans,
+  isSafeMediaUrl,
+  isSafeLinkUrl,
+} from '../../../helpers';
 import { IconCopy } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 
 mermaid.initialize({
   startOnLoad: false,
   theme: 'default',
-  securityLevel: 'loose',
+  securityLevel: 'strict',
 });
 
 export function Mermaid(props) {
@@ -66,7 +71,7 @@ export function Mermaid(props) {
     const text = new XMLSerializer().serializeToString(svg);
     const blob = new Blob([text], { type: 'image/svg+xml' });
     const url = URL.createObjectURL(blob);
-    window.open(url, '_blank');
+    window.open(url, '_blank', 'noopener,noreferrer');
   }
 
   if (hasError) {
@@ -136,6 +141,15 @@ function SandboxedHtmlPreview({ code }) {
   );
 }
 
+const safeMediaComponents = {
+  img: ({ src, ...props }) =>
+    isSafeMediaUrl(src) ? <img src={src} {...props} /> : null,
+  video: ({ src, ...props }) =>
+    isSafeMediaUrl(src) ? <video src={src} {...props} /> : null,
+  audio: ({ src, ...props }) =>
+    isSafeMediaUrl(src) ? <audio src={src} {...props} /> : null,
+};
+
 export function PreCode(props) {
   const ref = useRef(null);
   const [mermaidCode, setMermaidCode] = useState('');
@@ -163,6 +177,7 @@ export function PreCode(props) {
 
   // 处理代码块的换行
   useEffect(() => {
+    let timer;
     if (ref.current) {
       const codeElements = ref.current.querySelectorAll('code');
       const wrapLanguages = [
@@ -182,9 +197,13 @@ export function PreCode(props) {
           codeElement.style.whiteSpace = 'pre-wrap';
         }
       });
-      setTimeout(renderArtifacts, 1);
+      timer = setTimeout(renderArtifacts, 1);
     }
-  }, []);
+    return () => {
+      if (timer) clearTimeout(timer);
+      renderArtifacts.cancel?.();
+    };
+  }, [renderArtifacts]);
 
   return (
     <>
@@ -378,7 +397,7 @@ function tryWrapHtmlCode(text) {
     );
 }
 
-function _MarkdownContent(props) {
+function MarkdownContentInternal(props) {
   const {
     content,
     className,
@@ -415,6 +434,7 @@ function _MarkdownContent(props) {
       remarkPlugins={[RemarkMath, RemarkGfm, RemarkBreaks]}
       rehypePlugins={rehypePluginsBase}
       components={{
+        ...safeMediaComponents,
         pre: PreCode,
         code: CustomCode,
         p: (pProps) => (
@@ -429,7 +449,11 @@ function _MarkdownContent(props) {
         ),
         a: (aProps) => {
           const href = aProps.href || '';
+          if (!isSafeLinkUrl(href)) {
+            return <span>{aProps.children}</span>;
+          }
           if (/\.(aac|mp3|opus|wav)$/.test(href)) {
+            if (!isSafeMediaUrl(href)) return null;
             return (
               <figure style={{ margin: '12px 0' }}>
                 <audio controls src={href} style={{ width: '100%' }}></audio>
@@ -437,6 +461,7 @@ function _MarkdownContent(props) {
             );
           }
           if (/\.(3gp|3g2|webm|ogv|mpeg|mp4|avi)$/.test(href)) {
+            if (!isSafeMediaUrl(href)) return null;
             return (
               <video
                 controls
@@ -452,6 +477,7 @@ function _MarkdownContent(props) {
             <a
               {...aProps}
               target={target}
+              rel={target === '_blank' ? 'noopener noreferrer' : undefined}
               style={{
                 color: isUserMessage ? '#87CEEB' : 'var(--semi-color-primary)',
                 textDecoration: 'none',
@@ -632,7 +658,7 @@ function _MarkdownContent(props) {
   );
 }
 
-export const MarkdownContent = React.memo(_MarkdownContent);
+export const MarkdownContent = React.memo(MarkdownContentInternal);
 
 export function MarkdownRenderer(props) {
   const {

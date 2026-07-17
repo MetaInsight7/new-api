@@ -18,14 +18,13 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useMemo } from 'react';
-import { marked } from 'marked';
 import { Megaphone } from 'lucide-react';
-import { getRelativeTime } from '../../helpers';
+import { getRelativeTime, renderSafeMarkdown } from '../../helpers';
 
 // markdown -> 纯文本(用于摘要,避免在窄卡里渲染块级元素)
 const toPlainText = (md) => {
   try {
-    const html = marked.parse(md || '');
+    const html = renderSafeMarkdown(md || '');
     if (typeof document === 'undefined') {
       return String(md || '')
         .replace(/[#>*_`~\-]/g, '')

@@ -1,0 +1,545 @@
+/* ===== DMIT-style 欢迎条右侧:两行(数据控制 / 快捷入口) ===== */
+.dashboard-user-bar__controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* ===== DMIT-style page title: large hero heading | controls ===== */
+.dashboard-user-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+/* DMIT 实测:35px / 500 / #343a40 —— 控制台落地为 32px hero 标题 */
+.dashboard-user-bar__greeting {
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  color: #1f2937;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+/* ===== DMIT-style 3-column main card ===== */
+.dashboard-main-card {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr 0.85fr;
+  border: 1px solid #eef1f6;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(16, 24, 40, .03), 0 12px 32px -14px rgba(16, 24, 40, .12);
+  overflow: hidden;
+}
+
+.dashboard-main-section {
+  position: relative;
+  padding: 24px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.dashboard-main-section:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 20px;
+  bottom: 20px;
+  width: 1px;
+  background: #f2f4f8;
+}
+
+.dashboard-main-section__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  color: var(--semi-color-primary);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+/* 看齐 DMIT：区块标题文字深灰 #374151 / 16px / 600，图标保留主题色 */
+.dashboard-main-section__header span {
+  color: #374151;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+/* 概要栏目头:状态胶囊(左) + 计数文字(右) */
+.dashboard-main-section__header .dashboard-api-status-chip {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.dashboard-main-section__header .dashboard-api-status-chip__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  /* inherit chip color so `currentColor` isn't overridden by the generic
+     `.dashboard-main-section__header span` color rule */
+  color: inherit;
+  background: currentColor;
+  font-size: 0;
+}
+
+.dashboard-main-section__header .dashboard-api-status-chip.is-ready {
+  color: #15803d;
+  background: #f0fdf4;
+}
+
+.dashboard-main-section__header .dashboard-api-status-chip.is-pending {
+  color: #b91c1c;
+  background: #fef2f2;
+}
+
+.dashboard-main-section__header .dashboard-api-status-meta {
+  margin-left: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+  white-space: nowrap;
+}
+
+.dashboard-main-section__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.dashboard-main-section__header-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #fff;
+  color: var(--semi-color-text-1);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease;
+}
+
+.dashboard-main-section__header-actions button:hover {
+  color: var(--semi-color-text-1);
+}
+
+.dashboard-main-section__header-actions button:first-child {
+  background: rgba(37, 99, 235, 0.08);
+  border-color: rgba(37, 99, 235, 0.2);
+  color: #2563eb;
+}
+
+.dashboard-main-section__header-actions button:first-child:hover {
+  background: rgba(37, 99, 235, 0.08);
+}
+
+.dashboard-main-section__body {
+  min-width: 0;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* WorkspacePanel embedded override */
+.dashboard-main-section .dashboard-api-access-card {
+  height: 100% !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+.dashboard-main-section .dashboard-api-access-card .semi-card-header,
+.dashboard-main-section .dashboard-api-access-card .semi-card-body {
+  height: 100%;
+  padding: 0 !important;
+}
+
+.dashboard-main-section .dashboard-api-access {
+  padding: 0;
+  height: 100%;
+  min-height: 0;
+  gap: 12px;
+}
+
+/* 底部双按钮:令牌(主蓝实心) / 文档(白底蓝描边),等分两列钉底 */
+.dashboard-main-section .dashboard-api-access__actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+  margin-top: auto;
+}
+
+.dashboard-main-section .dashboard-api-access__actions .semi-button {
+  min-width: 0;
+  width: 100%;
+  height: 36px;
+  border-radius: 9px;
+  font-weight: 700;
+}
+
+.dashboard-main-section .dashboard-api-access__actions .semi-button-content {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 文档 = DMIT ghost:白底 + 蓝字 + 蓝 200 描边 */
+.dashboard-main-section
+  .dashboard-api-access__actions
+  .semi-button:last-child {
+  background: var(--semi-color-bg-1);
+  border: 1px solid #bfdbfe;
+  color: var(--semi-color-primary);
+}
+
+.dashboard-main-section
+  .dashboard-api-access__actions
+  .semi-button:last-child:hover {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+
+/* 字段值行内的图标按钮:略小以贴合单行 */
+.dashboard-main-section
+  .dashboard-api-access__field-value
+  .dashboard-api-access__icon-btn {
+  flex: 0 0 26px;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+}
+
+/* ===== Usage metrics 2x2 卡片(V1 增量卡:前置图标 + 加粗深色标题 + 大数字 + 趋势 chip + 角落水印) ===== */
+.dashboard-usage-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.dashboard-usage-item {
+  position: relative;
+  overflow: hidden;
+  min-width: 0;
+  padding: 16.8px 22.4px 16.8px;
+  border: 1px solid #edeef1;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.03);
+  text-align: left;
+  font: inherit;
+  cursor: default;
+  transition:
+    box-shadow 0.18s ease,
+    border-color 0.18s ease,
+    transform 0.18s ease;
+}
+
+button.dashboard-usage-item {
+  cursor: pointer;
+}
+
+button.dashboard-usage-item:hover {
+  border-color: #e2e4e9;
+  box-shadow: 0 4px 12px -6px rgba(16, 24, 40, 0.12);
+  transform: translateY(-1px);
+}
+
+/* 角落图标水印(DMIT 蓝浅调) */
+.dashboard-usage-item__corner {
+  display: none;
+}
+
+.dashboard-usage-item__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+/* 指标图标：统一的克制绿芯片（单色，精致靠细节而非多色）——排除余额格 */
+.dashboard-usage-item:not(.is-balance) .dashboard-usage-item__icon {
+  width: 32px;
+  height: 32px;
+  padding: 8px;
+  box-sizing: border-box;
+  border-radius: 9px;
+  background: rgba(37, 99, 235, 0.08);
+  color: #2563eb;
+  flex: 0 0 auto;
+}
+
+/* 余额卡(绿底)也用同尺寸芯片(白色半透明)，保证头部行高与其它卡一致 → 内容对齐 */
+.dashboard-usage-item.is-balance .dashboard-usage-item__icon {
+  width: 32px;
+  height: 32px;
+  padding: 8px;
+  box-sizing: border-box;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  flex: 0 0 auto;
+}
+
+/* 指标标签：安静的说明文字，让数字当主角 */
+.dashboard-usage-item__label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--semi-color-text-0);
+  letter-spacing: 0;
+}
+
+/* 指标数值：计量终端式 mono 读数（signature）——等宽、紧凑、防溢出留在卡内 */
+.dashboard-usage-item__value {
+  position: relative;
+  min-width: 0;
+  max-width: 100%;
+  font-family: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 30px;
+  font-weight: 600;
+  color: var(--semi-color-text-0);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.05;
+  letter-spacing: -0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dashboard-usage-item__caption {
+  position: relative;
+  margin-top: 6.4px;
+  font-family: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--semi-color-text-1);
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 余额格:实心蓝卡 + 右上角「充值」小按钮(与其它卡等高) */
+.dashboard-usage-item.is-balance {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  border-color: transparent;
+  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.28);
+}
+
+.dashboard-usage-item.is-balance .dashboard-usage-item__icon,
+.dashboard-usage-item.is-balance .dashboard-usage-item__label,
+.dashboard-usage-item.is-balance .dashboard-usage-item__value,
+.dashboard-usage-item.is-balance .dashboard-metric-value-number {
+  color: #fff;
+}
+
+.dashboard-usage-item.is-balance .dashboard-usage-item__caption {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.dashboard-usage-item__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dashboard-usage-item__status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 9999px;
+  background: #7ee2a8;
+  flex: 0 0 auto;
+}
+
+.dashboard-usage-item__status.is-amber .dashboard-usage-item__status-dot {
+  background: #fcd34d;
+}
+
+.dashboard-usage-item__status.is-red .dashboard-usage-item__status-dot {
+  background: #fca5a5;
+}
+
+.dashboard-usage-item__topup {
+  position: absolute;
+  top: 11px;
+  right: 11px;
+  z-index: 1;
+  border: 0;
+  background: #fff;
+  color: #2563eb;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.15);
+  transition: background 0.15s ease;
+}
+
+.dashboard-usage-item__topup:hover {
+  background: #eff6ff;
+}
+
+/* 系统公告预览(第三栏)· 时间线极简风 */
+.dashboard-main-section.is-notice {
+  display: flex;
+  flex-direction: column;
+}
+
+/* 滚动容器 */
+.dashboard-notice-list {
+  padding-right: 4px;
+}
+
+/* 单栏/双栏(第三栏独占一行)时:静态排布 + 限高内部滚动 */
+.dashboard-main-section.is-notice .dashboard-notice-list {
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+/* 三栏桌面:列表绝对填充、内部滚动,不参与行高计算,主卡高度不被撑动 */
+@media (min-width: 1181px) {
+  .dashboard-main-section.is-notice .dashboard-main-section__body {
+    position: relative;
+    flex: 1 1 0;
+    min-height: 0;
+  }
+
+  .dashboard-main-section.is-notice .dashboard-notice-list,
+  .dashboard-main-section.is-notice .dashboard-notice-empty {
+    position: absolute;
+    inset: 0;
+    overflow-y: auto;
+    max-height: none;
+  }
+}
+
+/* 时间线主体:竖线随内容高度延伸(可滚动) */
+.dashboard-notice-timeline {
+  position: relative;
+  padding-left: 18px;
+}
+
+.dashboard-notice-timeline::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 5px;
+  bottom: 14px;
+  width: 1px;
+  background: var(--semi-color-border);
+}
+
+.dashboard-notice-item {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 0 0 16px;
+  border: 0;
+  background: none;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.dashboard-notice-item:last-child {
+  padding-bottom: 4px;
+}
+
+/* 时间线圆点 */
+.dashboard-notice-item::before {
+  content: '';
+  position: absolute;
+  left: -17px;
+  top: 5px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #fff;
+  border: 1.5px solid #cbd5e1;
+  box-sizing: border-box;
+}
+
+/* 最新一条:实心蓝点 + 光晕 */
+.dashboard-notice-item.is-new::before {
+  background: var(--semi-color-primary);
+  border-color: var(--semi-color-primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.dashboard-notice-item__time {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--semi-color-text-2);
+  margin-bottom: 3px;
+}
+
+.dashboard-notice-item__text {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.55;
+  color: var(--semi-color-text-0);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  transition: color 0.16s ease;
+}
+
+.dashboard-notice-item:hover .dashboard-notice-item__text {
+  color: var(--semi-color-primary);
+}
+
+.dashboard-notice-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 40px 16px;
+  color: var(--semi-color-text-2);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.dashboard-notice-empty__icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: #eff6ff;
+  color: #2563eb;
+}

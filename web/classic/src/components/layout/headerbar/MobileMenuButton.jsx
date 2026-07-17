@@ -42,9 +42,7 @@ const MobileMenuButton = ({
           <IconMenu className='text-lg' />
         )
       }
-      aria-label={
-        (isMobile ? drawerOpen : collapsed) ? t('关闭侧边栏') : t('打开侧边栏')
-      }
+      aria-label={drawerOpen ? t('关闭侧边栏') : t('打开侧边栏')}
       onClick={onToggle}
       theme='borderless'
       type='tertiary'

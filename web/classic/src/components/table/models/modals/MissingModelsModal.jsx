@@ -35,27 +35,31 @@ import { IconSearch } from '@douyinfe/semi-icons';
 import { API, showError } from '../../../../helpers';
 import { MODEL_TABLE_PAGE_SIZE } from '../../../../constants';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
+import { useRequestLifecycle } from '../../../../hooks/common/useRequestLifecycle';
 
 const MissingModelsModal = ({ visible, onClose, onConfigureModel, t }) => {
   const [loading, setLoading] = useState(false);
   const [missingModels, setMissingModels] = useState([]);
   const [searchKeyword, setSearchKeyword] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
   const isMobile = useIsMobile();
 
   const fetchMissing = async () => {
+    const requestId = beginRequest('models');
     setLoading(true);
     try {
       const res = await API.get('/api/models/missing');
-      if (res.data.success) {
+      if (isCurrentRequest('models', requestId) && res.data.success) {
         setMissingModels(res.data.data || []);
       } else {
-        showError(res.data.message);
+        if (isCurrentRequest('models', requestId)) showError(res.data.message);
       }
     } catch (_) {
-      showError(t('获取未配置模型失败'));
+      if (isCurrentRequest('models', requestId))
+        showError(t('获取未配置模型失败'));
     }
-    setLoading(false);
+    if (isCurrentRequest('models', requestId)) setLoading(false);
   };
 
   useEffect(() => {

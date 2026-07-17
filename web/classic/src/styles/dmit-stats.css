@@ -1,0 +1,202 @@
+/*
+ * Shared product statistics and form primitives.
+ * Imported by dmit-console.css to keep the product surface layers explicit.
+ */
+
+/* ---------- DMIT 统计 chip(用于日志等页面的顶部统计,亮/暗自适应) ---------- */
+.dmit-stat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 13px 7px 9px;
+  border: 1px solid var(--semi-color-border);
+  border-radius: 12px;
+  background: var(--semi-color-bg-1);
+}
+
+.dmit-stat-chip__icon {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+}
+
+.dmit-stat-chip__body {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
+.dmit-stat-chip__label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--semi-color-text-2);
+}
+
+.dmit-stat-chip__value {
+  font-family: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--semi-color-text-0);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.dmit-stat-chip.is-blue .dmit-stat-chip__icon {
+  background: rgba(37, 99, 235, 0.1);
+  color: #2563eb;
+}
+
+.dmit-stat-chip.is-violet .dmit-stat-chip__icon {
+  background: rgba(139, 92, 246, 0.12);
+  color: #7c3aed;
+}
+
+.dmit-stat-chip.is-emerald .dmit-stat-chip__icon {
+  background: rgba(5, 150, 105, 0.12);
+  color: #059669;
+}
+
+/* ---------- DMIT 统计小卡(扁平白底 tile，用于充值/邀请等 hero 区，亮/暗自适应) ---------- */
+.dmit-stat-tile {
+  padding: 14px;
+  border: 1px solid var(--semi-color-border);
+  border-radius: 12px;
+  background: var(--semi-color-bg-1);
+  min-width: 0;
+}
+
+.dmit-stat-tile__head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 10px;
+  min-width: 0;
+}
+
+.dmit-stat-tile__icon {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+}
+
+.dmit-stat-tile__label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--semi-color-text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dmit-stat-tile__value {
+  font-family: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--semi-color-text-0);
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dmit-stat-tile.is-blue .dmit-stat-tile__icon {
+  background: rgba(37, 99, 235, 0.1);
+  color: #2563eb;
+}
+
+.dmit-stat-tile.is-violet .dmit-stat-tile__icon {
+  background: rgba(139, 92, 246, 0.12);
+  color: #7c3aed;
+}
+
+.dmit-stat-tile.is-emerald .dmit-stat-tile__icon {
+  background: rgba(5, 150, 105, 0.12);
+  color: #059669;
+}
+
+.dmit-stat-tile.is-amber .dmit-stat-tile__icon {
+  background: rgba(245, 158, 11, 0.14);
+  color: #b45309;
+}
+
+/* 窄屏：三列 stat tile 收紧，标签换行而非截断，值缩小以完整显示 */
+@media (max-width: 640px) {
+  .dmit-stat-tile {
+    padding: 11px 10px;
+  }
+
+  .dmit-stat-tile__head {
+    gap: 5px;
+    margin-bottom: 7px;
+    align-items: flex-start;
+  }
+
+  .dmit-stat-tile__icon {
+    width: 22px;
+    height: 22px;
+  }
+
+  .dmit-stat-tile__label {
+    font-size: 12px;
+    white-space: normal;
+  }
+
+  .dmit-stat-tile__value {
+    font-size: 16px;
+  }
+}
+
+/* ---------- 设置表单:分区标题做成 DMIT 区块头(左侧蓝色强调条) ---------- */
+html:not(.dark) .app-surface-product .semi-form-section-text {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--semi-color-text-0);
+}
+
+/* 蓝色强调条仅用于纯文字单行分区标题;富自定义头部(自带图标/多行)不加,避免竖线与文字错位 */
+html:not(.dark) .app-surface-product .semi-form-section-text:not(:has(*)) {
+  position: relative;
+  padding-left: 11px;
+}
+
+html:not(.dark) .app-surface-product .semi-form-section-text:not(:has(*))::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: calc(50% - 2px);
+  transform: translateY(-50%);
+  width: 3px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--dmit-blue);
+}
+
+/* 表单字段标签:统一字重/字色 */
+html:not(.dark) .app-surface-product .semi-form-field-label-text {
+  color: var(--semi-color-text-1);
+  font-weight: 600;
+}
+
+/* ---------- 卡头标题图标:DMIT 蓝强调 ---------- */
+html:not(.dark) .app-surface-product .semi-card-header-title svg {
+  color: var(--dmit-blue);
+}
+
+/* ---------- 次要/描边按钮:浅灰边 + hover 浅底,统一 DMIT 观感 ---------- */
+html:not(.dark) .app-surface-product .semi-button-tertiary.semi-button-borderless:hover,
+html:not(.dark) .app-surface-product .semi-button-tertiary.semi-button-light:hover {
+  background-color: var(--dmit-soft);
+}
+
+/* ---------- 空状态:文字弱化,与 DMIT 一致 ---------- */
+html:not(.dark) .app-surface-product .semi-table-placeholder {
+  color: var(--semi-color-text-2);
+}

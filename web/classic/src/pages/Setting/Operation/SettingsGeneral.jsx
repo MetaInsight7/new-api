@@ -60,7 +60,12 @@ export default function GeneralSettings(props) {
     'token_setting.max_user_tokens': 1000,
   });
   const refForm = useRef();
+  const mountedRef = useRef(true);
   const [inputsRow, setInputsRow] = useState(inputs);
+
+  useEffect(() => () => {
+    mountedRef.current = false;
+  }, []);
 
   function handleFieldChange(fieldName) {
     return (value) => {
@@ -83,23 +88,24 @@ export default function GeneralSettings(props) {
         value,
       });
     });
-    setLoading(true);
+    if (mountedRef.current) setLoading(true);
     Promise.all(requestQueue)
-      .then((res) => {
+      .then(async (res) => {
         if (requestQueue.length === 1) {
           if (res.includes(undefined)) return;
         } else if (requestQueue.length > 1) {
           if (res.includes(undefined))
             return showError(t('部分保存失败，请重试'));
         }
+        if (!mountedRef.current) return;
         showSuccess(t('保存成功'));
-        props.refresh();
+        await props.refresh?.();
       })
       .catch(() => {
-        showError(t('保存失败，请重试'));
+        if (mountedRef.current) showError(t('保存失败，请重试'));
       })
       .finally(() => {
-        setLoading(false);
+        if (mountedRef.current) setLoading(false);
       });
   }
 
@@ -229,7 +235,7 @@ export default function GeneralSettings(props) {
     }
     setInputs(currentInputs);
     setInputsRow(structuredClone(currentInputs));
-    refForm.current.setValues(currentInputs);
+    refForm.current?.setValues(currentInputs);
   }, [props.options]);
 
   return (

@@ -1,0 +1,418 @@
+/* Shared stylesheet layer. Keep selectors scoped by their owning surface where possible. */
+
+code {
+  font-family:
+    source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
+}
+
+/* ==================== 布局相关样式 ==================== */
+.semi-layout::-webkit-scrollbar,
+.semi-layout-content::-webkit-scrollbar,
+.semi-sider::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.semi-layout,
+.semi-layout-content,
+.semi-sider {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* ==================== 导航和侧边栏样式 ==================== */
+.semi-navigation-item {
+  margin-bottom: 4px !important;
+  padding: 4px 12px !important;
+}
+
+.semi-navigation-sub-title {
+  padding: 0 !important;
+}
+
+.semi-navigation-item-icon {
+  justify-items: center;
+  align-items: center;
+}
+
+.semi-navigation-item-icon-info {
+  margin-right: 0;
+}
+
+.sidebar-nav .semi-navigation-item-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.semi-navigation-item,
+.semi-navigation-sub-title {
+  height: 100% !important;
+}
+
+.semi-navigation-item-collapsed {
+  height: 44px !important;
+}
+
+#root
+  > section
+  > header
+  > section
+  > div
+  > div
+  > div
+  > div.semi-navigation-header-list-outer
+  > div.semi-navigation-list-wrapper
+  > ul
+  > div
+  > a
+  > li
+  > span {
+  font-weight: 600 !important;
+}
+
+/* 自定义侧边栏样式 */
+.sidebar-container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  transition: width 0.3s ease;
+  background: var(--semi-color-bg-0);
+}
+
+.sidebar-nav {
+  flex: 1;
+  width: 100%;
+  background: var(--semi-color-bg-0);
+  height: 100%;
+  overflow-x: hidden;
+  border-right: none;
+  overflow-y: auto;
+  min-height: 0;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.sidebar-nav::-webkit-scrollbar {
+  display: none;
+}
+
+/* 侧边栏导航项样式 */
+.sidebar-nav-item {
+  border-radius: 6px;
+  margin: 3px 8px;
+  transition: all 0.15s ease;
+  padding: 8px 12px;
+}
+
+.sidebar-nav-item:hover {
+  background-color: rgba(var(--semi-blue-0), 0.08);
+  color: var(--semi-color-primary);
+}
+
+.sidebar-nav-item-selected {
+  background-color: rgba(var(--semi-blue-0), 0.12);
+  color: var(--semi-color-primary);
+  font-weight: 500;
+}
+
+/* 图标容器样式 */
+.sidebar-icon-container {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 10px;
+  transition: all 0.2s ease;
+}
+
+.sidebar-sub-icon-container {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 10px;
+  margin-left: 1px;
+  transition: all 0.2s ease;
+}
+
+/* 分割线样式 */
+.sidebar-divider {
+  margin: 4px 8px;
+  opacity: 0.15;
+}
+
+/* 分组标签样式 */
+.sidebar-group-label {
+  padding: 4px 15px 8px;
+  color: var(--semi-color-text-2);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  opacity: 0.8;
+}
+
+/* 底部折叠按钮 */
+.sidebar-collapse-button {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 12px;
+  margin-top: auto;
+  cursor: pointer;
+  background-color: var(--semi-color-bg-0);
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  box-shadow: 0 -10px 10px -5px var(--semi-color-bg-0);
+  backdrop-filter: blur(4px);
+  border-top: 1px solid rgba(var(--semi-grey-0), 0.08);
+}
+
+.sidebar-collapse-button-inner {
+  width: 28px;
+  height: 28px;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--semi-color-fill-0);
+  transition: all 0.2s ease;
+}
+
+.sidebar-collapse-icon-container {
+  display: inline-block;
+  transition: transform 0.3s ease;
+}
+
+/* 侧边栏区域容器 */
+.sidebar-section {
+  padding-top: 12px;
+}
+
+@media (max-width: 767px) {
+  .sidebar-container {
+    background: var(--semi-color-bg-1);
+    border-right: 1px solid var(--semi-color-border);
+  }
+
+  .sidebar-nav {
+    background: var(--semi-color-bg-1);
+  }
+
+  .sidebar-collapse-button {
+    background-color: var(--semi-color-bg-1);
+    box-shadow: 0 -10px 10px -5px var(--semi-color-bg-1);
+  }
+}
+
+/* ==================== 聊天界面样式 ==================== */
+.semi-chat {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  height: 100%;
+  max-width: 100% !important;
+  width: 100% !important;
+  overflow: hidden !important;
+}
+
+.semi-chat-chatBox {
+  max-width: 100% !important;
+  overflow: hidden !important;
+}
+
+.semi-chat-chatBox-wrap {
+  max-width: 100% !important;
+  overflow: hidden !important;
+}
+
+.semi-chat-chatBox-content {
+  min-width: auto;
+  word-break: break-word;
+  max-width: 100% !important;
+  overflow-wrap: break-word !important;
+}
+
+.semi-chat-content {
+  max-width: 100% !important;
+  overflow: hidden !important;
+}
+
+.semi-chat-list {
+  max-width: 100% !important;
+  overflow-x: hidden !important;
+}
+
+.semi-chat-container {
+  overflow-x: hidden !important;
+}
+
+.semi-chat-chatBox-action {
+  column-gap: 0 !important;
+}
+
+.semi-chat-inputBox-clearButton.semi-button .semi-icon {
+  font-size: 20px !important;
+}
+
+/* 隐藏所有聊天相关区域的滚动条 */
+.semi-chat::-webkit-scrollbar,
+.semi-chat-chatBox::-webkit-scrollbar,
+.semi-chat-chatBox-wrap::-webkit-scrollbar,
+.semi-chat-chatBox-content::-webkit-scrollbar,
+.semi-chat-content::-webkit-scrollbar,
+.semi-chat-list::-webkit-scrollbar,
+.semi-chat-container::-webkit-scrollbar {
+  display: none;
+}
+
+.semi-chat,
+.semi-chat-chatBox,
+.semi-chat-chatBox-wrap,
+.semi-chat-chatBox-content,
+.semi-chat-content,
+.semi-chat-list,
+.semi-chat-container {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* ==================== 组件特定样式 ==================== */
+/* SelectableButtonGroup */
+.sbg-button .semi-button-content {
+  min-width: 0 !important;
+}
+
+.sbg-content {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+}
+
+.sbg-ellipsis {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Badge for count/multiplier in filter buttons */
+.sbg-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  background-color: var(--semi-color-fill-0);
+  color: var(--semi-color-text-2);
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.sbg-badge-active {
+  background-color: var(--semi-color-primary-light-active);
+  color: var(--semi-color-primary);
+}
+
+/* ---- SelectableButtonGroup color variants ---- */
+.sbg-variant-violet {
+  --semi-color-primary: #6d28d9;
+  --semi-color-primary-light-default: rgba(124, 58, 237, 0.08);
+  --semi-color-primary-light-hover: rgba(124, 58, 237, 0.15);
+  --semi-color-primary-light-active: rgba(124, 58, 237, 0.22);
+}
+
+.sbg-variant-teal {
+  --semi-color-primary: #0f766e;
+  --semi-color-primary-light-default: rgba(20, 184, 166, 0.08);
+  --semi-color-primary-light-hover: rgba(20, 184, 166, 0.15);
+  --semi-color-primary-light-active: rgba(20, 184, 166, 0.22);
+}
+
+.sbg-variant-amber {
+  --semi-color-primary: #b45309;
+  --semi-color-primary-light-default: rgba(245, 158, 11, 0.08);
+  --semi-color-primary-light-hover: rgba(245, 158, 11, 0.15);
+  --semi-color-primary-light-active: rgba(245, 158, 11, 0.22);
+}
+
+.sbg-variant-rose {
+  --semi-color-primary: #be123c;
+  --semi-color-primary-light-default: rgba(244, 63, 94, 0.08);
+  --semi-color-primary-light-hover: rgba(244, 63, 94, 0.15);
+  --semi-color-primary-light-active: rgba(244, 63, 94, 0.22);
+}
+
+.sbg-variant-green {
+  --semi-color-primary: #047857;
+  --semi-color-primary-light-default: rgba(16, 185, 129, 0.08);
+  --semi-color-primary-light-hover: rgba(16, 185, 129, 0.15);
+  --semi-color-primary-light-active: rgba(16, 185, 129, 0.22);
+}
+
+/* Dark mode: lighter text, slightly stronger backgrounds */
+html.dark .sbg-variant-violet {
+  --semi-color-primary: #a78bfa;
+  --semi-color-primary-light-default: rgba(139, 92, 246, 0.14);
+  --semi-color-primary-light-hover: rgba(139, 92, 246, 0.22);
+  --semi-color-primary-light-active: rgba(139, 92, 246, 0.3);
+}
+
+html.dark .sbg-variant-teal {
+  --semi-color-primary: #2dd4bf;
+  --semi-color-primary-light-default: rgba(45, 212, 191, 0.14);
+  --semi-color-primary-light-hover: rgba(45, 212, 191, 0.22);
+  --semi-color-primary-light-active: rgba(45, 212, 191, 0.3);
+}
+
+html.dark .sbg-variant-amber {
+  --semi-color-primary: #fbbf24;
+  --semi-color-primary-light-default: rgba(251, 191, 36, 0.14);
+  --semi-color-primary-light-hover: rgba(251, 191, 36, 0.22);
+  --semi-color-primary-light-active: rgba(251, 191, 36, 0.3);
+}
+
+html.dark .sbg-variant-rose {
+  --semi-color-primary: #fb7185;
+  --semi-color-primary-light-default: rgba(251, 113, 133, 0.14);
+  --semi-color-primary-light-hover: rgba(251, 113, 133, 0.22);
+  --semi-color-primary-light-active: rgba(251, 113, 133, 0.3);
+}
+
+html.dark .sbg-variant-green {
+  --semi-color-primary: #34d399;
+  --semi-color-primary-light-default: rgba(52, 211, 153, 0.14);
+  --semi-color-primary-light-hover: rgba(52, 211, 153, 0.22);
+  --semi-color-primary-light-active: rgba(52, 211, 153, 0.3);
+}
+
+/* Tabs组件样式 */
+.semi-tabs-content {
+  padding: 0 !important;
+  height: calc(100% - 40px) !important;
+  flex: 1 !important;
+}
+
+.semi-tabs-content .semi-tabs-pane {
+  height: 100% !important;
+  overflow: hidden !important;
+}
+
+.semi-tabs-content .semi-tabs-pane > div {
+  height: 100% !important;
+}

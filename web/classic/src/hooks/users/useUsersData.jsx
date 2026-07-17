@@ -17,11 +17,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { API, showError, showSuccess } from '../../helpers';
 import { ITEMS_PER_PAGE } from '../../constants';
 import { useTableCompactMode } from '../common/useTableCompactMode';
+import { setStoredValue } from '../../helpers/siteStorage';
 
 export const useUsersData = () => {
   const { t } = useTranslation();
@@ -35,6 +36,9 @@ export const useUsersData = () => {
   const [searching, setSearching] = useState(false);
   const [groupOptions, setGroupOptions] = useState([]);
   const [userCount, setUserCount] = useState(0);
+  const requestSeq = useRef(0);
+  const groupRequestSeq = useRef(0);
+  const mountedRef = useRef(true);
 
   // Modal states
   const [showAddUser, setShowAddUser] = useState(false);
@@ -71,18 +75,29 @@ export const useUsersData = () => {
 
   // Load users data
   const loadUsers = async (startIdx, pageSize) => {
+    const seq = ++requestSeq.current;
     setLoading(true);
-    const res = await API.get(`/api/user/?p=${startIdx}&page_size=${pageSize}`);
-    const { success, message, data } = res.data;
-    if (success) {
-      const newPageData = data.items;
-      setActivePage(data.page);
-      setUserCount(data.total);
-      setUserFormat(newPageData);
-    } else {
-      showError(message);
+    try {
+      const res = await API.get(
+        `/api/user/?p=${startIdx}&page_size=${pageSize}`,
+      );
+      if (!mountedRef.current || seq !== requestSeq.current) return;
+      const { success, message, data } = res.data;
+      if (success) {
+        const newPageData = data.items;
+        setActivePage(data.page);
+        setUserCount(data.total);
+        setUserFormat(newPageData);
+      } else {
+        showError(message);
+      }
+    } catch (error) {
+      if (mountedRef.current && seq === requestSeq.current) {
+        showError(error);
+      }
+    } finally {
+      if (mountedRef.current && seq === requestSeq.current) setLoading(false);
     }
-    setLoading(false);
   };
 
   // Search users with keyword and group
@@ -104,54 +119,68 @@ export const useUsersData = () => {
       await loadUsers(startIdx, pageSize);
       return;
     }
+    const seq = ++requestSeq.current;
     setSearching(true);
-    const res = await API.get(
-      `/api/user/search?keyword=${searchKeyword}&group=${searchGroup}&p=${startIdx}&page_size=${pageSize}`,
-    );
-    const { success, message, data } = res.data;
-    if (success) {
-      const newPageData = data.items;
-      setActivePage(data.page);
-      setUserCount(data.total);
-      setUserFormat(newPageData);
-    } else {
-      showError(message);
+    try {
+      const res = await API.get(
+        `/api/user/search?keyword=${encodeURIComponent(searchKeyword)}&group=${encodeURIComponent(searchGroup)}&p=${startIdx}&page_size=${pageSize}`,
+      );
+      if (!mountedRef.current || seq !== requestSeq.current) return;
+      const { success, message, data } = res.data;
+      if (success) {
+        const newPageData = data.items;
+        setActivePage(data.page);
+        setUserCount(data.total);
+        setUserFormat(newPageData);
+      } else {
+        showError(message);
+      }
+    } catch (error) {
+      if (mountedRef.current && seq === requestSeq.current) {
+        showError(error);
+      }
+    } finally {
+      if (mountedRef.current && seq === requestSeq.current) setSearching(false);
     }
-    setSearching(false);
   };
 
   // Manage user operations (promote, demote, enable, disable, delete)
   const manageUser = async (userId, action, record) => {
+    const seq = ++requestSeq.current;
     // Trigger loading state to force table re-render
     setLoading(true);
-
-    const res = await API.post('/api/user/manage', {
-      id: userId,
-      action,
-    });
-
-    const { success, message } = res.data;
-    if (success) {
-      showSuccess(t('操作成功完成！'));
-      const user = res.data.data;
-
-      // Create a new array and new object to ensure React detects changes
-      const newUsers = users.map((u) => {
-        if (u.id === userId) {
-          if (action === 'delete') {
-            return { ...u, DeletedAt: new Date() };
-          }
-          return { ...u, status: user.status, role: user.role };
-        }
-        return u;
+    try {
+      const res = await API.post('/api/user/manage', {
+        id: userId,
+        action,
       });
 
-      setUsers(newUsers);
-    } else {
-      showError(message);
-    }
+      if (!mountedRef.current || seq !== requestSeq.current) return;
+      const { success, message } = res.data;
+      if (success) {
+        showSuccess(t('操作成功完成！'));
+        const user = res.data.data;
 
-    setLoading(false);
+        // Create a new array and new object to ensure React detects changes.
+        const newUsers = users.map((u) => {
+          if (u.id === userId) {
+            if (action === 'delete') {
+              return { ...u, DeletedAt: new Date() };
+            }
+            return { ...u, status: user.status, role: user.role };
+          }
+          return u;
+        });
+
+        setUsers(newUsers);
+      } else {
+        showError(message);
+      }
+    } catch (error) {
+      if (mountedRef.current && seq === requestSeq.current) showError(error);
+    } finally {
+      if (mountedRef.current && seq === requestSeq.current) setLoading(false);
+    }
   };
 
   const resetUserPasskey = async (user) => {
@@ -193,22 +222,20 @@ export const useUsersData = () => {
     setActivePage(page);
     const { searchKeyword, searchGroup } = getFormValues();
     if (searchKeyword === '' && searchGroup === '') {
-      loadUsers(page, pageSize).then();
+      loadUsers(page, pageSize).catch((error) => showError(error));
     } else {
-      searchUsers(page, pageSize, searchKeyword, searchGroup).then();
+      searchUsers(page, pageSize, searchKeyword, searchGroup).catch((error) =>
+        showError(error),
+      );
     }
   };
 
   // Handle page size change
   const handlePageSizeChange = async (size) => {
-    localStorage.setItem('page-size', size + '');
+    setStoredValue('page-size', size);
     setPageSize(size);
     setActivePage(1);
-    loadUsers(activePage, size)
-      .then()
-      .catch((reason) => {
-        showError(reason);
-      });
+    loadUsers(1, size).catch((reason) => showError(reason));
   };
 
   // Handle table row styling for disabled/deleted users
@@ -236,9 +263,14 @@ export const useUsersData = () => {
 
   // Fetch groups data
   const fetchGroups = async () => {
+    const seq = ++groupRequestSeq.current;
     try {
       let res = await API.get(`/api/group/`);
-      if (res === undefined) {
+      if (
+        !mountedRef.current ||
+        seq !== groupRequestSeq.current ||
+        res === undefined
+      ) {
         return;
       }
       setGroupOptions(
@@ -248,7 +280,9 @@ export const useUsersData = () => {
         })),
       );
     } catch (error) {
-      showError(error.message);
+      if (mountedRef.current && seq === groupRequestSeq.current) {
+        showError(error.message);
+      }
     }
   };
 
@@ -266,13 +300,26 @@ export const useUsersData = () => {
 
   // Initialize data on component mount
   useEffect(() => {
-    loadUsers(0, pageSize)
-      .then()
-      .catch((reason) => {
-        showError(reason);
-      });
-    fetchGroups().then();
+    // React StrictMode mounts effects twice in development. Reset the guard
+    // before the second setup so a prior simulated cleanup cannot strand the
+    // table in its initial loading state.
+    mountedRef.current = true;
+    loadUsers(0, pageSize).catch((reason) => {
+      if (mountedRef.current) showError(reason);
+    });
+    fetchGroups().catch((error) => {
+      if (mountedRef.current) showError(error);
+    });
   }, []);
+
+  useEffect(
+    () => () => {
+      mountedRef.current = false;
+      requestSeq.current += 1;
+      groupRequestSeq.current += 1;
+    },
+    [],
+  );
 
   return {
     // Data state

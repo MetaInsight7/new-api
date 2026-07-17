@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import { useState, useEffect, useContext } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Card,
@@ -29,22 +29,21 @@ import {
   Avatar,
 } from '@douyinfe/semi-ui';
 import { API, showSuccess, showError } from '../../../helpers';
-import { StatusContext } from '../../../context/Status';
-import { UserContext } from '../../../context/User';
 import { useUserPermissions } from '../../../hooks/common/useUserPermissions';
-import { mergeAdminConfig, useSidebar } from '../../../hooks/common/useSidebar';
+import {
+  buildDefaultUserConfig,
+  useSidebar,
+} from '../../../hooks/common/useSidebar';
 import { Settings } from 'lucide-react';
+import { useRequestLifecycle } from '../../../hooks/common/useRequestLifecycle';
 
 const { Text } = Typography;
 
 export default function SettingsSidebarModulesUser() {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
-  const [statusState] = useContext(StatusContext);
-
   // 使用后端权限验证替代前端角色判断
   const {
-    permissions,
     loading: permissionsLoading,
     hasSidebarSettingsPermission,
     isSidebarSectionAllowed,
@@ -52,73 +51,60 @@ export default function SettingsSidebarModulesUser() {
   } = useUserPermissions();
 
   // 使用useSidebar钩子获取刷新方法
-  const { refreshUserConfig } = useSidebar();
-
-  // 如果没有边栏设置权限，不显示此组件
-  if (!permissionsLoading && !hasSidebarSettingsPermission()) {
-    return null;
-  }
-
-  // 权限加载中，显示加载状态
-  if (permissionsLoading) {
-    return null;
-  }
-
-  // 根据用户权限生成默认配置
-  const generateDefaultConfig = () => {
-    const defaultConfig = {};
-
-    // 聊天区域 - 所有用户都可以访问
-    if (isSidebarSectionAllowed('chat')) {
-      defaultConfig.chat = {
-        enabled: true,
-        playground: isSidebarModuleAllowed('chat', 'playground'),
-        chat: isSidebarModuleAllowed('chat', 'chat'),
-      };
-    }
-
-    // 控制台区域 - 所有用户都可以访问
-    if (isSidebarSectionAllowed('console')) {
-      defaultConfig.console = {
-        enabled: true,
-        detail: isSidebarModuleAllowed('console', 'detail'),
-        token: isSidebarModuleAllowed('console', 'token'),
-        log: isSidebarModuleAllowed('console', 'log'),
-        midjourney: isSidebarModuleAllowed('console', 'midjourney'),
-        task: isSidebarModuleAllowed('console', 'task'),
-      };
-    }
-
-    // 个人中心区域 - 所有用户都可以访问
-    if (isSidebarSectionAllowed('personal')) {
-      defaultConfig.personal = {
-        enabled: true,
-        topup: isSidebarModuleAllowed('personal', 'topup'),
-        personal: isSidebarModuleAllowed('personal', 'personal'),
-      };
-    }
-
-    // 管理员区域 - 只有管理员可以访问
-    if (isSidebarSectionAllowed('admin')) {
-      defaultConfig.admin = {
-        enabled: true,
-        channel: isSidebarModuleAllowed('admin', 'channel'),
-        models: isSidebarModuleAllowed('admin', 'models'),
-        deployment: isSidebarModuleAllowed('admin', 'deployment'),
-        redemption: isSidebarModuleAllowed('admin', 'redemption'),
-        user: isSidebarModuleAllowed('admin', 'user'),
-        setting: isSidebarModuleAllowed('admin', 'setting'),
-      };
-    }
-
-    return defaultConfig;
-  };
-
+  const { refreshUserConfig, adminConfig, userConfig, loading: sidebarLoading } = useSidebar();
   // 用户个人左侧边栏模块设置
   const [sidebarModulesUser, setSidebarModulesUser] = useState({});
+  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
-  // 管理员全局配置
-  const [adminConfig, setAdminConfig] = useState(null);
+  const generateDefaultConfig = () => {
+    const defaults = buildDefaultUserConfig(adminConfig);
+    return Object.fromEntries(
+      Object.entries(defaults).filter(([sectionKey, section]) => {
+        if (!isSidebarSectionAllowed(sectionKey)) return false;
+        return Object.keys(section).some(
+          (moduleKey) =>
+            moduleKey === 'enabled' ||
+            isSidebarModuleAllowed(sectionKey, moduleKey),
+        );
+      }),
+    );
+  };
+
+  const visibleUserConfig = useMemo(() => {
+    const source = userConfig || generateDefaultConfig();
+    if (!source || typeof source !== 'object') return generateDefaultConfig();
+
+    return Object.fromEntries(
+      Object.entries(source)
+        .filter(([sectionKey, section]) => {
+          if (!section || typeof section !== 'object') return false;
+          return isSidebarSectionAllowed(sectionKey);
+        })
+        .map(([sectionKey, section]) => [
+          sectionKey,
+          Object.fromEntries(
+            Object.entries(section).filter(
+              ([moduleKey]) =>
+                moduleKey === 'enabled' ||
+                isSidebarModuleAllowed(sectionKey, moduleKey),
+            ),
+          ),
+        ]),
+    );
+  }, [userConfig, adminConfig, isSidebarSectionAllowed, isSidebarModuleAllowed]);
+
+  useEffect(() => {
+    setSidebarModulesUser(visibleUserConfig);
+  }, [visibleUserConfig]);
+
+  // 权限尚未加载完成或当前用户无权修改时，不渲染设置卡片。
+  if (
+    permissionsLoading ||
+    sidebarLoading ||
+    !hasSidebarSettingsPermission()
+  ) {
+    return null;
+  }
 
   // 处理区域级别开关变更
   function handleSectionChange(sectionKey) {
@@ -131,7 +117,6 @@ export default function SettingsSidebarModulesUser() {
         },
       };
       setSidebarModulesUser(newModules);
-      console.log('用户边栏区域配置变更:', sectionKey, checked, newModules);
     };
   }
 
@@ -146,13 +131,6 @@ export default function SettingsSidebarModulesUser() {
         },
       };
       setSidebarModulesUser(newModules);
-      console.log(
-        '用户边栏功能配置变更:',
-        sectionKey,
-        moduleKey,
-        checked,
-        newModules,
-      );
     };
   }
 
@@ -161,119 +139,32 @@ export default function SettingsSidebarModulesUser() {
     const defaultConfig = generateDefaultConfig();
     setSidebarModulesUser(defaultConfig);
     showSuccess(t('已重置为默认配置'));
-    console.log('用户边栏配置重置为默认:', defaultConfig);
   }
 
   // 保存配置
   async function onSubmit() {
+    const requestId = beginRequest('submit');
     setLoading(true);
     try {
-      console.log('保存用户边栏配置:', sidebarModulesUser);
       const res = await API.put('/api/user/self', {
         sidebar_modules: JSON.stringify(sidebarModulesUser),
       });
       const { success, message } = res.data;
-      if (success) {
+      if (isCurrentRequest('submit', requestId) && success) {
         showSuccess(t('保存成功'));
-        console.log('用户边栏配置保存成功');
-
         // 刷新useSidebar钩子中的用户配置，实现实时更新
         await refreshUserConfig();
-        console.log('用户边栏配置已刷新，边栏将立即更新');
-      } else {
+      } else if (isCurrentRequest('submit', requestId)) {
         showError(message);
         console.error('用户边栏配置保存失败:', message);
       }
     } catch (error) {
-      showError(t('保存失败，请重试'));
+      if (isCurrentRequest('submit', requestId)) showError(t('保存失败，请重试'));
       console.error('用户边栏配置保存异常:', error);
     } finally {
-      setLoading(false);
+      if (isCurrentRequest('submit', requestId)) setLoading(false);
     }
   }
-
-  // 统一的配置加载逻辑
-  useEffect(() => {
-    const loadConfigs = async () => {
-      try {
-        // 获取管理员全局配置
-        if (statusState?.status?.SidebarModulesAdmin) {
-          try {
-            const adminConf = JSON.parse(
-              statusState.status.SidebarModulesAdmin,
-            );
-            const mergedAdminConf = mergeAdminConfig(adminConf);
-            setAdminConfig(mergedAdminConf);
-            console.log('加载管理员边栏配置:', mergedAdminConf);
-          } catch (error) {
-            const mergedAdminConf = mergeAdminConfig(null);
-            setAdminConfig(mergedAdminConf);
-            console.log(
-              '加载管理员边栏配置失败，使用默认配置:',
-              mergedAdminConf,
-            );
-          }
-        } else {
-          const mergedAdminConf = mergeAdminConfig(null);
-          setAdminConfig(mergedAdminConf);
-          console.log('管理员边栏配置缺失，使用默认配置:', mergedAdminConf);
-        }
-
-        // 获取用户个人配置
-        const userRes = await API.get('/api/user/self');
-        if (userRes.data.success && userRes.data.data.sidebar_modules) {
-          let userConf;
-          // 检查sidebar_modules是字符串还是对象
-          if (typeof userRes.data.data.sidebar_modules === 'string') {
-            userConf = JSON.parse(userRes.data.data.sidebar_modules);
-          } else {
-            userConf = userRes.data.data.sidebar_modules;
-          }
-          console.log('从API加载的用户配置:', userConf);
-
-          // 确保用户配置也经过权限过滤
-          const filteredUserConf = {};
-          Object.keys(userConf).forEach((sectionKey) => {
-            if (isSidebarSectionAllowed(sectionKey)) {
-              filteredUserConf[sectionKey] = { ...userConf[sectionKey] };
-              // 过滤不允许的模块
-              Object.keys(userConf[sectionKey]).forEach((moduleKey) => {
-                if (
-                  moduleKey !== 'enabled' &&
-                  !isSidebarModuleAllowed(sectionKey, moduleKey)
-                ) {
-                  delete filteredUserConf[sectionKey][moduleKey];
-                }
-              });
-            }
-          });
-          setSidebarModulesUser(filteredUserConf);
-          console.log('权限过滤后的用户配置:', filteredUserConf);
-        } else {
-          // 如果用户没有配置，使用权限过滤后的默认配置
-          const defaultConfig = generateDefaultConfig();
-          setSidebarModulesUser(defaultConfig);
-          console.log('用户无配置，使用默认配置:', defaultConfig);
-        }
-      } catch (error) {
-        console.error('加载边栏配置失败:', error);
-        // 出错时也使用默认配置
-        const defaultConfig = generateDefaultConfig();
-        setSidebarModulesUser(defaultConfig);
-      }
-    };
-
-    // 只有权限加载完成且有边栏设置权限时才加载配置
-    if (!permissionsLoading && hasSidebarSettingsPermission()) {
-      loadConfigs();
-    }
-  }, [
-    statusState,
-    permissionsLoading,
-    hasSidebarSettingsPermission,
-    isSidebarSectionAllowed,
-    isSidebarModuleAllowed,
-  ]);
 
   // 检查功能是否被管理员允许
   const isAllowedByAdmin = (sectionKey, moduleKey = null) => {

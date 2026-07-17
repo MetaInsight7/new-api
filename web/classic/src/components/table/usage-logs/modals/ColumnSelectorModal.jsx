@@ -20,6 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { Modal, Button, Checkbox, RadioGroup, Radio } from '@douyinfe/semi-ui';
 import { getLogsColumns } from '../UsageLogsColumnDefs';
+import { getStoredValue } from '../../../../helpers/siteStorage';
 
 const ColumnSelectorModal = ({
   showColumnSelector,
@@ -40,9 +41,7 @@ const ColumnSelectorModal = ({
     setBillingDisplayMode(eventOrValue?.target?.value ?? eventOrValue);
   };
 
-  const isTokensDisplay =
-    typeof localStorage !== 'undefined' &&
-    localStorage.getItem('quota_display_type') === 'TOKENS';
+  const isTokensDisplay = getStoredValue('quota_display_type', '') === 'TOKENS';
 
   // Get all columns for display in selector
   const allColumns = getLogsColumns({

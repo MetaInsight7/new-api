@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { API, showError, showSuccess } from '../../helpers';
@@ -16,7 +34,10 @@ export function useViolationAuditData() {
   // 筛选(dateRange 为 [Date, Date])
   const now = Date.now();
   const [filters, setFilters] = useState({
-    dateRange: [new Date(now - 7 * 24 * 3600 * 1000), new Date(now + 3600 * 1000)],
+    dateRange: [
+      new Date(now - 7 * 24 * 3600 * 1000),
+      new Date(now + 3600 * 1000),
+    ],
     username: '',
     model_name: '',
     category: '',
@@ -40,6 +61,11 @@ export function useViolationAuditData() {
   const [wordsSaving, setWordsSaving] = useState(false);
 
   const filtersRef = useRef(filters);
+  const mountedRef = useRef(true);
+  const logsRequestSeqRef = useRef(0);
+  const statRequestSeqRef = useRef(0);
+  const wordsRequestSeqRef = useRef(0);
+  const wordsSaveRequestSeqRef = useRef(0);
   filtersRef.current = filters;
 
   const rangeParams = useCallback(() => {
@@ -55,6 +81,7 @@ export function useViolationAuditData() {
 
   const loadLogs = useCallback(
     async (targetPage = page, targetSize = pageSize) => {
+      const requestSeq = ++logsRequestSeqRef.current;
       setLoading(true);
       try {
         const f = filtersRef.current;
@@ -63,12 +90,19 @@ export function useViolationAuditData() {
           page_size: targetSize,
           ...rangeParams(),
         };
-        ['username', 'model_name', 'category', 'severity', 'action', 'request_id'].forEach(
-          (k) => {
-            if (f[k]) params[k] = f[k];
-          },
-        );
+        [
+          'username',
+          'model_name',
+          'category',
+          'severity',
+          'action',
+          'request_id',
+        ].forEach((k) => {
+          if (f[k]) params[k] = f[k];
+        });
         const res = await API.get('/api/violation/logs', { params });
+        if (!mountedRef.current || requestSeq !== logsRequestSeqRef.current)
+          return;
         const { success, message, data } = res.data;
         if (success) {
           setLogs(data.items || []);
@@ -79,48 +113,75 @@ export function useViolationAuditData() {
           showError(message);
         }
       } catch (e) {
-        showError(e.message);
+        if (mountedRef.current && requestSeq === logsRequestSeqRef.current) {
+          showError(e.message);
+        }
       } finally {
-        setLoading(false);
+        if (mountedRef.current && requestSeq === logsRequestSeqRef.current) {
+          setLoading(false);
+        }
       }
     },
     [page, pageSize, rangeParams],
   );
 
   const loadStat = useCallback(async () => {
+    const requestSeq = ++statRequestSeqRef.current;
     setStatLoading(true);
     try {
-      const res = await API.get('/api/violation/stat', { params: rangeParams() });
+      const res = await API.get('/api/violation/stat', {
+        params: rangeParams(),
+      });
+      if (!mountedRef.current || requestSeq !== statRequestSeqRef.current)
+        return;
       const { success, message, data } = res.data;
       if (success) setStat(data);
       else showError(message);
     } catch (e) {
-      showError(e.message);
+      if (mountedRef.current && requestSeq === statRequestSeqRef.current) {
+        showError(e.message);
+      }
     } finally {
-      setStatLoading(false);
+      if (mountedRef.current && requestSeq === statRequestSeqRef.current) {
+        setStatLoading(false);
+      }
     }
   }, [rangeParams]);
 
   const loadWords = useCallback(async () => {
+    const requestSeq = ++wordsRequestSeqRef.current;
     setWordsLoading(true);
     try {
       const res = await API.get('/api/violation/words');
+      if (!mountedRef.current || requestSeq !== wordsRequestSeqRef.current)
+        return;
       const { success, message, data } = res.data;
       if (success) {
         setWords(data.words || []);
         setWordsMeta({ enabled: data.enabled });
       } else showError(message);
     } catch (e) {
-      showError(e.message);
+      if (mountedRef.current && requestSeq === wordsRequestSeqRef.current) {
+        showError(e.message);
+      }
     } finally {
-      setWordsLoading(false);
+      if (mountedRef.current && requestSeq === wordsRequestSeqRef.current) {
+        setWordsLoading(false);
+      }
     }
   }, []);
 
   const saveWords = useCallback(async (nextWords) => {
+    const requestSeq = ++wordsSaveRequestSeqRef.current;
     setWordsSaving(true);
     try {
       const res = await API.put('/api/violation/words', { words: nextWords });
+      if (
+        !mountedRef.current ||
+        requestSeq !== wordsSaveRequestSeqRef.current
+      ) {
+        return false;
+      }
       const { success, message, data } = res.data;
       if (success) {
         setWords(data.words || []);
@@ -130,18 +191,34 @@ export function useViolationAuditData() {
       showError(message);
       return false;
     } catch (e) {
-      showError(e.message);
+      if (mountedRef.current && requestSeq === wordsSaveRequestSeqRef.current) {
+        showError(e.message);
+      }
       return false;
     } finally {
-      setWordsSaving(false);
+      if (mountedRef.current && requestSeq === wordsSaveRequestSeqRef.current) {
+        setWordsSaving(false);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
+    mountedRef.current = true;
     loadLogs(1, pageSize);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(
+    () => () => {
+      mountedRef.current = false;
+      logsRequestSeqRef.current += 1;
+      statRequestSeqRef.current += 1;
+      wordsRequestSeqRef.current += 1;
+      wordsSaveRequestSeqRef.current += 1;
+    },
+    [],
+  );
 
   const applyFilters = useCallback(() => {
     loadLogs(1, pageSize);

@@ -21,6 +21,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Modal, Typography, Tag, Button } from '@douyinfe/semi-ui';
 import { IconExternalOpen, IconCopy } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
+import { isSafeMediaUrl } from '../../../../helpers/sanitize';
 
 const { Text, Title } = Typography;
 
@@ -43,8 +44,10 @@ const AudioClipCard = ({ clip }) => {
   const title = clip.title || t('未命名');
   const tags = clip.tags || clip.metadata?.tags || '';
   const duration = clip.duration || clip.metadata?.duration;
-  const imageUrl = clip.image_url || clip.image_large_url;
-  const audioUrl = clip.audio_url;
+  const imageUrl = isSafeMediaUrl(clip.image_url || clip.image_large_url)
+    ? clip.image_url || clip.image_large_url
+    : '';
+  const audioUrl = isSafeMediaUrl(clip.audio_url) ? clip.audio_url : '';
 
   return (
     <div
@@ -119,7 +122,9 @@ const AudioClipCard = ({ clip }) => {
             <Button
               size='small'
               icon={<IconExternalOpen />}
-              onClick={() => window.open(audioUrl, '_blank')}
+              onClick={() =>
+                window.open(audioUrl, '_blank', 'noopener,noreferrer')
+              }
             >
               {t('在新标签页中打开')}
             </Button>

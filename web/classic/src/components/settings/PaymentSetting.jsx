@@ -27,6 +27,7 @@ import SettingsPaymentGatewayWaffo from '../../pages/Setting/Payment/SettingsPay
 import { API, showError, showSuccess, toBoolean } from '../../helpers';
 import { useTranslation } from 'react-i18next';
 import RiskAcknowledgementModal from '../common/modals/RiskAcknowledgementModal';
+import { useRequestLifecycle } from '../../hooks/common/useRequestLifecycle';
 
 const CURRENT_COMPLIANCE_TERMS_VERSION = 'v1';
 
@@ -60,6 +61,7 @@ const PaymentSetting = () => {
 
   let [loading, setLoading] = useState(false);
   const [complianceVisible, setComplianceVisible] = useState(false);
+  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   const complianceStatements = [
     t('你已合法取得所接入模型 API、账号、密钥和额度的授权；'),
@@ -107,7 +109,9 @@ const PaymentSetting = () => {
       CURRENT_COMPLIANCE_TERMS_VERSION;
 
   const getOptions = async () => {
+    const requestId = beginRequest('options');
     const res = await API.get('/api/option/');
+    if (!isCurrentRequest('options', requestId)) return;
     const { success, message, data } = res.data;
     if (success) {
       let newInputs = {};
@@ -179,13 +183,14 @@ const PaymentSetting = () => {
   };
 
   async function onRefresh() {
+    const requestId = beginRequest('refresh');
     try {
       setLoading(true);
       await getOptions();
     } catch (error) {
-      showError(t('刷新失败'));
+      if (isCurrentRequest('refresh', requestId)) showError(t('刷新失败'));
     } finally {
-      setLoading(false);
+      if (isCurrentRequest('refresh', requestId)) setLoading(false);
     }
   }
 
@@ -194,10 +199,12 @@ const PaymentSetting = () => {
   }, []);
 
   const confirmCompliance = async () => {
+    const requestId = beginRequest('compliance');
     try {
       const res = await API.post('/api/option/payment_compliance', {
         confirmed: true,
       });
+      if (!isCurrentRequest('compliance', requestId)) return;
       if (res.data.success) {
         showSuccess(t('合规声明确认成功'));
         setComplianceVisible(false);
@@ -206,7 +213,7 @@ const PaymentSetting = () => {
         showError(res.data.message || t('确认失败'));
       }
     } catch (error) {
-      showError(t('确认失败'));
+      if (isCurrentRequest('compliance', requestId)) showError(t('确认失败'));
     }
   };
 

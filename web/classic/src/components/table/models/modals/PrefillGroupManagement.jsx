@@ -43,6 +43,7 @@ import {
 } from '../../../../helpers';
 import { useTranslation } from 'react-i18next';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
+import { useRequestLifecycle } from '../../../../hooks/common/useRequestLifecycle';
 import CardTable from '../../../common/ui/CardTable';
 import EditPrefillGroupModal from './EditPrefillGroupModal';
 import {
@@ -59,6 +60,7 @@ const PrefillGroupManagement = ({ visible, onClose }) => {
   const [groups, setGroups] = useState([]);
   const [showEdit, setShowEdit] = useState(false);
   const [editingGroup, setEditingGroup] = useState({ id: undefined });
+  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   const typeOptions = [
     { label: t('模型组'), value: 'model' },
@@ -68,18 +70,19 @@ const PrefillGroupManagement = ({ visible, onClose }) => {
 
   // 加载组列表
   const loadGroups = async () => {
+    const requestId = beginRequest('groups');
     setLoading(true);
     try {
       const res = await API.get('/api/prefill_group');
-      if (res.data.success) {
+      if (isCurrentRequest('groups', requestId) && res.data.success) {
         setGroups(res.data.data || []);
-      } else {
+      } else if (isCurrentRequest('groups', requestId)) {
         showError(res.data.message || t('获取组列表失败'));
       }
     } catch (error) {
-      showError(t('获取组列表失败'));
+      if (isCurrentRequest('groups', requestId)) showError(t('获取组列表失败'));
     }
-    setLoading(false);
+    if (isCurrentRequest('groups', requestId)) setLoading(false);
   };
 
   // 删除组
@@ -218,6 +221,9 @@ const PrefillGroupManagement = ({ visible, onClose }) => {
   useEffect(() => {
     if (visible) {
       loadGroups();
+    } else {
+      beginRequest('groups');
+      setLoading(false);
     }
   }, [visible]);
 

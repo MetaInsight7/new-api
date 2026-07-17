@@ -25,13 +25,15 @@ import {
   showError,
   showInfo,
   showSuccess,
+  getStoredValue,
+  setStoredValue,
   updateAPI,
   getSystemName,
-  getOAuthProviderIcon,
   setUserData,
   onDiscordOAuthClicked,
   onCustomOAuthClicked,
 } from '../../helpers';
+import { getOAuthProviderIcon } from '../../helpers/oauthIcons';
 import Turnstile from 'react-turnstile';
 import {
   Button,
@@ -68,6 +70,7 @@ import {
   AuthFormHeader,
   AuthRegisterSteps,
 } from './AuthFormVisuals';
+import { useRequestLifecycle } from '../../hooks/common/useRequestLifecycle';
 
 const RegisterForm = () => {
   let navigate = useNavigate();
@@ -105,6 +108,7 @@ const RegisterForm = () => {
     useState(false);
   const [wechatCodeSubmitLoading, setWechatCodeSubmitLoading] = useState(false);
   const [customOAuthLoading, setCustomOAuthLoading] = useState({});
+  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
   const [disableButton, setDisableButton] = useState(false);
   const [countdown, setCountdown] = useState(30);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
@@ -120,12 +124,12 @@ const RegisterForm = () => {
 
   let affCode = new URLSearchParams(window.location.search).get('aff');
   if (affCode) {
-    localStorage.setItem('aff', affCode);
+    setStoredValue('aff', affCode);
   }
 
   const status = useMemo(() => {
     if (statusState?.status) return statusState.status;
-    const savedStatus = localStorage.getItem('status');
+    const savedStatus = getStoredValue('status', '');
     if (!savedStatus) return {};
     try {
       return JSON.parse(savedStatus) || {};
@@ -191,27 +195,29 @@ const RegisterForm = () => {
       showInfo('请稍后几秒重试，Turnstile 正在检查用户环境！');
       return;
     }
+    const requestId = beginRequest('wechat');
     setWechatCodeSubmitLoading(true);
     try {
       const res = await API.get(
         `/api/oauth/wechat?code=${inputs.wechat_verification_code}`,
       );
       const { success, message, data } = res.data;
-      if (success) {
+      if (isCurrentRequest('wechat', requestId) && success) {
         userDispatch({ type: 'login', payload: data });
-        localStorage.setItem('user', JSON.stringify(data));
+        setStoredValue('user', JSON.stringify(data));
         setUserData(data);
         updateAPI();
         navigate('/');
         showSuccess('登录成功！');
         setShowWeChatLoginModal(false);
       } else {
-        showError(message);
+        if (isCurrentRequest('wechat', requestId)) showError(message);
       }
     } catch (error) {
-      showError('登录失败，请重试');
+      if (isCurrentRequest('wechat', requestId)) showError('登录失败，请重试');
     } finally {
-      setWechatCodeSubmitLoading(false);
+      if (isCurrentRequest('wechat', requestId))
+        setWechatCodeSubmitLoading(false);
     }
   };
 
@@ -233,10 +239,11 @@ const RegisterForm = () => {
         showInfo('请稍后几秒重试，Turnstile 正在检查用户环境！');
         return;
       }
+      const requestId = beginRequest('register');
       setRegisterLoading(true);
       try {
         if (!affCode) {
-          affCode = localStorage.getItem('aff');
+          affCode = getStoredValue('aff', '');
         }
         inputs.aff_code = affCode;
         const res = await API.post(
@@ -244,16 +251,17 @@ const RegisterForm = () => {
           inputs,
         );
         const { success, message } = res.data;
-        if (success) {
+        if (isCurrentRequest('register', requestId) && success) {
           navigate('/login');
           showSuccess('注册成功！');
         } else {
-          showError(message);
+          if (isCurrentRequest('register', requestId)) showError(message);
         }
       } catch (error) {
-        showError('注册失败，请重试');
+        if (isCurrentRequest('register', requestId))
+          showError('注册失败，请重试');
       } finally {
-        setRegisterLoading(false);
+        if (isCurrentRequest('register', requestId)) setRegisterLoading(false);
       }
     }
   }
@@ -264,22 +272,25 @@ const RegisterForm = () => {
       showInfo('请稍后几秒重试，Turnstile 正在检查用户环境！');
       return;
     }
+    const requestId = beginRequest('verification');
     setVerificationCodeLoading(true);
     try {
       const res = await API.get(
         `/api/verification?email=${encodeURIComponent(inputs.email)}&turnstile=${turnstileToken}`,
       );
       const { success, message } = res.data;
-      if (success) {
+      if (isCurrentRequest('verification', requestId) && success) {
         showSuccess('验证码发送成功，请检查你的邮箱！');
         setDisableButton(true); // 发送成功后禁用按钮，开始倒计时
       } else {
-        showError(message);
+        if (isCurrentRequest('verification', requestId)) showError(message);
       }
     } catch (error) {
-      showError('发送验证码失败，请重试');
+      if (isCurrentRequest('verification', requestId))
+        showError('发送验证码失败，请重试');
     } finally {
-      setVerificationCodeLoading(false);
+      if (isCurrentRequest('verification', requestId))
+        setVerificationCodeLoading(false);
     }
   };
 
@@ -298,6 +309,7 @@ const RegisterForm = () => {
       setGithubButtonState('timeout');
       setGithubButtonDisabled(true);
     }, 20000);
+    const requestId = beginRequest('telegram');
     try {
       onGitHubOAuthClicked(status.github_client_id, { shouldLogout: true });
     } finally {
@@ -395,18 +407,19 @@ const RegisterForm = () => {
     try {
       const res = await API.get(`/api/oauth/telegram/login`, { params });
       const { success, message, data } = res.data;
-      if (success) {
+      if (isCurrentRequest('telegram', requestId) && success) {
         userDispatch({ type: 'login', payload: data });
-        localStorage.setItem('user', JSON.stringify(data));
+        setStoredValue('user', JSON.stringify(data));
         showSuccess('登录成功！');
         setUserData(data);
         updateAPI();
         navigate('/');
       } else {
-        showError(message);
+        if (isCurrentRequest('telegram', requestId)) showError(message);
       }
     } catch (error) {
-      showError('登录失败，请重试');
+      if (isCurrentRequest('telegram', requestId))
+        showError('登录失败，请重试');
     }
   };
 

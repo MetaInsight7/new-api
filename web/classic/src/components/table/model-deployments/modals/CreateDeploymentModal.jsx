@@ -46,6 +46,7 @@ import {
 } from '@douyinfe/semi-icons';
 import { API } from '../../../../helpers';
 import { showError, showSuccess, copy } from '../../../../helpers';
+import { useRequestLifecycle } from '../../../../hooks/common/useRequestLifecycle';
 
 const { Text, Title } = Typography;
 const { Option } = Select;
@@ -100,7 +101,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
   const basicSectionRef = useRef(null);
   const priceSectionRef = useRef(null);
   const advancedSectionRef = useRef(null);
-  const replicaRequestIdRef = useRef(0);
+  const { beginRequest, isCurrentRequest, isMounted } = useRequestLifecycle();
   const [formDefaults, setFormDefaults] = useState({
     resource_private_name: '',
     image_url: BUILTIN_IMAGE,
@@ -180,6 +181,10 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
     if (visible) {
       loadHardwareTypes();
       resetFormState();
+    } else {
+      beginRequest('hardware');
+      beginRequest('replicas');
+      beginRequest('price');
     }
   }, [visible]);
 
@@ -308,7 +313,6 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
       setSelectedLocationIds([]);
       setLocationTotalAvailable(null);
       setLoadingReplicas(false);
-      replicaRequestIdRef.current = 0;
       if (formApi) {
         formApi.setValue('location_ids', []);
       }
@@ -357,6 +361,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
     a.length === b.length && a.every((value, index) => value === b[index]);
 
   const loadHardwareTypes = async () => {
+    const requestId = beginRequest('hardware');
     try {
       setLoadingHardware(true);
       const response = await API.get('/api/deployments/hardware-types');
@@ -394,17 +399,23 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
           total_available !== '' &&
           !Number.isNaN(providedTotal);
 
-        setHardwareTypes(normalizedHardware);
-        setHardwareTotalAvailable(
-          hasProvidedTotal ? providedTotal : fallbackTotal,
-        );
+        if (isCurrentRequest('hardware', requestId)) {
+          setHardwareTypes(normalizedHardware);
+          setHardwareTotalAvailable(
+            hasProvidedTotal ? providedTotal : fallbackTotal,
+          );
+        }
       } else {
-        showError(t('获取硬件类型失败: ') + response.data.message);
+        if (isCurrentRequest('hardware', requestId)) {
+          showError(t('获取硬件类型失败: ') + response.data.message);
+        }
       }
     } catch (error) {
-      showError(t('获取硬件类型失败: ') + error.message);
+      if (isCurrentRequest('hardware', requestId)) {
+        showError(t('获取硬件类型失败: ') + error.message);
+      }
     } finally {
-      setLoadingHardware(false);
+      if (isCurrentRequest('hardware', requestId)) setLoadingHardware(false);
     }
   };
 
@@ -416,8 +427,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
       return;
     }
 
-    const requestId = Date.now();
-    replicaRequestIdRef.current = requestId;
+    const requestId = beginRequest('replicas');
     setLoadingReplicas(true);
     setLocations([]);
     setLocationTotalAvailable(null);
@@ -427,7 +437,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
         `/api/deployments/available-replicas?hardware_id=${hardwareId}&gpu_count=${gpuCount}`,
       );
 
-      if (replicaRequestIdRef.current !== requestId) {
+      if (!isCurrentRequest('replicas', requestId) || !isMounted()) {
         return;
       }
 
@@ -492,18 +502,19 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
         setLocationTotalAvailable(null);
       }
     } catch (error) {
-      if (replicaRequestIdRef.current === requestId) {
+      if (isCurrentRequest('replicas', requestId) && isMounted()) {
         console.error('Load available replicas error:', error);
         setLocationTotalAvailable(null);
       }
     } finally {
-      if (replicaRequestIdRef.current === requestId) {
+      if (isCurrentRequest('replicas', requestId) && isMounted()) {
         setLoadingReplicas(false);
       }
     }
   };
 
   const calculatePrice = async () => {
+    const requestId = beginRequest('price');
     try {
       setLoadingPrice(true);
       const requestData = {
@@ -522,17 +533,19 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
         '/api/deployments/price-estimation',
         requestData,
       );
-      if (response.data.success) {
+      if (isCurrentRequest('price', requestId) && response.data.success) {
         setPriceEstimation(response.data.data);
       } else {
-        showError(t('价格计算失败: ') + response.data.message);
-        setPriceEstimation(null);
+        if (isCurrentRequest('price', requestId)) {
+          showError(t('价格计算失败: ') + response.data.message);
+          setPriceEstimation(null);
+        }
       }
     } catch (error) {
       console.error('Price calculation error:', error);
-      setPriceEstimation(null);
+      if (isCurrentRequest('price', requestId)) setPriceEstimation(null);
     } finally {
-      setLoadingPrice(false);
+      if (isCurrentRequest('price', requestId)) setLoadingPrice(false);
     }
   };
 

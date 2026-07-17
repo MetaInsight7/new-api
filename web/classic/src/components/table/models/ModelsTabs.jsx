@@ -20,8 +20,9 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { Tabs, TabPane, Tag, Button, Dropdown, Modal } from '@douyinfe/semi-ui';
 import { IconEdit, IconDelete } from '@douyinfe/semi-icons';
-import { getLobeHubIcon, showError, showSuccess } from '../../../helpers';
-import { API } from '../../../helpers';
+import { API, showError, showSuccess } from '../../../helpers';
+import { getLobeHubIcon } from '../../../helpers/lobeIcon';
+import { useRequestLifecycle } from '../../../hooks/common/useRequestLifecycle';
 
 const ModelsTabs = ({
   activeVendorKey,
@@ -38,6 +39,7 @@ const ModelsTabs = ({
   loadVendors,
   t,
 }) => {
+  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
   const handleTabChange = (key) => {
     setActiveVendorKey(key);
     setActivePage(1);
@@ -52,9 +54,10 @@ const ModelsTabs = ({
 
   const handleDeleteVendor = async (vendor, e) => {
     e.stopPropagation(); // 阻止事件冒泡，避免触发tab切换
+    const requestId = beginRequest(`delete-vendor-${vendor.id}`);
     try {
       const res = await API.delete(`/api/vendors/${vendor.id}`);
-      if (res.data.success) {
+      if (isCurrentRequest(`delete-vendor-${vendor.id}`, requestId) && res.data.success) {
         showSuccess(t('供应商删除成功'));
         // 如果删除的是当前选中的供应商，切换到"全部"
         if (activeVendorKey === String(vendor.id)) {
@@ -64,11 +67,13 @@ const ModelsTabs = ({
           loadModels(activePage, pageSize, activeVendorKey);
         }
         loadVendors(); // 重新加载供应商列表
-      } else {
+      } else if (isCurrentRequest(`delete-vendor-${vendor.id}`, requestId)) {
         showError(res.data.message || t('删除失败'));
       }
     } catch (error) {
-      showError(error.response?.data?.message || t('删除失败'));
+      if (isCurrentRequest(`delete-vendor-${vendor.id}`, requestId)) {
+        showError(error.response?.data?.message || t('删除失败'));
+      }
     }
   };
 

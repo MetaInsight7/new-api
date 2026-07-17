@@ -21,6 +21,7 @@ import React from 'react';
 import { Button, Input, Modal, Image } from '@douyinfe/semi-ui';
 import { IconKey } from '@douyinfe/semi-icons';
 import { SiWechat } from 'react-icons/si';
+import { isSafeImageUrl } from '../../../../helpers/sanitize';
 
 const WeChatBindModal = ({
   t,
@@ -47,7 +48,14 @@ const WeChatBindModal = ({
       className='modern-modal'
     >
       <div className='space-y-4 py-4 text-center'>
-        <Image src={status.wechat_qrcode} className='mx-auto' />
+        <Image
+          src={
+            isSafeImageUrl(status.wechat_qrcode)
+              ? status.wechat_qrcode
+              : undefined
+          }
+          className='mx-auto'
+        />
         <div className='text-gray-600'>
           <p>
             {t('微信扫码关注公众号，输入「验证码」获取验证码（三分钟内有效）')}

@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useRef, useEffect, useState, useContext } from 'react';
+import React, { useRef, useEffect, useState, useContext, useMemo } from 'react';
 import {
   Button,
   Typography,
@@ -44,9 +44,11 @@ import { StatusContext } from '../../../../context/Status';
 import { UserContext } from '../../../../context/User';
 import { useUserPermissions } from '../../../../hooks/common/useUserPermissions';
 import {
+  buildDefaultUserConfig,
   mergeAdminConfig,
   useSidebar,
 } from '../../../../hooks/common/useSidebar';
+import { useRequestLifecycle } from '../../../../hooks/common/useRequestLifecycle';
 
 const NotificationSettings = ({
   t,
@@ -93,6 +95,17 @@ const NotificationSettings = ({
     },
   });
   const [adminConfig, setAdminConfig] = useState(null);
+  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
+  const sidebarAdminConfig = useMemo(() => {
+    const rawConfig = statusState?.status?.SidebarModulesAdmin;
+    if (!rawConfig) return mergeAdminConfig(null);
+    if (typeof rawConfig !== 'string') return mergeAdminConfig(rawConfig);
+    try {
+      return mergeAdminConfig(JSON.parse(rawConfig));
+    } catch {
+      return mergeAdminConfig(null);
+    }
+  }, [statusState?.status?.SidebarModulesAdmin]);
 
   // 使用后端权限验证替代前端角色判断
   const {
@@ -134,23 +147,27 @@ const NotificationSettings = ({
   };
 
   const saveSidebarSettings = async () => {
+    const requestId = beginRequest('sidebarSave');
     setSidebarLoading(true);
     try {
       const res = await API.put('/api/user/self', {
         sidebar_modules: JSON.stringify(sidebarModulesUser),
       });
-      if (res.data.success) {
+      if (isCurrentRequest('sidebarSave', requestId) && res.data.success) {
         showSuccess(t('侧边栏设置保存成功'));
 
         // 刷新useSidebar钩子中的用户配置，实现实时更新
         await refreshUserConfig();
       } else {
-        showError(res.data.message);
+        if (isCurrentRequest('sidebarSave', requestId)) {
+          showError(res.data.message);
+        }
       }
     } catch (error) {
-      showError(t('保存失败'));
+      if (isCurrentRequest('sidebarSave', requestId)) showError(t('保存失败'));
+    } finally {
+      if (isCurrentRequest('sidebarSave', requestId)) setSidebarLoading(false);
     }
-    setSidebarLoading(false);
   };
 
   const resetSidebarModules = () => {
@@ -181,40 +198,44 @@ const NotificationSettings = ({
 
   // 加载左侧边栏配置
   useEffect(() => {
+    const requestId = beginRequest('sidebarLoad');
+
     const loadSidebarConfigs = async () => {
       try {
-        // 获取管理员全局配置
-        if (statusState?.status?.SidebarModulesAdmin) {
-          try {
-            const adminConf = JSON.parse(
-              statusState.status.SidebarModulesAdmin,
-            );
-            setAdminConfig(mergeAdminConfig(adminConf));
-          } catch (error) {
-            setAdminConfig(mergeAdminConfig(null));
-          }
-        } else {
-          setAdminConfig(mergeAdminConfig(null));
-        }
+        setAdminConfig(sidebarAdminConfig);
 
         // 获取用户个人配置
         const userRes = await API.get('/api/user/self');
+        if (!isCurrentRequest('sidebarLoad', requestId)) return;
         if (userRes.data.success && userRes.data.data.sidebar_modules) {
           let userConf;
           if (typeof userRes.data.data.sidebar_modules === 'string') {
-            userConf = JSON.parse(userRes.data.data.sidebar_modules);
+            try {
+              userConf = JSON.parse(userRes.data.data.sidebar_modules);
+            } catch {
+              userConf = null;
+            }
           } else {
             userConf = userRes.data.data.sidebar_modules;
           }
-          setSidebarModulesUser(userConf);
+          if (userConf && typeof userConf === 'object') {
+            setSidebarModulesUser(userConf);
+          } else {
+            setSidebarModulesUser(buildDefaultUserConfig(sidebarAdminConfig));
+          }
+        } else {
+          setSidebarModulesUser(buildDefaultUserConfig(sidebarAdminConfig));
         }
       } catch (error) {
-        console.error('加载边栏配置失败:', error);
+        if (isCurrentRequest('sidebarLoad', requestId)) {
+          setAdminConfig(sidebarAdminConfig);
+          setSidebarModulesUser(buildDefaultUserConfig(sidebarAdminConfig));
+        }
       }
     };
 
     loadSidebarConfigs();
-  }, [statusState]);
+  }, [sidebarAdminConfig, beginRequest, isCurrentRequest]);
 
   // 初始化表单值
   useEffect(() => {
@@ -480,7 +501,10 @@ const NotificationSettings = ({
                     checkedText={t('开')}
                     uncheckedText={t('关')}
                     onChange={(value) =>
-                      handleFormChange('upstreamModelUpdateNotifyEnabled', value)
+                      handleFormChange(
+                        'upstreamModelUpdateNotifyEnabled',
+                        value,
+                      )
                     }
                     extraText={t(
                       '仅管理员可用。开启后，当系统定时检测全部渠道发现上游模型变更或检测异常时，将按你选择的通知方式发送汇总通知；渠道或模型过多时会自动省略部分明细。',

@@ -47,6 +47,7 @@ import {
   showSuccess,
   timestamp2string,
 } from '../../../../helpers';
+import { useRequestLifecycle } from '../../../../hooks/common/useRequestLifecycle';
 
 const { Text } = Typography;
 
@@ -55,6 +56,7 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
   const [loading, setLoading] = useState(false);
   const [keyStatusList, setKeyStatusList] = useState([]);
   const [operationLoading, setOperationLoading] = useState({});
+  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -78,6 +80,7 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
   ) => {
     if (!channel?.id) return;
 
+    const requestId = beginRequest('keys');
     setLoading(true);
     try {
       const requestData = {
@@ -94,7 +97,7 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
 
       const res = await API.post('/api/channel/multi_key/manage', requestData);
 
-      if (res.data.success) {
+      if (isCurrentRequest('keys', requestId) && res.data.success) {
         const data = res.data.data;
         setKeyStatusList(data.keys || []);
         setTotal(data.total || 0);
@@ -107,13 +110,15 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
         setManualDisabledCount(data.manual_disabled_count || 0);
         setAutoDisabledCount(data.auto_disabled_count || 0);
       } else {
-        showError(res.data.message);
+        if (isCurrentRequest('keys', requestId)) showError(res.data.message);
       }
     } catch (error) {
       console.error(error);
-      showError(t('获取密钥状态失败'));
+      if (isCurrentRequest('keys', requestId)) {
+        showError(t('获取密钥状态失败'));
+      }
     } finally {
-      setLoading(false);
+      if (isCurrentRequest('keys', requestId)) setLoading(false);
     }
   };
 
@@ -304,6 +309,7 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
   // Reset pagination when modal closes
   useEffect(() => {
     if (!visible) {
+      beginRequest('keys');
       setCurrentPage(1);
       setKeyStatusList([]);
       setTotal(0);

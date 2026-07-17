@@ -26,6 +26,7 @@ import { IconMail, IconLock, IconCopy } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 import AuthLayout from './AuthLayout';
 import { AuthButtonContent, AuthFormHeader } from './AuthFormVisuals';
+import { useRequestLifecycle } from '../../hooks/common/useRequestLifecycle';
 
 const PasswordResetConfirm = () => {
   const { t } = useTranslation();
@@ -42,6 +43,7 @@ const PasswordResetConfirm = () => {
   const [newPassword, setNewPassword] = useState('');
   const [searchParams] = useSearchParams();
   const [formApi, setFormApi] = useState(null);
+  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   const logo = getLogo();
 
@@ -78,22 +80,27 @@ const PasswordResetConfirm = () => {
       showError(t('无效的重置链接，请重新发起密码重置请求'));
       return;
     }
+    const requestId = beginRequest('reset');
     setDisableButton(true);
     setLoading(true);
-    const res = await API.post(`/api/user/reset`, {
-      email,
-      token,
-    });
-    const { success, message } = res.data;
-    if (success) {
-      let password = res.data.data;
-      setNewPassword(password);
-      await copy(password);
-      showNotice(`${t('密码已重置并已复制到剪贴板：')} ${password}`);
-    } else {
-      showError(message);
+    try {
+      const res = await API.post(`/api/user/reset`, { email, token });
+      const { success, message } = res.data;
+      if (isCurrentRequest('reset', requestId) && success) {
+        const password = res.data.data;
+        setNewPassword(password);
+        await copy(password);
+        showNotice(`${t('密码已重置并已复制到剪贴板：')} ${password}`);
+      } else if (isCurrentRequest('reset', requestId)) {
+        showError(message);
+      }
+    } catch (error) {
+      if (isCurrentRequest('reset', requestId)) {
+        showError(error?.message || t('重置失败，请重试'));
+      }
+    } finally {
+      if (isCurrentRequest('reset', requestId)) setLoading(false);
     }
-    setLoading(false);
   }
 
   return (

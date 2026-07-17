@@ -21,6 +21,7 @@ import React, { useState, useEffect } from 'react';
 import { Modal, Button, Typography, Spin } from '@douyinfe/semi-ui';
 import { IconExternalOpen, IconCopy } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
+import { isSafeMediaUrl } from '../../../../helpers/sanitize';
 
 const { Text } = Typography;
 
@@ -55,7 +56,9 @@ const ContentModal = ({
   };
 
   const handleOpenInNewTab = () => {
-    window.open(modalContent, '_blank');
+    if (isSafeMediaUrl(modalContent)) {
+      window.open(modalContent, '_blank', 'noopener,noreferrer');
+    }
   };
 
   const renderVideoContent = () => {
@@ -135,7 +138,7 @@ const ContentModal = ({
           </div>
         )}
         <video
-          src={modalContent}
+          src={isSafeMediaUrl(modalContent) ? modalContent : undefined}
           controls
           style={{
             width: '100%',

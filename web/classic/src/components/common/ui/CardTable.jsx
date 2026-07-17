@@ -102,7 +102,11 @@ const CardTable = ({
             if (!col.title) {
               return (
                 <div key={idx} className='mt-2 flex justify-end'>
-                  <Skeleton.Title active style={{ width: 100, height: 24 }} />
+                  <Skeleton
+                    loading={true}
+                    active
+                    placeholder={<Skeleton.Title style={{ width: 100, height: 24 }} />}
+                  />
                 </div>
               );
             }
@@ -113,14 +117,23 @@ const CardTable = ({
                 className='flex justify-between items-center py-1 border-b last:border-b-0 border-dashed'
                 style={{ borderColor: 'var(--semi-color-border)' }}
               >
-                <Skeleton.Title active style={{ width: 80, height: 14 }} />
-                <Skeleton.Title
+                <Skeleton
+                  loading={true}
                   active
-                  style={{
-                    width: `${50 + (idx % 3) * 10}%`,
-                    maxWidth: 180,
-                    height: 14,
-                  }}
+                  placeholder={<Skeleton.Title style={{ width: 80, height: 14 }} />}
+                />
+                <Skeleton
+                  loading={true}
+                  active
+                  placeholder={
+                    <Skeleton.Title
+                      style={{
+                        width: `${50 + (idx % 3) * 10}%`,
+                        maxWidth: 180,
+                        height: 14,
+                      }}
+                    />
+                  }
                 />
               </div>
             );

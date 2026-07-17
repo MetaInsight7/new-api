@@ -46,7 +46,12 @@ export default function SettingsMonitoring(props) {
     'monitor_setting.auto_test_channel_minutes': 10,
   });
   const refForm = useRef();
+  const mountedRef = useRef(true);
   const [inputsRow, setInputsRow] = useState(inputs);
+
+  useEffect(() => () => {
+    mountedRef.current = false;
+  }, []);
   const parsedAutoDisableStatusCodes = parseHttpStatusCodeRules(
     inputs.AutomaticDisableStatusCodes || '',
   );
@@ -89,23 +94,24 @@ export default function SettingsMonitoring(props) {
         value,
       });
     });
-    setLoading(true);
+    if (mountedRef.current) setLoading(true);
     Promise.all(requestQueue)
-      .then((res) => {
+      .then(async (res) => {
         if (requestQueue.length === 1) {
           if (res.includes(undefined)) return;
         } else if (requestQueue.length > 1) {
           if (res.includes(undefined))
             return showError(t('部分保存失败，请重试'));
         }
+        if (!mountedRef.current) return;
         showSuccess(t('保存成功'));
-        props.refresh();
+        await props.refresh?.();
       })
       .catch(() => {
-        showError(t('保存失败，请重试'));
+        if (mountedRef.current) showError(t('保存失败，请重试'));
       })
       .finally(() => {
-        setLoading(false);
+        if (mountedRef.current) setLoading(false);
       });
   }
 
@@ -118,7 +124,7 @@ export default function SettingsMonitoring(props) {
     }
     setInputs(currentInputs);
     setInputsRow(structuredClone(currentInputs));
-    refForm.current.setValues(currentInputs);
+    refForm.current?.setValues(currentInputs);
   }, [props.options]);
 
   return (
@@ -139,10 +145,10 @@ export default function SettingsMonitoring(props) {
                   checkedText='｜'
                   uncheckedText='〇'
                   onChange={(value) =>
-                    setInputs({
-                      ...inputs,
+                    setInputs((prev) => ({
+                      ...prev,
                       'monitor_setting.auto_test_channel_enabled': value,
-                    })
+                    }))
                   }
                 />
               </Col>
@@ -156,11 +162,11 @@ export default function SettingsMonitoring(props) {
                   placeholder={''}
                   field={'monitor_setting.auto_test_channel_minutes'}
                   onChange={(value) =>
-                    setInputs({
-                      ...inputs,
+                    setInputs((prev) => ({
+                      ...prev,
                       'monitor_setting.auto_test_channel_minutes':
                         parseInt(value),
-                    })
+                    }))
                   }
                 />
               </Col>
@@ -178,10 +184,10 @@ export default function SettingsMonitoring(props) {
                   placeholder={''}
                   field={'ChannelDisableThreshold'}
                   onChange={(value) =>
-                    setInputs({
-                      ...inputs,
+                    setInputs((prev) => ({
+                      ...prev,
                       ChannelDisableThreshold: String(value),
-                    })
+                    }))
                   }
                 />
               </Col>
@@ -195,10 +201,10 @@ export default function SettingsMonitoring(props) {
                   placeholder={''}
                   field={'QuotaRemindThreshold'}
                   onChange={(value) =>
-                    setInputs({
-                      ...inputs,
+                    setInputs((prev) => ({
+                      ...prev,
                       QuotaRemindThreshold: String(value),
-                    })
+                    }))
                   }
                 />
               </Col>
@@ -212,10 +218,10 @@ export default function SettingsMonitoring(props) {
                   checkedText='｜'
                   uncheckedText='〇'
                   onChange={(value) => {
-                    setInputs({
-                      ...inputs,
+                    setInputs((prev) => ({
+                      ...prev,
                       AutomaticDisableChannelEnabled: value,
-                    });
+                    }));
                   }}
                 />
               </Col>
@@ -227,10 +233,10 @@ export default function SettingsMonitoring(props) {
                   checkedText='｜'
                   uncheckedText='〇'
                   onChange={(value) =>
-                    setInputs({
-                      ...inputs,
+                    setInputs((prev) => ({
+                      ...prev,
                       AutomaticEnableChannelEnabled: value,
-                    })
+                    }))
                   }
                 />
               </Col>
@@ -245,7 +251,10 @@ export default function SettingsMonitoring(props) {
                   )}
                   field={'AutomaticDisableStatusCodes'}
                   onChange={(value) =>
-                    setInputs({ ...inputs, AutomaticDisableStatusCodes: value })
+                    setInputs((prev) => ({
+                      ...prev,
+                      AutomaticDisableStatusCodes: value,
+                    }))
                   }
                   parsed={parsedAutoDisableStatusCodes}
                   invalidText={t('自动禁用状态码格式不正确')}
@@ -258,7 +267,10 @@ export default function SettingsMonitoring(props) {
                   )}
                   field={'AutomaticRetryStatusCodes'}
                   onChange={(value) =>
-                    setInputs({ ...inputs, AutomaticRetryStatusCodes: value })
+                    setInputs((prev) => ({
+                      ...prev,
+                      AutomaticRetryStatusCodes: value,
+                    }))
                   }
                   parsed={parsedAutoRetryStatusCodes}
                   invalidText={t('自动重试状态码格式不正确')}
@@ -272,7 +284,10 @@ export default function SettingsMonitoring(props) {
                   field={'AutomaticDisableKeywords'}
                   autosize={{ minRows: 6, maxRows: 12 }}
                   onChange={(value) =>
-                    setInputs({ ...inputs, AutomaticDisableKeywords: value })
+                    setInputs((prev) => ({
+                      ...prev,
+                      AutomaticDisableKeywords: value,
+                    }))
                   }
                 />
               </Col>

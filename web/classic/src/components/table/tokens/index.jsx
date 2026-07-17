@@ -40,6 +40,12 @@ import CCSwitchModal from './modals/CCSwitchModal';
 import { useTokensData } from '../../../hooks/tokens/useTokensData';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
 import { createCardProPagination } from '../../../helpers/utils';
+import {
+  getStoredJSON,
+  getStoredValue,
+  setStoredValue,
+} from '../../../helpers/siteStorage';
+import { useRequestLifecycle } from '../../../hooks/common/useRequestLifecycle';
 
 function TokensPage() {
   // Define the function first, then pass it into the hook to avoid TDZ errors
@@ -64,6 +70,7 @@ function TokensPage() {
   const [prefillKey, setPrefillKey] = useState('');
   const [ccSwitchVisible, setCCSwitchVisible] = useState(false);
   const [ccSwitchKey, setCCSwitchKey] = useState('');
+  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   // Keep latest data for handlers inside notifications
   useEffect(() => {
@@ -85,10 +92,11 @@ function TokensPage() {
   ]);
 
   const loadModels = async () => {
+    const requestId = beginRequest('models');
     try {
       const res = await API.get('/api/user/models');
       const { success, message, data } = res.data || {};
-      if (success) {
+      if (isCurrentRequest('models', requestId) && success) {
         const categories = getModelCategories(tokensData.t);
         const options = (data || []).map((model) => {
           let icon = null;
@@ -109,11 +117,13 @@ function TokensPage() {
           };
         });
         setModelOptions(options);
-      } else {
+      } else if (isCurrentRequest('models', requestId)) {
         showError(tokensData.t(message));
       }
     } catch (e) {
-      showError(e.message || 'Failed to load models');
+      if (isCurrentRequest('models', requestId)) {
+        showError(e.message || 'Failed to load models');
+      }
     }
   };
 
@@ -124,7 +134,7 @@ function TokensPage() {
       // fire-and-forget; a later effect will refresh the notice content
       loadModels();
     }
-    if (!key && localStorage.getItem(SUPPRESS_KEY) === '1') return;
+    if (!key && getStoredValue(SUPPRESS_KEY, '') === '1') return;
     const container = document.getElementById('fluent-new-api-container');
     if (!container) {
       Toast.warning(t('未检测到 FluentRead（流畅阅读），请确认扩展已启用'));
@@ -166,7 +176,7 @@ function TokensPage() {
               <Button
                 type='warning'
                 onClick={() => {
-                  localStorage.setItem(SUPPRESS_KEY, '1');
+                  setStoredValue(SUPPRESS_KEY, '1');
                   Notification.close('fluent-detected');
                   Toast.info(t('已关闭后续提醒'));
                 }}
@@ -219,14 +229,8 @@ function TokensPage() {
       return;
     }
 
-    let status = localStorage.getItem('status');
-    let serverAddress = '';
-    if (status) {
-      try {
-        status = JSON.parse(status);
-        serverAddress = status.server_address || '';
-      } catch (_) {}
-    }
+    const status = getStoredJSON('status', {});
+    let serverAddress = status?.server_address || '';
     if (!serverAddress) serverAddress = window.location.origin;
 
     let apiKeyToUse = '';

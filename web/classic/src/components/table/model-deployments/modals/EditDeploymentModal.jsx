@@ -38,6 +38,7 @@ import { Save, X, Server } from 'lucide-react';
 import { API, showError, showSuccess } from '../../../../helpers';
 import { useTranslation } from 'react-i18next';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
+import { useRequestLifecycle } from '../../../../hooks/common/useRequestLifecycle';
 
 const { Text, Title } = Typography;
 
@@ -53,6 +54,7 @@ const EditDeploymentModal = ({
   const [models, setModels] = useState([]);
   const [loadingModels, setLoadingModels] = useState(false);
   const formRef = useRef();
+  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   const isEdit = Boolean(editingDeployment?.id);
   const title = t('重命名部署');
@@ -84,6 +86,7 @@ const EditDeploymentModal = ({
 
   // Load available models
   const loadModels = async () => {
+    const requestId = beginRequest('models');
     setLoadingModels(true);
     try {
       const res = await API.get('/api/models/?page_size=1000');
@@ -94,13 +97,16 @@ const EditDeploymentModal = ({
           value: model.model_name,
           model_id: model.id,
         }));
-        setModels(modelOptions);
+        if (isCurrentRequest('models', requestId)) setModels(modelOptions);
       }
     } catch (error) {
       console.error('Failed to load models:', error);
-      showError(t('加载模型列表失败'));
+      if (isCurrentRequest('models', requestId)) {
+        showError(t('加载模型列表失败'));
+      }
+    } finally {
+      if (isCurrentRequest('models', requestId)) setLoadingModels(false);
     }
-    setLoadingModels(false);
   };
 
   // Form submission
@@ -110,6 +116,7 @@ const EditDeploymentModal = ({
       return;
     }
 
+    const requestId = beginRequest('submit');
     setLoading(true);
     try {
       // Only handle name update for now
@@ -120,24 +127,32 @@ const EditDeploymentModal = ({
         },
       );
 
-      if (res.data.success) {
+      if (isCurrentRequest('submit', requestId) && res.data.success) {
         showSuccess(t('部署名称更新成功'));
         handleClose();
         refresh();
       } else {
-        showError(res.data.message || t('更新失败'));
+        if (isCurrentRequest('submit', requestId)) {
+          showError(res.data.message || t('更新失败'));
+        }
       }
     } catch (error) {
       console.error('Submit error:', error);
-      showError(t('更新失败，请检查输入信息'));
+      if (isCurrentRequest('submit', requestId)) {
+        showError(t('更新失败，请检查输入信息'));
+      }
+    } finally {
+      if (isCurrentRequest('submit', requestId)) setLoading(false);
     }
-    setLoading(false);
   };
 
   // Load models when modal opens
   useEffect(() => {
     if (visible) {
       loadModels();
+    } else {
+      beginRequest('models');
+      beginRequest('submit');
     }
   }, [visible]);
 
@@ -219,7 +234,12 @@ const EditDeploymentModal = ({
 
       <div className='p-4 border-t border-gray-200 bg-gray-50 flex justify-end'>
         <Space>
-          <Button type='tertiary' theme='light' onClick={handleClose} disabled={loading}>
+          <Button
+            type='tertiary'
+            theme='light'
+            onClick={handleClose}
+            disabled={loading}
+          >
             <X size={16} className='mr-1' />
             {t('取消')}
           </Button>

@@ -20,7 +20,46 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useConsoleNav } from '../../hooks/common/useConsoleNav';
-import { getLucideIcon } from '../../helpers/render';
+import {
+  BarChart3,
+  CalendarClock,
+  CheckSquare,
+  CircleUser,
+  CreditCard,
+  Gift,
+  Image as ImageIcon,
+  Key,
+  Layers,
+  MessageSquare,
+  Package,
+  Server,
+  Settings,
+  TerminalSquare,
+  User,
+} from 'lucide-react';
+
+const SUBNAV_ICONS = {
+  channel: Layers,
+  deployment: Server,
+  log: BarChart3,
+  midjourney: ImageIcon,
+  models: Package,
+  personal: Settings,
+  playground: TerminalSquare,
+  redemption: Gift,
+  setting: Settings,
+  subscription: CalendarClock,
+  task: CheckSquare,
+  token: Key,
+  topup: CreditCard,
+  user: User,
+  violationAudit: CircleUser,
+};
+
+const renderSubNavIcon = (key) => {
+  const Icon = key.startsWith('chat') ? MessageSquare : SUBNAV_ICONS[key];
+  return Icon ? <Icon size={16} strokeWidth={2} /> : null;
+};
 
 /**
  * 二级导航（DMIT 风格 pill 条）：
@@ -41,11 +80,12 @@ const ConsoleSubNav = () => {
           <Link
             key={ch.key}
             to={ch.to}
+            aria-current={active ? 'page' : undefined}
             className={`dmit-subnav__item ${
               active ? 'dmit-subnav__item--active' : ''
             }`}
           >
-            <span className='dmit-subnav__icon'>{getLucideIcon(ch.key)}</span>
+            <span className='dmit-subnav__icon'>{renderSubNavIcon(ch.key)}</span>
             <span>{ch.label}</span>
           </Link>
         );

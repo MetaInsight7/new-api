@@ -28,6 +28,7 @@ import {
   Typography,
 } from '@douyinfe/semi-ui';
 import { API, showError, showSuccess } from '../../../helpers';
+import { normalizeHeaderNavModules } from '../../../helpers/navigationConfig';
 import { useTranslation } from 'react-i18next';
 import { StatusContext } from '../../../context/Status';
 
@@ -37,6 +38,11 @@ export default function SettingsHeaderNavModules(props) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [statusState, statusDispatch] = useContext(StatusContext);
+  const mountedRef = React.useRef(true);
+
+  React.useEffect(() => () => {
+    mountedRef.current = false;
+  }, []);
 
   // 顶栏模块管理状态
   const [headerNavModules, setHeaderNavModules] = useState({
@@ -57,37 +63,34 @@ export default function SettingsHeaderNavModules(props) {
   // 处理顶栏模块配置变更
   function handleHeaderNavModuleChange(moduleKey) {
     return (checked) => {
-      const newModules = { ...headerNavModules };
-      if (moduleKey === 'pricing' || moduleKey === 'rankings') {
-        // 对于pricing模块，只更新enabled属性
-        newModules[moduleKey] = {
-          ...newModules[moduleKey],
-          enabled: checked,
-        };
-      } else {
-        newModules[moduleKey] = checked;
-      }
-      setHeaderNavModules(newModules);
+      setHeaderNavModules((previous) => {
+        const newModules = { ...previous };
+        if (moduleKey === 'pricing' || moduleKey === 'rankings') {
+          newModules[moduleKey] = {
+            ...newModules[moduleKey],
+            enabled: checked,
+          };
+        } else {
+          newModules[moduleKey] = checked;
+        }
+        return newModules;
+      });
     };
   }
 
   // 处理模型广场权限控制变更
   function handlePricingAuthChange(checked) {
-    const newModules = { ...headerNavModules };
-    newModules.pricing = {
-      ...newModules.pricing,
-      requireAuth: checked,
-    };
-    setHeaderNavModules(newModules);
+    setHeaderNavModules((previous) => ({
+      ...previous,
+      pricing: { ...previous.pricing, requireAuth: checked },
+    }));
   }
 
   function handleRankingsAuthChange(checked) {
-    const newModules = { ...headerNavModules };
-    newModules.rankings = {
-      ...newModules.rankings,
-      requireAuth: checked,
-    };
-    setHeaderNavModules(newModules);
+    setHeaderNavModules((previous) => ({
+      ...previous,
+      rankings: { ...previous.rankings, requireAuth: checked },
+    }));
   }
 
   // 重置顶栏模块为默认配置
@@ -126,13 +129,13 @@ export default function SettingsHeaderNavModules(props) {
         statusDispatch({
           type: 'set',
           payload: {
-            ...statusState.status,
+            ...(statusState?.status || {}),
             HeaderNavModules: JSON.stringify(headerNavModules),
           },
         });
 
         // 刷新父组件状态
-        if (props.refresh) {
+        if (mountedRef.current && props.refresh) {
           await props.refresh();
         }
       } else {
@@ -141,46 +144,15 @@ export default function SettingsHeaderNavModules(props) {
     } catch (error) {
       showError(t('保存失败，请重试'));
     } finally {
-      setLoading(false);
+      if (mountedRef.current) setLoading(false);
     }
   }
 
   useEffect(() => {
     // 从 props.options 中获取配置
-    if (props.options && props.options.HeaderNavModules) {
-      try {
-        const modules = JSON.parse(props.options.HeaderNavModules);
-
-        // 处理向后兼容性：如果pricing是boolean，转换为对象格式
-        if (typeof modules.pricing === 'boolean') {
-          modules.pricing = {
-            enabled: modules.pricing,
-            requireAuth: false, // 默认不需要登录鉴权
-          };
-        }
-
-        if (typeof modules.rankings === 'boolean') {
-          modules.rankings = { enabled: modules.rankings, requireAuth: false };
-        } else if (modules.rankings === undefined) {
-          modules.rankings = { enabled: true, requireAuth: false };
-        }
-
-        setHeaderNavModules(modules);
-      } catch (error) {
-        // 使用默认配置
-        const defaultModules = {
-          home: true,
-          console: true,
-          pricing: {
-            enabled: true,
-            requireAuth: false,
-          },
-          docs: true,
-          about: true,
-        };
-        setHeaderNavModules(defaultModules);
-      }
-    }
+    setHeaderNavModules(
+      normalizeHeaderNavModules(props.options?.HeaderNavModules),
+    );
   }, [props.options]);
 
   // 模块配置数据

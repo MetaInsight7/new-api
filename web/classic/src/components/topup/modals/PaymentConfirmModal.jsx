@@ -21,6 +21,7 @@ import React from 'react';
 import { Modal, Typography, Card, Skeleton } from '@douyinfe/semi-ui';
 import { SiAlipay, SiWechat, SiStripe } from 'react-icons/si';
 import { CreditCard } from 'lucide-react';
+import { isSafeImageUrl } from '../../../helpers/sanitize';
 
 const { Text } = Typography;
 
@@ -142,7 +143,7 @@ const PaymentConfirmModal = ({
                             size={16}
                             color='#635BFF'
                           />
-                        ) : payMethod.icon ? (
+                        ) : isSafeImageUrl(payMethod.icon) ? (
                           <img
                             src={payMethod.icon}
                             alt={payMethod.name}

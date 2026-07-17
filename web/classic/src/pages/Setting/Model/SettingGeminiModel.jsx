@@ -28,10 +28,11 @@ import {
   verifyJSON,
 } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
+import { useRequestLifecycle } from '../../../hooks/common/useRequestLifecycle';
 import Text from '@douyinfe/semi-ui/lib/es/typography/text';
 
 const GEMINI_SETTING_EXAMPLE = {
-  default: 'OFF'
+  default: 'OFF',
 };
 
 const GEMINI_VERSION_EXAMPLE = {
@@ -55,8 +56,10 @@ export default function SettingGeminiModel(props) {
   const [inputs, setInputs] = useState(DEFAULT_GEMINI_INPUTS);
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(DEFAULT_GEMINI_INPUTS);
+  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   async function onSubmit() {
+    const requestId = beginRequest('submit');
     await refForm.current
       .validate()
       .then(() => {
@@ -72,6 +75,7 @@ export default function SettingGeminiModel(props) {
         setLoading(true);
         Promise.all(requestQueue)
           .then((res) => {
+            if (!isCurrentRequest('submit', requestId)) return;
             if (requestQueue.length === 1) {
               if (res.includes(undefined)) return;
             } else if (requestQueue.length > 1) {
@@ -85,7 +89,7 @@ export default function SettingGeminiModel(props) {
             showError(t('保存失败，请重试'));
           })
           .finally(() => {
-            setLoading(false);
+            if (isCurrentRequest('submit', requestId)) setLoading(false);
           });
       })
       .catch((error) => {
@@ -103,7 +107,7 @@ export default function SettingGeminiModel(props) {
     }
     setInputs(currentInputs);
     setInputsRow(structuredClone(currentInputs));
-    refForm.current.setValues(currentInputs);
+    refForm.current?.setValues(currentInputs);
   }, [props.options]);
 
   return (

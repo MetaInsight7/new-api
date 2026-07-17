@@ -18,8 +18,15 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState } from 'react';
-import { API, showError } from '../../helpers';
-import { marked } from 'marked';
+import {
+  API,
+  isSafeExternalUrl,
+  renderSafeMarkdown,
+  sanitizeHtml,
+  getStoredValue,
+  setStoredValue,
+  showError,
+} from '../../helpers';
 import { Empty } from '@douyinfe/semi-ui';
 import {
   IllustrationConstruction,
@@ -33,26 +40,40 @@ const About = () => {
   const [aboutLoaded, setAboutLoaded] = useState(false);
   const currentYear = new Date().getFullYear();
 
-  const displayAbout = async () => {
-    setAbout(localStorage.getItem('about') || '');
-    const res = await API.get('/api/about');
-    const { success, message, data } = res.data;
-    if (success) {
-      let aboutContent = data;
-      if (!data.startsWith('https://')) {
-        aboutContent = marked.parse(data);
-      }
-      setAbout(aboutContent);
-      localStorage.setItem('about', aboutContent);
-    } else {
-      showError(message);
-      setAbout(t('加载关于内容失败...'));
-    }
-    setAboutLoaded(true);
-  };
-
   useEffect(() => {
-    displayAbout().then();
+    let cancelled = false;
+
+    const displayAbout = async () => {
+      setAbout(getStoredValue('about', ''));
+      try {
+        const res = await API.get('/api/about');
+        const { success, message, data } = res.data;
+        if (cancelled) return;
+        if (success) {
+          let aboutContent = data;
+          if (!isSafeExternalUrl(data)) {
+            aboutContent = renderSafeMarkdown(data);
+          }
+          setAbout(aboutContent);
+          setStoredValue('about', aboutContent);
+        } else {
+          showError(message);
+          setAbout(t('加载关于内容失败...'));
+        }
+      } catch (error) {
+        if (!cancelled) {
+          showError(t('加载关于内容失败...'));
+          setAbout((current) => current || '');
+        }
+      } finally {
+        if (!cancelled) setAboutLoaded(true);
+      }
+    };
+
+    displayAbout();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const emptyStyle = {
@@ -153,9 +174,12 @@ const About = () => {
         </div>
       ) : (
         <>
-          {about.startsWith('https://') ? (
+          {isSafeExternalUrl(about) ? (
             <iframe
               src={about}
+              title={t('关于')}
+              sandbox='allow-forms allow-popups allow-same-origin allow-scripts'
+              referrerPolicy='no-referrer'
               style={{
                 width: '100%',
                 flex: '1 1 auto',
@@ -166,7 +190,7 @@ const About = () => {
           ) : (
             <div
               style={{ fontSize: 'larger' }}
-              dangerouslySetInnerHTML={{ __html: about }}
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(about) }}
             ></div>
           )}
         </>

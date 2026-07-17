@@ -49,6 +49,7 @@ import {
   verifyJSON,
 } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
+import { useRequestLifecycle } from '../../../hooks/common/useRequestLifecycle';
 
 export default function SettingsChats(props) {
   const { t } = useTranslation();
@@ -65,17 +66,33 @@ export default function SettingsChats(props) {
   const [isEdit, setIsEdit] = useState(false);
   const [searchText, setSearchText] = useState('');
   const modalFormRef = useRef();
+  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   const BUILTIN_TEMPLATES = [
-    { name: 'Cherry Studio', url: 'cherrystudio://providers/api-keys?v=1&data={cherryConfig}' },
+    {
+      name: 'Cherry Studio',
+      url: 'cherrystudio://providers/api-keys?v=1&data={cherryConfig}',
+    },
     { name: 'AionUI', url: 'aionui://provider/add?v=1&data={aionuiConfig}' },
     { name: '流畅阅读', url: 'fluentread' },
     { name: 'CC Switch', url: 'ccswitch' },
-    { name: 'DeepChat', url: 'deepchat://provider/install?v=1&data={deepchatConfig}' },
-    { name: 'Lobe Chat', url: 'https://chat-preview.lobehub.com/?settings={"keyVaults":{"openai":{"apiKey":"{key}","baseURL":"{address}/v1"}}}' },
-    { name: 'AI as Workspace', url: 'https://aiaw.app/set-provider?provider={"type":"openai","settings":{"apiKey":"{key}","baseURL":"{address}/v1","compatibility":"strict"}}' },
+    {
+      name: 'DeepChat',
+      url: 'deepchat://provider/install?v=1&data={deepchatConfig}',
+    },
+    {
+      name: 'Lobe Chat',
+      url: 'https://chat-preview.lobehub.com/?settings={"keyVaults":{"openai":{"apiKey":"{key}","baseURL":"{address}/v1"}}}',
+    },
+    {
+      name: 'AI as Workspace',
+      url: 'https://aiaw.app/set-provider?provider={"type":"openai","settings":{"apiKey":"{key}","baseURL":"{address}/v1","compatibility":"strict"}}',
+    },
     { name: 'AMA 问天', url: 'ama://set-api-key?server={address}&key={key}' },
-    { name: 'OpenCat', url: 'opencat://team/join?domain={address}&token={key}' },
+    {
+      name: 'OpenCat',
+      url: 'opencat://team/join?domain={address}&token={key}',
+    },
   ];
 
   const addTemplates = (templates) => {
@@ -85,9 +102,8 @@ export default function SettingsChats(props) {
       showWarning(t('所选模板已存在'));
       return;
     }
-    let maxId = chatConfigs.length > 0
-      ? Math.max(...chatConfigs.map((c) => c.id))
-      : -1;
+    let maxId =
+      chatConfigs.length > 0 ? Math.max(...chatConfigs.map((c) => c.id)) : -1;
     const newItems = toAdd.map((tpl) => ({
       id: ++maxId,
       name: tpl.name,
@@ -134,11 +150,12 @@ export default function SettingsChats(props) {
       Chats: jsonString,
     }));
     if (refForm.current && editMode === 'json') {
-      refForm.current.setValues({ Chats: jsonString });
+      refForm.current?.setValues({ Chats: jsonString });
     }
   };
 
   async function onSubmit() {
+    const requestId = beginRequest('submit');
     try {
       if (editMode === 'json' && refForm.current) {
         try {
@@ -151,8 +168,7 @@ export default function SettingsChats(props) {
       }
 
       const updateArray = compareObjects(inputs, inputsRow);
-      if (!updateArray.length)
-        return showWarning(t('你似乎并没有修改什么'));
+      if (!updateArray.length) return showWarning(t('你似乎并没有修改什么'));
       const requestQueue = updateArray.map((item) => {
         let value = '';
         if (typeof inputs[item.key] === 'boolean') {
@@ -168,6 +184,7 @@ export default function SettingsChats(props) {
       setLoading(true);
       try {
         const res = await Promise.all(requestQueue);
+        if (!isCurrentRequest('submit', requestId)) return;
         if (res.includes(undefined)) {
           if (requestQueue.length > 1) {
             showError(t('部分保存失败，请重试'));
@@ -179,7 +196,7 @@ export default function SettingsChats(props) {
       } catch {
         showError(t('保存失败，请重试'));
       } finally {
-        setLoading(false);
+        if (isCurrentRequest('submit', requestId)) setLoading(false);
       }
     } catch (error) {
       showError(t('请检查输入'));
@@ -202,7 +219,7 @@ export default function SettingsChats(props) {
     setInputs(currentInputs);
     setInputsRow(structuredClone(currentInputs));
     if (refForm.current) {
-      refForm.current.setValues(currentInputs);
+      refForm.current?.setValues(currentInputs);
     }
 
     // 同步到可视化配置
@@ -218,7 +235,7 @@ export default function SettingsChats(props) {
 
   useEffect(() => {
     if (refForm.current && editMode === 'json') {
-      refForm.current.setValues(inputs);
+      refForm.current?.setValues(inputs);
     }
   }, [editMode, inputs]);
 
@@ -403,7 +420,7 @@ export default function SettingsChats(props) {
                 // 确保模式切换时数据正确同步
                 setTimeout(() => {
                   if (newMode === 'json' && refForm.current) {
-                    refForm.current.setValues(inputs);
+                    refForm.current?.setValues(inputs);
                   }
                 }, 100);
               }}
@@ -442,9 +459,7 @@ export default function SettingsChats(props) {
                     },
                   ]}
                 >
-                  <Button icon={<IconBolt />}>
-                    {t('填入模板')}
-                  </Button>
+                  <Button icon={<IconBolt />}>{t('填入模板')}</Button>
                 </Dropdown>
                 <Button
                   type='primary'

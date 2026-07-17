@@ -37,8 +37,10 @@ import {
   showError,
   showSuccess,
 } from '../../../helpers';
+import { isSafeImageUrl } from '../../../helpers/sanitize';
 import { useTranslation } from 'react-i18next';
 import { BookOpen, TriangleAlert } from 'lucide-react';
+import { useRequestLifecycle } from '../../../hooks/common/useRequestLifecycle';
 
 const { Text } = Typography;
 const toBoolean = (value) => value === true || value === 'true';
@@ -65,6 +67,7 @@ export default function SettingsPaymentGatewayWaffo(props) {
   });
   const formApiRef = useRef(null);
   const iconFileInputRef = useRef(null);
+  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   const handleIconFileChange = (e) => {
     const file = e.target.files[0];
@@ -138,6 +141,7 @@ export default function SettingsPaymentGatewayWaffo(props) {
   };
 
   const submitWaffoSetting = async () => {
+    const requestId = beginRequest('submit');
     setLoading(true);
     try {
       const options = [];
@@ -228,6 +232,7 @@ export default function SettingsPaymentGatewayWaffo(props) {
       const results = await Promise.all(requestQueue);
 
       // 检查所有请求是否成功
+      if (!isCurrentRequest('submit', requestId)) return;
       const errorResults = results.filter((res) => !res.data.success);
       if (errorResults.length > 0) {
         errorResults.forEach((res) => {
@@ -238,9 +243,10 @@ export default function SettingsPaymentGatewayWaffo(props) {
         props.refresh?.();
       }
     } catch (error) {
-      showError(t('更新失败'));
+      if (isCurrentRequest('submit', requestId)) showError(t('更新失败'));
+    } finally {
+      if (isCurrentRequest('submit', requestId)) setLoading(false);
     }
-    setLoading(false);
   };
 
   // 打开新增弹窗
@@ -307,7 +313,7 @@ export default function SettingsPaymentGatewayWaffo(props) {
       title: t('图标'),
       dataIndex: 'icon',
       render: (text) =>
-        text ? (
+        isSafeImageUrl(text) ? (
           <img
             src={text}
             alt='icon'
@@ -616,7 +622,7 @@ export default function SettingsPaymentGatewayWaffo(props) {
               <Text strong>{t('图标')}</Text>
             </div>
             <Space align='center'>
-              {payMethodForm.icon && (
+              {isSafeImageUrl(payMethodForm.icon) && (
                 <img
                   src={payMethodForm.icon}
                   alt='preview'

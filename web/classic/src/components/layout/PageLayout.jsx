@@ -22,48 +22,60 @@ import { Layout } from '@douyinfe/semi-ui';
 import SiderBar from './SiderBar';
 import ConsoleSubNav from './ConsoleSubNav';
 import App from '../../App';
-import FooterBar from './Footer';
-import { ToastContainer } from 'react-toastify';
 import ErrorBoundary from '../common/ErrorBoundary';
-import React, { useContext, useEffect, useState } from 'react';
+import React, {
+  lazy,
+  Suspense,
+  useContext,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useIsMobile } from '../../hooks/common/useIsMobile';
 import { useSidebarCollapsed } from '../../hooks/common/useSidebarCollapsed';
-import { useTranslation } from 'react-i18next';
+import { API } from '../../helpers/api';
+import { setStatusData } from '../../helpers/data';
 import {
-  API,
   getLogo,
+  getStoredUser,
   getSystemName,
-  showError,
-  setStatusData,
-} from '../../helpers';
+} from '../../helpers/siteStorage';
+import { showError } from '../../helpers/notifications';
 import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
 import { useLocation } from 'react-router-dom';
-import { normalizeLanguage } from '../../i18n/language';
+import { getAppSurface } from '../../constants/surface.constants';
 const { Sider, Content, Header } = Layout;
+const FooterBar = lazy(() => import('./Footer'));
 
 const PageLayout = () => {
-  const [userState, userDispatch] = useContext(UserContext);
+  const [, userDispatch] = useContext(UserContext);
   const [, statusDispatch] = useContext(StatusContext);
   const isMobile = useIsMobile();
   const [collapsed, , setCollapsed] = useSidebarCollapsed();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const { i18n } = useTranslation();
+  const mountedRef = useRef(true);
+  const statusRequestSeqRef = useRef(0);
   const location = useLocation();
 
-  const cardProPages = [
-    '/console/channel',
-    '/console/log',
-    '/console/redemption',
-    '/console/user',
-    '/console/token',
-    '/console/midjourney',
-    '/console/task',
-    '/console/models',
-    '/console/support',
-    '/pricing',
-    '/rankings',
-  ];
+  const cardProPages = useMemo(
+    () => [
+      '/console/channel',
+      '/console/log',
+      '/console/redemption',
+      '/console/user',
+      '/console/token',
+      '/console/midjourney',
+      '/console/task',
+      '/console/models',
+      '/console/support',
+      '/pricing',
+      '/rankings',
+    ],
+    [],
+  );
 
   const isHomePage = location.pathname === '/';
 
@@ -79,6 +91,7 @@ const PageLayout = () => {
     !location.pathname.startsWith('/console/chat');
 
   const isConsoleRoute = location.pathname.startsWith('/console');
+  const appSurface = getAppSurface(location.pathname);
   const showSider = isConsoleRoute && (!isMobile || drawerOpen);
   const isFixedLayout = isConsoleRoute;
 
@@ -94,32 +107,43 @@ const PageLayout = () => {
     }
   }, [isMobile, drawerOpen, collapsed, setCollapsed]);
 
-  const loadUser = () => {
-    let user = localStorage.getItem('user');
+  const loadUser = useCallback(() => {
+    const user = getStoredUser();
     if (user) {
-      let data = JSON.parse(user);
-      userDispatch({ type: 'login', payload: data });
+      userDispatch({ type: 'login', payload: user });
     }
-  };
+  }, [userDispatch]);
 
-  const loadStatus = async () => {
+  const loadStatus = useCallback(async () => {
+    const requestSeq = ++statusRequestSeqRef.current;
     try {
       const res = await API.get('/api/status');
       const { success, data } = res.data;
-      if (success) {
+      if (success && mountedRef.current && requestSeq === statusRequestSeqRef.current) {
         statusDispatch({ type: 'set', payload: data });
         setStatusData(data);
-      } else {
+      } else if (
+        !success &&
+        mountedRef.current &&
+        requestSeq === statusRequestSeqRef.current
+      ) {
+        // Resolve the global status gate even when the optional status
+        // endpoint is unavailable; consumers can then render their defaults.
+        statusDispatch({ type: 'set', payload: {} });
         showError('Unable to connect to server');
       }
     } catch (error) {
-      showError('Failed to load status');
+      if (mountedRef.current && requestSeq === statusRequestSeqRef.current) {
+        statusDispatch({ type: 'set', payload: {} });
+        showError('Failed to load status');
+      }
     }
-  };
+  }, [statusDispatch]);
 
   useEffect(() => {
+    mountedRef.current = true;
     loadUser();
-    loadStatus().catch(console.error);
+    loadStatus();
     let systemName = getSystemName();
     if (systemName) {
       document.title = systemName;
@@ -131,38 +155,36 @@ const PageLayout = () => {
         linkElement.href = logo;
       }
     }
-  }, []);
+    return () => {
+      mountedRef.current = false;
+      statusRequestSeqRef.current += 1;
+    };
+  }, [loadStatus, loadUser]);
 
   useEffect(() => {
-    let preferredLang;
+    document.body.dataset.appSurface = appSurface;
+    document.body.classList.toggle('app-console-surface', isConsoleRoute);
 
-    if (userState?.user?.setting) {
-      try {
-        const settings = JSON.parse(userState.user.setting);
-        preferredLang = normalizeLanguage(settings.language);
-      } catch (e) {
-        // Ignore parse errors
-      }
-    }
+    return () => {
+      delete document.body.dataset.appSurface;
+      document.body.classList.remove('app-console-surface');
+    };
+  }, [appSurface, isConsoleRoute]);
 
-    if (!preferredLang) {
-      const savedLang = localStorage.getItem('i18nextLng');
-      if (savedLang) {
-        preferredLang = normalizeLanguage(savedLang);
-      }
-    }
-
-    if (preferredLang) {
-      localStorage.setItem('i18nextLng', preferredLang);
-      if (preferredLang !== i18n.language) {
-        i18n.changeLanguage(preferredLang);
-      }
-    }
-  }, [i18n, userState?.user?.setting]);
+  useEffect(() => {
+    document.body.classList.toggle('sidebar-collapsed', !isMobile && collapsed);
+    document.body.style.setProperty(
+      '--sidebar-current-width',
+      !isMobile && collapsed
+        ? 'var(--sidebar-width-collapsed)'
+        : 'var(--sidebar-width)',
+    );
+  }, [collapsed, isMobile]);
 
   return (
     <Layout
-      className={`app-layout${isFixedLayout ? ' app-layout-fixed' : ''}${isConsoleRoute ? ' app-console' : ''}${shouldHideHeader ? ' app-layout-auth-mobile' : ''}`}
+      className={`app-layout app-surface-${appSurface}${isFixedLayout ? ' app-layout-fixed' : ''}${isConsoleRoute ? ' app-console' : ''}${shouldHideHeader ? ' app-layout-auth-mobile' : ''}`}
+      data-app-surface={appSurface}
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -258,7 +280,7 @@ const PageLayout = () => {
               minHeight: 0,
             }}
           >
-            <ErrorBoundary>
+            <ErrorBoundary routeKey={location.pathname}>
               {showConsoleSubNav && <ConsoleSubNav />}
               <App />
             </ErrorBoundary>
@@ -270,12 +292,13 @@ const PageLayout = () => {
                 width: '100%',
               }}
             >
-              <FooterBar />
+              <Suspense fallback={null}>
+                <FooterBar />
+              </Suspense>
             </Layout.Footer>
           )}
         </Layout>
       </Layout>
-      <ToastContainer />
     </Layout>
   );
 };

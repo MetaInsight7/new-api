@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { Modal, ImagePreview } from '@douyinfe/semi-ui';
+import { isSafeMediaUrl } from '../../../../helpers/sanitize';
 
 const ContentModal = ({
   isModalOpen,
@@ -46,7 +47,7 @@ const ContentModal = ({
 
       {/* Image Preview Modal */}
       <ImagePreview
-        src={modalImageUrl}
+        src={isSafeMediaUrl(modalImageUrl) ? modalImageUrl : undefined}
         visible={isModalOpenurl}
         onVisibleChange={(visible) => setIsModalOpenurl(visible)}
       />

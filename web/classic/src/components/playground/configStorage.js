@@ -21,6 +21,12 @@ import {
   STORAGE_KEYS,
   DEFAULT_CONFIG,
 } from '../../constants/playground.constants';
+import {
+  getStoredJSON,
+  getStoredValue,
+  removeStoredValue,
+  setStoredJSON,
+} from '../../helpers/siteStorage';
 
 const MESSAGES_STORAGE_KEY = 'playground_messages';
 
@@ -34,7 +40,7 @@ export const saveConfig = (config) => {
       ...config,
       timestamp: new Date().toISOString(),
     };
-    localStorage.setItem(STORAGE_KEYS.CONFIG, JSON.stringify(configToSave));
+    setStoredJSON(STORAGE_KEYS.CONFIG, configToSave);
   } catch (error) {
     console.error('保存配置失败:', error);
   }
@@ -50,7 +56,7 @@ export const saveMessages = (messages) => {
       messages,
       timestamp: new Date().toISOString(),
     };
-    localStorage.setItem(STORAGE_KEYS.MESSAGES, JSON.stringify(messagesToSave));
+    setStoredJSON(STORAGE_KEYS.MESSAGES, messagesToSave);
   } catch (error) {
     console.error('保存消息失败:', error);
   }
@@ -62,9 +68,8 @@ export const saveMessages = (messages) => {
  */
 export const loadConfig = () => {
   try {
-    const savedConfig = localStorage.getItem(STORAGE_KEYS.CONFIG);
-    if (savedConfig) {
-      const parsedConfig = JSON.parse(savedConfig);
+    const parsedConfig = getStoredJSON(STORAGE_KEYS.CONFIG, null);
+    if (parsedConfig && typeof parsedConfig === 'object') {
       const parsedMaxTokens = parseInt(parsedConfig?.inputs?.max_tokens, 10);
 
       const mergedConfig = {
@@ -102,9 +107,8 @@ export const loadConfig = () => {
  */
 export const loadMessages = () => {
   try {
-    const savedMessages = localStorage.getItem(STORAGE_KEYS.MESSAGES);
-    if (savedMessages) {
-      const parsedMessages = JSON.parse(savedMessages);
+    const parsedMessages = getStoredJSON(STORAGE_KEYS.MESSAGES, null);
+    if (parsedMessages && typeof parsedMessages === 'object') {
       return parsedMessages.messages || null;
     }
   } catch (error) {
@@ -119,8 +123,8 @@ export const loadMessages = () => {
  */
 export const clearConfig = () => {
   try {
-    localStorage.removeItem(STORAGE_KEYS.CONFIG);
-    localStorage.removeItem(STORAGE_KEYS.MESSAGES); // 同时清除消息
+    removeStoredValue(STORAGE_KEYS.CONFIG);
+    removeStoredValue(STORAGE_KEYS.MESSAGES); // 同时清除消息
   } catch (error) {
     console.error('清除配置失败:', error);
   }
@@ -131,7 +135,7 @@ export const clearConfig = () => {
  */
 export const clearMessages = () => {
   try {
-    localStorage.removeItem(STORAGE_KEYS.MESSAGES);
+    removeStoredValue(STORAGE_KEYS.MESSAGES);
   } catch (error) {
     console.error('清除消息失败:', error);
   }
@@ -143,7 +147,7 @@ export const clearMessages = () => {
  */
 export const hasStoredConfig = () => {
   try {
-    return localStorage.getItem(STORAGE_KEYS.CONFIG) !== null;
+    return getStoredValue(STORAGE_KEYS.CONFIG, null) !== null;
   } catch (error) {
     console.error('检查配置失败:', error);
     return false;
@@ -156,9 +160,8 @@ export const hasStoredConfig = () => {
  */
 export const getConfigTimestamp = () => {
   try {
-    const savedConfig = localStorage.getItem(STORAGE_KEYS.CONFIG);
-    if (savedConfig) {
-      const parsedConfig = JSON.parse(savedConfig);
+    const parsedConfig = getStoredJSON(STORAGE_KEYS.CONFIG, null);
+    if (parsedConfig && typeof parsedConfig === 'object') {
       return parsedConfig.timestamp || null;
     }
   } catch (error) {

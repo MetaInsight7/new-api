@@ -19,7 +19,8 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import i18next from 'i18next';
-import { getLobeHubIcon, getModelCategories } from '../../../../helpers/render';
+import { getModelCategories } from '../../../../helpers/render';
+import { getLobeHubIcon } from '../../../../helpers/lobeIcon';
 import { calculateModelPrice } from '../../../../helpers/utils';
 
 /* ---------- 品牌图标盒 ----------

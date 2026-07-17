@@ -35,19 +35,19 @@ import {
 import { IconChevronDown, IconChevronUp } from '@douyinfe/semi-icons';
 import { Settings } from 'lucide-react';
 import { renderModelTag, getModelCategories } from '../../../../helpers';
+import { getStoredValue, setStoredValue } from '../../../../helpers/siteStorage';
 
 const ModelsList = ({ t, models, modelsLoading, copyText }) => {
   const [isModelsExpanded, setIsModelsExpanded] = useState(() => {
     // Initialize from localStorage if available
-    const savedState = localStorage.getItem('modelsExpanded');
-    return savedState ? JSON.parse(savedState) : false;
+    return getStoredValue('modelsExpanded', '') === 'true';
   });
   const [activeModelCategory, setActiveModelCategory] = useState('all');
   const MODELS_DISPLAY_COUNT = 25; // 默认显示的模型数量
 
   // Save models expanded state to localStorage whenever it changes
   useEffect(() => {
-    localStorage.setItem('modelsExpanded', JSON.stringify(isModelsExpanded));
+    setStoredValue('modelsExpanded', String(isModelsExpanded));
   }, [isModelsExpanded]);
 
   return (
@@ -85,7 +85,7 @@ const ModelsList = ({ t, models, modelsLoading, copyText }) => {
                   <Skeleton.Button
                     key={`cat-${index}`}
                     style={{
-                      width: index === 0 ? 130 : 100 + Math.random() * 50,
+                      width: index === 0 ? 130 : 100 + (index % 4) * 12,
                       height: 36,
                       borderRadius: 8,
                     }}
@@ -100,7 +100,7 @@ const ModelsList = ({ t, models, modelsLoading, copyText }) => {
                 <Skeleton.Button
                   key={`model-${index}`}
                   style={{
-                    width: 100 + Math.random() * 100,
+                    width: 100 + (index % 5) * 16,
                     height: 32,
                     borderRadius: 16,
                     margin: '4px',

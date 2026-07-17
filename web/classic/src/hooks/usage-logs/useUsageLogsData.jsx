@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Modal } from '@douyinfe/semi-ui';
 import {
@@ -43,6 +43,12 @@ import { ITEMS_PER_PAGE } from '../../constants';
 import { useTableCompactMode } from '../common/useTableCompactMode';
 import ParamOverrideEntry from '../../components/table/usage-logs/components/ParamOverrideEntry';
 import { usageLogMockData } from '../../components/table/usage-logs/usageLogMockData';
+import {
+  getStoredJSON,
+  getStoredValue,
+  setStoredJSON,
+  setStoredValue,
+} from '../../helpers/siteStorage';
 
 export const useLogsData = () => {
   const { t } = useTranslation();
@@ -74,6 +80,9 @@ export const useLogsData = () => {
   const [logCount, setLogCount] = useState(0);
   const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE);
   const [logType, setLogType] = useState(0);
+  const requestCounter = useRef(0);
+  const mountedRef = useRef(true);
+  const statRequestCounter = useRef(0);
 
   // User and admin
   const isAdminUser = isAdmin();
@@ -126,14 +135,14 @@ export const useLogsData = () => {
 
   const getInitialVisibleColumns = () => {
     const defaults = getDefaultColumnVisibility();
-    const savedColumns = localStorage.getItem(STORAGE_KEY);
+    const savedColumns = getStoredJSON(STORAGE_KEY, null);
 
     if (!savedColumns) {
       return defaults;
     }
 
     try {
-      const parsed = JSON.parse(savedColumns);
+      const parsed = savedColumns;
       const merged = { ...defaults, ...parsed };
 
       if (!isAdminUser) {
@@ -152,11 +161,11 @@ export const useLogsData = () => {
   };
 
   const getInitialBillingDisplayMode = () => {
-    const savedMode = localStorage.getItem(BILLING_DISPLAY_MODE_STORAGE_KEY);
+    const savedMode = getStoredValue(BILLING_DISPLAY_MODE_STORAGE_KEY, '');
     if (savedMode === 'price' || savedMode === 'ratio') {
       return savedMode;
     }
-    return localStorage.getItem('quota_display_type') === 'TOKENS'
+    return getStoredValue('quota_display_type', '') === 'TOKENS'
       ? 'ratio'
       : 'price';
   };
@@ -195,7 +204,7 @@ export const useLogsData = () => {
   const initDefaultColumns = () => {
     const defaults = getDefaultColumnVisibility();
     setVisibleColumns(defaults);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(defaults));
+    setStoredJSON(STORAGE_KEY, defaults);
   };
 
   // Handle column visibility change
@@ -228,12 +237,12 @@ export const useLogsData = () => {
   // Persist column settings to the role-specific STORAGE_KEY
   useEffect(() => {
     if (Object.keys(visibleColumns).length > 0) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(visibleColumns));
+      setStoredJSON(STORAGE_KEY, visibleColumns);
     }
   }, [visibleColumns]);
 
   useEffect(() => {
-    localStorage.setItem(BILLING_DISPLAY_MODE_STORAGE_KEY, billingDisplayMode);
+    setStoredValue(BILLING_DISPLAY_MODE_STORAGE_KEY, billingDisplayMode);
   }, [BILLING_DISPLAY_MODE_STORAGE_KEY, billingDisplayMode]);
 
   // 获取表单值的辅助函数，确保所有值都是字符串
@@ -267,6 +276,7 @@ export const useLogsData = () => {
 
   // Statistics functions
   const getLogSelfStat = async () => {
+    const requestId = ++statRequestCounter.current;
     const {
       token_name,
       model_name,
@@ -281,6 +291,7 @@ export const useLogsData = () => {
     let url = `/api/log/self/stat?type=${currentLogType}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&group=${group}`;
     url = encodeURI(url);
     let res = await API.get(url);
+    if (!mountedRef.current || requestId !== statRequestCounter.current) return;
     const { success, message, data } = res.data;
     if (success) {
       setStat(data);
@@ -290,6 +301,7 @@ export const useLogsData = () => {
   };
 
   const getLogStat = async () => {
+    const requestId = ++statRequestCounter.current;
     const {
       username,
       token_name,
@@ -306,6 +318,7 @@ export const useLogsData = () => {
     let url = `/api/log/stat?type=${currentLogType}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&channel=${channel}&group=${group}`;
     url = encodeURI(url);
     let res = await API.get(url);
+    if (!mountedRef.current || requestId !== statRequestCounter.current) return;
     const { success, message, data } = res.data;
     if (success) {
       setStat(data);
@@ -319,13 +332,22 @@ export const useLogsData = () => {
       return;
     }
     setLoadingStat(true);
-    if (isAdminUser) {
-      await getLogStat();
-    } else {
-      await getLogSelfStat();
+    try {
+      if (isAdminUser) {
+        await getLogStat();
+      } else {
+        await getLogSelfStat();
+      }
+      if (mountedRef.current) {
+        setShowStat(true);
+      }
+    } catch (error) {
+      if (mountedRef.current) showError(error);
+    } finally {
+      if (mountedRef.current) {
+        setLoadingStat(false);
+      }
     }
-    setShowStat(true);
-    setLoadingStat(false);
   };
 
   // User info function
@@ -752,6 +774,7 @@ export const useLogsData = () => {
 
   // Load logs function
   const loadLogs = async (startIdx, pageSize, customLogType = null) => {
+    const requestId = ++requestCounter.current;
     setLoading(true);
 
     if (mockMode) {
@@ -778,11 +801,14 @@ export const useLogsData = () => {
           includes(item.request_id, filters.request_id)
         );
       });
+      if (!mountedRef.current || requestId !== requestCounter.current) return;
       setActivePage(1);
       setPageSize(pageSize);
       setLogCount(filteredMockData.length);
       setLogsFormat(filteredMockData.map((item) => ({ ...item })));
-      setLoading(false);
+      if (mountedRef.current && requestId === requestCounter.current) {
+        setLoading(false);
+      }
       return;
     }
 
@@ -814,36 +840,42 @@ export const useLogsData = () => {
       url = `/api/log/self/?p=${startIdx}&page_size=${pageSize}&type=${currentLogType}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&group=${group}&request_id=${request_id}`;
     }
     url = encodeURI(url);
-    const res = await API.get(url);
-    const { success, message, data } = res.data;
-    if (success) {
-      const newPageData = data.items;
-      setActivePage(data.page);
-      setPageSize(data.page_size);
-      setLogCount(data.total);
+    try {
+      const res = await API.get(url);
+      if (!mountedRef.current || requestId !== requestCounter.current) return;
+      const { success, message, data } = res.data;
+      if (success) {
+        const newPageData = data.items;
+        setActivePage(data.page);
+        setPageSize(data.page_size);
+        setLogCount(data.total);
 
-      setLogsFormat(newPageData);
-    } else {
-      showError(message);
+        setLogsFormat(newPageData);
+      } else {
+        showError(message);
+      }
+    } catch (error) {
+      if (mountedRef.current && requestId === requestCounter.current) {
+        showError(error);
+      }
+    } finally {
+      if (mountedRef.current && requestId === requestCounter.current) {
+        setLoading(false);
+      }
     }
-    setLoading(false);
   };
 
   // Page handlers
   const handlePageChange = (page) => {
     setActivePage(page);
-    loadLogs(page, pageSize).then((r) => {});
+    loadLogs(page, pageSize).catch((error) => showError(error));
   };
 
   const handlePageSizeChange = async (size) => {
-    localStorage.setItem('page-size', size + '');
+    setStoredValue('page-size', size);
     setPageSize(size);
     setActivePage(1);
-    loadLogs(activePage, size)
-      .then()
-      .catch((reason) => {
-        showError(reason);
-      });
+    loadLogs(1, size).catch((reason) => showError(reason));
   };
 
   // Refresh function
@@ -865,15 +897,22 @@ export const useLogsData = () => {
 
   // Initialize data
   useEffect(() => {
+    // Re-arm the guard after React StrictMode's simulated effect cleanup.
+    mountedRef.current = true;
     const localPageSize =
-      parseInt(localStorage.getItem('page-size')) || ITEMS_PER_PAGE;
+      parseInt(getStoredValue('page-size', ''), 10) || ITEMS_PER_PAGE;
     setPageSize(localPageSize);
-    loadLogs(activePage, localPageSize)
-      .then()
-      .catch((reason) => {
-        showError(reason);
-      });
+    loadLogs(1, localPageSize).catch((reason) => showError(reason));
   }, []);
+
+  useEffect(
+    () => () => {
+      mountedRef.current = false;
+      requestCounter.current += 1;
+      statRequestCounter.current += 1;
+    },
+    [],
+  );
 
   // Initialize statistics when formApi is available
   useEffect(() => {

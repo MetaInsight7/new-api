@@ -32,6 +32,8 @@ import {
   displayAmountToQuota,
 } from '../../../../helpers/quota';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
+import { renderSafeDatePickerTrigger } from '../../../common/ui/SafeDatePickerTrigger';
+import { useRequestLifecycle } from '../../../../hooks/common/useRequestLifecycle';
 import {
   Button,
   Modal,
@@ -63,6 +65,7 @@ const EditRedemptionModal = (props) => {
   const isMobile = useIsMobile();
   const formApiRef = useRef(null);
   const [showQuotaInput, setShowQuotaInput] = useState(false);
+  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   const getInitValues = () => ({
     name: '',
@@ -77,21 +80,27 @@ const EditRedemptionModal = (props) => {
   };
 
   const loadRedemption = async () => {
+    const requestId = beginRequest('redemption');
     setLoading(true);
-    let res = await API.get(`/api/redemption/${props.editingRedemption.id}`);
-    const { success, message, data } = res.data;
-    if (success) {
-      if (data.expired_time === 0) {
-        data.expired_time = null;
-      } else {
-        data.expired_time = new Date(data.expired_time * 1000);
+    try {
+      let res = await API.get(`/api/redemption/${props.editingRedemption.id}`);
+      const { success, message, data } = res.data;
+      if (isCurrentRequest('redemption', requestId) && success) {
+        if (data.expired_time === 0) {
+          data.expired_time = null;
+        } else {
+          data.expired_time = new Date(data.expired_time * 1000);
+        }
+        data.amount = Number(quotaToDisplayAmount(data.quota || 0).toFixed(6));
+        formApiRef.current?.setValues({ ...getInitValues(), ...data });
+      } else if (isCurrentRequest('redemption', requestId)) {
+        showError(message);
       }
-      data.amount = Number(quotaToDisplayAmount(data.quota || 0).toFixed(6));
-      formApiRef.current?.setValues({ ...getInitValues(), ...data });
-    } else {
-      showError(message);
+    } catch (error) {
+      if (isCurrentRequest('redemption', requestId)) showError(t('加载兑换码信息失败'));
+    } finally {
+      if (isCurrentRequest('redemption', requestId)) setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -104,73 +113,78 @@ const EditRedemptionModal = (props) => {
     }
   }, [props.editingRedemption.id]);
 
-  const submit = async (values) => {
-    let name = values.name;
-    if (!isEdit && (!name || name === '')) {
-      name = renderQuota(values.quota);
-    }
-    setLoading(true);
-    let localInputs = { ...values };
-    localInputs.count = parseInt(localInputs.count) || 0;
-    localInputs.quota = displayAmountToQuota(localInputs.amount);
-    if (localInputs.quota <= 0) {
-      showError(t('请输入金额'));
+  useEffect(() => {
+    if (!props.visiable) {
+      beginRequest('redemption');
+      beginRequest('submit');
       setLoading(false);
-      return;
     }
-    localInputs.name = name;
-    if (!localInputs.expired_time) {
-      localInputs.expired_time = 0;
-    } else {
-      localInputs.expired_time = Math.floor(
-        localInputs.expired_time.getTime() / 1000,
-      );
-    }
-    let res;
-    if (isEdit) {
-      res = await API.put(`/api/redemption/`, {
-        ...localInputs,
-        id: parseInt(props.editingRedemption.id),
-      });
-    } else {
-      res = await API.post(`/api/redemption/`, {
-        ...localInputs,
-      });
-    }
-    const { success, message, data } = res.data;
-    if (success) {
+  }, [props.visiable]);
+
+  const submit = async (values) => {
+    const requestId = beginRequest('submit');
+    setLoading(true);
+    try {
+      let name = values.name;
+      if (!isEdit && (!name || name === '')) {
+        name = renderQuota(values.quota);
+      }
+      let localInputs = { ...values };
+      localInputs.count = parseInt(localInputs.count) || 0;
+      localInputs.quota = displayAmountToQuota(localInputs.amount);
+      if (localInputs.quota <= 0) {
+        if (isCurrentRequest('submit', requestId)) showError(t('请输入金额'));
+        return;
+      }
+      localInputs.name = name;
+      if (!localInputs.expired_time) {
+        localInputs.expired_time = 0;
+      } else {
+        localInputs.expired_time = Math.floor(
+          localInputs.expired_time.getTime() / 1000,
+        );
+      }
+      let res;
       if (isEdit) {
-        showSuccess(t('兑换码更新成功！'));
+        res = await API.put(`/api/redemption/`, {
+          ...localInputs,
+          id: parseInt(props.editingRedemption.id),
+        });
+      } else {
+        res = await API.post(`/api/redemption/`, {
+          ...localInputs,
+        });
+      }
+      const { success, message, data } = res.data;
+      if (!isCurrentRequest('submit', requestId)) return;
+      if (success) {
+        showSuccess(t(isEdit ? '兑换码更新成功！' : '兑换码创建成功！'));
         props.refresh();
+        if (!isEdit) formApiRef.current?.setValues(getInitValues());
         props.handleClose();
       } else {
-        showSuccess(t('兑换码创建成功！'));
-        props.refresh();
-        formApiRef.current?.setValues(getInitValues());
-        props.handleClose();
+        showError(message);
       }
-    } else {
-      showError(message);
-    }
-    if (!isEdit && data) {
-      let text = '';
-      for (let i = 0; i < data.length; i++) {
-        text += data[i] + '\n';
+      if (!isEdit && success && data) {
+        const text = data.join('\n') + '\n';
+        Modal.confirm({
+          title: t('兑换码创建成功'),
+          content: (
+            <div>
+              <p>{t('兑换码创建成功，是否下载兑换码？')}</p>
+              <p>{t('兑换码将以文本文件的形式下载，文件名为兑换码的名称。')}</p>
+            </div>
+          ),
+          onOk: () => downloadTextAsFile(text, `${localInputs.name}.txt`),
+        });
       }
-      Modal.confirm({
-        title: t('兑换码创建成功'),
-        content: (
-          <div>
-            <p>{t('兑换码创建成功，是否下载兑换码？')}</p>
-            <p>{t('兑换码将以文本文件的形式下载，文件名为兑换码的名称。')}</p>
-          </div>
-        ),
-        onOk: () => {
-          downloadTextAsFile(text, `${localInputs.name}.txt`);
-        },
-      });
+    } catch (error) {
+      if (isCurrentRequest('submit', requestId)) {
+        showError(error.response?.data?.message || t('操作失败'));
+      }
+    } finally {
+      if (isCurrentRequest('submit', requestId)) setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
@@ -275,6 +289,7 @@ const EditRedemptionModal = (props) => {
                         field='expired_time'
                         label={t('过期时间')}
                         type='dateTime'
+                        triggerRender={renderSafeDatePickerTrigger}
                         placeholder={t('选择过期时间（可选，留空为永久）')}
                         style={{ width: '100%' }}
                         showClear

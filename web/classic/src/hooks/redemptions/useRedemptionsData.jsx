@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { API, showError, showSuccess, copy } from '../../helpers';
 import { ITEMS_PER_PAGE } from '../../constants';
 import {
@@ -39,6 +39,9 @@ export const useRedemptionsData = () => {
   const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE);
   const [tokenCount, setTokenCount] = useState(0);
   const [selectedKeys, setSelectedKeys] = useState([]);
+  const mountedRef = useRef(true);
+  const requestSeqRef = useRef(0);
+  const searchSeqRef = useRef(0);
 
   // Edit state
   const [editingRedemption, setEditingRedemption] = useState({
@@ -72,11 +75,13 @@ export const useRedemptionsData = () => {
 
   // Load redemption list
   const loadRedemptions = async (page = 1, pageSize) => {
+    const requestSeq = ++requestSeqRef.current;
     setLoading(true);
     try {
       const res = await API.get(
         `/api/redemption/?p=${page}&page_size=${pageSize}`,
       );
+      if (!mountedRef.current || requestSeq !== requestSeqRef.current) return;
       const { success, message, data } = res.data;
       if (success) {
         const newPageData = data.items;
@@ -87,9 +92,13 @@ export const useRedemptionsData = () => {
         showError(message);
       }
     } catch (error) {
-      showError(error.message);
+      if (mountedRef.current && requestSeq === requestSeqRef.current) {
+        showError(error.message);
+      }
     }
-    setLoading(false);
+    if (mountedRef.current && requestSeq === requestSeqRef.current) {
+      setLoading(false);
+    }
   };
 
   // Search redemption codes
@@ -100,11 +109,13 @@ export const useRedemptionsData = () => {
       return;
     }
 
+    const requestSeq = ++searchSeqRef.current;
     setSearching(true);
     try {
       const res = await API.get(
-        `/api/redemption/search?keyword=${searchKeyword}&p=1&page_size=${pageSize}`,
+        `/api/redemption/search?keyword=${encodeURIComponent(searchKeyword)}&p=1&page_size=${pageSize}`,
       );
+      if (!mountedRef.current || requestSeq !== searchSeqRef.current) return;
       const { success, message, data } = res.data;
       if (success) {
         const newPageData = data.items;
@@ -115,13 +126,19 @@ export const useRedemptionsData = () => {
         showError(message);
       }
     } catch (error) {
-      showError(error.message);
+      if (mountedRef.current && requestSeq === searchSeqRef.current) {
+        showError(error.message);
+      }
+    } finally {
+      if (mountedRef.current && requestSeq === searchSeqRef.current) {
+        setSearching(false);
+      }
     }
-    setSearching(false);
   };
 
   // Manage redemption codes (CRUD operations)
   const manageRedemption = async (id, action, record) => {
+    const requestSeq = ++requestSeqRef.current;
     setLoading(true);
     let data = { id };
     let res;
@@ -143,6 +160,7 @@ export const useRedemptionsData = () => {
           throw new Error('Unknown operation type');
       }
 
+      if (!mountedRef.current || requestSeq !== requestSeqRef.current) return;
       const { success, message } = res.data;
       if (success) {
         showSuccess(t('操作成功完成！'));
@@ -156,9 +174,14 @@ export const useRedemptionsData = () => {
         showError(message);
       }
     } catch (error) {
-      showError(error.message);
+      if (mountedRef.current && requestSeq === requestSeqRef.current) {
+        showError(error.message);
+      }
+    } finally {
+      if (mountedRef.current && requestSeq === requestSeqRef.current) {
+        setLoading(false);
+      }
     }
-    setLoading(false);
   };
 
   // Refresh data
@@ -258,16 +281,28 @@ export const useRedemptionsData = () => {
       title: t('确定清除所有失效兑换码？'),
       content: t('将删除已使用、已禁用及过期的兑换码，此操作不可撤销。'),
       onOk: async () => {
+        const requestSeq = ++requestSeqRef.current;
         setLoading(true);
-        const res = await API.delete('/api/redemption/invalid');
-        const { success, message, data } = res.data;
-        if (success) {
-          showSuccess(t('已删除 {{count}} 条失效兑换码', { count: data }));
-          await refresh();
-        } else {
-          showError(message);
+        try {
+          const res = await API.delete('/api/redemption/invalid');
+          if (!mountedRef.current || requestSeq !== requestSeqRef.current)
+            return;
+          const { success, message, data } = res.data;
+          if (success) {
+            showSuccess(t('已删除 {{count}} 条失效兑换码', { count: data }));
+            await refresh();
+          } else {
+            showError(message);
+          }
+        } catch (error) {
+          if (mountedRef.current && requestSeq === requestSeqRef.current) {
+            showError(error.message);
+          }
+        } finally {
+          if (mountedRef.current && requestSeq === requestSeqRef.current) {
+            setLoading(false);
+          }
         }
-        setLoading(false);
       },
     });
   };
@@ -296,12 +331,18 @@ export const useRedemptionsData = () => {
 
   // Initialize data loading
   useEffect(() => {
-    loadRedemptions(1, pageSize)
-      .then()
-      .catch((reason) => {
-        showError(reason);
-      });
+    mountedRef.current = true;
+    loadRedemptions(1, pageSize).catch((reason) => showError(reason));
   }, [pageSize]);
+
+  useEffect(
+    () => () => {
+      mountedRef.current = false;
+      requestSeqRef.current += 1;
+      searchSeqRef.current += 1;
+    },
+    [],
+  );
 
   return {
     // Data state

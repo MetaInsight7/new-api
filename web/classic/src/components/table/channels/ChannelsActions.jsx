@@ -27,6 +27,7 @@ import {
   Select,
 } from '@douyinfe/semi-ui';
 import CompactModeToggle from '../../common/ui/CompactModeToggle';
+import { setStoredValue } from '../../../helpers/siteStorage';
 
 const ChannelsActions = ({
   enableBatchDelete,
@@ -240,7 +241,7 @@ const ChannelsActions = ({
               size='small'
               checked={idSort}
               onChange={(v) => {
-                localStorage.setItem('id-sort', v + '');
+                setStoredValue('id-sort', v);
                 setIdSort(v);
                 const { searchKeyword, searchGroup, searchModel } =
                   getFormValues();
@@ -272,7 +273,7 @@ const ChannelsActions = ({
               size='small'
               checked={enableBatchDelete}
               onChange={(v) => {
-                localStorage.setItem('enable-batch-delete', v + '');
+                setStoredValue('enable-batch-delete', v);
                 setEnableBatchDelete(v);
               }}
             />
@@ -286,7 +287,7 @@ const ChannelsActions = ({
               size='small'
               checked={enableTagMode}
               onChange={(v) => {
-                localStorage.setItem('enable-tag-mode', v + '');
+                setStoredValue('enable-tag-mode', v);
                 setEnableTagMode(v);
                 setActivePage(1);
                 loadChannels(1, pageSize, idSort, v);
@@ -302,7 +303,7 @@ const ChannelsActions = ({
               size='small'
               value={statusFilter}
               onChange={(v) => {
-                localStorage.setItem('channel-status-filter', v);
+                setStoredValue('channel-status-filter', v);
                 setStatusFilter(v);
                 setActivePage(1);
                 loadChannels(

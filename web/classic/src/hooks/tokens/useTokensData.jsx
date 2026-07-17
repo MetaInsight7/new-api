@@ -36,6 +36,7 @@ import {
   encodeChannelConnectionString,
 } from '../../helpers/token';
 import { tokenMockData } from '../../components/table/tokens/tokenMockData';
+import { getStoredJSON } from '../../helpers/siteStorage';
 
 export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
   const { t } = useTranslation();
@@ -67,6 +68,8 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
   const [resolvedTokenKeys, setResolvedTokenKeys] = useState({});
   const [loadingTokenKeys, setLoadingTokenKeys] = useState({});
   const keyRequestsRef = useRef({});
+  const requestCounter = useRef(0);
+  const mountedRef = useRef(true);
 
   // Form state
   const [formApi, setFormApi] = useState(null);
@@ -105,9 +108,11 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
 
   // Load tokens function
   const loadTokens = async (page = 1, size = pageSize) => {
+    const requestId = ++requestCounter.current;
     setLoading(true);
     setSearchMode(false);
     if (mockMode) {
+      if (!mountedRef.current || requestId !== requestCounter.current) return;
       syncPageData({
         items: tokenMockData,
         total: tokenMockData.length,
@@ -117,14 +122,24 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
       setLoading(false);
       return;
     }
-    const res = await API.get(`/api/token/?p=${page}&size=${size}`);
-    const { success, message, data } = res.data;
-    if (success) {
-      syncPageData(data);
-    } else {
-      showError(message);
+    try {
+      const res = await API.get(`/api/token/?p=${page}&size=${size}`);
+      if (!mountedRef.current || requestId !== requestCounter.current) return;
+      const { success, message, data } = res.data;
+      if (success) {
+        syncPageData(data);
+      } else {
+        showError(message);
+      }
+    } catch (error) {
+      if (mountedRef.current && requestId === requestCounter.current) {
+        showError(error);
+      }
+    } finally {
+      if (mountedRef.current && requestId === requestCounter.current) {
+        setLoading(false);
+      }
     }
-    setLoading(false);
   };
 
   // Refresh function
@@ -171,7 +186,9 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
       setLoadingTokenKeys((prev) => ({ ...prev, [tokenId]: true }));
       try {
         const fullKey = await fetchTokenKeyById(tokenId);
-        setResolvedTokenKeys((prev) => ({ ...prev, [tokenId]: fullKey }));
+        if (mountedRef.current) {
+          setResolvedTokenKeys((prev) => ({ ...prev, [tokenId]: fullKey }));
+        }
         return fullKey;
       } catch (error) {
         const normalizedError = new Error(
@@ -183,11 +200,13 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
         throw normalizedError;
       } finally {
         delete keyRequestsRef.current[tokenId];
-        setLoadingTokenKeys((prev) => {
-          const next = { ...prev };
-          delete next[tokenId];
-          return next;
-        });
+        if (mountedRef.current) {
+          setLoadingTokenKeys((prev) => {
+            const next = { ...prev };
+            delete next[tokenId];
+            return next;
+          });
+        }
       }
     })();
 
@@ -235,12 +254,8 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
       openFluentNotification(fullKey);
       return;
     }
-    let status = localStorage.getItem('status');
-    let serverAddress = '';
-    if (status) {
-      status = JSON.parse(status);
-      serverAddress = status.server_address;
-    }
+    const status = getStoredJSON('status', {});
+    let serverAddress = status?.server_address || '';
     if (serverAddress === '') {
       serverAddress = window.location.origin;
     }
@@ -280,47 +295,62 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
       url = url.replaceAll('{key}', `sk-${fullKey}`);
     }
 
-    window.open(url, '_blank');
+    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   // Manage token function (delete, enable, disable)
   const manageToken = async (id, action, record) => {
+    const requestId = ++requestCounter.current;
     setLoading(true);
-    let data = { id };
-    let res;
-    switch (action) {
-      case 'delete':
-        res = await API.delete(`/api/token/${id}/`);
-        break;
-      case 'enable':
-        data.status = 1;
-        res = await API.put('/api/token/?status_only=true', data);
-        break;
-      case 'disable':
-        data.status = 2;
-        res = await API.put('/api/token/?status_only=true', data);
-        break;
-    }
-    const { success, message } = res.data;
-    if (success) {
-      showSuccess(t('操作成功完成！'));
-      let token = res.data.data;
-      let newTokens = [...tokens];
-      if (action !== 'delete') {
-        record.status = token.status;
+    try {
+      let data = { id };
+      let res;
+      switch (action) {
+        case 'delete':
+          res = await API.delete(`/api/token/${id}/`);
+          break;
+        case 'enable':
+          data.status = 1;
+          res = await API.put('/api/token/?status_only=true', data);
+          break;
+        case 'disable':
+          data.status = 2;
+          res = await API.put('/api/token/?status_only=true', data);
+          break;
+        default:
+          return;
       }
-      setTokens(newTokens);
-    } else {
-      showError(message);
+      if (!mountedRef.current || requestId !== requestCounter.current) return;
+      const { success, message } = res.data;
+      if (success) {
+        showSuccess(t('操作成功完成！'));
+        const token = res.data.data;
+        const newTokens = tokens
+          .filter((item) => action !== 'delete' || item.id !== id)
+          .map((item) =>
+            item.id === id && action !== 'delete'
+              ? { ...item, status: token.status }
+              : item,
+          );
+        setTokens(newTokens);
+      } else {
+        showError(message);
+      }
+    } catch (error) {
+      if (mountedRef.current && requestId === requestCounter.current) {
+        showError(error);
+      }
+    } finally {
+      if (mountedRef.current && requestId === requestCounter.current) {
+        setLoading(false);
+      }
     }
-    setLoading(false);
   };
 
   // Search tokens function
   const searchTokens = async (page = 1, size = pageSize) => {
     const normalizedPage = Number.isInteger(page) && page > 0 ? page : 1;
-    const normalizedSize =
-      Number.isInteger(size) && size > 0 ? size : pageSize;
+    const normalizedSize = Number.isInteger(size) && size > 0 ? size : pageSize;
 
     const { searchKeyword, searchToken } = getFormValues();
     if (searchKeyword === '' && searchToken === '') {
@@ -328,18 +358,29 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
       await loadTokens(1);
       return;
     }
+    const requestId = ++requestCounter.current;
     setSearching(true);
-    const res = await API.get(
-      `/api/token/search?keyword=${encodeURIComponent(searchKeyword)}&token=${encodeURIComponent(searchToken)}&p=${normalizedPage}&size=${normalizedSize}`,
-    );
-    const { success, message, data } = res.data;
-    if (success) {
-      setSearchMode(true);
-      syncPageData(data);
-    } else {
-      showError(message);
+    try {
+      const res = await API.get(
+        `/api/token/search?keyword=${encodeURIComponent(searchKeyword)}&token=${encodeURIComponent(searchToken)}&p=${normalizedPage}&size=${normalizedSize}`,
+      );
+      if (!mountedRef.current || requestId !== requestCounter.current) return;
+      const { success, message, data } = res.data;
+      if (success) {
+        setSearchMode(true);
+        syncPageData(data);
+      } else {
+        showError(message);
+      }
+    } catch (error) {
+      if (mountedRef.current && requestId === requestCounter.current) {
+        showError(error);
+      }
+    } finally {
+      if (mountedRef.current && requestId === requestCounter.current) {
+        setSearching(false);
+      }
     }
-    setSearching(false);
   };
 
   // Sort tokens function
@@ -360,9 +401,9 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
   // Page handlers
   const handlePageChange = (page) => {
     if (searchMode) {
-      searchTokens(page, pageSize).then();
+      searchTokens(page, pageSize).catch((error) => showError(error));
     } else {
-      loadTokens(page, pageSize).then();
+      loadTokens(page, pageSize).catch((error) => showError(error));
     }
   };
 
@@ -403,16 +444,23 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
       showError(t('请先选择要删除的令牌！'));
       return;
     }
+    const requestId = ++requestCounter.current;
     setLoading(true);
     try {
       const ids = selectedKeys.map((token) => token.id);
       const res = await API.post('/api/token/batch', { ids });
+      if (!mountedRef.current || requestId !== requestCounter.current) return;
       if (res?.data?.success) {
         const count = res.data.data || 0;
         showSuccess(t('已删除 {{count}} 个令牌！', { count }));
         await refresh();
         setTimeout(() => {
-          if (tokens.length === 0 && activePage > 1) {
+          if (
+            mountedRef.current &&
+            requestId === requestCounter.current &&
+            tokens.length === 0 &&
+            activePage > 1
+          ) {
             refresh(activePage - 1);
           }
         }, 100);
@@ -420,9 +468,13 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
         showError(res?.data?.message || t('删除失败'));
       }
     } catch (error) {
-      showError(error.message);
+      if (mountedRef.current && requestId === requestCounter.current) {
+        showError(error.message);
+      }
     } finally {
-      setLoading(false);
+      if (mountedRef.current && requestId === requestCounter.current) {
+        setLoading(false);
+      }
     }
   };
 
@@ -456,17 +508,18 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
 
   // Initialize data
   useEffect(() => {
-    loadTokens(1)
-      .then()
-      .catch((reason) => {
-        showError(reason);
-      });
+    // Re-arm after StrictMode's simulated cleanup before starting a request.
+    mountedRef.current = true;
+    loadTokens(1).catch((reason) => {
+      if (mountedRef.current) showError(reason);
+    });
     if (mockMode) {
       setGroupRatios({ default: 1, pro: 0.8 });
       return;
     }
     API.get('/api/user/self/groups')
       .then((res) => {
+        if (!mountedRef.current) return;
         if (res.data.success && res.data.data) {
           const ratios = {};
           for (const [name, info] of Object.entries(res.data.data)) {
@@ -477,6 +530,15 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
       })
       .catch(() => {});
   }, [pageSize]);
+
+  useEffect(
+    () => () => {
+      mountedRef.current = false;
+      requestCounter.current += 1;
+      keyRequestsRef.current = {};
+    },
+    [],
+  );
 
   return {
     // Basic state

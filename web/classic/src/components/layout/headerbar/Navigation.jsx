@@ -19,7 +19,6 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import SkeletonWrapper from '../components/SkeletonWrapper';
 
 const Navigation = ({
   mainNavLinks,
@@ -27,6 +26,7 @@ const Navigation = ({
   isLoading,
   userState,
   pricingRequireAuth,
+  isConsoleRoute,
 }) => {
   const location = useLocation();
   const isActive = (to) => {
@@ -64,6 +64,7 @@ const Navigation = ({
         <Link
           key={link.itemKey}
           to={targetPath}
+          aria-current={isActive(link.to) ? 'page' : undefined}
           className={`tn-link${isActive(link.to) ? ' tn-on' : ''}`}
         >
           <span>{link.text}</span>
@@ -73,17 +74,12 @@ const Navigation = ({
   };
 
   return (
-    <nav className='flex flex-1 items-center gap-1 lg:gap-2 mx-2 md:mx-4 overflow-x-auto whitespace-nowrap scrollbar-hide lg:absolute lg:left-1/2 lg:top-1/2 lg:-translate-x-1/2 lg:-translate-y-1/2 lg:flex-none lg:mx-0'>
-      <SkeletonWrapper
-        loading={isLoading}
-        type='navigation'
-        count={4}
-        width={60}
-        height={16}
-        isMobile={isMobile}
-      >
-        {renderNavLinks()}
-      </SkeletonWrapper>
+    <nav
+      aria-label='主导航'
+      aria-busy={isLoading ? 'true' : undefined}
+      className='flex flex-1 items-center gap-1 lg:gap-2 mx-2 md:mx-4 overflow-x-auto whitespace-nowrap scrollbar-hide lg:absolute lg:left-1/2 lg:top-1/2 lg:-translate-x-1/2 lg:-translate-y-1/2 lg:flex-none lg:mx-0'
+    >
+      {renderNavLinks()}
     </nav>
   );
 };

@@ -1,0 +1,330 @@
+/* Shared stylesheet layer. Keep selectors scoped by their owning surface where possible. */
+
+.app-sider {
+  height: calc(100vh - 64px);
+  height: calc(100dvh - 64px);
+}
+
+/* ==================== DMIT 蓝色侧边栏 ==================== */
+.app-sider,
+.app-sider .semi-layout-sider-children {
+  background: transparent !important;
+  box-shadow: none !important;
+  overflow: visible !important;
+}
+
+.dmit-sider {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  border-right: 1px solid #ececf0;
+  color: #4a5364;
+  transition:
+    width 0.18s ease,
+    background 0.18s ease;
+}
+
+.dmit-sider__logo {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  padding: 34px 8px 18px;
+  margin-bottom: 6px;
+  flex-shrink: 0;
+  text-decoration: none;
+}
+
+.dmit-sider__logo::after {
+  content: '';
+  position: absolute;
+  left: 20px;
+  right: 20px;
+  bottom: 0;
+  height: 1px;
+  background: #eef1f6;
+}
+
+.dmit-sider__logo-img {
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  object-fit: contain;
+  filter: none;
+}
+
+.dmit-sider__logo-text {
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #0f1729;
+  max-width: 100%;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition:
+    opacity 0.15s ease,
+    max-width 0.15s ease;
+}
+
+.dmit-sider__menu {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding: 10px;
+  padding-bottom: max(10px, env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.dmit-sider__menu::-webkit-scrollbar {
+  display: none;
+}
+
+/* DMIT menu-item：图标在上、文字在下（还原 .menu-item 源样式） */
+.dmit-menu-item {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 16px 4px;
+  color: #5b6472;
+  text-decoration: none;
+  border-radius: 12px;
+  transition:
+    color 0.2s ease,
+    background 0.2s ease;
+}
+
+.dmit-menu-item:hover,
+.dmit-menu-item:focus {
+  text-decoration: none;
+  color: #0f1729;
+  background: #f4f6fa;
+}
+
+.dmit-menu-item--active {
+  color: #2563eb;
+  background: rgba(37, 99, 235, 0.1);
+}
+
+.dmit-menu-item__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dmit-menu-item__title {
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+  line-height: 1.2;
+}
+
+/* Desktop collapsed mode is driven by the same state as the header button. */
+.dmit-sider--collapsed .dmit-sider__logo {
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+.dmit-sider--collapsed .dmit-sider__logo-text,
+.dmit-sider--collapsed .dmit-menu-item__title {
+  opacity: 0;
+  max-width: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.dmit-sider--collapsed .dmit-menu-item {
+  padding-left: 2px;
+  padding-right: 2px;
+}
+
+@media (max-width: 767px) {
+  .dmit-sider--collapsed .dmit-sider__logo-text,
+  .dmit-sider--collapsed .dmit-menu-item__title {
+    opacity: 1;
+    max-width: 100%;
+    pointer-events: auto;
+  }
+}
+
+/* ===== 二级导航：下划线标签栏(GitHub/Vercel/Linear 式页面切换) ===== */
+.dmit-subnav {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 2px;
+  /* 无独立卡壳:一条基线把标签托住,激活项用蓝下划线指示位置,
+     与下方内容卡自然衔接,不再是漂浮 pill / 孤立容器 */
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid #e2e8f0;
+  border-radius: 0;
+  padding: 0;
+  margin-bottom: 18px;
+  /* 与各页面内容容器的 px-2(8px) 对齐 */
+  margin-left: 8px;
+  margin-right: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.dmit-subnav::-webkit-scrollbar {
+  display: none;
+}
+
+.dmit-subnav__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 11px 16px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  border-radius: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: #64748b;
+  text-decoration: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.dmit-subnav__item:hover {
+  background: transparent;
+  color: #0f172a;
+  text-decoration: none;
+}
+
+.dmit-subnav__item--active,
+.dmit-subnav__item--active:hover {
+  background: transparent;
+  color: #2563eb;
+  border-bottom-color: #2563eb;
+  font-weight: 600;
+}
+
+.dmit-subnav__icon {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+/* 右侧动作槽:时间区间 + 筛选等页面级控件,垂直居中贴住标签基线 */
+.dmit-subnav__actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  align-self: center;
+  position: relative;
+  top: -2px;
+}
+.dmit-subnav__actions:empty {
+  display: none;
+}
+
+/* SubNav 清除固定顶栏(60px)，并吸收紧随其后页面的 mt-[60px]，避免双重间距/被顶栏遮挡 */
+.semi-layout-content > .dmit-subnav {
+  margin-top: 60px;
+}
+
+.semi-layout-content > .dmit-subnav + * {
+  margin-top: 0 !important;
+}
+
+/* 产品侧配色：管理侧保留 Semi 自己的内容背景 */
+.app-surface-product .semi-layout-content {
+  background-color: #fafafa;
+}
+
+/* 控制台强调色统一为 DMIT 主蓝 #2563eb(Semi 默认偏亮紫蓝)；仅亮色，暗色不动 */
+/* 注意:Semi 的 --semi-color-primary 是完整颜色值(默认 rgba(0,100,250,1)),
+   solid 按钮直接 background-color: var(--semi-color-primary),所以必须给完整 rgba,
+   不能写裸三元组(否则当 background 用时非法→透明白底白字) */
+html:not(.dark) .app-surface-product {
+  --semi-color-primary: rgba(37, 99, 235, 1);
+  --semi-color-primary-hover: rgba(29, 78, 216, 1);
+  --semi-color-primary-active: rgba(30, 64, 175, 1);
+  --semi-color-primary-light-default: rgba(37, 99, 235, 0.1);
+  --semi-color-primary-light-hover: rgba(37, 99, 235, 0.16);
+  --semi-color-primary-light-active: rgba(37, 99, 235, 0.24);
+}
+
+/* 移动端：二级 pill 横向滚动 */
+@media (max-width: 767px) {
+  .dmit-subnav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .dmit-subnav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .dmit-subnav__item {
+    flex-shrink: 0;
+  }
+
+  /* 带筛选动作的二级导航(日志页):筛选区换到 tab 下方整行 */
+  .dmit-subnav:has(.dmit-subnav__actions:not(:empty)) {
+    flex-wrap: wrap;
+    overflow-x: visible;
+    row-gap: 12px;
+  }
+
+  .dmit-subnav__actions:not(:empty) {
+    order: 2;
+    flex-basis: 100%;
+    width: 100%;
+    margin-left: 0;
+    top: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 10px;
+  }
+
+  .dmit-subnav__actions::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* 移动端:日志/令牌页去掉 CardPro 外层边框(内部已是独立卡片，避免双层框) */
+@media (max-width: 767px) {
+  /* 侧栏紧凑化:减小 logo 与菜单项内边距，常见机型 7 项尽量免滚(滚动仍作兜底) */
+  .dmit-sider__logo {
+    padding: 20px 8px 14px;
+    margin-bottom: 4px;
+  }
+  .dmit-menu-item {
+    padding: 12px 4px;
+    gap: 5px;
+  }
+  .semi-card.usage-log-card,
+  .semi-card.dmit-flat-card {
+    border: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+  }
+
+  .semi-card.usage-log-card > .semi-card-body,
+  .semi-card.dmit-flat-card > .semi-card-body {
+    padding: 0 !important;
+  }
+}

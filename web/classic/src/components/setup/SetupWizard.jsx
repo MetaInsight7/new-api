@@ -27,6 +27,7 @@ import DatabaseStep from './components/steps/DatabaseStep';
 import AdminStep from './components/steps/AdminStep';
 import UsageModeStep from './components/steps/UsageModeStep';
 import CompleteStep from './components/steps/CompleteStep';
+import { useRequestLifecycle } from '../../hooks/common/useRequestLifecycle';
 
 const SetupWizard = () => {
   const { t } = useTranslation();
@@ -38,6 +39,7 @@ const SetupWizard = () => {
   });
   const [currentStep, setCurrentStep] = useState(0);
   const formRef = useRef(null);
+  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   const [formData, setFormData] = useState({
     username: '',
@@ -78,10 +80,11 @@ const SetupWizard = () => {
   }, []);
 
   const fetchSetupStatus = async () => {
+    const requestId = beginRequest('status');
     try {
       const res = await API.get('/api/setup');
       const { success, data } = res.data;
-      if (success) {
+      if (isCurrentRequest('status', requestId) && success) {
         setSetupStatus(data);
 
         // If setup is already completed, redirect to home
@@ -93,11 +96,15 @@ const SetupWizard = () => {
         // 设置当前步骤 - 默认从数据库检查开始
         setCurrentStep(0);
       } else {
-        showError(t('获取初始化状态失败'));
+        if (isCurrentRequest('status', requestId)) {
+          showError(t('获取初始化状态失败'));
+        }
       }
     } catch (error) {
       console.error('Failed to fetch setup status:', error);
-      showError(t('获取初始化状态失败'));
+      if (isCurrentRequest('status', requestId)) {
+        showError(t('获取初始化状态失败'));
+      }
     }
   };
 
@@ -200,11 +207,12 @@ const SetupWizard = () => {
     delete formValues.usageMode;
 
     // 提交表单至后端
+    const requestId = beginRequest('submit');
     setLoading(true);
 
-    // Submit to backend
     API.post('/api/setup', formValues)
       .then((res) => {
+        if (!isCurrentRequest('submit', requestId)) return;
         const { success, message } = res.data;
 
         if (success) {
@@ -218,11 +226,12 @@ const SetupWizard = () => {
       })
       .catch((error) => {
         console.error('API error:', error);
-        showError(t('系统初始化失败，请重试'));
-        setLoading(false);
+        if (isCurrentRequest('submit', requestId)) {
+          showError(t('系统初始化失败，请重试'));
+        }
       })
       .finally(() => {
-        setLoading(false);
+        if (isCurrentRequest('submit', requestId)) setLoading(false);
       });
   };
 

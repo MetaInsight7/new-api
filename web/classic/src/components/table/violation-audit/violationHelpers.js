@@ -1,5 +1,24 @@
-// 违规审计前端共享工具:分类/分级/动作 → Semi Tag 颜色 + 标签,时间格式化。
-// 颜色走 Semi 语义色(受 .app-console DMIT 主题统一控制),不自造。
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
+// 违规审计前端共享工具：分类/分级/动作 → Semi Tag 颜色 + 标签，时间格式化。
+// 颜色走 Semi 语义色（受控制台主题统一控制），不自造。
 
 export const VIOLATION_CATEGORIES = [
   { value: 'politics', label: '涉政', color: 'red' },

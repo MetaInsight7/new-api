@@ -17,17 +17,18 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useHeaderBar } from '../../../hooks/common/useHeaderBar';
 import { useNotifications } from '../../../hooks/common/useNotifications';
 import { useNavigation } from '../../../hooks/common/useNavigation';
-import NoticeModal from '../NoticeModal';
 import MobileMenuButton from './MobileMenuButton';
 import HeaderLogo from './HeaderLogo';
 import Navigation from './Navigation';
 import ActionButtons from './ActionButtons';
 import './token-nav.css';
+
+const NoticeModal = lazy(() => import('../NoticeModal'));
 
 const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   const {
@@ -72,13 +73,17 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     <header
       className={`token-nav text-semi-color-text-0 sticky top-0 z-50 transition-colors duration-300${isHomeRoute ? ' token-home-header' : ''}`}
     >
-      <NoticeModal
-        visible={noticeVisible}
-        onClose={handleNoticeClose}
-        isMobile={isMobile}
-        defaultTab={unreadCount > 0 ? 'system' : 'inApp'}
-        unreadKeys={getUnreadKeys()}
-      />
+      {noticeVisible && (
+        <Suspense fallback={null}>
+          <NoticeModal
+            visible
+            onClose={handleNoticeClose}
+            isMobile={isMobile}
+            defaultTab={unreadCount > 0 ? 'system' : 'inApp'}
+            unreadKeys={getUnreadKeys()}
+          />
+        </Suspense>
+      )}
 
       <div className='w-full px-2'>
         <div className='flex items-center justify-between h-16 relative'>
@@ -111,6 +116,7 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
             isLoading={isLoading}
             userState={userState}
             pricingRequireAuth={pricingRequireAuth}
+            isConsoleRoute={isConsoleRoute}
           />
 
           <ActionButtons

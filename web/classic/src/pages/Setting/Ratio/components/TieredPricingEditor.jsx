@@ -34,6 +34,7 @@ import {
 import { IconCopy, IconDelete, IconPlus } from '@douyinfe/semi-icons';
 import { renderQuota } from '../../../../helpers/render';
 import { copy, showSuccess } from '../../../../helpers';
+import { getStoredValue } from '../../../../helpers/siteStorage';
 import { BILLING_EXTRA_VARS, BILLING_CACHE_VAR_MAP, BILLING_CONDITION_VARS } from '../../../../constants';
 import {
   createEmptyCondition,
@@ -965,27 +966,188 @@ function CacheTokenEstimatorInputs({
 // ---------------------------------------------------------------------------
 
 function evalExprLocally(exprStr, p, c, extraTokenValues) {
-  try {
-    let matchedTier = '';
-    const tierFn = (name, value) => {
-      matchedTier = name;
-      return value;
-    };
-    const cacheReadTokens = extraTokenValues.cacheReadTokens || 0;
-    const cacheCreateTokens = extraTokenValues.cacheCreateTokens || 0;
-    const cacheCreate1hTokens = extraTokenValues.cacheCreate1hTokens || 0;
-    const len = p + cacheReadTokens + cacheCreateTokens + cacheCreate1hTokens;
-    const env = { p, c, len, tier: tierFn, max: Math.max, min: Math.min, abs: Math.abs, ceil: Math.ceil, floor: Math.floor };
-    for (const field of EXTRA_ESTIMATOR_FIELDS) {
-      env[field.var] = extraTokenValues[field.stateKey] || 0;
+  // The expression is entered by an administrator, so it must never be
+  // compiled with eval/new Function. This small parser intentionally exposes
+  // only the billing grammar used by the editor and its allowlisted helpers.
+  const source = String(exprStr || '').trim();
+  let cursor = 0;
+  let matchedTier = '';
+  const cacheReadTokens = Number(extraTokenValues.cacheReadTokens) || 0;
+  const cacheCreateTokens = Number(extraTokenValues.cacheCreateTokens) || 0;
+  const cacheCreate1hTokens = Number(extraTokenValues.cacheCreate1hTokens) || 0;
+  const env = {
+    p: Number(p) || 0,
+    c: Number(c) || 0,
+    len: (Number(p) || 0) + cacheReadTokens + cacheCreateTokens + cacheCreate1hTokens,
+  };
+  for (const field of EXTRA_ESTIMATOR_FIELDS) {
+    env[field.var] = Number(extraTokenValues[field.stateKey]) || 0;
+  }
+
+  const fail = (message) => {
+    throw new Error(`${message} (位置 ${cursor})`);
+  };
+  const skipSpace = () => {
+    while (/\s/.test(source[cursor] || '')) cursor += 1;
+  };
+  const match = (token) => {
+    skipSpace();
+    if (source.slice(cursor, cursor + token.length) !== token) return false;
+    cursor += token.length;
+    return true;
+  };
+  const expect = (token) => {
+    if (!match(token)) fail(`缺少 ${token}`);
+  };
+  const parseNumber = () => {
+    skipSpace();
+    const value = source.slice(cursor).match(/^(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?/);
+    if (!value) return null;
+    cursor += value[0].length;
+    return Number(value[0]);
+  };
+  const parseString = () => {
+    skipSpace();
+    const quote = source[cursor];
+    if (quote !== '"' && quote !== "'") return null;
+    cursor += 1;
+    let result = '';
+    while (cursor < source.length) {
+      const char = source[cursor++];
+      if (char === quote) return result;
+      if (char === '\\' && cursor < source.length) result += source[cursor++];
+      else result += char;
     }
-    const fn = new Function(
-      ...Object.keys(env),
-      `"use strict"; return (${exprStr});`,
-    );
-    return { cost: fn(...Object.values(env)), matchedTier, error: null };
-  } catch (e) {
-    return { cost: 0, matchedTier: '', error: e.message };
+    fail('字符串未闭合');
+    return '';
+  };
+  const parseIdentifier = () => {
+    skipSpace();
+    const value = source.slice(cursor).match(/^[A-Za-z_][A-Za-z0-9_]*/);
+    if (!value) return null;
+    cursor += value[0].length;
+    return value[0];
+  };
+  const parsePrimary = () => {
+    skipSpace();
+    if (match('(')) {
+      const value = parseTernary();
+      expect(')');
+      return value;
+    }
+    const stringValue = parseString();
+    if (stringValue !== null) return stringValue;
+    const numberValue = parseNumber();
+    if (numberValue !== null) return numberValue;
+    const identifier = parseIdentifier();
+    if (!identifier) fail('无法识别的表达式');
+    if (!match('(')) {
+      if (identifier === 'true') return true;
+      if (identifier === 'false') return false;
+      if (!Object.prototype.hasOwnProperty.call(env, identifier)) {
+        fail(`不支持的变量 ${identifier}`);
+      }
+      return env[identifier];
+    }
+    const args = [];
+    skipSpace();
+    if (!match(')')) {
+      do {
+        args.push(parseTernary());
+      } while (match(','));
+      expect(')');
+    }
+    if (identifier === 'tier' && args.length === 2 && typeof args[0] === 'string') {
+      matchedTier = args[0];
+      return Number(args[1]) || 0;
+    }
+    const functions = {
+      max: Math.max,
+      min: Math.min,
+      abs: Math.abs,
+      ceil: Math.ceil,
+      floor: Math.floor,
+    };
+    if (!functions[identifier] || args.some((value) => typeof value !== 'number')) {
+      fail(`不支持的函数 ${identifier}`);
+    }
+    return functions[identifier](...args);
+  };
+  const parseUnary = () => {
+    if (match('+')) return +parseUnary();
+    if (match('-')) return -parseUnary();
+    if (match('!')) return !parseUnary();
+    return parsePrimary();
+  };
+  const parseMultiplicative = () => {
+    let value = parseUnary();
+    while (true) {
+      if (match('*')) value *= parseUnary();
+      else if (match('/')) value /= parseUnary();
+      else if (match('%')) value %= parseUnary();
+      else return value;
+    }
+  };
+  const parseAdditive = () => {
+    let value = parseMultiplicative();
+    while (true) {
+      if (match('+')) value += parseMultiplicative();
+      else if (match('-')) value -= parseMultiplicative();
+      else return value;
+    }
+  };
+  const parseComparison = () => {
+    let value = parseAdditive();
+    const operators = ['<=', '>=', '==', '!=', '<', '>'];
+    while (true) {
+      const operator = operators.find((candidate) => {
+        if (!source.slice(cursor).trimStart().startsWith(candidate)) return false;
+        return true;
+      });
+      if (!operator) return value;
+      expect(operator);
+      const right = parseAdditive();
+      if (operator === '<=') value = value <= right;
+      else if (operator === '>=') value = value >= right;
+      else if (operator === '==') value = value === right;
+      else if (operator === '!=') value = value !== right;
+      else if (operator === '<') value = value < right;
+      else value = value > right;
+    }
+  };
+  const parseLogicalAnd = () => {
+    let value = parseComparison();
+    while (match('&&')) {
+      const right = parseComparison();
+      value = Boolean(value) && Boolean(right);
+    }
+    return value;
+  };
+  const parseLogicalOr = () => {
+    let value = parseLogicalAnd();
+    while (match('||')) {
+      const right = parseLogicalAnd();
+      value = Boolean(value) || Boolean(right);
+    }
+    return value;
+  };
+  function parseTernary() {
+    const condition = parseLogicalOr();
+    if (!match('?')) return condition;
+    const whenTrue = parseTernary();
+    expect(':');
+    const whenFalse = parseTernary();
+    return condition ? whenTrue : whenFalse;
+  }
+
+  try {
+    const cost = parseTernary();
+    skipSpace();
+    if (cursor !== source.length) fail('表达式末尾存在无效内容');
+    if (typeof cost !== 'number' || !Number.isFinite(cost)) fail('费用结果不是有效数字');
+    return { cost, matchedTier, error: null };
+  } catch (error) {
+    return { cost: 0, matchedTier: '', error: error.message };
   }
 }
 
@@ -1506,7 +1668,9 @@ export default function TieredPricingEditor({ model, onExprChange, requestRuleEx
   const evalResult = useMemo(() => {
       const result = evalExprLocally(effectiveExpr, promptTokens, completionTokens, extraTokenValues);
       if (!result.error) {
-        result.cost = result.cost / 1000000 * (parseFloat(localStorage.getItem('quota_per_unit')) || 500000);
+        result.cost =
+          (result.cost / 1000000) *
+          (parseFloat(getStoredValue('quota_per_unit', '')) || 500000);
       }
       return result;
     },

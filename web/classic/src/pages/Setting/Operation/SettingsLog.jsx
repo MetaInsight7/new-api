@@ -37,20 +37,31 @@ import {
   showSuccess,
   showWarning,
 } from '../../../helpers';
+import { renderSafeDatePickerTrigger } from '../../../components/common/ui/SafeDatePickerTrigger';
 
 const { Text } = Typography;
+
+const DEFAULT_LOG_INPUTS = Object.freeze({
+  LogConsumeEnabled: false,
+  ErrorLogEnabled: false,
+  historyTimestamp: dayjs().subtract(1, 'month').toDate(),
+});
 
 export default function SettingsLog(props) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [loadingCleanHistoryLog, setLoadingCleanHistoryLog] = useState(false);
-  const [inputs, setInputs] = useState({
-    LogConsumeEnabled: false,
-    ErrorLogEnabled: false,
-    historyTimestamp: dayjs().subtract(1, 'month').toDate(),
-  });
+  const [inputs, setInputs] = useState(() => ({ ...DEFAULT_LOG_INPUTS }));
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   function onSubmit() {
     const updateArray = compareObjects(inputs, inputsRow).filter(
@@ -79,6 +90,7 @@ export default function SettingsLog(props) {
           if (res.includes(undefined))
             return showError(t('部分保存失败，请重试'));
         }
+        if (!mountedRef.current) return;
         showSuccess(t('保存成功'));
         props.refresh();
       })
@@ -86,7 +98,7 @@ export default function SettingsLog(props) {
         showError(t('保存失败，请重试'));
       })
       .finally(() => {
-        setLoading(false);
+        if (mountedRef.current) setLoading(false);
       });
   }
   async function onCleanHistoryLog() {
@@ -160,13 +172,15 @@ export default function SettingsLog(props) {
       okType: 'danger',
       onOk: async () => {
         try {
-          setLoadingCleanHistoryLog(true);
+          if (mountedRef.current) setLoadingCleanHistoryLog(true);
           const res = await API.delete(
             `/api/log/?target_timestamp=${Date.parse(inputs.historyTimestamp) / 1000}`,
           );
           const { success, message, data } = res.data;
           if (success) {
-            showSuccess(`${data} ${t('条日志已清理！')}`);
+            if (mountedRef.current) {
+              showSuccess(`${data} ${t('条日志已清理！')}`);
+            }
             return;
           } else {
             throw new Error(t('日志清理失败：') + message);
@@ -174,7 +188,7 @@ export default function SettingsLog(props) {
         } catch (error) {
           showError(error.message);
         } finally {
-          setLoadingCleanHistoryLog(false);
+          if (mountedRef.current) setLoadingCleanHistoryLog(false);
         }
       },
     });
@@ -189,9 +203,10 @@ export default function SettingsLog(props) {
       }
     }
     currentInputs['historyTimestamp'] = inputs.historyTimestamp;
-    setInputs(Object.assign(inputs, currentInputs));
-    setInputsRow(structuredClone(currentInputs));
-    refForm.current.setValues(currentInputs);
+    const nextInputs = { ...inputs, ...currentInputs };
+    setInputs(nextInputs);
+    setInputsRow(structuredClone(nextInputs));
+    refForm.current?.setValues(nextInputs);
   }, [props.options]);
   return (
     <>
@@ -211,10 +226,10 @@ export default function SettingsLog(props) {
                   checkedText='｜'
                   uncheckedText='〇'
                   onChange={(value) => {
-                    setInputs({
-                      ...inputs,
+                    setInputs((prev) => ({
+                      ...prev,
                       LogConsumeEnabled: value,
-                    });
+                    }));
                   }}
                 />
               </Col>
@@ -226,10 +241,10 @@ export default function SettingsLog(props) {
                   checkedText='｜'
                   uncheckedText='〇'
                   onChange={(value) => {
-                    setInputs({
-                      ...inputs,
+                    setInputs((prev) => ({
+                      ...prev,
                       ErrorLogEnabled: value,
-                    });
+                    }));
                   }}
                 />
               </Col>
@@ -239,12 +254,13 @@ export default function SettingsLog(props) {
                     label={t('清除历史日志')}
                     field={'historyTimestamp'}
                     type='dateTime'
+                    triggerRender={renderSafeDatePickerTrigger}
                     inputReadOnly={true}
                     onChange={(value) => {
-                      setInputs({
-                        ...inputs,
+                      setInputs((prev) => ({
+                        ...prev,
                         historyTimestamp: value,
-                      });
+                      }));
                     }}
                   />
                   <Text

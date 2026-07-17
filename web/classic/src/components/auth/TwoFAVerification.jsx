@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { API, showError, showSuccess } from '../../helpers';
+import { API, setStoredValue, showError, showSuccess } from '../../helpers';
 import {
   Button,
   Card,
@@ -26,11 +26,13 @@ import {
   Typography,
 } from '@douyinfe/semi-ui';
 import React, { useState } from 'react';
+import { useRequestLifecycle } from '../../hooks/common/useRequestLifecycle';
 
 const { Title, Text, Paragraph } = Typography;
 
 const TwoFAVerification = ({ onSuccess, onBack, isModal = false }) => {
   const [loading, setLoading] = useState(false);
+  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
   const [useBackupCode, setUseBackupCode] = useState(false);
   const [verificationCode, setVerificationCode] = useState('');
 
@@ -48,26 +50,27 @@ const TwoFAVerification = ({ onSuccess, onBack, isModal = false }) => {
       return;
     }
 
+    const requestId = beginRequest('verify');
     setLoading(true);
     try {
       const res = await API.post('/api/user/login/2fa', {
         code: verificationCode,
       });
 
-      if (res.data.success) {
+      if (isCurrentRequest('verify', requestId) && res.data.success) {
         showSuccess('登录成功');
         // 保存用户信息到本地存储
-        localStorage.setItem('user', JSON.stringify(res.data.data));
+        setStoredValue('user', JSON.stringify(res.data.data));
         if (onSuccess) {
           onSuccess(res.data.data);
         }
       } else {
-        showError(res.data.message);
+        if (isCurrentRequest('verify', requestId)) showError(res.data.message);
       }
     } catch (error) {
-      showError('验证失败，请重试');
+      if (isCurrentRequest('verify', requestId)) showError('验证失败，请重试');
     } finally {
-      setLoading(false);
+      if (isCurrentRequest('verify', requestId)) setLoading(false);
     }
   };
 

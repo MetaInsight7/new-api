@@ -1,0 +1,382 @@
+@media (max-width: 767px) {
+  .app-console .support-page {
+    max-width: none;
+    margin-top: 72px;
+    padding: 0 14px 24px;
+  }
+
+  .app-console .support-page-header {
+    display: block;
+    margin-bottom: 16px;
+  }
+
+  .app-console .support-page-header h1 {
+    font-size: 25px;
+    line-height: 34px;
+  }
+
+  .app-console .support-page-header p {
+    margin-top: 4px;
+    font-size: 13px;
+    line-height: 20px;
+  }
+
+  .app-console .support-page-service {
+    align-items: flex-start;
+    margin-top: 8px;
+    font-size: 11px;
+    line-height: 17px;
+  }
+
+  .app-console .support-page-service svg {
+    margin-top: 1px;
+  }
+
+  .app-console .support-page-header > .semi-button-primary {
+    display: none;
+  }
+
+  .app-console .support-resource-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+
+  .app-console .support-resource-card {
+    min-height: 86px;
+    padding: 15px 16px;
+    border-radius: 11px;
+  }
+
+  .app-console .support-resource-icon {
+    width: 42px;
+    height: 42px;
+    margin-right: 13px;
+    border-radius: 10px;
+  }
+
+  .app-console .support-resource-card strong {
+    font-size: 15px;
+    line-height: 21px;
+  }
+
+  .app-console .support-resource-card small {
+    font-size: 11px;
+    line-height: 17px;
+  }
+
+  .app-console .support-resource-action {
+    width: 30px;
+    height: 30px;
+    margin-left: 10px;
+  }
+
+  .app-console .support-mobile-create {
+    display: flex;
+    width: 100%;
+    height: 38px;
+    margin: 0 0 14px;
+    border-radius: 9px;
+    background: #2563eb;
+    color: #fff;
+    font-weight: 600;
+  }
+
+  .app-console .support-list-card {
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .app-console .support-list-toolbar {
+    min-height: auto;
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+    padding: 0;
+    border: 0;
+  }
+
+  .app-console .support-filter-tabs {
+    width: 100%;
+    gap: 4px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+  }
+
+  .app-console .support-filter-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .app-console .support-filter-tabs button {
+    height: 31px;
+    flex: 0 0 auto;
+    padding: 0 10px;
+    font-size: 12px;
+  }
+
+  .app-console .support-search,
+  .app-console .support-search.semi-input-wrapper {
+    width: 100%;
+  }
+
+  .app-console .support-table {
+    display: none;
+  }
+
+  .app-console .support-mobile-list {
+    display: grid;
+    gap: 10px;
+    margin-top: 12px;
+  }
+
+  .app-console .support-mobile-ticket {
+    display: flex;
+    width: 100%;
+    min-width: 0;
+    flex-direction: column;
+    padding: 14px 15px;
+    border: 1px solid #e5e9ef;
+    border-radius: 11px;
+    background: #fff;
+    color: #344054;
+    text-align: left;
+    box-shadow: 0 8px 22px -20px rgba(15, 23, 42, 0.45);
+  }
+
+  .app-console .support-mobile-ticket-top,
+  .app-console .support-mobile-ticket-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .app-console .support-mobile-ticket-time,
+  .app-console .support-mobile-ticket-id,
+  .app-console .support-mobile-ticket-meta {
+    color: #7b8594;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 17px;
+  }
+
+  .app-console .support-mobile-ticket-time {
+    white-space: nowrap;
+  }
+
+  .app-console .support-mobile-ticket-subject {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 7px;
+    margin-top: 11px;
+    color: #20262d;
+    font-size: 14px;
+    font-weight: 650;
+    line-height: 20px;
+  }
+
+  .app-console .support-mobile-ticket-subject > span:last-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .app-console .support-mobile-ticket-id {
+    margin-top: 2px;
+  }
+
+  .app-console .support-mobile-ticket-meta {
+    margin-top: 10px;
+    padding-top: 9px;
+    border-top: 1px solid #f0f2f5;
+  }
+
+  .app-console .support-list-footer {
+    min-height: auto;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+    padding: 13px 2px 0;
+    border: 0;
+    font-size: 11px;
+  }
+
+  .app-console .support-page--detail {
+    margin-top: 72px;
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
+  .app-console .support-page--detail .support-back,
+  .app-console .support-page--detail .support-detail-shell {
+    max-width: none;
+  }
+
+  .app-console .support-back {
+    margin-bottom: 12px;
+    font-size: 12px;
+  }
+
+  .app-console .support-detail-shell {
+    border-radius: 12px;
+  }
+
+  .app-console .support-detail-header {
+    padding: 16px 16px 14px;
+  }
+
+  .app-console .support-detail-title-row {
+    align-items: flex-start;
+    gap: 9px;
+  }
+
+  .app-console .support-detail-title-row h1 {
+    display: -webkit-box;
+    flex: 1;
+    font-size: 17px;
+    line-height: 24px;
+    white-space: normal;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .app-console .support-detail-title-row .support-status-tag {
+    flex: 0 0 auto;
+    margin-top: 1px;
+  }
+
+  .app-console .support-detail-meta {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+    gap: 6px 12px;
+    margin-top: 10px;
+    font-size: 11px;
+    line-height: 17px;
+  }
+
+  .app-console .support-conversation {
+    height: 320px;
+    padding: 18px 14px 20px;
+    scrollbar-gutter: auto;
+  }
+
+  .app-console .support-message {
+    max-width: 86%;
+    margin-bottom: 18px;
+  }
+
+  .app-console .support-message-meta {
+    font-size: 10px;
+  }
+
+  .app-console .support-message-bubble {
+    padding: 10px 12px;
+    font-size: 12px;
+    line-height: 19px;
+  }
+
+  .app-console .support-reply-panel {
+    padding: 0 14px 14px;
+  }
+
+  .app-console .support-reply-header {
+    min-height: 48px;
+  }
+
+  .app-console .support-reply-header > span {
+    display: none;
+  }
+
+  .app-console .support-reply-header strong {
+    font-size: 13px;
+  }
+
+  .app-console .support-reply-field textarea {
+    font-size: 12px;
+    line-height: 19px;
+  }
+
+  .app-console .support-reply-actions {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 9px;
+  }
+
+  .app-console .support-reply-actions-left {
+    justify-content: space-between;
+  }
+
+  .app-console .support-reply-actions > .semi-button-primary {
+    width: 100%;
+    height: 36px;
+    border-radius: 8px;
+  }
+
+  .support-create-modal .semi-modal {
+    width: calc(100vw - 24px) !important;
+    max-width: 420px;
+  }
+
+  .support-create-modal .semi-modal-content {
+    max-height: calc(100vh - 32px);
+    overflow-y: auto;
+    border-radius: 12px;
+  }
+
+  .support-create-modal .semi-modal-header {
+    padding: 17px 16px 12px;
+  }
+
+  .support-create-modal .semi-modal-title {
+    font-size: 17px;
+  }
+
+  .support-create-modal .semi-modal-body {
+    padding: 0 16px 8px;
+  }
+
+  .support-create-modal .semi-modal-footer {
+    padding: 12px 16px 16px;
+  }
+
+  .support-create-intro {
+    align-items: flex-start;
+    margin-bottom: 14px;
+  }
+
+  .support-form {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .support-form-field--full,
+  .support-form-error {
+    grid-column: auto;
+  }
+
+  .support-form-hint {
+    margin-top: -5px;
+    padding-bottom: 0;
+  }
+}
+
+.support-upload-placeholder:hover {
+  border-color: #7fa1e8;
+  background: #f5f8ff;
+  color: #2563eb;
+}
+
+.support-form-error {
+  padding: 8px 10px;
+  border-radius: 7px;
+  background: #fff1f1;
+  color: #c93434;
+  font-size: 12px;
+  font-weight: 550;
+}

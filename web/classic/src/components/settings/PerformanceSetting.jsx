@@ -17,60 +17,38 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Card, Spin } from '@douyinfe/semi-ui';
 import SettingsPerformance from '../../pages/Setting/Performance/SettingsPerformance';
-import { API, showError, toBoolean } from '../../helpers';
+import { toBoolean } from '../../helpers';
+import { useOptionSettings } from '../../hooks/settings/useOptionSettings';
 
 const PerformanceSetting = () => {
-  let [inputs, setInputs] = useState({
-    'performance_setting.disk_cache_enabled': false,
-    'performance_setting.disk_cache_threshold_mb': 10,
-    'performance_setting.disk_cache_max_size_mb': 1024,
-    'performance_setting.disk_cache_path': '',
-  });
-
-  let [loading, setLoading] = useState(false);
-
-  const getOptions = async () => {
-    const res = await API.get('/api/option/');
-    const { success, message, data } = res.data;
-    if (success) {
-      let newInputs = {};
+  const { inputs, loading, refresh } = useOptionSettings({
+    initialValues: {
+      'performance_setting.disk_cache_enabled': false,
+      'performance_setting.disk_cache_threshold_mb': 10,
+      'performance_setting.disk_cache_max_size_mb': 1024,
+      'performance_setting.disk_cache_path': '',
+    },
+    parseOptions: (data, initialValues) => {
+      const nextInputs = {};
       data.forEach((item) => {
-        if (typeof inputs[item.key] === 'boolean') {
-          newInputs[item.key] = toBoolean(item.value);
-        } else {
-          newInputs[item.key] = item.value;
-        }
+        nextInputs[item.key] =
+          typeof initialValues[item.key] === 'boolean'
+            ? toBoolean(item.value)
+            : item.value;
       });
-      setInputs(newInputs);
-    } else {
-      showError(message);
-    }
-  };
-
-  async function onRefresh() {
-    try {
-      setLoading(true);
-      await getOptions();
-    } catch (error) {
-      showError('刷新失败');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    onRefresh();
-  }, []);
+      return nextInputs;
+    },
+  });
 
   return (
     <>
       <Spin spinning={loading} size='large'>
         {/* 性能设置 */}
         <Card style={{ marginTop: '10px' }}>
-          <SettingsPerformance options={inputs} refresh={onRefresh} />
+          <SettingsPerformance options={inputs} refresh={refresh} />
         </Card>
       </Spin>
     </>

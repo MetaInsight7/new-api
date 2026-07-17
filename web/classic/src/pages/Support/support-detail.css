@@ -1,0 +1,314 @@
+/* 详情页 */
+.app-console .support-page--detail {
+  max-width: 1180px;
+}
+
+.app-console .support-page--detail .support-back,
+.app-console .support-page--detail .support-detail-shell {
+  width: 100%;
+  max-width: 980px;
+  margin-right: auto;
+  margin-left: auto;
+}
+
+.app-console .support-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 14px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #667085;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 550;
+}
+
+.app-console .support-back:hover {
+  color: #2563eb;
+}
+
+.app-console .support-detail-header {
+  padding: 20px 22px 18px;
+  border-bottom: 1px solid #eef1f5;
+}
+
+.app-console .support-detail-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.app-console .support-detail-title-row h1 {
+  overflow: hidden;
+  font-size: 20px;
+  line-height: 28px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-console .support-detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  margin-top: 9px;
+  color: #7b8594;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.app-console .support-closed-notice {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 16px 20px 0;
+  padding: 11px 13px;
+  border: 1px solid #d5eadf;
+  border-radius: 9px;
+  background: #f1faf5;
+  color: #277a4b;
+  font-size: 13px;
+  font-weight: 550;
+}
+
+.app-console .support-conversation {
+  box-sizing: border-box;
+  width: 100%;
+  height: clamp(340px, 42vh, 440px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 24px 22px 30px;
+  background: #fafbfc;
+  scrollbar-gutter: stable;
+}
+
+.app-console .support-message {
+  display: flex;
+  min-width: 0;
+  max-width: min(68%, 640px);
+  flex-direction: column;
+  margin-bottom: 20px;
+}
+
+.app-console .support-message--user {
+  margin-left: auto;
+  align-items: flex-end;
+}
+
+.app-console .support-message--support {
+  margin-right: auto;
+  align-items: flex-start;
+}
+
+.app-console .support-message-meta {
+  display: flex;
+  gap: 7px;
+  margin: 0 2px 6px;
+  color: #8a94a3;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.app-console .support-message--user .support-message-meta {
+  flex-direction: row-reverse;
+}
+
+.app-console .support-message-bubble {
+  max-width: 100%;
+  padding: 11px 14px;
+  border: 1px solid #e5eaf0;
+  border-radius: 4px 12px 12px 12px;
+  background: #fff;
+  color: #344054;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 21px;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.app-console .support-message--user .support-message-bubble {
+  border-color: #ccdcff;
+  border-radius: 12px 4px 12px 12px;
+  background: #eef4ff;
+  color: #23406f;
+}
+
+.app-console .support-reply-header > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-console .support-reply-header > span {
+  color: #8a94a3;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+}
+
+.app-console .support-reply-panel {
+  padding: 0 22px 18px;
+  border-top: 1px solid #e9edf2;
+  background: #fff;
+}
+
+.app-console .support-reply-header {
+  display: flex;
+  min-height: 58px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.app-console .support-reply-header > div {
+  color: #344054;
+}
+
+.app-console .support-reply-header strong {
+  color: #20262d;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 20px;
+}
+
+.app-console .support-reply-field .semi-input-textarea-wrapper {
+  border-color: #e4e8ee;
+  border-radius: 9px;
+  background: #fbfcfe;
+  box-shadow: none;
+}
+
+.app-console .support-reply-field .semi-input-textarea-wrapper:hover {
+  border-color: #cbd5e1;
+}
+
+.app-console .support-reply-field .semi-input-textarea-wrapper-focus {
+  border-color: #7aa2ee;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
+}
+
+.app-console .support-reply-field textarea {
+  color: #344054;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 21px;
+}
+
+.app-console .support-reply-actions,
+.app-console .support-reply-actions-left {
+  display: flex;
+  align-items: center;
+}
+
+.app-console .support-reply-actions {
+  justify-content: space-between;
+  margin-top: 10px;
+}
+
+.app-console .support-reply-actions-left {
+  gap: 4px;
+}
+
+/* 新建工单弹窗 */
+.support-create-modal .semi-modal-content {
+  overflow: hidden;
+}
+
+.support-create-modal .semi-modal-header {
+  padding: 20px 22px 14px;
+}
+
+.support-create-modal .semi-modal-title {
+  color: #141a1f;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.support-create-modal .semi-modal-body {
+  padding: 0 22px 10px;
+}
+
+.support-create-modal .semi-modal-footer {
+  padding: 14px 22px 20px;
+}
+
+.support-create-intro {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 17px;
+  padding: 10px 12px;
+  border: 1px solid #dce6fb;
+  border-radius: 9px;
+  background: #f5f8ff;
+  color: #46628d;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+}
+
+.support-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px 16px;
+}
+
+.support-form-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.support-form-field--full,
+.support-form-error {
+  grid-column: 1 / -1;
+}
+
+.support-form-field > span,
+.support-form-field--full > span {
+  color: #344054;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+}
+
+.support-form-field .semi-select {
+  width: 100%;
+}
+
+.support-form-field .semi-input-wrapper,
+.support-form-field .semi-select,
+.support-form-field .semi-input-textarea-wrapper {
+  border-color: #e2e7ed;
+  border-radius: 8px;
+  background: #f8f9fb;
+}
+
+.support-form-hint {
+  display: flex;
+  align-items: flex-end;
+  padding-bottom: 7px;
+  color: #8a94a3;
+  font-size: 11px;
+  line-height: 17px;
+}
+
+.support-upload-placeholder {
+  display: inline-flex;
+  width: 104px;
+  height: 64px;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 5px;
+  border: 1px dashed #bdc9dc;
+  border-radius: 9px;
+  background: #fbfcfe;
+  color: #6f83a4;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 550;
+}

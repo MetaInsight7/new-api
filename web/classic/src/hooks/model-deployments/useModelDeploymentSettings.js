@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { API } from '../../helpers';
 
 export const useModelDeploymentSettings = () => {
@@ -30,11 +30,18 @@ export const useModelDeploymentSettings = () => {
     ok: null,
     error: null,
   });
+  const mountedRef = useRef(true);
+  const settingsRequestSeqRef = useRef(0);
+  const connectionRequestSeqRef = useRef(0);
 
   const getSettings = async () => {
+    const requestSeq = ++settingsRequestSeqRef.current;
     try {
-      setLoading(true);
+      if (mountedRef.current) setLoading(true);
       const res = await API.get('/api/deployments/settings');
+      if (!mountedRef.current || requestSeq !== settingsRequestSeqRef.current) {
+        return;
+      }
       const { success, data } = res.data;
 
       if (success) {
@@ -43,14 +50,24 @@ export const useModelDeploymentSettings = () => {
         });
       }
     } catch (error) {
-      console.error('Failed to get model deployment settings:', error);
+      if (mountedRef.current && requestSeq === settingsRequestSeqRef.current) {
+        console.error('Failed to get model deployment settings:', error);
+      }
     } finally {
-      setLoading(false);
+      if (mountedRef.current && requestSeq === settingsRequestSeqRef.current) {
+        setLoading(false);
+      }
     }
   };
 
   useEffect(() => {
+    mountedRef.current = true;
     getSettings();
+    return () => {
+      mountedRef.current = false;
+      settingsRequestSeqRef.current += 1;
+      connectionRequestSeqRef.current += 1;
+    };
   }, []);
 
   const isIoNetEnabled = settings['model_deployment.ionet.enabled'];
@@ -78,6 +95,7 @@ export const useModelDeploymentSettings = () => {
   };
 
   const testConnection = useCallback(async () => {
+    const requestSeq = ++connectionRequestSeqRef.current;
     setConnectionState({ loading: true, ok: null, error: null });
     try {
       const response = await API.post(
@@ -85,6 +103,12 @@ export const useModelDeploymentSettings = () => {
         {},
         { skipErrorHandler: true },
       );
+      if (
+        !mountedRef.current ||
+        requestSeq !== connectionRequestSeqRef.current
+      ) {
+        return;
+      }
 
       if (response?.data?.success) {
         setConnectionState({ loading: false, ok: true, error: null });
@@ -98,6 +122,12 @@ export const useModelDeploymentSettings = () => {
         error: buildConnectionError(message),
       });
     } catch (error) {
+      if (
+        !mountedRef.current ||
+        requestSeq !== connectionRequestSeqRef.current
+      ) {
+        return;
+      }
       if (error?.code === 'ERR_NETWORK') {
         setConnectionState({
           loading: false,
@@ -117,6 +147,7 @@ export const useModelDeploymentSettings = () => {
   }, []);
 
   useEffect(() => {
+    if (!mountedRef.current) return;
     if (!loading && isIoNetEnabled) {
       testConnection();
       return;

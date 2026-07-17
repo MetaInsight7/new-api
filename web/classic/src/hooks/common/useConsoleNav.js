@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useContext, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -31,7 +31,10 @@ import {
   Headphones,
 } from 'lucide-react';
 import { useSidebar } from './useSidebar';
-import { isAdmin, isRoot, showError } from '../../helpers';
+import { getStoredJSON, getStoredValue } from '../../helpers/siteStorage';
+import { showError } from '../../helpers/notifications';
+import { UserContext } from '../../context/User';
+import { StatusContext } from '../../context/Status';
 
 // 路由映射（与历史保持一致）
 export const consoleRouterMap = {
@@ -63,31 +66,33 @@ export const consoleRouterMap = {
 export const useConsoleNav = () => {
   const { t } = useTranslation();
   const { isModuleVisible } = useSidebar();
+  const [userState] = useContext(UserContext);
+  const [statusState] = useContext(StatusContext);
   const location = useLocation();
   const [chatItems, setChatItems] = useState([]);
 
-  const enableDataExport =
-    localStorage.getItem('enable_data_export') === 'true';
-  const enableDrawing = localStorage.getItem('enable_drawing') === 'true';
-  const enableTask = localStorage.getItem('enable_task') === 'true';
-  const violationAuditEnabled = (() => {
-    try {
-      return (
-        JSON.parse(localStorage.getItem('status') || '{}')
-          .violation_audit_enabled === true
-      );
-    } catch (e) {
-      return false;
-    }
-  })();
+  const cachedStatus = getStoredJSON('status', {});
+  const status =
+    statusState?.status && Object.keys(statusState.status).length > 0
+      ? statusState.status
+      : cachedStatus;
+  const asBoolean = (value) => value === true || value === 'true';
+  const enableDataExport = asBoolean(
+    status?.enable_data_export ?? getStoredValue('enable_data_export', ''),
+  );
+  const enableDrawing = asBoolean(
+    status?.enable_drawing ?? getStoredValue('enable_drawing', ''),
+  );
+  const enableTask = asBoolean(
+    status?.enable_task ?? getStoredValue('enable_task', ''),
+  );
+  const violationAuditEnabled = asBoolean(status?.violation_audit_enabled);
 
   // 加载聊天项（与历史逻辑一致）
   useEffect(() => {
-    let chats = localStorage.getItem('chats');
-    if (!chats) return;
+    const chats = getStoredJSON('chats', []);
+    if (!Array.isArray(chats)) return;
     try {
-      chats = JSON.parse(chats);
-      if (!Array.isArray(chats)) return;
       const items = [];
       for (let i = 0; i < chats.length; i++) {
         let shouldSkip = false;
@@ -230,7 +235,7 @@ export const useConsoleNav = () => {
     // 7. 运营（仅管理员）：渠道 / 模型 / 模型部署 / 订阅 / 兑换码
     // 8. 系统（仅管理员）：用户 / 系统设置(仅 root)
     // 两组均读同一个 admin 配置区，仅展示层拆分以理清层次。
-    if (isAdmin()) {
+    if (Number(userState?.user?.role) >= 10) {
       const operationChildren = [];
       if (isModuleVisible('admin', 'channel')) {
         operationChildren.push({
@@ -284,7 +289,10 @@ export const useConsoleNav = () => {
           to: consoleRouterMap.user,
         });
       }
-      if (isRoot() && isModuleVisible('admin', 'setting')) {
+      if (
+        Number(userState?.user?.role) >= 100 &&
+        isModuleVisible('admin', 'setting')
+      ) {
         systemChildren.push({
           key: 'setting',
           label: t('系统设置'),
@@ -317,6 +325,11 @@ export const useConsoleNav = () => {
     enableDrawing,
     enableTask,
     violationAuditEnabled,
+    status?.enable_data_export,
+    status?.enable_drawing,
+    status?.enable_task,
+    status?.violation_audit_enabled,
+    userState?.user?.role,
   ]);
 
   // 当前选中的子项 key（用于高亮）
@@ -345,7 +358,9 @@ export const useConsoleNav = () => {
 
   // 大组的导航目标（直达页 或 第一个子页）
   const categoryTarget = (cat) =>
-    cat.to || (cat.children && cat.children[0] && cat.children[0].to) || '/console';
+    cat.to ||
+    (cat.children && cat.children[0] && cat.children[0].to) ||
+    '/console';
 
   return { categories, selectedKey, activeCategory, categoryTarget, t };
 };

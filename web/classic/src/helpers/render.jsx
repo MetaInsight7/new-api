@@ -27,7 +27,6 @@ import {
   BILLING_VAR_REGEX,
 } from '../constants';
 import { visit } from 'unist-util-visit';
-import * as LobeIcons from '@lobehub/icons';
 import {
   OpenAI,
   Claude,
@@ -62,6 +61,7 @@ import {
   Perplexity,
   Replicate,
 } from '@lobehub/icons';
+import { getStoredJSON, getStoredValue } from './siteStorage';
 
 import {
   LayoutDashboard,
@@ -81,31 +81,6 @@ import {
   Server,
   CalendarClock,
 } from 'lucide-react';
-import {
-  SiAtlassian,
-  SiAuth0,
-  SiAuthentik,
-  SiBitbucket,
-  SiDiscord,
-  SiDropbox,
-  SiFacebook,
-  SiGitea,
-  SiGithub,
-  SiGitlab,
-  SiGoogle,
-  SiKeycloak,
-  SiNextcloud,
-  SiNotion,
-  SiOkta,
-  SiOpenid,
-  SiReddit,
-  SiSlack,
-  SiTelegram,
-  SiTwitch,
-  SiWechat,
-  SiX,
-} from 'react-icons/si';
-import { FaLinkedin } from 'react-icons/fa';
 
 // 获取侧边栏Lucide图标组件
 export function getLucideIcon(key, selected = false) {
@@ -413,195 +388,6 @@ export function getChannelIcon(channelType) {
     default:
       return null; // 未知类型或自定义渠道不显示图标
   }
-}
-
-/**
- * 根据图标名称动态获取 LobeHub 图标组件
- * 支持：
- * - 基础："OpenAI"、"OpenAI.Color" 等
- * - 额外属性（点号链式）："OpenAI.Avatar.type={'platform'}"、"OpenRouter.Avatar.shape={'square'}"
- * - 继续兼容第二参数 size；若字符串里有 size=，以字符串为准
- * @param {string} iconName - 图标名称/描述
- * @param {number} size - 图标大小，默认为 14
- * @returns {JSX.Element} - 对应的图标组件或 Avatar
- */
-export function getLobeHubIcon(iconName, size = 14) {
-  if (typeof iconName === 'string') iconName = iconName.trim();
-  // 如果没有图标名称，返回 Avatar
-  if (!iconName) {
-    return <Avatar size='extra-extra-small'>?</Avatar>;
-  }
-
-  // 解析组件路径与点号链式属性
-  const segments = String(iconName).split('.');
-  const baseKey = segments[0];
-  const BaseIcon = LobeIcons[baseKey];
-
-  let IconComponent = undefined;
-  let propStartIndex = 1;
-
-  if (BaseIcon && segments.length > 1 && BaseIcon[segments[1]]) {
-    IconComponent = BaseIcon[segments[1]];
-    propStartIndex = 2;
-  } else {
-    IconComponent = LobeIcons[baseKey];
-    propStartIndex = 1;
-  }
-
-  // 失败兜底
-  if (
-      !IconComponent ||
-      (typeof IconComponent !== 'function' && typeof IconComponent !== 'object')
-  ) {
-    const firstLetter = String(iconName).charAt(0).toUpperCase();
-    return <Avatar size='extra-extra-small'>{firstLetter}</Avatar>;
-  }
-
-  // 解析点号链式属性，形如：key={...}、key='...'、key="..."、key=123、key、key=true/false
-  const props = {};
-
-  const parseValue = (raw) => {
-    if (raw == null) return true;
-    let v = String(raw).trim();
-    // 去除一层花括号包裹
-    if (v.startsWith('{') && v.endsWith('}')) {
-      v = v.slice(1, -1).trim();
-    }
-    // 去除引号
-    if (
-        (v.startsWith('"') && v.endsWith('"')) ||
-        (v.startsWith("'") && v.endsWith("'"))
-    ) {
-      return v.slice(1, -1);
-    }
-    // 布尔
-    if (v === 'true') return true;
-    if (v === 'false') return false;
-    // 数字
-    if (/^-?\d+(?:\.\d+)?$/.test(v)) return Number(v);
-    // 其他原样返回字符串
-    return v;
-  };
-
-  for (let i = propStartIndex; i < segments.length; i++) {
-    const seg = segments[i];
-    if (!seg) continue;
-    const eqIdx = seg.indexOf('=');
-    if (eqIdx === -1) {
-      props[seg.trim()] = true;
-      continue;
-    }
-    const key = seg.slice(0, eqIdx).trim();
-    const valRaw = seg.slice(eqIdx + 1).trim();
-    props[key] = parseValue(valRaw);
-  }
-
-  // 兼容第二参数 size，若字符串中未显式指定 size，则使用函数入参
-  if (props.size == null && size != null) props.size = size;
-
-  return <IconComponent {...props} />;
-}
-
-const oauthProviderIconMap = {
-  github: SiGithub,
-  gitlab: SiGitlab,
-  gitea: SiGitea,
-  google: SiGoogle,
-  discord: SiDiscord,
-  facebook: SiFacebook,
-  linkedin: FaLinkedin,
-  x: SiX,
-  twitter: SiX,
-  slack: SiSlack,
-  telegram: SiTelegram,
-  wechat: SiWechat,
-  keycloak: SiKeycloak,
-  nextcloud: SiNextcloud,
-  authentik: SiAuthentik,
-  openid: SiOpenid,
-  okta: SiOkta,
-  auth0: SiAuth0,
-  atlassian: SiAtlassian,
-  bitbucket: SiBitbucket,
-  notion: SiNotion,
-  twitch: SiTwitch,
-  reddit: SiReddit,
-  dropbox: SiDropbox,
-};
-
-function isHttpUrl(value) {
-  return /^https?:\/\//i.test(value || '');
-}
-
-function isSimpleEmoji(value) {
-  if (!value) return false;
-  const trimmed = String(value).trim();
-  return trimmed.length > 0 && trimmed.length <= 4 && !isHttpUrl(trimmed);
-}
-
-function normalizeOAuthIconKey(raw) {
-  return raw
-      .trim()
-      .toLowerCase()
-      .replace(/^ri:/, '')
-      .replace(/^react-icons:/, '')
-      .replace(/^si:/, '');
-}
-
-/**
- * Render custom OAuth provider icon with react-icons or URL/emoji fallback.
- * Supported formats:
- * - react-icons simple key: github / gitlab / google / keycloak
- * - prefixed key: ri:github / si:github
- * - full URL image: https://example.com/logo.png
- * - emoji: 🐱
- */
-export function getOAuthProviderIcon(iconName, size = 20) {
-  const raw = String(iconName || '').trim();
-  const iconSize = Number(size) > 0 ? Number(size) : 20;
-
-  if (!raw) {
-    return <Layers size={iconSize} color='var(--semi-color-text-2)' />;
-  }
-
-  if (isHttpUrl(raw)) {
-    return (
-        <img
-            src={raw}
-            alt='provider icon'
-            width={iconSize}
-            height={iconSize}
-            style={{ borderRadius: 4, objectFit: 'cover' }}
-        />
-    );
-  }
-
-  if (isSimpleEmoji(raw)) {
-    return (
-        <span
-            style={{
-              width: iconSize,
-              height: iconSize,
-              lineHeight: `${iconSize}px`,
-              textAlign: 'center',
-              display: 'inline-block',
-              fontSize: Math.max(Math.floor(iconSize * 0.8), 14),
-            }}
-        >
-        {raw}
-      </span>
-    );
-  }
-
-  const key = normalizeOAuthIconKey(raw);
-  const IconComp = oauthProviderIconMap[key];
-  if (IconComp) {
-    return <IconComp size={iconSize} />;
-  }
-
-  return (
-      <Avatar size='extra-extra-small'>{raw.charAt(0).toUpperCase()}</Avatar>
-  );
 }
 
 // 颜色列表
@@ -999,18 +785,18 @@ export function renderQuotaNumberWithDigit(num, digits = 2) {
   if (typeof num !== 'number' || isNaN(num)) {
     return 0;
   }
-  const quotaDisplayType = localStorage.getItem('quota_display_type') || 'USD';
+  const quotaDisplayType = getStoredValue('quota_display_type', 'USD');
   num = num.toFixed(digits);
   if (quotaDisplayType === 'CNY') {
     return '¥' + num;
   } else if (quotaDisplayType === 'USD') {
     return '$' + num;
   } else if (quotaDisplayType === 'CUSTOM') {
-    const statusStr = localStorage.getItem('status');
+        const statusStr = getStoredValue('status', '');
     let symbol = '¤';
     try {
       if (statusStr) {
-        const s = JSON.parse(statusStr);
+        const s = getStoredJSON('status', {});
         symbol = s?.custom_currency_symbol || symbol;
       }
     } catch (e) {}
@@ -1052,7 +838,7 @@ export function renderNumberWithPoint(num) {
 const DEFAULT_QUOTA_PER_UNIT = 500000;
 
 const readQuotaPerUnit = () => {
-  const quotaPerUnit = parseFloat(localStorage.getItem('quota_per_unit'));
+  const quotaPerUnit = parseFloat(getStoredValue('quota_per_unit', ''));
   return Number.isFinite(quotaPerUnit) && quotaPerUnit > 0
     ? quotaPerUnit
     : DEFAULT_QUOTA_PER_UNIT;
@@ -1089,8 +875,8 @@ export function renderQuotaWithAmount(amount) {
  * @returns {Object} - { symbol, rate, type }
  */
 export function getCurrencyConfig() {
-  const quotaDisplayType = localStorage.getItem('quota_display_type') || 'USD';
-  const statusStr = localStorage.getItem('status');
+  const quotaDisplayType = getStoredValue('quota_display_type', 'USD');
+  const status = getStoredJSON('status', {});
 
   let symbol = '$';
   let rate = 1;
@@ -1098,18 +884,12 @@ export function getCurrencyConfig() {
   if (quotaDisplayType === 'CNY') {
     symbol = '¥';
     try {
-      if (statusStr) {
-        const s = JSON.parse(statusStr);
-        rate = s?.usd_exchange_rate || 7;
-      }
+      rate = status?.usd_exchange_rate || 7;
     } catch (e) {}
   } else if (quotaDisplayType === 'CUSTOM') {
     try {
-      if (statusStr) {
-        const s = JSON.parse(statusStr);
-        symbol = s?.custom_currency_symbol || '¤';
-        rate = s?.custom_currency_exchange_rate || 1;
-      }
+      symbol = status?.custom_currency_symbol || '¤';
+      rate = status?.custom_currency_exchange_rate || 1;
     } catch (e) {}
   }
 
@@ -1129,7 +909,7 @@ export function convertUSDToCurrency(usdAmount, digits = 2) {
 }
 
 export function renderQuota(quota, digits = 2) {
-  const quotaDisplayType = localStorage.getItem('quota_display_type') || 'USD';
+  const quotaDisplayType = getStoredValue('quota_display_type', 'USD');
   if (quotaDisplayType === 'TOKENS') {
     return renderNumber(quota);
   }
@@ -1139,27 +919,17 @@ export function renderQuota(quota, digits = 2) {
   let symbol = '$';
   let value = resultUSD;
   if (quotaDisplayType === 'CNY') {
-    const statusStr = localStorage.getItem('status');
+    const status = getStoredJSON('status', {});
     let usdRate = 1;
-    try {
-      if (statusStr) {
-        const s = JSON.parse(statusStr);
-        usdRate = s?.usd_exchange_rate || 1;
-      }
-    } catch (e) {}
+    usdRate = status?.usd_exchange_rate || 1;
     value = resultUSD * usdRate;
     symbol = '¥';
   } else if (quotaDisplayType === 'CUSTOM') {
-    const statusStr = localStorage.getItem('status');
+    const status = getStoredJSON('status', {});
     let symbolCustom = '¤';
     let rate = 1;
-    try {
-      if (statusStr) {
-        const s = JSON.parse(statusStr);
-        symbolCustom = s?.custom_currency_symbol || symbolCustom;
-        rate = s?.custom_currency_exchange_rate || rate;
-      }
-    } catch (e) {}
+    symbolCustom = status?.custom_currency_symbol || symbolCustom;
+    rate = status?.custom_currency_exchange_rate || rate;
     value = resultUSD * rate;
     symbol = symbolCustom;
   }
@@ -1199,7 +969,7 @@ function compactSuffix(value) {
 // 紧凑金额：沿用 renderQuota 的换算(USD/CNY/CUSTOM/TOKENS)，显示值达到阈值(默认 10 万)才切 K/M/B/T，否则精确到 digits 位。
 // 单位/符号与站点设置一致；将来切积分制只需换调用处的取数，无需改本函数。
 export function renderQuotaCompact(quota, { compactThreshold = 100000, digits = 2 } = {}) {
-  const quotaDisplayType = localStorage.getItem('quota_display_type') || 'USD';
+  const quotaDisplayType = getStoredValue('quota_display_type', 'USD');
   if (quotaDisplayType === 'TOKENS') {
     return formatCountCompact(quota, { compactThreshold });
   }
@@ -1209,20 +979,13 @@ export function renderQuotaCompact(quota, { compactThreshold = 100000, digits = 
   let symbol = '$';
   let value = resultUSD;
   if (quotaDisplayType === 'CNY') {
-    let usdRate = 1;
-    try {
-      const s = JSON.parse(localStorage.getItem('status') || '{}');
-      usdRate = s?.usd_exchange_rate || 1;
-    } catch (e) {}
+    const usdRate = getStoredJSON('status', {})?.usd_exchange_rate || 1;
     value = resultUSD * usdRate;
     symbol = '¥';
   } else if (quotaDisplayType === 'CUSTOM') {
-    let rate = 1;
-    try {
-      const s = JSON.parse(localStorage.getItem('status') || '{}');
-      symbol = s?.custom_currency_symbol || '¤';
-      rate = s?.custom_currency_exchange_rate || 1;
-    } catch (e) {}
+    const status = getStoredJSON('status', {});
+    const rate = status?.custom_currency_exchange_rate || 1;
+    symbol = status?.custom_currency_symbol || '¤';
     value = resultUSD * rate;
   }
   if (Math.abs(value) >= compactThreshold) {
@@ -1267,7 +1030,7 @@ function getEffectiveRatio(groupRatio, user_group_ratio) {
 }
 
 function getQuotaDisplayType() {
-  return localStorage.getItem('quota_display_type') || 'USD';
+  return getStoredValue('quota_display_type', 'USD');
 }
 
 function resolveBillingDisplayMode(displayMode, modelPrice = -1) {
@@ -2792,7 +2555,7 @@ export function renderAudioModelPrice(opts) {
 }
 
 export function renderQuotaWithPrompt(quota, digits) {
-  const quotaDisplayType = localStorage.getItem('quota_display_type') || 'USD';
+  const quotaDisplayType = getStoredValue('quota_display_type', 'USD');
   if (quotaDisplayType !== 'TOKENS') {
     return i18next.t('等价金额：') + renderQuota(quota, digits);
   }
@@ -2906,7 +2669,7 @@ export function renderClaudeModelPrice(opts) {
 
     if (shouldShowLegacyCacheCreation) {
       breakdownSegments.push(
-          i18next.t(
+          buildBillingText(
               '缓存创建 {{tokens}} tokens / 1M tokens * {{symbol}}{{price}}',
               {
                 tokens: cacheCreationTokens,
@@ -2919,7 +2682,7 @@ export function renderClaudeModelPrice(opts) {
 
     if (shouldShowCacheCreation5m) {
       breakdownSegments.push(
-          i18next.t(
+          buildBillingText(
               '5m缓存创建 {{tokens}} tokens / 1M tokens * {{symbol}}{{price}}',
               {
                 tokens: cacheCreationTokens5m,
@@ -2932,7 +2695,7 @@ export function renderClaudeModelPrice(opts) {
 
     if (shouldShowCacheCreation1h) {
       breakdownSegments.push(
-          i18next.t(
+          buildBillingText(
               '1h缓存创建 {{tokens}} tokens / 1M tokens * {{symbol}}{{price}}',
               {
                 tokens: cacheCreationTokens1h,
@@ -2944,7 +2707,7 @@ export function renderClaudeModelPrice(opts) {
     }
 
     breakdownSegments.push(
-        i18next.t(
+        buildBillingText(
             '补全 {{completion}} tokens / 1M tokens * {{symbol}}{{price}}',
             {
               completion: completionTokens,

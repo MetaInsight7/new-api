@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import { useState, useEffect } from 'react';
+import { getStoredJSON, setStoredJSON } from '../../helpers/siteStorage';
 
 export const useNotifications = (statusState) => {
   const [noticeVisible, setNoticeVisible] = useState(false);
@@ -31,12 +32,8 @@ export const useNotifications = (statusState) => {
 
   const calculateUnreadCount = () => {
     if (!announcements.length) return 0;
-    let readKeys = [];
-    try {
-      readKeys = JSON.parse(localStorage.getItem('notice_read_keys')) || [];
-    } catch (_) {
-      readKeys = [];
-    }
+    const cachedKeys = getStoredJSON('notice_read_keys', []);
+    const readKeys = Array.isArray(cachedKeys) ? cachedKeys : [];
     const readSet = new Set(readKeys);
     return announcements.filter((a) => !readSet.has(getAnnouncementKey(a)))
       .length;
@@ -44,12 +41,8 @@ export const useNotifications = (statusState) => {
 
   const getUnreadKeys = () => {
     if (!announcements.length) return [];
-    let readKeys = [];
-    try {
-      readKeys = JSON.parse(localStorage.getItem('notice_read_keys')) || [];
-    } catch (_) {
-      readKeys = [];
-    }
+    const cachedKeys = getStoredJSON('notice_read_keys', []);
+    const readKeys = Array.isArray(cachedKeys) ? cachedKeys : [];
     const readSet = new Set(readKeys);
     return announcements
       .filter((a) => !readSet.has(getAnnouncementKey(a)))
@@ -79,16 +72,12 @@ export const useNotifications = (statusState) => {
 
   const markAllAsRead = () => {
     if (!announcements.length) return;
-    let readKeys = [];
-    try {
-      readKeys = JSON.parse(localStorage.getItem('notice_read_keys')) || [];
-    } catch (_) {
-      readKeys = [];
-    }
+    const cachedKeys = getStoredJSON('notice_read_keys', []);
+    const readKeys = Array.isArray(cachedKeys) ? cachedKeys : [];
     const mergedKeys = Array.from(
       new Set([...readKeys, ...announcements.map(getAnnouncementKey)]),
     );
-    localStorage.setItem('notice_read_keys', JSON.stringify(mergedKeys));
+    setStoredJSON('notice_read_keys', mergedKeys);
     window.dispatchEvent(new Event('notice_read_keys_updated'));
     setUnreadCount(0);
   };

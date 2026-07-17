@@ -20,8 +20,10 @@ For commercial licensing, please contact support@quantumnous.com
 import { useState, useCallback } from 'react';
 import { API } from '../../helpers';
 import { showError } from '../../helpers';
+import { useRequestLifecycle } from '../common/useRequestLifecycle';
 
 export const useDeploymentResources = () => {
+  const { beginRequest, isCurrentRequest, isMounted } = useRequestLifecycle();
   const [hardwareTypes, setHardwareTypes] = useState([]);
   const [hardwareTotalAvailable, setHardwareTotalAvailable] = useState(0);
   const [locations, setLocations] = useState([]);
@@ -35,9 +37,11 @@ export const useDeploymentResources = () => {
   const [loadingPrice, setLoadingPrice] = useState(false);
 
   const fetchHardwareTypes = useCallback(async () => {
+    const requestId = beginRequest('hardware');
     try {
       setLoadingHardware(true);
       const response = await API.get('/api/deployments/hardware-types');
+      if (!isCurrentRequest('hardware', requestId)) return [];
       if (response.data.success) {
         const { hardware_types: hardwareList = [], total_available } =
           response.data.data || {};
@@ -82,92 +86,110 @@ export const useDeploymentResources = () => {
         return [];
       }
     } catch (error) {
+      if (!isCurrentRequest('hardware', requestId)) return [];
       showError('获取硬件类型失败: ' + error.message);
       setHardwareTotalAvailable(0);
       return [];
     } finally {
-      setLoadingHardware(false);
+      if (isCurrentRequest('hardware', requestId)) setLoadingHardware(false);
     }
-  }, []);
+  }, [beginRequest, isCurrentRequest]);
 
-  const fetchLocations = useCallback(async (hardwareId, gpuCount = 1) => {
-    if (!hardwareId) {
-      setLocations([]);
-      setLocationsTotalAvailable(0);
-      return [];
-    }
-
-    try {
-      setLoadingLocations(true);
-      const response = await API.get(
-        `/api/deployments/available-replicas?hardware_id=${hardwareId}&gpu_count=${gpuCount}`,
-      );
-      if (response.data.success) {
-        const replicas = response.data.data?.replicas || [];
-        const nextLocationsMap = new Map();
-        replicas.forEach((replica) => {
-          const rawId = replica?.location_id ?? replica?.location?.id;
-          if (rawId === null || rawId === undefined) return;
-
-          const mapKey = String(rawId);
-          if (nextLocationsMap.has(mapKey)) return;
-
-          const rawIso2 =
-            replica?.iso2 ?? replica?.location_iso2 ?? replica?.location?.iso2;
-          const iso2 = rawIso2 ? String(rawIso2).toUpperCase() : '';
-          const name =
-            replica?.location_name ??
-            replica?.location?.name ??
-            replica?.name ??
-            String(rawId);
-
-          nextLocationsMap.set(mapKey, {
-            id: rawId,
-            name: String(name),
-            iso2,
-            region:
-              replica?.region ??
-              replica?.location_region ??
-              replica?.location?.region,
-            country:
-              replica?.country ??
-              replica?.location_country ??
-              replica?.location?.country,
-            code:
-              replica?.code ??
-              replica?.location_code ??
-              replica?.location?.code,
-            available: Number(replica?.available_count) || 0,
-          });
-        });
-
-        const normalizedLocations = Array.from(nextLocationsMap.values());
-        setLocations(normalizedLocations);
-        setLocationsTotalAvailable(
-          normalizedLocations.reduce(
-            (acc, item) => acc + (item.available || 0),
-            0,
-          ),
-        );
-        return normalizedLocations;
-      } else {
-        showError('获取部署位置失败: ' + response.data.message);
-        setLocationsTotalAvailable(0);
+  const fetchLocations = useCallback(
+    async (hardwareId, gpuCount = 1) => {
+      const requestId = beginRequest('locations');
+      if (!hardwareId) {
+        if (isCurrentRequest('locations', requestId)) {
+          setLocations([]);
+          setLocationsTotalAvailable(0);
+          setLoadingLocations(false);
+        }
         return [];
       }
-    } catch (error) {
-      showError('获取部署位置失败: ' + error.message);
-      setLocationsTotalAvailable(0);
-      return [];
-    } finally {
-      setLoadingLocations(false);
-    }
-  }, []);
+
+      try {
+        setLoadingLocations(true);
+        const response = await API.get(
+          `/api/deployments/available-replicas?hardware_id=${hardwareId}&gpu_count=${gpuCount}`,
+        );
+        if (!isCurrentRequest('locations', requestId)) return [];
+        if (response.data.success) {
+          const replicas = response.data.data?.replicas || [];
+          const nextLocationsMap = new Map();
+          replicas.forEach((replica) => {
+            const rawId = replica?.location_id ?? replica?.location?.id;
+            if (rawId === null || rawId === undefined) return;
+
+            const mapKey = String(rawId);
+            if (nextLocationsMap.has(mapKey)) return;
+
+            const rawIso2 =
+              replica?.iso2 ??
+              replica?.location_iso2 ??
+              replica?.location?.iso2;
+            const iso2 = rawIso2 ? String(rawIso2).toUpperCase() : '';
+            const name =
+              replica?.location_name ??
+              replica?.location?.name ??
+              replica?.name ??
+              String(rawId);
+
+            nextLocationsMap.set(mapKey, {
+              id: rawId,
+              name: String(name),
+              iso2,
+              region:
+                replica?.region ??
+                replica?.location_region ??
+                replica?.location?.region,
+              country:
+                replica?.country ??
+                replica?.location_country ??
+                replica?.location?.country,
+              code:
+                replica?.code ??
+                replica?.location_code ??
+                replica?.location?.code,
+              available: Number(replica?.available_count) || 0,
+            });
+          });
+
+          const normalizedLocations = Array.from(nextLocationsMap.values());
+          setLocations(normalizedLocations);
+          setLocationsTotalAvailable(
+            normalizedLocations.reduce(
+              (acc, item) => acc + (item.available || 0),
+              0,
+            ),
+          );
+          return normalizedLocations;
+        } else {
+          showError('获取部署位置失败: ' + response.data.message);
+          setLocationsTotalAvailable(0);
+          return [];
+        }
+      } catch (error) {
+        if (!isCurrentRequest('locations', requestId)) return [];
+        showError('获取部署位置失败: ' + error.message);
+        setLocationsTotalAvailable(0);
+        return [];
+      } finally {
+        if (isCurrentRequest('locations', requestId)) {
+          setLoadingLocations(false);
+        }
+      }
+    },
+    [beginRequest, isCurrentRequest],
+  );
 
   const fetchAvailableReplicas = useCallback(
     async (hardwareId, gpuCount = 1) => {
+      const requestId = beginRequest('replicas');
       if (!hardwareId) {
-        setAvailableReplicas([]);
+        if (isCurrentRequest('replicas', requestId)) {
+          setAvailableReplicas([]);
+          setLoadingReplicas(false);
+        }
         return [];
       }
 
@@ -176,6 +198,7 @@ export const useDeploymentResources = () => {
         const response = await API.get(
           `/api/deployments/available-replicas?hardware_id=${hardwareId}&gpu_count=${gpuCount}`,
         );
+        if (!isCurrentRequest('replicas', requestId)) return [];
         if (response.data.success) {
           const replicas = response.data.data.replicas || [];
           setAvailableReplicas(replicas);
@@ -186,86 +209,102 @@ export const useDeploymentResources = () => {
           return [];
         }
       } catch (error) {
+        if (!isCurrentRequest('replicas', requestId)) return [];
         console.error('Load available replicas error:', error);
         setAvailableReplicas([]);
         return [];
       } finally {
-        setLoadingReplicas(false);
+        if (isCurrentRequest('replicas', requestId)) {
+          setLoadingReplicas(false);
+        }
       }
     },
-    [],
+    [beginRequest, isCurrentRequest],
   );
 
-  const calculatePrice = useCallback(async (params) => {
-    const {
-      locationIds,
-      hardwareId,
-      gpusPerContainer,
-      durationHours,
-      replicaCount,
-    } = params;
+  const calculatePrice = useCallback(
+    async (params) => {
+      const requestId = beginRequest('price');
+      const {
+        locationIds,
+        hardwareId,
+        gpusPerContainer,
+        durationHours,
+        replicaCount,
+      } = params;
 
-    if (
-      !locationIds?.length ||
-      !hardwareId ||
-      !gpusPerContainer ||
-      !durationHours ||
-      !replicaCount
-    ) {
-      setPriceEstimation(null);
-      return null;
-    }
-
-    try {
-      setLoadingPrice(true);
-      const requestData = {
-        location_ids: locationIds,
-        hardware_id: hardwareId,
-        gpus_per_container: gpusPerContainer,
-        duration_hours: durationHours,
-        replica_count: replicaCount,
-      };
-
-      const response = await API.post(
-        '/api/deployments/price-estimation',
-        requestData,
-      );
-      if (response.data.success) {
-        const estimation = response.data.data;
-        setPriceEstimation(estimation);
-        return estimation;
-      } else {
-        showError('价格计算失败: ' + response.data.message);
-        setPriceEstimation(null);
+      if (
+        !locationIds?.length ||
+        !hardwareId ||
+        !gpusPerContainer ||
+        !durationHours ||
+        !replicaCount
+      ) {
+        if (isCurrentRequest('price', requestId)) {
+          setPriceEstimation(null);
+          setLoadingPrice(false);
+        }
         return null;
       }
-    } catch (error) {
-      console.error('Price calculation error:', error);
-      setPriceEstimation(null);
-      return null;
-    } finally {
-      setLoadingPrice(false);
-    }
-  }, []);
 
-  const checkClusterNameAvailability = useCallback(async (name) => {
-    if (!name?.trim()) return false;
+      try {
+        setLoadingPrice(true);
+        const requestData = {
+          location_ids: locationIds,
+          hardware_id: hardwareId,
+          gpus_per_container: gpusPerContainer,
+          duration_hours: durationHours,
+          replica_count: replicaCount,
+        };
 
-    try {
-      const response = await API.get(
-        `/api/deployments/check-name?name=${encodeURIComponent(name.trim())}`,
-      );
-      if (response.data.success) {
-        return response.data.data.available;
-      } else {
-        showError('检查名称可用性失败: ' + response.data.message);
+        const response = await API.post(
+          '/api/deployments/price-estimation',
+          requestData,
+        );
+        if (!isCurrentRequest('price', requestId)) return null;
+        if (response.data.success) {
+          const estimation = response.data.data;
+          setPriceEstimation(estimation);
+          return estimation;
+        } else {
+          showError('价格计算失败: ' + response.data.message);
+          setPriceEstimation(null);
+          return null;
+        }
+      } catch (error) {
+        if (!isCurrentRequest('price', requestId)) return null;
+        console.error('Price calculation error:', error);
+        setPriceEstimation(null);
+        return null;
+      } finally {
+        if (isCurrentRequest('price', requestId)) setLoadingPrice(false);
+      }
+    },
+    [beginRequest, isCurrentRequest],
+  );
+
+  const checkClusterNameAvailability = useCallback(
+    async (name) => {
+      if (!name?.trim()) return false;
+
+      try {
+        const response = await API.get(
+          `/api/deployments/check-name?name=${encodeURIComponent(name.trim())}`,
+        );
+        if (response.data.success) {
+          return response.data.data.available;
+        } else {
+          showError('检查名称可用性失败: ' + response.data.message);
+          return false;
+        }
+      } catch (error) {
+        if (!isMounted()) return false;
+        console.error('Check cluster name availability error:', error);
         return false;
       }
-    } catch (error) {
-      console.error('Check cluster name availability error:', error);
-      return false;
-    }
-  }, []);
+    },
+    [isMounted],
+  );
 
   const createDeployment = useCallback(async (deploymentData) => {
     try {

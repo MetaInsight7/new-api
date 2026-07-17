@@ -17,57 +17,33 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import { Toast, Pagination } from '@douyinfe/semi-ui';
-import { toastConstants, BILLING_PRICING_VARS, BILLING_VAR_REGEX } from '../constants';
+import { Pagination } from '@douyinfe/semi-ui';
+import { BILLING_PRICING_VARS, BILLING_VAR_REGEX } from '../constants';
 import React from 'react';
-import { toast } from 'react-toastify';
 import {
   THINK_TAG_REGEX,
   MESSAGE_ROLES,
 } from '../constants/playground.constants';
 import { TABLE_COMPACT_MODES_KEY } from '../constants';
-import { MOBILE_BREAKPOINT } from '../hooks/common/useIsMobile';
-
-const HTMLToastContent = ({ htmlContent }) => {
-  return <div dangerouslySetInnerHTML={{ __html: htmlContent }} />;
-};
-export default HTMLToastContent;
-export function isAdmin() {
-  let user = localStorage.getItem('user');
-  if (!user) return false;
-  user = JSON.parse(user);
-  return user.role >= 10;
-}
-
-export function isRoot() {
-  let user = localStorage.getItem('user');
-  if (!user) return false;
-  user = JSON.parse(user);
-  return user.role >= 100;
-}
-
-export function getSystemName() {
-  let system_name = localStorage.getItem('system_name');
-  if (!system_name) return 'New API';
-  return system_name;
-}
-
-export function getLogo() {
-  let logo = localStorage.getItem('logo');
-  if (!logo) return '/logo.png';
-  return logo;
-}
-
-export function getUserIdFromLocalStorage() {
-  let user = localStorage.getItem('user');
-  if (!user) return -1;
-  user = JSON.parse(user);
-  return user.id;
-}
-
-export function getFooterHTML() {
-  return localStorage.getItem('footer_html');
-}
+import { getStoredJSON, getStoredValue, setStoredValue } from './siteStorage';
+export {
+  getFooterHTML,
+  getLogo,
+  getSystemName,
+  getStoredUser,
+  getUserGroupFromLocalStorage,
+  getUserIdFromLocalStorage,
+  isAdmin,
+  isRoot,
+} from './siteStorage';
+export {
+  showError,
+  showInfo,
+  showNotice,
+  showSuccess,
+  showWarning,
+} from './notifications';
+export { formatMessageForAPI, isValidMessage } from './apiMessages';
 
 export async function copy(text) {
   let okay = true;
@@ -96,82 +72,9 @@ export async function copy(text) {
 
 // isMobile 函数已移除，请改用 useIsMobile Hook
 
-let showErrorOptions = { autoClose: toastConstants.ERROR_TIMEOUT };
-let showWarningOptions = { autoClose: toastConstants.WARNING_TIMEOUT };
-let showSuccessOptions = { autoClose: toastConstants.SUCCESS_TIMEOUT };
-let showInfoOptions = { autoClose: toastConstants.INFO_TIMEOUT };
-let showNoticeOptions = { autoClose: false };
-
-const isMobileScreen = window.matchMedia(
-  `(max-width: ${MOBILE_BREAKPOINT - 1}px)`,
-).matches;
-if (isMobileScreen) {
-  showErrorOptions.position = 'top-center';
-  // showErrorOptions.transition = 'flip';
-
-  showSuccessOptions.position = 'top-center';
-  // showSuccessOptions.transition = 'flip';
-
-  showInfoOptions.position = 'top-center';
-  // showInfoOptions.transition = 'flip';
-
-  showNoticeOptions.position = 'top-center';
-  // showNoticeOptions.transition = 'flip';
-}
-
-export function showError(error) {
-  console.error(error);
-  if (error.message) {
-    if (error.name === 'AxiosError') {
-      switch (error.response?.status) {
-        case 401:
-          // 清除用户状态
-          localStorage.removeItem('user');
-          // toast.error('错误：未登录或登录已过期，请重新登录！', showErrorOptions);
-          window.location.href = '/login?expired=true';
-          break;
-        case 429:
-          Toast.error('错误：请求次数过多，请稍后再试！');
-          break;
-        case 500:
-          Toast.error('错误：服务器内部错误，请联系管理员！');
-          break;
-        case 405:
-          Toast.info('本站仅作演示之用，无服务端！');
-          break;
-        default:
-          Toast.error('错误：' + error.message);
-      }
-      return;
-    }
-    Toast.error('错误：' + error.message);
-  } else {
-    Toast.error('错误：' + error);
-  }
-}
-
-export function showWarning(message) {
-  Toast.warning(message);
-}
-
-export function showSuccess(message) {
-  Toast.success(message);
-}
-
-export function showInfo(message) {
-  Toast.info(message);
-}
-
-export function showNotice(message, isHTML = false) {
-  if (isHTML) {
-    toast(<HTMLToastContent htmlContent={message} />, showNoticeOptions);
-  } else {
-    Toast.info(message);
-  }
-}
-
 export function openPage(url) {
-  window.open(url);
+  if (!url) return;
+  window.open(url, '_blank', 'noopener,noreferrer');
 }
 
 export function removeTrailingSlash(url) {
@@ -297,12 +200,12 @@ export function verifyJSONPromise(value) {
 }
 
 export function shouldShowPrompt(id) {
-  let prompt = localStorage.getItem(`prompt-${id}`);
+  let prompt = getStoredValue(`prompt-${id}`, '');
   return !prompt;
 }
 
 export function setPromptShown(id) {
-  localStorage.setItem(`prompt-${id}`, 'true');
+  setStoredValue(`prompt-${id}`, 'true');
 }
 
 /**
@@ -463,20 +366,6 @@ export const hasImageContent = (message) => {
 };
 
 // 格式化消息用于API请求
-export const formatMessageForAPI = (message) => {
-  if (!message) return null;
-
-  return {
-    role: message.role,
-    content: message.content,
-  };
-};
-
-// 验证消息是否有效
-export const isValidMessage = (message) => {
-  return message && message.role && (message.content || message.content === '');
-};
-
 // 获取最后一条用户消息
 export const getLastUserMessage = (messages) => {
   if (!Array.isArray(messages)) return null;
@@ -566,7 +455,7 @@ export const formatDateTimeString = (date) => {
 
 function readTableCompactModes() {
   try {
-    const json = localStorage.getItem(TABLE_COMPACT_MODES_KEY);
+    const json = getStoredValue(TABLE_COMPACT_MODES_KEY, '');
     return json ? JSON.parse(json) : {};
   } catch {
     return {};
@@ -574,11 +463,7 @@ function readTableCompactModes() {
 }
 
 function writeTableCompactModes(modes) {
-  try {
-    localStorage.setItem(TABLE_COMPACT_MODES_KEY, JSON.stringify(modes));
-  } catch {
-    // ignore
-  }
+  setStoredValue(TABLE_COMPACT_MODES_KEY, JSON.stringify(modes));
 }
 
 export function getTableCompactMode(tableKey = 'global') {
@@ -692,9 +577,9 @@ export const calculateModelPrice = ({
       symbol = '¥';
     } else if (currency === 'CUSTOM') {
       try {
-        const statusStr = localStorage.getItem('status');
+        const statusStr = getStoredValue('status', '');
         if (statusStr) {
-          const s = JSON.parse(statusStr);
+          const s = getStoredJSON('status', {});
           symbol = s?.custom_currency_symbol || '¤';
         } else {
           symbol = '¤';
@@ -900,11 +785,11 @@ export const getModelPriceItems = (
 export const formatDynamicPriceSummary = (billingExpr, t, groupRatio = 1) => {
   if (!billingExpr) return <span style={{ color: 'var(--semi-color-text-1)' }}>{t('动态计费')}</span>;
 
-  const quotaDisplayType = localStorage.getItem('quota_display_type') || 'USD';
+  const quotaDisplayType = getStoredValue('quota_display_type', 'USD');
   let symbol = '$';
   let rate = 1;
   try {
-    const s = JSON.parse(localStorage.getItem('status') || '{}');
+    const s = getStoredJSON('status', {});
     if (quotaDisplayType === 'CNY') {
       symbol = '¥';
       rate = s?.usd_exchange_rate || 7;

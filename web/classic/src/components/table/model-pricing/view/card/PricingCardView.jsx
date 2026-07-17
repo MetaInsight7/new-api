@@ -39,8 +39,8 @@ import {
   calculateModelPrice,
   formatPriceInfo,
   formatDynamicPriceSummary,
-  getLobeHubIcon,
 } from '../../../../../helpers';
+import { getLobeHubIcon } from '../../../../../helpers/lobeIcon';
 import PricingCardSkeleton from './PricingCardSkeleton';
 import { useMinimumLoadingTime } from '../../../../../hooks/common/useMinimumLoadingTime';
 import { renderLimitedItems } from '../../../../common/ui/RenderUtils';

@@ -43,6 +43,7 @@ import {
   verifyJSON,
 } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
+import { useRequestLifecycle } from '../../../hooks/common/useRequestLifecycle';
 import GroupTable from './components/GroupTable';
 import AutoGroupList from './components/AutoGroupList';
 import GroupGroupRatioRules from './components/GroupGroupRatioRules';
@@ -85,6 +86,7 @@ export default function GroupRatioSettings(props) {
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
   const dataVersionRef = useRef(0);
+  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   const groupNames = useMemo(() => {
     const ratioMap = parseJSONSafe(inputs.GroupRatio, {});
@@ -114,9 +116,11 @@ export default function GroupRatioSettings(props) {
       return API.put('/api/option/', { key: item.key, value });
     });
 
+    const requestId = beginRequest('submit');
     setLoading(true);
     try {
       const res = await Promise.all(requestQueue);
+      if (!isCurrentRequest('submit', requestId)) return;
       if (res.includes(undefined)) {
         return showError(
           requestQueue.length > 1
@@ -132,10 +136,11 @@ export default function GroupRatioSettings(props) {
       showSuccess(t('保存成功'));
       props.refresh();
     } catch (error) {
+      if (!isCurrentRequest('submit', requestId)) return;
       console.error('Unexpected error:', error);
       showError(t('保存失败，请重试'));
     } finally {
-      setLoading(false);
+      if (isCurrentRequest('submit', requestId)) setLoading(false);
     }
   }
 
@@ -150,7 +155,7 @@ export default function GroupRatioSettings(props) {
     setInputsRow(structuredClone(currentInputs));
     dataVersionRef.current += 1;
     if (refForm.current) {
-      refForm.current.setValues(currentInputs);
+      refForm.current?.setValues(currentInputs);
     }
   }, [props.options]);
 
@@ -255,7 +260,7 @@ export default function GroupRatioSettings(props) {
 
   useEffect(() => {
     if (editMode === 'manual' && refForm.current) {
-      refForm.current.setValues(inputs);
+      refForm.current?.setValues(inputs);
     }
   }, [editMode]);
 

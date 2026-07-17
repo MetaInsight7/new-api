@@ -49,6 +49,7 @@ import {
 } from '@douyinfe/semi-icons';
 import { getChannelModels } from '../../../../helpers';
 import { useTranslation } from 'react-i18next';
+import { useRequestLifecycle } from '../../../../hooks/common/useRequestLifecycle';
 
 const { Text, Title } = Typography;
 
@@ -75,6 +76,7 @@ const EditTagModal = (props) => {
     header_override: null,
   };
   const [inputs, setInputs] = useState(originInputs);
+  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
   const modelSearchMatchedCount = useMemo(() => {
     const keyword = modelSearchValue.trim();
     if (!keyword) {
@@ -166,36 +168,43 @@ const EditTagModal = (props) => {
   };
 
   const fetchModels = async () => {
+    const requestId = beginRequest('models');
     try {
       let res = await API.get(`/api/channel/models`);
       let localModelOptions = res.data.data.map((model) => ({
         label: model.id,
         value: model.id,
       }));
-      setOriginModelOptions(localModelOptions);
+      if (isCurrentRequest('models', requestId)) {
+        setOriginModelOptions(localModelOptions);
+      }
     } catch (error) {
-      showError(error.message);
+      if (isCurrentRequest('models', requestId)) showError(error.message);
     }
   };
 
   const fetchGroups = async () => {
+    const requestId = beginRequest('groups');
     try {
       let res = await API.get(`/api/group/`);
       if (res === undefined) {
         return;
       }
-      setGroupOptions(
-        res.data.data.map((group) => ({
-          label: group,
-          value: group,
-        })),
-      );
+      if (isCurrentRequest('groups', requestId)) {
+        setGroupOptions(
+          res.data.data.map((group) => ({
+            label: group,
+            value: group,
+          })),
+        );
+      }
     } catch (error) {
-      showError(error.message);
+      if (isCurrentRequest('groups', requestId)) showError(error.message);
     }
   };
 
   const handleSave = async (values) => {
+    const requestId = beginRequest('save');
     setLoading(true);
     const formVals = values || formApiRef.current?.getValues() || {};
     let data = { tag };
@@ -260,20 +269,20 @@ const EditTagModal = (props) => {
       setLoading(false);
       return;
     }
-    await submit(data);
-    setLoading(false);
+    await submit(data, requestId);
+    if (isCurrentRequest('save', requestId)) setLoading(false);
   };
 
-  const submit = async (data) => {
+  const submit = async (data, requestId) => {
     try {
       const res = await API.put('/api/channel/tag', data);
-      if (res?.data?.success) {
+      if (isCurrentRequest('save', requestId) && res?.data?.success) {
         showSuccess('标签更新成功！');
         refresh();
         handleClose();
       }
     } catch (error) {
-      showError(error);
+      if (isCurrentRequest('save', requestId)) showError(error);
     }
   };
 
@@ -291,27 +300,38 @@ const EditTagModal = (props) => {
   }, [originModelOptions, inputs.models]);
 
   useEffect(() => {
+    if (!visible) {
+      beginRequest('models');
+      beginRequest('groups');
+      beginRequest('tagModels');
+      beginRequest('save');
+      return;
+    }
+
     const fetchTagModels = async () => {
       if (!tag) return;
+      const requestId = beginRequest('tagModels');
       setLoading(true);
       try {
         const res = await API.get(`/api/channel/tag/models?tag=${tag}`);
-        if (res?.data?.success) {
+        if (isCurrentRequest('tagModels', requestId) && res?.data?.success) {
           const models = res.data.data ? res.data.data.split(',') : [];
           handleInputChange('models', models);
         } else {
-          showError(res.data.message);
+          if (isCurrentRequest('tagModels', requestId)) {
+            showError(res.data.message);
+          }
         }
       } catch (error) {
-        showError(error.message);
+        if (isCurrentRequest('tagModels', requestId)) showError(error.message);
       } finally {
-        setLoading(false);
+        if (isCurrentRequest('tagModels', requestId)) setLoading(false);
       }
     };
 
-    fetchModels().then();
-    fetchGroups().then();
-    fetchTagModels().then();
+    fetchModels().catch((error) => showError(error));
+    fetchGroups().catch((error) => showError(error));
+    fetchTagModels().catch((error) => showError(error));
     setModelSearchValue('');
     if (formApiRef.current) {
       formApiRef.current.setValues({

@@ -51,6 +51,7 @@ import {
   copy,
   timestamp2string,
 } from '../../../../helpers';
+import { useRequestLifecycle } from '../../../../hooks/common/useRequestLifecycle';
 
 const { Text } = Typography;
 
@@ -73,6 +74,7 @@ const ViewLogsModal = ({ visible, onCancel, deployment, t }) => {
 
   const logContainerRef = useRef(null);
   const autoRefreshRef = useRef(null);
+  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   // Auto scroll to bottom when new logs arrive
   const scrollToBottom = () => {
@@ -102,15 +104,19 @@ const ViewLogsModal = ({ visible, onCancel, deployment, t }) => {
   const fetchLogs = async (containerIdOverride = undefined) => {
     if (!deployment?.id) return;
 
+    const requestId = beginRequest('logs');
+
     const containerId =
       typeof containerIdOverride === 'string'
         ? containerIdOverride
         : selectedContainerId;
 
     if (!containerId || containerId === ALL_CONTAINERS) {
-      setLogLines([]);
-      setLastUpdatedAt(null);
-      setLoading(false);
+      if (isCurrentRequest('logs', requestId)) {
+        setLogLines([]);
+        setLastUpdatedAt(null);
+        setLoading(false);
+      }
       return;
     }
 
@@ -129,7 +135,7 @@ const ViewLogsModal = ({ visible, onCancel, deployment, t }) => {
         `/api/deployments/${deployment.id}/logs?${params}`,
       );
 
-      if (response.data.success) {
+      if (isCurrentRequest('logs', requestId) && response.data.success) {
         const rawContent =
           typeof response.data.data === 'string' ? response.data.data : '';
         const normalized = rawContent.replace(/\r\n?/g, '\n');
@@ -138,29 +144,34 @@ const ViewLogsModal = ({ visible, onCancel, deployment, t }) => {
         setLogLines(lines);
         setLastUpdatedAt(new Date());
 
-        setTimeout(scrollToBottom, 100);
+        setTimeout(() => {
+          if (isCurrentRequest('logs', requestId)) scrollToBottom();
+        }, 100);
       }
     } catch (error) {
-      showError(
-        t('获取日志失败') +
-          ': ' +
-          (error.response?.data?.message || error.message),
-      );
+      if (isCurrentRequest('logs', requestId)) {
+        showError(
+          t('获取日志失败') +
+            ': ' +
+            (error.response?.data?.message || error.message),
+        );
+      }
     } finally {
-      setLoading(false);
+      if (isCurrentRequest('logs', requestId)) setLoading(false);
     }
   };
 
   const fetchContainers = async () => {
     if (!deployment?.id) return;
 
+    const requestId = beginRequest('containers');
     setContainersLoading(true);
     try {
       const response = await API.get(
         `/api/deployments/${deployment.id}/containers`,
       );
 
-      if (response.data.success) {
+      if (isCurrentRequest('containers', requestId) && response.data.success) {
         const list = response.data.data?.containers || [];
         setContainers(list);
 
@@ -180,13 +191,17 @@ const ViewLogsModal = ({ visible, onCancel, deployment, t }) => {
         }
       }
     } catch (error) {
-      showError(
-        t('获取容器列表失败') +
-          ': ' +
-          (error.response?.data?.message || error.message),
-      );
+      if (isCurrentRequest('containers', requestId)) {
+        showError(
+          t('获取容器列表失败') +
+            ': ' +
+            (error.response?.data?.message || error.message),
+        );
+      }
     } finally {
-      setContainersLoading(false);
+      if (isCurrentRequest('containers', requestId)) {
+        setContainersLoading(false);
+      }
     }
   };
 
@@ -196,23 +211,31 @@ const ViewLogsModal = ({ visible, onCancel, deployment, t }) => {
       return;
     }
 
+    const requestId = beginRequest('containerDetails');
     setContainerDetailsLoading(true);
     try {
       const response = await API.get(
         `/api/deployments/${deployment.id}/containers/${containerId}`,
       );
 
-      if (response.data.success) {
+      if (
+        isCurrentRequest('containerDetails', requestId) &&
+        response.data.success
+      ) {
         setContainerDetails(response.data.data || null);
       }
     } catch (error) {
-      showError(
-        t('获取容器详情失败') +
-          ': ' +
-          (error.response?.data?.message || error.message),
-      );
+      if (isCurrentRequest('containerDetails', requestId)) {
+        showError(
+          t('获取容器详情失败') +
+            ': ' +
+            (error.response?.data?.message || error.message),
+        );
+      }
     } finally {
-      setContainerDetailsLoading(false);
+      if (isCurrentRequest('containerDetails', requestId)) {
+        setContainerDetailsLoading(false);
+      }
     }
   };
 
@@ -339,6 +362,9 @@ const ViewLogsModal = ({ visible, onCancel, deployment, t }) => {
     if (visible && deployment?.id) {
       fetchContainers();
     } else if (!visible) {
+      beginRequest('logs');
+      beginRequest('containers');
+      beginRequest('containerDetails');
       setContainers([]);
       setSelectedContainerId(ALL_CONTAINERS);
       setContainerDetails(null);
@@ -573,7 +599,11 @@ const ViewLogsModal = ({ visible, onCancel, deployment, t }) => {
                           size='small'
                           theme='borderless'
                           onClick={() =>
-                            window.open(containerDetails.public_url, '_blank')
+                            window.open(
+                              containerDetails.public_url,
+                              '_blank',
+                              'noopener,noreferrer',
+                            )
                           }
                         />
                       </Tooltip>

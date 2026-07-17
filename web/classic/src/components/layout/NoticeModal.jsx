@@ -20,10 +20,14 @@ For commercial licensing, please contact support@quantumnous.com
 import React, { useEffect, useState, useContext, useMemo } from 'react';
 import { Button, Modal } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
-import { API, showError, getRelativeTime } from '../../helpers';
-import { marked } from 'marked';
+import { API } from '../../helpers/api';
+import { renderSafeMarkdown } from '../../helpers/sanitize';
+import { getRelativeTime } from '../../helpers/utils';
+import { showError } from '../../helpers/notifications';
+import { setStoredValue } from '../../helpers/siteStorage';
 import { StatusContext } from '../../context/Status';
 import { Bell, Megaphone } from 'lucide-react';
+import { useRequestLifecycle } from '../../hooks/common/useRequestLifecycle';
 import './notice-dazi.css';
 
 const NoticeModal = ({
@@ -37,6 +41,7 @@ const NoticeModal = ({
   const [noticeContent, setNoticeContent] = useState('');
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState(defaultTab);
+  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   const [statusState] = useContext(StatusContext);
 
@@ -68,18 +73,20 @@ const NoticeModal = ({
 
   const handleCloseTodayNotice = () => {
     const today = new Date().toDateString();
-    localStorage.setItem('notice_close_date', today);
+    setStoredValue('notice_close_date', today);
     onClose();
   };
 
   const displayNotice = async () => {
+    const requestId = beginRequest('notice');
     setLoading(true);
     try {
       const res = await API.get('/api/notice');
+      if (!isCurrentRequest('notice', requestId)) return;
       const { success, message, data } = res.data;
       if (success) {
         if (data !== '') {
-          const htmlNotice = marked.parse(data);
+          const htmlNotice = renderSafeMarkdown(data);
           setNoticeContent(htmlNotice);
         } else {
           setNoticeContent('');
@@ -88,9 +95,10 @@ const NoticeModal = ({
         showError(message);
       }
     } catch (error) {
+      if (!isCurrentRequest('notice', requestId)) return;
       showError(error.message);
     } finally {
-      setLoading(false);
+      if (isCurrentRequest('notice', requestId)) setLoading(false);
     }
   };
 
@@ -141,8 +149,8 @@ const NoticeModal = ({
     return (
       <div className='nd-list'>
         {processedAnnouncements.map((item) => {
-          const htmlContent = marked.parse(item.content || '');
-          const htmlExtra = item.extra ? marked.parse(item.extra) : '';
+          const htmlContent = renderSafeMarkdown(item.content);
+          const htmlExtra = item.extra ? renderSafeMarkdown(item.extra) : '';
           return (
             <div className='nd-item' key={item.key}>
               <div className='nd-date'>

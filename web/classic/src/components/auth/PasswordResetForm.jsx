@@ -18,7 +18,14 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState } from 'react';
-import { API, getLogo, showError, showInfo, showSuccess } from '../../helpers';
+import {
+  API,
+  getLogo,
+  getStoredValue,
+  showError,
+  showInfo,
+  showSuccess,
+} from '../../helpers';
 import Turnstile from 'react-turnstile';
 import { Button, Form } from '@douyinfe/semi-ui';
 import Text from '@douyinfe/semi-ui/lib/es/typography/text';
@@ -27,6 +34,7 @@ import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import AuthLayout from './AuthLayout';
 import { AuthButtonContent, AuthFormHeader } from './AuthFormVisuals';
+import { useRequestLifecycle } from '../../hooks/common/useRequestLifecycle';
 
 const PasswordResetForm = () => {
   const { t } = useTranslation();
@@ -41,11 +49,12 @@ const PasswordResetForm = () => {
   const [turnstileToken, setTurnstileToken] = useState('');
   const [disableButton, setDisableButton] = useState(false);
   const [countdown, setCountdown] = useState(30);
+  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   const logo = getLogo();
 
   useEffect(() => {
-    let status = localStorage.getItem('status');
+    let status = getStoredValue('status', '');
     if (status) {
       status = JSON.parse(status);
       if (status.turnstile_check) {
@@ -81,19 +90,27 @@ const PasswordResetForm = () => {
       showInfo(t('请稍后几秒重试，Turnstile 正在检查用户环境！'));
       return;
     }
+    const requestId = beginRequest('reset');
     setDisableButton(true);
     setLoading(true);
-    const res = await API.get(
-      `/api/reset_password?email=${email}&turnstile=${turnstileToken}`,
-    );
-    const { success, message } = res.data;
-    if (success) {
-      showSuccess(t('重置邮件发送成功，请检查邮箱！'));
-      setInputs({ ...inputs, email: '' });
-    } else {
-      showError(message);
+    try {
+      const res = await API.get(
+        `/api/reset_password?email=${encodeURIComponent(email)}&turnstile=${encodeURIComponent(turnstileToken)}`,
+      );
+      const { success, message } = res.data;
+      if (isCurrentRequest('reset', requestId) && success) {
+        showSuccess(t('重置邮件发送成功，请检查邮箱！'));
+        setInputs({ ...inputs, email: '' });
+      } else if (isCurrentRequest('reset', requestId)) {
+        showError(message);
+      }
+    } catch (error) {
+      if (isCurrentRequest('reset', requestId)) {
+        showError(error?.message || t('发送失败，请重试'));
+      }
+    } finally {
+      if (isCurrentRequest('reset', requestId)) setLoading(false);
     }
-    setLoading(false);
   }
 
   const renderTurnstile = () => {

@@ -44,7 +44,7 @@ import {
   Send,
   XCircle,
 } from 'lucide-react';
-import { showSuccess } from '../../helpers';
+import { getStoredValue, setStoredValue, showSuccess } from '../../helpers';
 import {
   SUPPORT_STORAGE_KEY,
   getSupportLabel,
@@ -74,7 +74,7 @@ const createInitialForm = () => ({
 
 const loadTickets = () => {
   try {
-    const saved = localStorage.getItem(SUPPORT_STORAGE_KEY);
+    const saved = getStoredValue(SUPPORT_STORAGE_KEY, '');
     if (saved) {
       const parsed = JSON.parse(saved);
       if (Array.isArray(parsed) && parsed.length > 0) return parsed;
@@ -109,7 +109,7 @@ const Support = () => {
   const selectedTicket = tickets.find((ticket) => ticket.id === selectedId);
 
   useEffect(() => {
-    localStorage.setItem(SUPPORT_STORAGE_KEY, JSON.stringify(tickets));
+    setStoredValue(SUPPORT_STORAGE_KEY, JSON.stringify(tickets));
   }, [tickets]);
 
   useEffect(() => {
@@ -328,10 +328,15 @@ const Support = () => {
               <div className='support-detail-meta'>
                 <span>工单编号 {selectedTicket.id}</span>
                 <span>
-                  部门 {getSupportLabel(supportDepartments, selectedTicket.department)}
+                  部门{' '}
+                  {getSupportLabel(
+                    supportDepartments,
+                    selectedTicket.department,
+                  )}
                 </span>
                 <span>
-                  优先级 {getSupportLabel(supportPriorities, selectedTicket.priority)}
+                  优先级{' '}
+                  {getSupportLabel(supportPriorities, selectedTicket.priority)}
                 </span>
                 <span>创建于 {selectedTicket.createdAt}</span>
               </div>
@@ -341,7 +346,8 @@ const Support = () => {
           {isClosed && (
             <div className='support-closed-notice'>
               <CircleCheck size={18} />
-              此工单已{selectedTicket.status === 'resolved' ? '解决' : '关闭'}。如有新问题，请另外创建工单。
+              此工单已{selectedTicket.status === 'resolved' ? '解决' : '关闭'}
+              。如有新问题，请另外创建工单。
             </div>
           )}
 
@@ -464,7 +470,6 @@ const Support = () => {
             <ArrowUpRight size={17} />
           </span>
         </a>
-
       </section>
 
       <Button
@@ -580,7 +585,9 @@ const Support = () => {
       >
         <div className='support-create-intro'>
           <LifeBuoy size={18} />
-          <span>请尽量提供请求时间、模型名称和报错信息，我们会更快定位问题。</span>
+          <span>
+            请尽量提供请求时间、模型名称和报错信息，我们会更快定位问题。
+          </span>
         </div>
         <div className='support-form'>
           <label className='support-form-field support-form-field--full'>

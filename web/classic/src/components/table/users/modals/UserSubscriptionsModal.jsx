@@ -37,6 +37,7 @@ import { API, showError, showSuccess } from '../../../../helpers';
 import { convertUSDToCurrency } from '../../../../helpers/render';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 import CardTable from '../../../common/ui/CardTable';
+import { useRequestLifecycle } from '../../../../hooks/common/useRequestLifecycle';
 
 const { Text } = Typography;
 
@@ -85,6 +86,7 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
   const [subs, setSubs] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
+  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   const planTitleMap = useMemo(() => {
     const map = new Map();
@@ -113,39 +115,41 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
   }, [plans]);
 
   const loadPlans = async () => {
+    const requestId = beginRequest('plans');
     setPlansLoading(true);
     try {
       const res = await API.get('/api/subscription/admin/plans');
-      if (res.data?.success) {
+      if (isCurrentRequest('plans', requestId) && res.data?.success) {
         setPlans(res.data.data || []);
-      } else {
+      } else if (isCurrentRequest('plans', requestId)) {
         showError(res.data?.message || t('加载失败'));
       }
     } catch (e) {
-      showError(t('请求失败'));
+      if (isCurrentRequest('plans', requestId)) showError(t('请求失败'));
     } finally {
-      setPlansLoading(false);
+      if (isCurrentRequest('plans', requestId)) setPlansLoading(false);
     }
   };
 
   const loadUserSubscriptions = async () => {
     if (!user?.id) return;
+    const requestId = beginRequest('subscriptions');
     setLoading(true);
     try {
       const res = await API.get(
         `/api/subscription/admin/users/${user.id}/subscriptions`,
       );
-      if (res.data?.success) {
+      if (isCurrentRequest('subscriptions', requestId) && res.data?.success) {
         const next = res.data.data || [];
         setSubs(next);
         setCurrentPage(1);
-      } else {
+      } else if (isCurrentRequest('subscriptions', requestId)) {
         showError(res.data?.message || t('加载失败'));
       }
     } catch (e) {
-      showError(t('请求失败'));
+      if (isCurrentRequest('subscriptions', requestId)) showError(t('请求失败'));
     } finally {
-      setLoading(false);
+      if (isCurrentRequest('subscriptions', requestId)) setLoading(false);
     }
   };
 
@@ -170,6 +174,7 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
       showError(t('请选择订阅套餐'));
       return;
     }
+    const requestId = beginRequest('create');
     setCreating(true);
     try {
       const res = await API.post(
@@ -178,19 +183,19 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
           plan_id: selectedPlanId,
         },
       );
-      if (res.data?.success) {
+      if (isCurrentRequest('create', requestId) && res.data?.success) {
         const msg = res.data?.data?.message;
         showSuccess(msg ? msg : t('新增成功'));
         setSelectedPlanId(null);
         await loadUserSubscriptions();
         onSuccess?.();
-      } else {
+      } else if (isCurrentRequest('create', requestId)) {
         showError(res.data?.message || t('新增失败'));
       }
     } catch (e) {
-      showError(t('请求失败'));
+      if (isCurrentRequest('create', requestId)) showError(t('请求失败'));
     } finally {
-      setCreating(false);
+      if (isCurrentRequest('create', requestId)) setCreating(false);
     }
   };
 
@@ -203,20 +208,21 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
       okButtonProps: { theme: 'solid' },
       cancelButtonProps: { theme: 'borderless' },
       onOk: async () => {
+        const requestId = beginRequest(`invalidate-${subId}`);
         try {
           const res = await API.post(
             `/api/subscription/admin/user_subscriptions/${subId}/invalidate`,
           );
-          if (res.data?.success) {
+          if (isCurrentRequest(`invalidate-${subId}`, requestId) && res.data?.success) {
             const msg = res.data?.data?.message;
             showSuccess(msg ? msg : t('已作废'));
             await loadUserSubscriptions();
             onSuccess?.();
-          } else {
+          } else if (isCurrentRequest(`invalidate-${subId}`, requestId)) {
             showError(res.data?.message || t('操作失败'));
           }
         } catch (e) {
-          showError(t('请求失败'));
+          if (isCurrentRequest(`invalidate-${subId}`, requestId)) showError(t('请求失败'));
         }
       },
     });
@@ -231,20 +237,21 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
       okButtonProps: { theme: 'solid' },
       cancelButtonProps: { theme: 'borderless' },
       onOk: async () => {
+        const requestId = beginRequest(`delete-${subId}`);
         try {
           const res = await API.delete(
             `/api/subscription/admin/user_subscriptions/${subId}`,
           );
-          if (res.data?.success) {
+          if (isCurrentRequest(`delete-${subId}`, requestId) && res.data?.success) {
             const msg = res.data?.data?.message;
             showSuccess(msg ? msg : t('已删除'));
             await loadUserSubscriptions();
             onSuccess?.();
-          } else {
+          } else if (isCurrentRequest(`delete-${subId}`, requestId)) {
             showError(res.data?.message || t('删除失败'));
           }
         } catch (e) {
-          showError(t('请求失败'));
+          if (isCurrentRequest(`delete-${subId}`, requestId)) showError(t('请求失败'));
         }
       },
     });

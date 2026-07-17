@@ -36,10 +36,11 @@ import {
   DEFAULTS,
   ILLUSTRATION_SIZE,
 } from '../constants/dashboard.constants';
+import { getStoredValue } from './siteStorage';
 
 // ========== 时间相关工具函数 ==========
 export const getDefaultTime = () => {
-  return localStorage.getItem(STORAGE_KEYS.DATA_EXPORT_DEFAULT_TIME) || 'hour';
+  return getStoredValue(STORAGE_KEYS.DATA_EXPORT_DEFAULT_TIME, 'hour');
 };
 
 const getNowTimestamp = () => Math.floor(Date.now() / 1000);
@@ -525,4 +526,3 @@ export const processUserData = (data, dataExportDefaultTime, limit = 10) => {
 
   return { rankingData, trendData, topUsers };
 };
-

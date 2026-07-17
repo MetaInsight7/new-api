@@ -22,6 +22,8 @@ import { useTokenKeys } from '../../hooks/chat/useTokenKeys';
 import { Spin } from '@douyinfe/semi-ui';
 import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { getStoredJSON } from '../../helpers/siteStorage';
+import { isSafeExternalUrl } from '../../helpers/sanitize';
 
 const ChatPage = () => {
   const { t } = useTranslation();
@@ -33,11 +35,10 @@ const ChatPage = () => {
     if (!serverAddress || !key) return '';
     let link = '';
     if (id) {
-      let chats = localStorage.getItem('chats');
-      if (chats) {
-        chats = JSON.parse(chats);
-        if (Array.isArray(chats) && chats.length > 0) {
-          for (let k in chats[id]) {
+      const chats = getStoredJSON('chats', []);
+      if (Array.isArray(chats) && chats.length > 0) {
+        for (let k in chats[id]) {
+          if (typeof chats[id][k] === 'string') {
             link = chats[id][k];
             link = link.replaceAll(
               '{address}',
@@ -51,7 +52,10 @@ const ChatPage = () => {
     return link;
   };
 
-  const iframeSrc = keys.length > 0 ? comLink(keys[0]) : '';
+  const candidateIframeSrc = keys.length > 0 ? comLink(keys[0]) : '';
+  const iframeSrc = isSafeExternalUrl(candidateIframeSrc)
+    ? candidateIframeSrc
+    : '';
 
   return !isLoading && iframeSrc ? (
     <iframe
@@ -64,6 +68,7 @@ const ChatPage = () => {
       }}
       title='Token Frame'
       allow='camera;microphone'
+      sandbox='allow-forms allow-popups allow-scripts allow-same-origin'
     />
   ) : (
     <div className='fixed inset-0 w-screen h-screen flex items-center justify-center bg-white/80 z-[1000] mt-[60px]'>

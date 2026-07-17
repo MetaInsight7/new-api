@@ -52,6 +52,8 @@ import {
 } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 import { StatusContext } from '../../../../context/Status';
+import { renderSafeDatePickerTrigger } from '../../../common/ui/SafeDatePickerTrigger';
+import { useRequestLifecycle } from '../../../../hooks/common/useRequestLifecycle';
 
 const { Title } = Typography;
 
@@ -64,6 +66,7 @@ const EditTokenModal = (props) => {
   const [models, setModels] = useState([]);
   const [groups, setGroups] = useState([]);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
   const isEdit = props.editingToken.id !== undefined;
 
   const getInitValues = () => ({
@@ -101,9 +104,16 @@ const EditTokenModal = (props) => {
   };
 
   const loadModels = async () => {
-    let res = await API.get(`/api/user/models`);
+    const requestId = beginRequest('models');
+    let res;
+    try {
+      res = await API.get(`/api/user/models`);
+    } catch (error) {
+      if (isCurrentRequest('models', requestId)) showError(t('加载模型列表失败'));
+      return;
+    }
     const { success, message, data } = res.data;
-    if (success) {
+    if (isCurrentRequest('models', requestId) && success) {
       const categories = getModelCategories(t);
       let localModelOptions = (data || []).map((model) => {
         let icon = null;
@@ -124,15 +134,22 @@ const EditTokenModal = (props) => {
         };
       });
       setModels(localModelOptions);
-    } else {
+    } else if (isCurrentRequest('models', requestId)) {
       showError(t(message));
     }
   };
 
   const loadGroups = async () => {
-    let res = await API.get(`/api/user/self/groups`);
+    const requestId = beginRequest('groups');
+    let res;
+    try {
+      res = await API.get(`/api/user/self/groups`);
+    } catch (error) {
+      if (isCurrentRequest('groups', requestId)) showError(t('加载分组失败'));
+      return;
+    }
     const { success, message, data } = res.data;
-    if (success) {
+    if (isCurrentRequest('groups', requestId) && success) {
       let localGroupOptions = Object.entries(data).map(([group, info]) => ({
         label: info.desc,
         value: group,
@@ -147,34 +164,40 @@ const EditTokenModal = (props) => {
       // if (statusState?.status?.default_use_auto_group && formApiRef.current) {
       //   formApiRef.current.setValue('group', 'auto');
       // }
-    } else {
+    } else if (isCurrentRequest('groups', requestId)) {
       showError(t(message));
     }
   };
 
   const loadToken = async () => {
+    const requestId = beginRequest('token');
     setLoading(true);
-    let res = await API.get(`/api/token/${props.editingToken.id}`);
-    const { success, message, data } = res.data;
-    if (success) {
-      if (data.expired_time !== -1) {
-        data.expired_time = timestamp2string(data.expired_time);
+    try {
+      let res = await API.get(`/api/token/${props.editingToken.id}`);
+      const { success, message, data } = res.data;
+      if (isCurrentRequest('token', requestId) && success) {
+        if (data.expired_time !== -1) {
+          data.expired_time = timestamp2string(data.expired_time);
+        }
+        if (data.model_limits !== '') {
+          data.model_limits = data.model_limits.split(',');
+        } else {
+          data.model_limits = [];
+        }
+        data.remain_amount = Number(
+          quotaToDisplayAmount(data.remain_quota || 0).toFixed(6),
+        );
+        if (formApiRef.current) {
+          formApiRef.current.setValues({ ...getInitValues(), ...data });
+        }
+      } else if (isCurrentRequest('token', requestId)) {
+        showError(message);
       }
-      if (data.model_limits !== '') {
-        data.model_limits = data.model_limits.split(',');
-      } else {
-        data.model_limits = [];
-      }
-      data.remain_amount = Number(
-        quotaToDisplayAmount(data.remain_quota || 0).toFixed(6),
-      );
-      if (formApiRef.current) {
-        formApiRef.current.setValues({ ...getInitValues(), ...data });
-      }
-    } else {
-      showError(message);
+    } catch (error) {
+      if (isCurrentRequest('token', requestId)) showError(t('加载令牌信息失败'));
+    } finally {
+      if (isCurrentRequest('token', requestId)) setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -196,6 +219,11 @@ const EditTokenModal = (props) => {
         formApiRef.current?.setValues(getInitValues());
       }
     } else {
+      beginRequest('models');
+      beginRequest('groups');
+      beginRequest('token');
+      beginRequest('submit');
+      setLoading(false);
       formApiRef.current?.reset();
     }
   }, [props.visiable, props.editingToken.id]);
@@ -213,22 +241,22 @@ const EditTokenModal = (props) => {
   };
 
   const submit = async (values) => {
+    const requestId = beginRequest('submit');
     setLoading(true);
-    if (isEdit) {
+    try {
+      if (isEdit) {
       let { tokenCount: _tc, ...localInputs } = values;
       localInputs.remain_quota = localInputs.unlimited_quota
         ? 0
         : displayAmountToQuota(localInputs.remain_amount);
       if (!localInputs.unlimited_quota && localInputs.remain_quota <= 0) {
         showError(t('请输入金额'));
-        setLoading(false);
         return;
       }
       if (localInputs.expired_time !== -1) {
         let time = Date.parse(localInputs.expired_time);
         if (isNaN(time)) {
           showError(t('过期时间格式错误！'));
-          setLoading(false);
           return;
         }
         localInputs.expired_time = Math.ceil(time / 1000);
@@ -240,11 +268,11 @@ const EditTokenModal = (props) => {
         id: parseInt(props.editingToken.id),
       });
       const { success, message } = res.data;
-      if (success) {
+      if (isCurrentRequest('submit', requestId) && success) {
         showSuccess(t('令牌更新成功！'));
         props.refresh();
         props.handleClose();
-      } else {
+      } else if (isCurrentRequest('submit', requestId)) {
         showError(t(message));
       }
     } else {
@@ -264,7 +292,6 @@ const EditTokenModal = (props) => {
           : displayAmountToQuota(localInputs.remain_amount);
         if (!localInputs.unlimited_quota && localInputs.remain_quota <= 0) {
           showError(t('请输入金额'));
-          setLoading(false);
           break;
         }
 
@@ -272,7 +299,6 @@ const EditTokenModal = (props) => {
           let time = Date.parse(localInputs.expired_time);
           if (isNaN(time)) {
             showError(t('过期时间格式错误！'));
-            setLoading(false);
             break;
           }
           localInputs.expired_time = Math.ceil(time / 1000);
@@ -281,21 +307,29 @@ const EditTokenModal = (props) => {
         localInputs.model_limits_enabled = localInputs.model_limits.length > 0;
         let res = await API.post(`/api/token/`, localInputs);
         const { success, message } = res.data;
-        if (success) {
+        if (isCurrentRequest('submit', requestId) && success) {
           successCount++;
-        } else {
+        } else if (isCurrentRequest('submit', requestId)) {
           showError(t(message));
           break;
         }
       }
-      if (successCount > 0) {
+      if (isCurrentRequest('submit', requestId) && successCount > 0) {
         showSuccess(t('令牌创建成功，请在列表页面点击复制获取令牌！'));
         props.refresh();
         props.handleClose();
       }
+      }
+    } catch (error) {
+      if (isCurrentRequest('submit', requestId)) {
+        showError(error.response?.data?.message || t('操作失败'));
+      }
+    } finally {
+      if (isCurrentRequest('submit', requestId)) {
+        setLoading(false);
+        formApiRef.current?.setValues(getInitValues());
+      }
     }
-    setLoading(false);
-    formApiRef.current?.setValues(getInitValues());
   };
 
   return (
@@ -454,6 +488,7 @@ const EditTokenModal = (props) => {
                     field='expired_time'
                     label={t('过期时间')}
                     type='dateTime'
+                    triggerRender={renderSafeDatePickerTrigger}
                     placeholder={t('请选择过期时间')}
                     rules={[
                       { required: true, message: t('请选择过期时间') },

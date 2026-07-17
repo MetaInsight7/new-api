@@ -45,11 +45,14 @@ import {
   formatDateTimeString,
 } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
+import { useRequestLifecycle } from '../../../hooks/common/useRequestLifecycle';
+import { renderSafeDatePickerTrigger } from '../../../components/common/ui/SafeDatePickerTrigger';
 
 const { Text } = Typography;
 
 const SettingsAnnouncements = ({ options, refresh }) => {
   const { t } = useTranslation();
+  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   const [announcementsList, setAnnouncementsList] = useState([]);
   const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
@@ -212,16 +215,17 @@ const SettingsAnnouncements = ({ options, refresh }) => {
   };
 
   const submitAnnouncements = async () => {
+    const requestId = beginRequest('save');
     try {
       setLoading(true);
       const announcementsJson = JSON.stringify(announcementsList);
       await updateOption('console_setting.announcements', announcementsJson);
-      setHasChanges(false);
+      if (isCurrentRequest('save', requestId)) setHasChanges(false);
     } catch (error) {
       console.error('系统公告更新失败', error);
-      showError('系统公告更新失败');
+      if (isCurrentRequest('save', requestId)) showError('系统公告更新失败');
     } finally {
-      setLoading(false);
+      if (isCurrentRequest('save', requestId)) setLoading(false);
     }
   };
 
@@ -351,21 +355,22 @@ const SettingsAnnouncements = ({ options, refresh }) => {
   }, [options['console_setting.announcements_enabled']]);
 
   const handleToggleEnabled = async (checked) => {
+    const requestId = beginRequest('toggle');
     const newValue = checked ? 'true' : 'false';
     try {
       const res = await API.put('/api/option/', {
         key: 'console_setting.announcements_enabled',
         value: newValue,
       });
-      if (res.data.success) {
+      if (isCurrentRequest('toggle', requestId) && res.data.success) {
         setPanelEnabled(checked);
         showSuccess(t('设置已保存'));
         refresh?.();
-      } else {
+      } else if (isCurrentRequest('toggle', requestId)) {
         showError(res.data.message);
       }
     } catch (err) {
-      showError(err.message);
+      if (isCurrentRequest('toggle', requestId)) showError(err.message);
     }
   };
 
@@ -557,6 +562,7 @@ const SettingsAnnouncements = ({ options, refresh }) => {
             field='publishDate'
             label={t('发布日期')}
             type='dateTime'
+            triggerRender={renderSafeDatePickerTrigger}
             rules={[{ required: true, message: t('请选择发布日期') }]}
             onChange={(value) =>
               setAnnouncementForm({ ...announcementForm, publishDate: value })

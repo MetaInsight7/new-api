@@ -1,5 +1,3 @@
-import '@douyinfe/semi-ui/react19-adapter';
-
 /*
 Copyright (C) 2025 QuantumNous
 
@@ -19,17 +17,18 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
+import '@douyinfe/semi-ui/react19-adapter';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import '@douyinfe/semi-ui/dist/css/semi.css';
 import { UserProvider } from './context/User';
-import 'react-toastify/dist/ReactToastify.css';
 import { StatusProvider } from './context/Status';
 import { ThemeProvider } from './context/Theme';
 import PageLayout from './components/layout/PageLayout';
 import './i18n/i18n';
 import './index.css';
+import './styles/dmit-tokens.css';
 import './styles/dmit-console.css';
 import { LocaleProvider } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';

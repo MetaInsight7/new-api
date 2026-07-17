@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { API, showError, showSuccess } from '../../helpers';
 import { ITEMS_PER_PAGE } from '../../constants';
@@ -34,6 +34,8 @@ export const useModelsData = () => {
   const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE);
   const [searching, setSearching] = useState(false);
   const [modelCount, setModelCount] = useState(0);
+  const requestSeq = useRef(0);
+  const mountedRef = useRef(true);
 
   // Modal states
   const [showEdit, setShowEdit] = useState(false);
@@ -125,6 +127,7 @@ export const useModelsData = () => {
     size = pageSize,
     vendorKey = activeVendorKey,
   ) => {
+    const seq = ++requestSeq.current;
     setLoading(true);
     try {
       let url = `/api/models/?p=${page}&page_size=${size}`;
@@ -134,6 +137,7 @@ export const useModelsData = () => {
       }
 
       const res = await API.get(url);
+      if (!mountedRef.current || seq !== requestSeq.current) return;
       const { success, message, data } = res.data;
       if (success) {
         const newPageData = extractItems(data);
@@ -153,11 +157,13 @@ export const useModelsData = () => {
         setModels([]);
       }
     } catch (error) {
-      console.error(error);
-      showError(t('获取模型列表失败'));
-      setModels([]);
+      if (mountedRef.current && seq === requestSeq.current) {
+        console.error(error);
+        showError(t('获取模型列表失败'));
+        setModels([]);
+      }
     }
-    setLoading(false);
+    if (mountedRef.current && seq === requestSeq.current) setLoading(false);
   };
 
   // Refresh data
@@ -260,11 +266,13 @@ export const useModelsData = () => {
       return;
     }
 
+    const seq = ++requestSeq.current;
     setSearching(true);
     try {
       const res = await API.get(
-        `/api/models/search?keyword=${searchKeyword}&vendor=${searchVendor}&p=1&page_size=${pageSize}`,
+        `/api/models/search?keyword=${encodeURIComponent(searchKeyword)}&vendor=${encodeURIComponent(searchVendor)}&p=1&page_size=${pageSize}`,
       );
+      if (!mountedRef.current || seq !== requestSeq.current) return;
       const { success, message, data } = res.data;
       if (success) {
         const newPageData = extractItems(data);
@@ -283,11 +291,13 @@ export const useModelsData = () => {
         setModels([]);
       }
     } catch (error) {
-      console.error(error);
-      showError(t('搜索模型失败'));
-      setModels([]);
+      if (mountedRef.current && seq === requestSeq.current) {
+        console.error(error);
+        showError(t('搜索模型失败'));
+        setModels([]);
+      }
     }
-    setSearching(false);
+    if (mountedRef.current && seq === requestSeq.current) setSearching(false);
   };
 
   // Manage model (enable/disable/delete)
@@ -335,6 +345,9 @@ export const useModelsData = () => {
 
   // Reload models when activeVendorKey changes
   useEffect(() => {
+    // React StrictMode replays effects in development; re-arm the guard so
+    // the replayed request can settle the loading state normally.
+    mountedRef.current = true;
     loadModels(1, pageSize, activeVendorKey);
   }, [activeVendorKey]);
 
@@ -421,10 +434,16 @@ export const useModelsData = () => {
 
   // Initial load
   useEffect(() => {
+    mountedRef.current = true;
     (async () => {
       await loadVendors();
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => () => {
+    mountedRef.current = false;
+    requestSeq.current += 1;
   }, []);
 
   return {

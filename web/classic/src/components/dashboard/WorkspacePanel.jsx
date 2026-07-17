@@ -29,8 +29,15 @@ import {
   KeyRound,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { API, copy, showError, showSuccess } from '../../helpers';
+import {
+  API,
+  copy,
+  getStoredValue,
+  showError,
+  showSuccess,
+} from '../../helpers';
 import { fetchTokenKey } from '../../helpers/token';
+import { useRequestLifecycle } from '../../hooks/common/useRequestLifecycle';
 
 const normalizeApiKey = (key) => {
   if (!key) return '';
@@ -44,7 +51,7 @@ const getTokenItems = (data) => {
 };
 
 const getServerAddress = (status) => {
-  const localServerAddress = localStorage.getItem('server_address');
+  const localServerAddress = getStoredValue('server_address', '');
 
   if (status?.server_address) {
     return status.server_address;
@@ -55,7 +62,7 @@ const getServerAddress = (status) => {
   }
 
   try {
-    const localStatus = JSON.parse(localStorage.getItem('status') || '{}');
+    const localStatus = JSON.parse(getStoredValue('status', '{}'));
     if (localStatus?.server_address) {
       return localStatus.server_address;
     }
@@ -113,6 +120,7 @@ const WorkspacePanel = ({ user, status, t, onStateChange }) => {
   const tokenPickRef = useRef(null);
   const fieldsRef = useRef(null);
   const [menuWidth, setMenuWidth] = useState(undefined);
+  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   useEffect(() => {
     const el = fieldsRef.current;
@@ -129,7 +137,7 @@ const WorkspacePanel = ({ user, status, t, onStateChange }) => {
 
   const menuStyle = menuWidth ? { width: `${menuWidth}px` } : undefined;
 
-  const docsLink = status?.docs_link || localStorage.getItem('docs_link') || '';
+  const docsLink = status?.docs_link || getStoredValue('docs_link', '');
   const apiEndpoints = useMemo(() => getApiEndpoints(status), [status]);
   const selectedEndpoint = useMemo(
     () => apiEndpoints.find((endpoint) => endpoint.id === selectedEndpointId),
@@ -171,18 +179,22 @@ const WorkspacePanel = ({ user, status, t, onStateChange }) => {
   );
 
   const loadTokens = useCallback(async () => {
+    const requestId = beginRequest('tokens');
     setLoading(true);
     try {
       const res = await API.get('/api/token/?p=1&size=100');
       const { success, message, data } = res.data || {};
       if (!success) {
-        showError(message || t('获取令牌失败'));
+        if (isCurrentRequest('tokens', requestId)) {
+          showError(message || t('获取令牌失败'));
+        }
         return;
       }
 
       const activeTokens = getTokenItems(data).filter(
         (token) => token.status === 1,
       );
+      if (!isCurrentRequest('tokens', requestId)) return;
       setTokens(activeTokens);
       setSelectedTokenId((currentId) => {
         if (activeTokens.some((token) => token.id === currentId)) {
@@ -191,11 +203,13 @@ const WorkspacePanel = ({ user, status, t, onStateChange }) => {
         return activeTokens[0]?.id;
       });
     } catch (error) {
-      showError(error.message || t('获取令牌失败'));
+      if (isCurrentRequest('tokens', requestId)) {
+        showError(error.message || t('获取令牌失败'));
+      }
     } finally {
-      setLoading(false);
+      if (isCurrentRequest('tokens', requestId)) setLoading(false);
     }
-  }, [t]);
+  }, [beginRequest, isCurrentRequest, t]);
 
   useEffect(() => {
     loadTokens();

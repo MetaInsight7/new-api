@@ -27,6 +27,7 @@ import {
   verifyJSON,
 } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
+import { useRequestLifecycle } from '../../../hooks/common/useRequestLifecycle';
 
 export default function SettingsGeneralPayment(props) {
   const { t } = useTranslation();
@@ -42,6 +43,7 @@ export default function SettingsGeneralPayment(props) {
   });
   const [originInputs, setOriginInputs] = useState({});
   const formApiRef = useRef(null);
+  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   useEffect(() => {
     if (props.options && formApiRef.current) {
@@ -99,6 +101,7 @@ export default function SettingsGeneralPayment(props) {
     }
 
     setLoading(true);
+    const requestId = beginRequest('submit');
     try {
       const options = [
         {
@@ -141,6 +144,7 @@ export default function SettingsGeneralPayment(props) {
         ),
       );
 
+      if (!isCurrentRequest('submit', requestId)) return;
       const errorResults = results.filter((res) => !res.data.success);
       if (errorResults.length === 0) {
         showSuccess(t('更新成功'));
@@ -152,9 +156,10 @@ export default function SettingsGeneralPayment(props) {
         });
       }
     } catch (error) {
-      showError(t('更新失败'));
+      if (isCurrentRequest('submit', requestId)) showError(t('更新失败'));
+    } finally {
+      if (isCurrentRequest('submit', requestId)) setLoading(false);
     }
-    setLoading(false);
   };
 
   return (

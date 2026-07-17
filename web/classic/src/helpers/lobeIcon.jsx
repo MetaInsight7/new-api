@@ -1,4 +1,24 @@
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
 import React from 'react';
+import { Avatar } from '@douyinfe/semi-ui';
 import * as LobeIcons from '@lobehub/icons';
 
 function parseValue(raw) {
@@ -56,5 +76,53 @@ export function getLobeIcon(iconName, size = 20) {
   }
   if (props.size == null) props.size = size;
 
+  return <IconComponent {...props} />;
+}
+
+export function getLobeHubIcon(iconName, size = 14) {
+  const normalizedIconName = String(iconName || '').trim();
+  if (!normalizedIconName) {
+    return <Avatar size='extra-extra-small'>?</Avatar>;
+  }
+
+  const segments = normalizedIconName.split('.');
+  const baseKey = segments[0];
+  const BaseIcon = LobeIcons[baseKey];
+  let IconComponent;
+  let propStartIndex = 1;
+
+  if (BaseIcon && segments.length > 1 && BaseIcon[segments[1]]) {
+    IconComponent = BaseIcon[segments[1]];
+    propStartIndex = 2;
+  } else {
+    IconComponent = BaseIcon;
+  }
+
+  if (
+    !IconComponent ||
+    (typeof IconComponent !== 'function' && typeof IconComponent !== 'object')
+  ) {
+    return (
+      <Avatar size='extra-extra-small'>
+        {normalizedIconName.charAt(0).toUpperCase()}
+      </Avatar>
+    );
+  }
+
+  const props = {};
+  for (let index = propStartIndex; index < segments.length; index += 1) {
+    const segment = segments[index];
+    if (!segment) continue;
+    const equalIndex = segment.indexOf('=');
+    if (equalIndex === -1) {
+      props[segment.trim()] = true;
+      continue;
+    }
+    props[segment.slice(0, equalIndex).trim()] = parseValue(
+      segment.slice(equalIndex + 1).trim(),
+    );
+  }
+
+  if (props.size == null && size != null) props.size = size;
   return <IconComponent {...props} />;
 }

@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import React, { useMemo, useState } from 'react';
 import {
   Button,
@@ -224,6 +242,7 @@ const ViolationLogsView = ({ data }) => {
             setF({ dateRange: v });
           }}
           placeholder={[t('开始时间'), t('结束时间')]}
+          rangeSeparator=''
           presets={DATE_RANGE_PRESETS.map((p) => ({
             text: t(p.text),
             start: p.start(),

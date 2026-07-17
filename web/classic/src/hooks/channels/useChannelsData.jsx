@@ -39,6 +39,12 @@ import { useChannelUpstreamUpdates } from './useChannelUpstreamUpdates';
 import { parseUpstreamUpdateMeta } from './upstreamUpdateUtils';
 import { Modal, Button } from '@douyinfe/semi-ui';
 import { openCodexUsageModal } from '../../components/table/channels/modals/CodexUsageModal';
+import {
+  getStoredJSON,
+  getStoredValue,
+  setStoredJSON,
+  setStoredValue,
+} from '../../helpers/siteStorage';
 
 export const useChannelsData = () => {
   const { t } = useTranslation();
@@ -72,7 +78,7 @@ export const useChannelsData = () => {
 
   // Status filter
   const [statusFilter, setStatusFilter] = useState(
-    localStorage.getItem('channel-status-filter') || 'all',
+    getStoredValue('channel-status-filter', 'all'),
   );
 
   // Type tabs states
@@ -93,9 +99,17 @@ export const useChannelsData = () => {
   const [globalPassThroughEnabled, setGlobalPassThroughEnabled] =
     useState(false);
 
+  const auxiliaryRequestRefs = useRef({ groups: 0, passThrough: 0 });
+
   const fetchGlobalPassThroughEnabled = async () => {
+    const requestId = ++auxiliaryRequestRefs.current.passThrough;
     try {
       const res = await API.get('/api/option/');
+      if (
+        !mountedRef.current ||
+        requestId !== auxiliaryRequestRefs.current.passThrough
+      )
+        return;
       const { success, data } = res?.data || {};
       if (!success || !Array.isArray(data)) {
         return;
@@ -107,7 +121,12 @@ export const useChannelsData = () => {
         setGlobalPassThroughEnabled(toBoolean(option.value));
       }
     } catch (error) {
-      setGlobalPassThroughEnabled(false);
+      if (
+        mountedRef.current &&
+        requestId === auxiliaryRequestRefs.current.passThrough
+      ) {
+        setGlobalPassThroughEnabled(false);
+      }
     }
   };
 
@@ -120,6 +139,7 @@ export const useChannelsData = () => {
 
   // Refs
   const requestCounter = useRef(0);
+  const mountedRef = useRef(true);
   const allSelectingRef = useRef(false);
   const [formApi, setFormApi] = useState(null);
 
@@ -145,27 +165,25 @@ export const useChannelsData = () => {
 
   // Initialize from localStorage
   useEffect(() => {
-    const localIdSort = localStorage.getItem('id-sort') === 'true';
+    mountedRef.current = true;
+    const localIdSort = getStoredValue('id-sort', '') === 'true';
     const localPageSize =
-      parseInt(localStorage.getItem('page-size')) || ITEMS_PER_PAGE;
-    const localEnableTagMode =
-      localStorage.getItem('enable-tag-mode') === 'true';
+      parseInt(getStoredValue('page-size', ''), 10) || ITEMS_PER_PAGE;
+    const localEnableTagMode = getStoredValue('enable-tag-mode', '') === 'true';
     const localEnableBatchDelete =
-      localStorage.getItem('enable-batch-delete') === 'true';
+      getStoredValue('enable-batch-delete', '') === 'true';
 
     setIdSort(localIdSort);
     setPageSize(localPageSize);
     setEnableTagMode(localEnableTagMode);
     setEnableBatchDelete(localEnableBatchDelete);
 
-    loadChannels(1, localPageSize, localIdSort, localEnableTagMode)
-      .then()
-      .catch((reason) => {
-        showError(reason);
-      });
-    fetchGroups().then();
-    loadChannelModels().then();
-    fetchGlobalPassThroughEnabled().then();
+    loadChannels(1, localPageSize, localIdSort, localEnableTagMode).catch(
+      (reason) => showError(reason),
+    );
+    fetchGroups().catch((reason) => showError(reason));
+    loadChannelModels().catch((reason) => showError(reason));
+    fetchGlobalPassThroughEnabled().catch((reason) => showError(reason));
   }, []);
 
   // Column visibility management
@@ -191,17 +209,10 @@ export const useChannelsData = () => {
 
   // Load saved column preferences
   useEffect(() => {
-    const savedColumns = localStorage.getItem('channels-table-columns');
-    if (savedColumns) {
-      try {
-        const parsed = JSON.parse(savedColumns);
-        const defaults = getDefaultColumnVisibility();
-        const merged = { ...defaults, ...parsed };
-        setVisibleColumns(merged);
-      } catch (e) {
-        console.error('Failed to parse saved column preferences', e);
-        initDefaultColumns();
-      }
+    const savedColumns = getStoredJSON('channels-table-columns', null);
+    if (savedColumns && typeof savedColumns === 'object') {
+      const defaults = getDefaultColumnVisibility();
+      setVisibleColumns({ ...defaults, ...savedColumns });
     } else {
       initDefaultColumns();
     }
@@ -210,10 +221,7 @@ export const useChannelsData = () => {
   // Save column preferences
   useEffect(() => {
     if (Object.keys(visibleColumns).length > 0) {
-      localStorage.setItem(
-        'channels-table-columns',
-        JSON.stringify(visibleColumns),
-      );
+      setStoredJSON('channels-table-columns', visibleColumns);
     }
   }, [visibleColumns]);
 
@@ -329,7 +337,6 @@ export const useChannelsData = () => {
 
     const { searchKeyword, searchGroup, searchModel } = getFormValues();
     if (searchKeyword !== '' || searchGroup !== '' || searchModel !== '') {
-      setLoading(true);
       await searchChannels(
         enableTagMode,
         typeKey,
@@ -338,7 +345,6 @@ export const useChannelsData = () => {
         pageSize,
         idSort,
       );
-      setLoading(false);
       return;
     }
 
@@ -346,30 +352,43 @@ export const useChannelsData = () => {
     setLoading(true);
     const typeParam = typeKey !== 'all' ? `&type=${typeKey}` : '';
     const statusParam = statusF !== 'all' ? `&status=${statusF}` : '';
-    const res = await API.get(
-      `/api/channel/?p=${page}&page_size=${pageSize}&id_sort=${idSort}&tag_mode=${enableTagMode}${typeParam}${statusParam}`,
-    );
+    try {
+      const res = await API.get(
+        `/api/channel/?p=${page}&page_size=${pageSize}&id_sort=${idSort}&tag_mode=${enableTagMode}${typeParam}${statusParam}`,
+      );
 
-    if (res === undefined || reqId !== requestCounter.current) {
-      return;
-    }
-
-    const { success, message, data } = res.data;
-    if (success) {
-      const { items, total, type_counts } = data;
-      if (type_counts) {
-        const sumAll = Object.values(type_counts).reduce(
-          (acc, v) => acc + v,
-          0,
-        );
-        setTypeCounts({ ...type_counts, all: sumAll });
+      if (
+        !mountedRef.current ||
+        res === undefined ||
+        reqId !== requestCounter.current
+      ) {
+        return;
       }
-      setChannelFormat(items, enableTagMode);
-      setChannelCount(total);
-    } else {
-      showError(message);
+
+      const { success, message, data } = res.data;
+      if (success) {
+        const { items, total, type_counts } = data;
+        if (type_counts) {
+          const sumAll = Object.values(type_counts).reduce(
+            (acc, v) => acc + v,
+            0,
+          );
+          setTypeCounts({ ...type_counts, all: sumAll });
+        }
+        setChannelFormat(items, enableTagMode);
+        setChannelCount(total);
+      } else {
+        showError(message);
+      }
+    } catch (error) {
+      if (mountedRef.current && reqId === requestCounter.current) {
+        showError(error);
+      }
+    } finally {
+      if (mountedRef.current && reqId === requestCounter.current) {
+        setLoading(false);
+      }
     }
-    setLoading(false);
   };
 
   // Search channels
@@ -382,9 +401,14 @@ export const useChannelsData = () => {
     sortFlag = idSort,
   ) => {
     const { searchKeyword, searchGroup, searchModel } = getFormValues();
+    const reqId = ++requestCounter.current;
     setSearching(true);
+    const hasFilters =
+      searchKeyword !== '' || searchGroup !== '' || searchModel !== '';
+    if (hasFilters) setLoading(true);
     try {
-      if (searchKeyword === '' && searchGroup === '' && searchModel === '') {
+      if (!hasFilters) {
+        // loadChannels owns the request sequence for the unfiltered path.
         await loadChannels(
           page,
           pageSz,
@@ -399,8 +423,14 @@ export const useChannelsData = () => {
       const typeParam = typeKey !== 'all' ? `&type=${typeKey}` : '';
       const statusParam = statusF !== 'all' ? `&status=${statusF}` : '';
       const res = await API.get(
-        `/api/channel/search?keyword=${searchKeyword}&group=${searchGroup}&model=${searchModel}&id_sort=${sortFlag}&tag_mode=${enableTagMode}&p=${page}&page_size=${pageSz}${typeParam}${statusParam}`,
+        `/api/channel/search?keyword=${encodeURIComponent(searchKeyword)}&group=${encodeURIComponent(searchGroup)}&model=${encodeURIComponent(searchModel)}&id_sort=${sortFlag}&tag_mode=${enableTagMode}&p=${page}&page_size=${pageSz}${typeParam}${statusParam}`,
       );
+      if (
+        !mountedRef.current ||
+        res === undefined ||
+        reqId !== requestCounter.current
+      )
+        return;
       const { success, message, data } = res.data;
       if (success) {
         const { items = [], total = 0, type_counts = {} } = data;
@@ -415,10 +445,34 @@ export const useChannelsData = () => {
       } else {
         showError(message);
       }
+    } catch (error) {
+      if (mountedRef.current && reqId === requestCounter.current) {
+        showError(error);
+      }
     } finally {
-      setSearching(false);
+      if (
+        mountedRef.current &&
+        (reqId === requestCounter.current || !hasFilters)
+      ) {
+        setSearching(false);
+      }
+      if (
+        hasFilters &&
+        mountedRef.current &&
+        reqId === requestCounter.current
+      ) {
+        setLoading(false);
+      }
     }
   };
+
+  useEffect(
+    () => () => {
+      mountedRef.current = false;
+      requestCounter.current += 1;
+    },
+    [],
+  );
 
   // Refresh
   const refresh = async (page = activePage) => {
@@ -441,78 +495,98 @@ export const useChannelsData = () => {
 
   // Channel management
   const manageChannel = async (id, action, record, value) => {
-    let data = { id };
-    let res;
-    switch (action) {
-      case 'delete':
-        res = await API.delete(`/api/channel/${id}/`);
-        break;
-      case 'enable':
-        data.status = 1;
-        res = await API.put('/api/channel/', data);
-        break;
-      case 'disable':
-        data.status = 2;
-        res = await API.put('/api/channel/', data);
-        break;
-      case 'priority':
-        if (value === '') return;
-        data.priority = parseInt(value);
-        res = await API.put('/api/channel/', data);
-        break;
-      case 'weight':
-        if (value === '') return;
-        data.weight = parseInt(value);
-        if (data.weight < 0) data.weight = 0;
-        res = await API.put('/api/channel/', data);
-        break;
-      case 'enable_all':
-        data.channel_info = record.channel_info;
-        data.channel_info.multi_key_status_list = {};
-        res = await API.put('/api/channel/', data);
-        break;
-    }
-    const { success, message } = res.data;
-    if (success) {
-      showSuccess(t('操作成功完成！'));
-      let channel = res.data.data;
-      let newChannels = [...channels];
-      if (action !== 'delete') {
-        record.status = channel.status;
+    try {
+      let data = { id };
+      let res;
+      switch (action) {
+        case 'delete':
+          res = await API.delete(`/api/channel/${id}/`);
+          break;
+        case 'enable':
+          data.status = 1;
+          res = await API.put('/api/channel/', data);
+          break;
+        case 'disable':
+          data.status = 2;
+          res = await API.put('/api/channel/', data);
+          break;
+        case 'priority':
+          if (value === '') return;
+          data.priority = parseInt(value, 10);
+          res = await API.put('/api/channel/', data);
+          break;
+        case 'weight':
+          if (value === '') return;
+          data.weight = Math.max(0, parseInt(value, 10));
+          res = await API.put('/api/channel/', data);
+          break;
+        case 'enable_all':
+          data.channel_info = {
+            ...(record?.channel_info || {}),
+            multi_key_status_list: {},
+          };
+          res = await API.put('/api/channel/', data);
+          break;
+        default:
+          return;
       }
-      setChannels(newChannels);
-    } else {
-      showError(message);
+      const { success, message } = res.data;
+      if (success) {
+        showSuccess(t('操作成功完成！'));
+        const channel = res.data.data;
+        const newChannels = channels
+          .filter((item) => action !== 'delete' || item.id !== id)
+          .map((item) =>
+            item.id === id && action !== 'delete'
+              ? { ...item, ...channel }
+              : item,
+          );
+        setChannels(newChannels);
+      } else {
+        showError(message);
+      }
+    } catch (error) {
+      showError(error);
     }
   };
 
   // Tag management
   const manageTag = async (tag, action) => {
-    let res;
-    switch (action) {
-      case 'enable':
-        res = await API.post('/api/channel/tag/enabled', { tag: tag });
-        break;
-      case 'disable':
-        res = await API.post('/api/channel/tag/disabled', { tag: tag });
-        break;
-    }
-    const { success, message } = res.data;
-    if (success) {
-      showSuccess(t('操作成功完成！'));
-      let newChannels = [...channels];
-      for (let i = 0; i < newChannels.length; i++) {
-        if (newChannels[i].tag === tag) {
-          let status = action === 'enable' ? 1 : 2;
-          newChannels[i]?.children?.forEach((channel) => {
-            channel.status = status;
-          });
-          newChannels[i].status = status;
-        }
+    try {
+      let res;
+      switch (action) {
+        case 'enable':
+          res = await API.post('/api/channel/tag/enabled', { tag });
+          break;
+        case 'disable':
+          res = await API.post('/api/channel/tag/disabled', { tag });
+          break;
+        default:
+          return;
       }
-      setChannels(newChannels);
-    } else {
-      showError(message);
+      const { success, message } = res.data;
+      if (success) {
+        showSuccess(t('操作成功完成！'));
+        const status = action === 'enable' ? 1 : 2;
+        setChannels((current) =>
+          current.map((item) =>
+            item.tag !== tag
+              ? item
+              : {
+                  ...item,
+                  status,
+                  children: item.children?.map((channel) => ({
+                    ...channel,
+                    status,
+                  })),
+                },
+          ),
+        );
+      } else {
+        showError(message);
+      }
+    } catch (error) {
+      showError(error);
     }
   };
 
@@ -521,7 +595,9 @@ export const useChannelsData = () => {
     const { searchKeyword, searchGroup, searchModel } = getFormValues();
     setActivePage(page);
     if (searchKeyword === '' && searchGroup === '' && searchModel === '') {
-      loadChannels(page, pageSize, idSort, enableTagMode).then(() => {});
+      loadChannels(page, pageSize, idSort, enableTagMode).catch((error) => {
+        showError(error);
+      });
     } else {
       searchChannels(
         enableTagMode,
@@ -535,16 +611,14 @@ export const useChannelsData = () => {
   };
 
   const handlePageSizeChange = async (size) => {
-    localStorage.setItem('page-size', size + '');
+    setStoredValue('page-size', size);
     setPageSize(size);
     setActivePage(1);
     const { searchKeyword, searchGroup, searchModel } = getFormValues();
     if (searchKeyword === '' && searchGroup === '' && searchModel === '') {
-      loadChannels(1, size, idSort, enableTagMode)
-        .then()
-        .catch((reason) => {
-          showError(reason);
-        });
+      loadChannels(1, size, idSort, enableTagMode).catch((reason) => {
+        showError(reason);
+      });
     } else {
       searchChannels(
         enableTagMode,
@@ -559,9 +633,15 @@ export const useChannelsData = () => {
 
   // Fetch groups
   const fetchGroups = async () => {
+    const requestId = ++auxiliaryRequestRefs.current.groups;
     try {
       let res = await API.get(`/api/group/`);
-      if (res === undefined) return;
+      if (
+        !mountedRef.current ||
+        requestId !== auxiliaryRequestRefs.current.groups ||
+        res === undefined
+      )
+        return;
       setGroupOptions(
         res.data.data.map((group) => ({
           label: group,
@@ -569,7 +649,12 @@ export const useChannelsData = () => {
         })),
       );
     } catch (error) {
-      showError(error.message);
+      if (
+        mountedRef.current &&
+        requestId === auxiliaryRequestRefs.current.groups
+      ) {
+        showError(error.message);
+      }
     }
   };
 
@@ -677,19 +762,26 @@ export const useChannelsData = () => {
       showError(t('标签不能为空！'));
       return;
     }
-    let ids = selectedChannels.map((channel) => channel.id);
-    const res = await API.post('/api/channel/batch/tag', {
-      ids: ids,
-      tag: batchSetTagValue === '' ? null : batchSetTagValue,
-    });
-    if (res.data.success) {
-      showSuccess(
-        t('已为 ${count} 个渠道设置标签！').replace('${count}', res.data.data),
-      );
-      await refresh();
-      setShowBatchSetTag(false);
-    } else {
-      showError(res.data.message);
+    try {
+      const ids = selectedChannels.map((channel) => channel.id);
+      const res = await API.post('/api/channel/batch/tag', {
+        ids,
+        tag: batchSetTagValue === '' ? null : batchSetTagValue,
+      });
+      if (res.data.success) {
+        showSuccess(
+          t('已为 ${count} 个渠道设置标签！').replace(
+            '${count}',
+            res.data.data,
+          ),
+        );
+        await refresh();
+        if (mountedRef.current) setShowBatchSetTag(false);
+      } else {
+        showError(res.data.message);
+      }
+    } catch (error) {
+      if (mountedRef.current) showError(error);
     }
   };
 
@@ -699,24 +791,28 @@ export const useChannelsData = () => {
       return;
     }
     setLoading(true);
-    let ids = [];
-    selectedChannels.forEach((channel) => {
-      ids.push(channel.id);
-    });
-    const res = await API.post(`/api/channel/batch`, { ids: ids });
-    const { success, message, data } = res.data;
-    if (success) {
-      showSuccess(t('已删除 ${data} 个通道！').replace('${data}', data));
-      await refresh();
-      setTimeout(() => {
-        if (channels.length === 0 && activePage > 1) {
-          refresh(activePage - 1);
+    try {
+      const ids = selectedChannels.map((channel) => channel.id);
+      const res = await API.post(`/api/channel/batch`, { ids });
+      const { success, message, data } = res.data;
+      if (success) {
+        showSuccess(t('已删除 ${data} 个通道！').replace('${data}', data));
+        await refresh();
+        if (mountedRef.current) {
+          setTimeout(() => {
+            if (mountedRef.current && channels.length === 0 && activePage > 1) {
+              refresh(activePage - 1);
+            }
+          }, 100);
         }
-      }, 100);
-    } else {
-      showError(message);
+      } else {
+        showError(message);
+      }
+    } catch (error) {
+      if (mountedRef.current) showError(error);
+    } finally {
+      if (mountedRef.current) setLoading(false);
     }
-    setLoading(false);
   };
 
   // Channel operations

@@ -1,0 +1,200 @@
+@media (max-width: 1180px) {
+  .dashboard-main-card {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .dashboard-main-section:nth-child(2) {
+    border-right: 0;
+  }
+
+  .dashboard-main-section:last-child {
+    grid-column: 1 / -1;
+    border-right: 0;
+    border-top: 1px solid var(--semi-color-border);
+  }
+
+  .dashboard-user-bar {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+}
+
+@media (max-width: 900px) {
+  .dashboard-main-card {
+    grid-template-columns: 1fr;
+  }
+
+  /* 单列堆叠:概要面板改用自然高度,避免 height:100% 链坍塌把按钮顶上去 */
+  .dashboard-main-section .dashboard-api-access-card,
+  .dashboard-main-section .dashboard-api-access-card .semi-card-header,
+  .dashboard-main-section .dashboard-api-access-card .semi-card-body,
+  .dashboard-main-section .dashboard-api-access {
+    height: auto !important;
+  }
+
+  .dashboard-main-section .dashboard-api-access__fields {
+    flex: 0 0 auto;
+  }
+
+  .dashboard-main-section .dashboard-api-access__field {
+    flex: 0 0 auto;
+  }
+
+  .dashboard-main-section .dashboard-api-access__field-value {
+    min-height: 38px;
+  }
+
+  .dashboard-main-section {
+    border-right: 0;
+    border-bottom: 1px solid var(--semi-color-border);
+  }
+
+  .dashboard-main-section:last-child {
+    border-bottom: 0;
+    border-top: 0;
+    grid-column: 1;
+  }
+
+  .dashboard-chart-layout {
+    grid-template-columns: 1fr;
+    min-height: auto;
+  }
+
+  .dashboard-chart-row.has-rail {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  /* 复位桌面端的显式栅格定位，避免盖过单列堆叠 */
+  .dashboard-chart-row.has-rail .dashboard-chart-row__main,
+  .dashboard-chart-row.has-rail .dashboard-availability-rail {
+    grid-column: auto;
+    margin-left: 0;
+  }
+
+  .dashboard-availability-rail__body {
+    overflow-y: visible;
+  }
+
+  .dashboard-chart-sidebar {
+    flex-direction: row;
+    overflow-x: auto;
+    scrollbar-width: none;
+    border-right: 0;
+    border-bottom: 1px solid var(--semi-color-border);
+    padding: 6px 0 10px;
+    padding-right: 0;
+    gap: 4px;
+  }
+
+  .dashboard-chart-sidebar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .dashboard-chart-sidebar__item {
+    flex: 0 0 auto;
+    padding: 8px 12px;
+    font-size: 13px;
+    overflow: visible;
+    text-overflow: clip;
+  }
+
+  .dashboard-chart-content .dashboard-chart-render {
+    min-height: 300px;
+  }
+}
+
+@media (max-width: 640px) {
+  .dashboard-topbar {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .dashboard-time-range {
+    flex: 1 1 auto;
+    justify-content: space-between;
+    gap: 0;
+    overflow: hidden;
+  }
+
+  .dashboard-time-range .semi-button {
+    flex: 0 0 auto;
+    width: auto;
+    padding: 0 4px;
+  }
+
+  .dashboard-time-range .semi-button-content {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .dashboard-user-bar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .dashboard-user-bar__controls {
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .dashboard-usage-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  /* 手机端卡片收紧：向 feature-new-aries 的紧凑比例看齐，避免窄卡拥挤/折行 */
+  .dashboard-usage-item {
+    padding: 12px 14px;
+  }
+
+  .dashboard-usage-item__header {
+    gap: 7px;
+    margin-bottom: 6px;
+    min-width: 0;
+  }
+
+  /* 手机端去掉图标芯片，回归 feature-new-aries 的紧凑细图标：
+     头部更矮、四卡天然等高对齐，并给标题让出空间 */
+  .dashboard-usage-item:not(.is-balance) .dashboard-usage-item__icon,
+  .dashboard-usage-item.is-balance .dashboard-usage-item__icon {
+    width: auto;
+    height: auto;
+    padding: 0;
+    background: transparent;
+    border-radius: 0;
+  }
+
+  /* 标题单行省略，杜绝 “今日 Tokens / Current balance” 折行 */
+  .dashboard-usage-item__label {
+    min-width: 0;
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* 数字缩小到适合窄卡，防溢出 */
+  .dashboard-usage-item__value {
+    font-size: 24px;
+    letter-spacing: -0.03em;
+  }
+
+  .dashboard-usage-item__caption {
+    margin-top: 4.8px;
+    font-size: 12px;
+  }
+
+  /* 余额卡:为右上角「充值」按钮预留空间，避免标题被顶到按钮下方 */
+  .dashboard-usage-item.is-balance .dashboard-usage-item__header {
+    padding-right: 48px;
+  }
+
+  .dashboard-chart-content .dashboard-chart-render {
+    min-height: 260px;
+  }
+}

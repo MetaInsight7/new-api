@@ -24,6 +24,7 @@ import ThinkingContent from './ThinkingContent';
 import { Loader2, Check, X, Settings, AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { isAdmin } from '../../helpers/utils';
+import { isSafeImageUrl } from '../../helpers/sanitize';
 
 const MessageContent = ({
   message,
@@ -77,7 +78,10 @@ const MessageContent = ({
           >
             <div className='flex items-center gap-2'>
               <AlertTriangle size={16} className='text-orange-500 shrink-0' />
-              <Typography.Text strong className='!text-[var(--semi-color-text-0)]'>
+              <Typography.Text
+                strong
+                className='!text-[var(--semi-color-text-0)]'
+              >
                 {t('模型价格未配置')}
               </Typography.Text>
             </div>
@@ -93,7 +97,13 @@ const MessageContent = ({
                 theme='light'
                 type='warning'
                 icon={<Settings size={14} />}
-                onClick={() => window.open('/console/setting?tab=ratio', '_blank')}
+                onClick={() =>
+                  window.open(
+                    '/console/setting?tab=ratio',
+                    '_blank',
+                    'noopener,noreferrer',
+                  )
+                }
               >
                 {t('前往设置')}
               </Button>
@@ -310,7 +320,11 @@ const MessageContent = ({
                     {imageContents.map((imgItem, index) => (
                       <div key={index} className='max-w-sm'>
                         <img
-                          src={imgItem.image_url.url}
+                          src={
+                            isSafeImageUrl(imgItem.image_url.url)
+                              ? imgItem.image_url.url
+                              : undefined
+                          }
                           alt={`用户上传的图片 ${index + 1}`}
                           className='rounded-lg max-w-full h-auto shadow-sm border'
                           style={{ maxHeight: '300px' }}

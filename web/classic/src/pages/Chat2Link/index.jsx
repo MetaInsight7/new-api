@@ -20,7 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { useTokenKeys } from '../../hooks/chat/useTokenKeys';
 
-const chat2page = () => {
+const Chat2LinkPage = () => {
   const { keys, chatLink, serverAddress, isLoading } = useTokenKeys();
 
   const comLink = (key) => {
@@ -42,4 +42,4 @@ const chat2page = () => {
   );
 };
 
-export default chat2page;
+export default Chat2LinkPage;

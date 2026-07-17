@@ -24,6 +24,7 @@ import {
   useState,
   useEffect,
 } from 'react';
+import { getStoredValue, setStoredValue } from '../../helpers/siteStorage';
 
 const ThemeContext = createContext(null);
 export const useTheme = () => useContext(ThemeContext);
@@ -46,11 +47,7 @@ const getSystemTheme = () => {
 
 export const ThemeProvider = ({ children }) => {
   const [theme, _setTheme] = useState(() => {
-    try {
-      return localStorage.getItem('theme-mode') || 'auto';
-    } catch {
-      return 'auto';
-    }
+    return getStoredValue('theme-mode', 'auto');
   });
 
   const [systemTheme, setSystemTheme] = useState(getSystemTheme());
@@ -101,7 +98,7 @@ export const ThemeProvider = ({ children }) => {
     }
 
     _setTheme(themeValue);
-    localStorage.setItem('theme-mode', themeValue);
+    setStoredValue('theme-mode', themeValue);
   }, []);
 
   return (

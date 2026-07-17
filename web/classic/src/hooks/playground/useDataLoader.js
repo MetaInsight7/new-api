@@ -17,10 +17,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   API,
+  getUserGroupFromLocalStorage,
   processModelsData,
   processGroupsData,
   showError,
@@ -35,10 +36,14 @@ export const useDataLoader = (
   setGroups,
 ) => {
   const { t } = useTranslation();
+  const mountedRef = useRef(true);
+  const requestSeqRef = useRef(0);
 
   const loadModels = useCallback(async () => {
+    const requestSeq = ++requestSeqRef.current;
     try {
       const res = await API.get(API_ENDPOINTS.USER_MODELS);
+      if (!mountedRef.current || requestSeq !== requestSeqRef.current) return;
       const { success, message, data } = res.data;
 
       if (success) {
@@ -60,14 +65,15 @@ export const useDataLoader = (
   }, [inputs.model, handleInputChange, setModels, t]);
 
   const loadGroups = useCallback(async () => {
+    const requestSeq = ++requestSeqRef.current;
     try {
       const res = await API.get(API_ENDPOINTS.USER_GROUPS);
+      if (!mountedRef.current || requestSeq !== requestSeqRef.current) return;
       const { success, message, data } = res.data;
 
       if (success) {
         const userGroup =
-          userState?.user?.group ||
-          JSON.parse(localStorage.getItem('user'))?.group;
+          userState?.user?.group || getUserGroupFromLocalStorage();
         const groupOptions = processGroupsData(data, userGroup);
         setGroups(groupOptions);
 
@@ -87,10 +93,15 @@ export const useDataLoader = (
 
   // 自动加载数据
   useEffect(() => {
+    mountedRef.current = true;
     if (userState?.user) {
       loadModels();
       loadGroups();
     }
+    return () => {
+      mountedRef.current = false;
+      requestSeqRef.current += 1;
+    };
   }, [userState?.user, loadModels, loadGroups]);
 
   return {

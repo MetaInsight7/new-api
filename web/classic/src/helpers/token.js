@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import { API } from './api';
+import { getStoredJSON } from './siteStorage';
 
 /**
  * 按需获取单个令牌的真实 key
@@ -76,17 +77,8 @@ export async function fetchTokenKeys() {
  * @returns {string} 服务器地址
  */
 export function getServerAddress() {
-  let status = localStorage.getItem('status');
-  let serverAddress = '';
-
-  if (status) {
-    try {
-      status = JSON.parse(status);
-      serverAddress = status.server_address || '';
-    } catch (error) {
-      console.error('Failed to parse status from localStorage:', error);
-    }
-  }
+  const status = getStoredJSON('status', {});
+  let serverAddress = status?.server_address || '';
 
   if (!serverAddress) {
     serverAddress = window.location.origin;

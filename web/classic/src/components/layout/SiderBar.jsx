@@ -20,18 +20,20 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useConsoleNav } from '../../hooks/common/useConsoleNav';
-import { getLogo, getSystemName } from '../../helpers';
+import { useSidebarCollapsed } from '../../hooks/common/useSidebarCollapsed';
+import { getLogo, getSystemName } from '../../helpers/siteStorage';
 
 const SiderBar = ({ onNavigate = () => {} }) => {
   const { categories, activeCategory, categoryTarget } = useConsoleNav();
+  const [collapsed] = useSidebarCollapsed();
 
   const logo = getLogo();
   const systemName = getSystemName();
 
   return (
-    <div className='dmit-sider'>
+    <div className={`dmit-sider${collapsed ? ' dmit-sider--collapsed' : ''}`}>
       <Link to='/' className='dmit-sider__logo' onClick={onNavigate}>
-        {logo && <img src={logo} alt='' className='dmit-sider__logo-img' />}
+        {logo && <img src={logo} alt={systemName} className='dmit-sider__logo-img' />}
         <span className='dmit-sider__logo-text'>{systemName}</span>
       </Link>
 
@@ -44,10 +46,11 @@ const SiderBar = ({ onNavigate = () => {} }) => {
               key={cat.key}
               to={categoryTarget(cat)}
               onClick={onNavigate}
+              aria-current={active ? 'page' : undefined}
               className={`dmit-menu-item ${active ? 'dmit-menu-item--active' : ''}`}
             >
               <span className='dmit-menu-item__icon'>
-                <Icon size={34} strokeWidth={1.75} />
+                <Icon size={34} strokeWidth={1.75} aria-hidden='true' />
               </span>
               <span className='dmit-menu-item__title'>{cat.label}</span>
             </Link>

@@ -37,6 +37,7 @@ import {
 } from 'lucide-react';
 import Turnstile from 'react-turnstile';
 import { API, showError, showSuccess, renderQuota } from '../../../../helpers';
+import { useRequestLifecycle } from '../../../../hooks/common/useRequestLifecycle';
 
 const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
   const [loading, setLoading] = useState(false);
@@ -60,6 +61,7 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
   const [initialLoaded, setInitialLoaded] = useState(false);
   // 折叠状态：null 表示未确定（等待首次加载）
   const [isCollapsed, setIsCollapsed] = useState(null);
+  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   // 创建日期到额度的映射，方便快速查找
   const checkinRecordsMap = useMemo(() => {
@@ -82,11 +84,13 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
 
   // 获取签到状态
   const fetchCheckinStatus = async (month) => {
+    const requestId = beginRequest(`checkin:${month}`);
     const isFirstLoad = !initialLoaded;
     setLoading(true);
     try {
       const res = await API.get(`/api/user/checkin?month=${month}`);
       const { success, data, message } = res.data;
+      if (!isCurrentRequest(`checkin:${month}`, requestId)) return;
       if (success) {
         setCheckinData(data);
         // 首次加载时，根据签到状态设置折叠状态
@@ -102,13 +106,14 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
         }
       }
     } catch (error) {
+      if (!isCurrentRequest(`checkin:${month}`, requestId)) return;
       showError(t('获取签到状态失败'));
       if (isFirstLoad) {
         setIsCollapsed(false);
         setInitialLoaded(true);
       }
     } finally {
-      setLoading(false);
+      if (isCurrentRequest(`checkin:${month}`, requestId)) setLoading(false);
     }
   };
 
@@ -126,10 +131,12 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
   };
 
   const doCheckin = async (token) => {
+    const requestId = beginRequest('checkin-submit');
     setCheckinLoading(true);
     try {
       const res = await postCheckin(token);
       const { success, data, message } = res.data;
+      if (!isCurrentRequest('checkin-submit', requestId)) return;
       if (success) {
         showSuccess(
           t('签到成功！获得') + ' ' + renderQuota(data.quota_awarded),
@@ -152,9 +159,13 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
         showError(message || t('签到失败'));
       }
     } catch (error) {
-      showError(t('签到失败'));
+      if (isCurrentRequest('checkin-submit', requestId)) {
+        showError(t('签到失败'));
+      }
     } finally {
-      setCheckinLoading(false);
+      if (isCurrentRequest('checkin-submit', requestId)) {
+        setCheckinLoading(false);
+      }
     }
   };
 

@@ -22,6 +22,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   API,
+  setStoredValue,
   showError,
   showSuccess,
   updateAPI,
@@ -29,20 +30,27 @@ import {
 } from '../../helpers';
 import { UserContext } from '../../context/User';
 import Loading from '../common/ui/Loading';
+import { useRequestLifecycle } from '../../hooks/common/useRequestLifecycle';
 
 const OAuth2Callback = (props) => {
   const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const [, userDispatch] = useContext(UserContext);
   const navigate = useNavigate();
-  
+
   // 防止 React 18 Strict Mode 下重复执行
   const hasExecuted = useRef(false);
+  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   // 最大重试次数
   const MAX_RETRIES = 3;
 
-  const sendCode = async (code, state, retry = 0) => {
+  const sendCode = async (
+    code,
+    state,
+    retry = 0,
+    requestId = beginRequest('oauth'),
+  ) => {
     try {
       const { data: resData } = await API.get(
         `/api/oauth/${props.type}?code=${code}&state=${state}`,
@@ -50,6 +58,7 @@ const OAuth2Callback = (props) => {
 
       const { success, message, data } = resData;
 
+      if (requestId && !isCurrentRequest('oauth', requestId)) return;
       if (!success) {
         // 业务错误不重试，直接显示错误
         showError(message || t('授权失败'));
@@ -61,7 +70,7 @@ const OAuth2Callback = (props) => {
         navigate('/console/personal');
       } else {
         userDispatch({ type: 'login', payload: data });
-        localStorage.setItem('user', JSON.stringify(data));
+        setStoredValue('user', JSON.stringify(data));
         setUserData(data);
         updateAPI();
         showSuccess(t('登录成功！'));
@@ -72,12 +81,14 @@ const OAuth2Callback = (props) => {
       if (retry < MAX_RETRIES) {
         // 递增的退避等待
         await new Promise((resolve) => setTimeout(resolve, (retry + 1) * 2000));
-        return sendCode(code, state, retry + 1);
+        return sendCode(code, state, retry + 1, requestId);
       }
 
       // 重试次数耗尽，提示错误并返回设置页面
-      showError(error.message || t('授权失败'));
-      navigate('/console/personal');
+      if (!requestId || isCurrentRequest('oauth', requestId)) {
+        showError(error.message || t('授权失败'));
+        navigate('/console/personal');
+      }
     }
   };
 

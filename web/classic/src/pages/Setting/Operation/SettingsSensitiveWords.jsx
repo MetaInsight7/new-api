@@ -27,6 +27,7 @@ import {
   showWarning,
 } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
+import { useRequestLifecycle } from '../../../hooks/common/useRequestLifecycle';
 
 export default function SettingsSensitiveWords(props) {
   const { t } = useTranslation();
@@ -38,8 +39,10 @@ export default function SettingsSensitiveWords(props) {
   });
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
+  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   function onSubmit() {
+    const requestId = beginRequest('submit');
     const updateArray = compareObjects(inputs, inputsRow);
     if (!updateArray.length) return showWarning(t('你似乎并没有修改什么'));
     const requestQueue = updateArray.map((item) => {
@@ -57,6 +60,7 @@ export default function SettingsSensitiveWords(props) {
     setLoading(true);
     Promise.all(requestQueue)
       .then((res) => {
+        if (!isCurrentRequest('submit', requestId)) return;
         if (requestQueue.length === 1) {
           if (res.includes(undefined)) return;
         } else if (requestQueue.length > 1) {
@@ -70,7 +74,7 @@ export default function SettingsSensitiveWords(props) {
         showError(t('保存失败，请重试'));
       })
       .finally(() => {
-        setLoading(false);
+        if (isCurrentRequest('submit', requestId)) setLoading(false);
       });
   }
 
@@ -83,7 +87,7 @@ export default function SettingsSensitiveWords(props) {
     }
     setInputs(currentInputs);
     setInputsRow(structuredClone(currentInputs));
-    refForm.current.setValues(currentInputs);
+    refForm.current?.setValues(currentInputs);
   }, [props.options]);
   return (
     <>

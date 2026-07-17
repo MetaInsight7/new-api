@@ -43,6 +43,7 @@ import {
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
 import CustomOAuthSetting from './CustomOAuthSetting';
+import { useRequestLifecycle } from '../../hooks/common/useRequestLifecycle';
 
 const SystemSetting = () => {
   const { t } = useTranslation();
@@ -126,114 +127,124 @@ const SystemSetting = () => {
   const [domainList, setDomainList] = useState([]);
   const [ipList, setIpList] = useState([]);
   const [allowedPorts, setAllowedPorts] = useState([]);
+  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   const getOptions = async () => {
+    const requestId = beginRequest('options');
     setLoading(true);
-    const res = await API.get('/api/option/');
-    const { success, message, data } = res.data;
-    if (success) {
-      let newInputs = {};
-      data.forEach((item) => {
-        switch (item.key) {
-          case 'TopupGroupRatio':
-            item.value = JSON.stringify(JSON.parse(item.value), null, 2);
-            break;
-          case 'EmailDomainWhitelist':
-            setEmailDomainWhitelist(item.value ? item.value.split(',') : []);
-            break;
-          case 'fetch_setting.allow_private_ip':
-          case 'fetch_setting.enable_ssrf_protection':
-          case 'fetch_setting.domain_filter_mode':
-          case 'fetch_setting.ip_filter_mode':
-          case 'fetch_setting.apply_ip_filter_for_domain':
-            item.value = toBoolean(item.value);
-            break;
-          case 'fetch_setting.domain_list':
-            try {
-              const domains = item.value ? JSON.parse(item.value) : [];
-              setDomainList(Array.isArray(domains) ? domains : []);
-            } catch (e) {
-              setDomainList([]);
-            }
-            break;
-          case 'fetch_setting.ip_list':
-            try {
-              const ips = item.value ? JSON.parse(item.value) : [];
-              setIpList(Array.isArray(ips) ? ips : []);
-            } catch (e) {
-              setIpList([]);
-            }
-            break;
-          case 'fetch_setting.allowed_ports':
-            try {
-              const ports = item.value ? JSON.parse(item.value) : [];
-              setAllowedPorts(Array.isArray(ports) ? ports : []);
-            } catch (e) {
-              setAllowedPorts(['80', '443', '8080', '8443']);
-            }
-            break;
-          case 'PasswordLoginEnabled':
-          case 'PasswordRegisterEnabled':
-          case 'EmailVerificationEnabled':
-          case 'GitHubOAuthEnabled':
-          case 'WeChatAuthEnabled':
-          case 'TelegramOAuthEnabled':
-          case 'RegisterEnabled':
-          case 'TurnstileCheckEnabled':
-          case 'EmailDomainRestrictionEnabled':
-          case 'EmailAliasRestrictionEnabled':
-          case 'SMTPSSLEnabled':
-          case 'SMTPForceAuthLogin':
-          case 'LinuxDOOAuthEnabled':
-          case 'discord.enabled':
-          case 'oidc.enabled':
-          case 'passkey.enabled':
-          case 'passkey.allow_insecure_origin':
-          case 'WorkerAllowHttpImageRequestEnabled':
-            item.value = toBoolean(item.value);
-            break;
-          case 'passkey.origins':
-            // origins是逗号分隔的字符串，直接使用
-            item.value = item.value || '';
-            break;
-          case 'passkey.rp_display_name':
-          case 'passkey.rp_id':
-          case 'passkey.attachment_preference':
-            // 确保字符串字段不为null/undefined
-            item.value = item.value || '';
-            break;
-          case 'passkey.user_verification':
-            // 确保有默认值
-            item.value = item.value || 'preferred';
-            break;
-          case 'Price':
-          case 'MinTopUp':
-            item.value = parseFloat(item.value);
-            break;
-          default:
-            break;
+    try {
+      const res = await API.get('/api/option/');
+      if (!isCurrentRequest('options', requestId)) return;
+      const { success, message, data } = res.data;
+      if (success) {
+        let newInputs = {};
+        data.forEach((item) => {
+          switch (item.key) {
+            case 'TopupGroupRatio':
+              item.value = JSON.stringify(JSON.parse(item.value), null, 2);
+              break;
+            case 'EmailDomainWhitelist':
+              setEmailDomainWhitelist(item.value ? item.value.split(',') : []);
+              break;
+            case 'fetch_setting.allow_private_ip':
+            case 'fetch_setting.enable_ssrf_protection':
+            case 'fetch_setting.domain_filter_mode':
+            case 'fetch_setting.ip_filter_mode':
+            case 'fetch_setting.apply_ip_filter_for_domain':
+              item.value = toBoolean(item.value);
+              break;
+            case 'fetch_setting.domain_list':
+              try {
+                const domains = item.value ? JSON.parse(item.value) : [];
+                setDomainList(Array.isArray(domains) ? domains : []);
+              } catch (e) {
+                setDomainList([]);
+              }
+              break;
+            case 'fetch_setting.ip_list':
+              try {
+                const ips = item.value ? JSON.parse(item.value) : [];
+                setIpList(Array.isArray(ips) ? ips : []);
+              } catch (e) {
+                setIpList([]);
+              }
+              break;
+            case 'fetch_setting.allowed_ports':
+              try {
+                const ports = item.value ? JSON.parse(item.value) : [];
+                setAllowedPorts(Array.isArray(ports) ? ports : []);
+              } catch (e) {
+                setAllowedPorts(['80', '443', '8080', '8443']);
+              }
+              break;
+            case 'PasswordLoginEnabled':
+            case 'PasswordRegisterEnabled':
+            case 'EmailVerificationEnabled':
+            case 'GitHubOAuthEnabled':
+            case 'WeChatAuthEnabled':
+            case 'TelegramOAuthEnabled':
+            case 'RegisterEnabled':
+            case 'TurnstileCheckEnabled':
+            case 'EmailDomainRestrictionEnabled':
+            case 'EmailAliasRestrictionEnabled':
+            case 'SMTPSSLEnabled':
+            case 'SMTPForceAuthLogin':
+            case 'LinuxDOOAuthEnabled':
+            case 'discord.enabled':
+            case 'oidc.enabled':
+            case 'passkey.enabled':
+            case 'passkey.allow_insecure_origin':
+            case 'WorkerAllowHttpImageRequestEnabled':
+              item.value = toBoolean(item.value);
+              break;
+            case 'passkey.origins':
+              // origins是逗号分隔的字符串，直接使用
+              item.value = item.value || '';
+              break;
+            case 'passkey.rp_display_name':
+            case 'passkey.rp_id':
+            case 'passkey.attachment_preference':
+              // 确保字符串字段不为null/undefined
+              item.value = item.value || '';
+              break;
+            case 'passkey.user_verification':
+              // 确保有默认值
+              item.value = item.value || 'preferred';
+              break;
+            case 'Price':
+            case 'MinTopUp':
+              item.value = parseFloat(item.value);
+              break;
+            default:
+              break;
+          }
+          newInputs[item.key] = item.value;
+        });
+        setInputs(newInputs);
+        setOriginInputs(newInputs);
+        // 同步模式布尔到本地状态
+        if (
+          typeof newInputs['fetch_setting.domain_filter_mode'] !== 'undefined'
+        ) {
+          setDomainFilterMode(!!newInputs['fetch_setting.domain_filter_mode']);
         }
-        newInputs[item.key] = item.value;
-      });
-      setInputs(newInputs);
-      setOriginInputs(newInputs);
-      // 同步模式布尔到本地状态
-      if (
-        typeof newInputs['fetch_setting.domain_filter_mode'] !== 'undefined'
-      ) {
-        setDomainFilterMode(!!newInputs['fetch_setting.domain_filter_mode']);
+        if (typeof newInputs['fetch_setting.ip_filter_mode'] !== 'undefined') {
+          setIpFilterMode(!!newInputs['fetch_setting.ip_filter_mode']);
+        }
+        if (formApiRef.current) {
+          formApiRef.current.setValues(newInputs);
+        }
+        setIsLoaded(true);
+      } else {
+        showError(message);
       }
-      if (typeof newInputs['fetch_setting.ip_filter_mode'] !== 'undefined') {
-        setIpFilterMode(!!newInputs['fetch_setting.ip_filter_mode']);
+    } catch (error) {
+      if (isCurrentRequest('options', requestId)) {
+        showError(error?.message || t('加载设置失败，请稍后重试'));
       }
-      if (formApiRef.current) {
-        formApiRef.current.setValues(newInputs);
-      }
-      setIsLoaded(true);
-    } else {
-      showError(message);
+    } finally {
+      if (isCurrentRequest('options', requestId)) setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -241,6 +252,7 @@ const SystemSetting = () => {
   }, []);
 
   const updateOptions = async (options) => {
+    const requestId = beginRequest('update-options');
     setLoading(true);
     try {
       // 分离 checkbox 类型的选项和其他选项
@@ -258,7 +270,9 @@ const SystemSetting = () => {
           value: opt.value.toString(),
         });
         if (!res.data.success) {
-          showError(res.data.message);
+          if (isCurrentRequest('update-options', requestId)) {
+            showError(res.data.message);
+          }
           return;
         }
       }
@@ -277,11 +291,12 @@ const SystemSetting = () => {
 
         // 检查所有请求是否成功
         const errorResults = results.filter((res) => !res.data.success);
-        errorResults.forEach((res) => {
-          showError(res.data.message);
-        });
+        if (isCurrentRequest('update-options', requestId)) {
+          errorResults.forEach((res) => showError(res.data.message));
+        }
       }
 
+      if (!isCurrentRequest('update-options', requestId)) return;
       showSuccess(t('更新成功'));
       // 更新本地状态
       const newInputs = { ...inputs };
@@ -290,9 +305,12 @@ const SystemSetting = () => {
       });
       setInputs(newInputs);
     } catch (error) {
-      showError(t('更新失败'));
+      if (isCurrentRequest('update-options', requestId)) {
+        showError(t('更新失败'));
+      }
+    } finally {
+      if (isCurrentRequest('update-options', requestId)) setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleFormChange = (values) => {

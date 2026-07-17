@@ -154,14 +154,23 @@ const SelectableButtonGroup = ({
               }}
             >
               {withCheckbox && (
-                <Skeleton.Title active style={{ width: 14, height: 14 }} />
+                <Skeleton
+                  loading={true}
+                  active
+                  placeholder={<Skeleton.Title style={{ width: 14, height: 14 }} />}
+                />
               )}
-              <Skeleton.Title
+              <Skeleton
+                loading={true}
                 active
-                style={{
-                  width: `${60 + (index % 3) * 20}px`,
-                  height: 14,
-                }}
+                placeholder={
+                  <Skeleton.Title
+                    style={{
+                      width: `${60 + (index % 3) * 20}px`,
+                      height: 14,
+                    }}
+                  />
+                }
               />
             </div>
           </Col>
@@ -249,7 +258,11 @@ const SelectableButtonGroup = ({
       {title && (
         <Divider margin='12px' align='left'>
           {showSkeleton ? (
-            <Skeleton.Title active style={{ width: 80, height: 14 }} />
+            <Skeleton
+              loading={true}
+              active
+              placeholder={<Skeleton.Title style={{ width: 80, height: 14 }} />}
+            />
           ) : (
             title
           )}

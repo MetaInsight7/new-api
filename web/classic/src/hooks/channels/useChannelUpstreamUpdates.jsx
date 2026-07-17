@@ -20,6 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useRef, useState } from 'react';
 import { API, showError, showInfo, showSuccess } from '../../helpers';
 import { normalizeModelList } from './upstreamUpdateUtils';
+import { useRequestLifecycle } from '../common/useRequestLifecycle';
 
 const getManualIgnoredModelCountFromSettings = (settings) => {
   let parsed = null;
@@ -39,6 +40,7 @@ const getManualIgnoredModelCountFromSettings = (settings) => {
 };
 
 export const useChannelUpstreamUpdates = ({ t, refresh }) => {
+  const { isMounted } = useRequestLifecycle();
   const [showUpstreamUpdateModal, setShowUpstreamUpdateModal] = useState(false);
   const [upstreamUpdateChannel, setUpstreamUpdateChannel] = useState(null);
   const [upstreamUpdateAddModels, setUpstreamUpdateAddModels] = useState([]);
@@ -154,7 +156,7 @@ export const useChannelUpstreamUpdates = ({ t, refresh }) => {
       );
     } finally {
       applyUpstreamUpdatesInFlightRef.current = false;
-      setUpstreamApplyLoading(false);
+      if (isMounted()) setUpstreamApplyLoading(false);
     }
   };
 
@@ -199,7 +201,7 @@ export const useChannelUpstreamUpdates = ({ t, refresh }) => {
       );
     } finally {
       applyAllUpstreamUpdatesInFlightRef.current = false;
-      setApplyAllUpstreamUpdatesLoading(false);
+      if (isMounted()) setApplyAllUpstreamUpdatesLoading(false);
     }
   };
 
@@ -285,7 +287,7 @@ export const useChannelUpstreamUpdates = ({ t, refresh }) => {
       );
     } finally {
       detectAllUpstreamUpdatesInFlightRef.current = false;
-      setDetectAllUpstreamUpdatesLoading(false);
+      if (isMounted()) setDetectAllUpstreamUpdatesLoading(false);
     }
   };
 

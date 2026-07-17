@@ -1,0 +1,380 @@
+/* MetricValue shared styles */
+.dashboard-metric-value-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.dashboard-metric-value-line.has-trend {
+  flex-wrap: wrap;
+}
+
+.dashboard-metric-value-number {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-metric-trend-row {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.dashboard-metric-trend {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2.4px 7.04px 2.4px 5.12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  line-height: 1;
+  white-space: nowrap;
+  animation: fadeInTrend 0.4s ease;
+}
+
+/* 位于卡片顶部标签行右侧，与数字宽度解耦，永不被挤 */
+.dashboard-usage-item__header .dashboard-metric-trend {
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+
+.dashboard-metric-trend.is-up {
+  background: rgba(37, 99, 235, 0.1);
+  color: #1a7f57;
+}
+
+.dashboard-metric-trend.is-down {
+  background: rgba(229, 72, 77, 0.1);
+  color: #d5343b;
+}
+
+.dashboard-metric-trend.is-flat {
+  background: var(--semi-color-fill-1);
+  color: var(--semi-color-text-2);
+}
+
+@keyframes fadeInTrend {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ===== Service availability ===== */
+.dashboard-availability-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.dashboard-availability-item__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.dashboard-availability-item__name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--semi-color-text-0);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.dashboard-availability-item__name svg {
+  color: var(--semi-color-text-2);
+}
+
+.dashboard-availability-item__percent {
+  font-size: 13px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.dashboard-availability-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--semi-color-fill-1);
+  overflow: hidden;
+}
+
+.dashboard-availability-bar__fill {
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #2563eb 0%, #3b82f6 50%, #2563eb 100%);
+  background-size: 200% 100%;
+  animation: gradientShimmer 2.5s ease infinite;
+  transition: width 0.6s ease;
+}
+
+@keyframes gradientShimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+.dashboard-availability-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--semi-color-border);
+}
+
+.dashboard-availability-legend__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--semi-color-text-2);
+}
+
+.dashboard-availability-legend__dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+
+.dashboard-availability-empty {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 32px 16px;
+  color: var(--semi-color-text-2);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.dashboard-availability-empty svg {
+  box-sizing: border-box;
+  width: 46px;
+  height: 46px;
+  padding: 11px;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.08);
+  color: #2563eb;
+}
+
+/* ===== Chart panel with sidebar ===== */
+.dashboard-chart-layout {
+  display: grid;
+  grid-template-columns: 144px minmax(0, 1fr);
+  gap: 24px;
+  padding: 20px 24px;
+  border: 1px solid #eef1f6;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(16, 24, 40, .03), 0 12px 32px -14px rgba(16, 24, 40, .12);
+  min-height: 420px;
+}
+
+/* 指标选择：左侧竖排菜单（右侧分隔线 + 实心绿选中） */
+.dashboard-chart-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0;
+  padding-right: 12px;
+  border: none;
+  border-right: 1px solid #eef1f6;
+  background: transparent;
+  overflow: hidden;
+}
+
+.dashboard-chart-sidebar__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--semi-color-text-2);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    background 0.15s ease;
+}
+
+.dashboard-chart-sidebar__item:hover {
+  background: rgba(16, 24, 40, 0.04);
+  color: var(--semi-color-text-0);
+}
+
+.dashboard-chart-sidebar__item.is-active {
+  background: #2563eb;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.dashboard-chart-content {
+  padding: 0;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border: none;
+  background: transparent;
+}
+
+.dashboard-chart-content .dashboard-chart-render {
+  flex: 1 1 auto;
+  min-height: 360px;
+}
+
+/* ===== 图表行：主图 + 服务可用性侧栏 ===== */
+/* 与顶部大卡同款 3 栏比例（1.35/1/0.85），图表卡跨前两栏，右缘落在第二条分隔线；
+   Service Status 落在第三栏，与 System Notice 对齐 */
+.dashboard-chart-row.has-rail {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr 0.85fr;
+  gap: 0;
+  align-items: stretch;
+}
+
+.dashboard-chart-row.has-rail .dashboard-chart-row__main {
+  grid-column: 1 / 3;
+  min-width: 0;
+}
+
+.dashboard-chart-row.has-rail .dashboard-availability-rail {
+  grid-column: 3 / 4;
+  margin-left: 16px;
+}
+
+.dashboard-chart-row__main {
+  min-width: 0;
+}
+
+/* 侧栏与图表卡同款：扁平白灰底 + 浅边 + 圆角，撑满图表高度、内部滚动 */
+.dashboard-availability-rail {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 20px 24px;
+  border: 1px solid #eef1f6;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(16, 24, 40, .03), 0 12px 32px -14px rgba(16, 24, 40, .12);
+}
+
+.dashboard-availability-rail__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  color: var(--semi-color-primary);
+}
+
+.dashboard-availability-rail__header svg {
+  flex: 0 0 auto;
+}
+
+.dashboard-availability-rail__header span {
+  color: #374151;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.dashboard-availability-rail__body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* ===== 精简余额卡（第三列卡槽） ===== */
+.dashboard-balance-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: var(--semi-color-bg-1);
+}
+
+.dashboard-balance-card__amount {
+  color: var(--semi-color-text-0);
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.dashboard-balance-card__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.dashboard-balance-card__status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+
+.dashboard-balance-card__status.is-green {
+  color: #16a34a;
+}
+.dashboard-balance-card__status.is-green .dashboard-balance-card__status-dot {
+  background: #16a34a;
+}
+.dashboard-balance-card__status.is-amber {
+  color: #b45309;
+}
+.dashboard-balance-card__status.is-amber .dashboard-balance-card__status-dot {
+  background: #f59e0b;
+}
+.dashboard-balance-card__status.is-red {
+  color: #dc2626;
+}
+.dashboard-balance-card__status.is-red .dashboard-balance-card__status-dot {
+  background: #dc2626;
+}
+
+.dashboard-balance-card__meta {
+  color: var(--semi-color-text-2);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.dashboard-balance-card__cta {
+  margin-top: 8px;
+  border-radius: 8px !important;
+}
+
+/* ===== Responsive overrides ===== */

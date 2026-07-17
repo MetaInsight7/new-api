@@ -18,39 +18,31 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import {
+  getStoredValue,
+  getStoredJSON,
   getUserIdFromLocalStorage,
-  showError,
-  formatMessageForAPI,
-  isValidMessage,
-} from './utils';
+  removeStoredValue,
+  setStoredValue,
+  setStoredJSON,
+} from './siteStorage';
+import { showError } from './notifications';
+import { formatMessageForAPI, isValidMessage } from './apiMessages';
 import axios from 'axios';
 import { MESSAGE_ROLES } from '../constants/playground.constants';
-
-export let API = axios.create({
-  baseURL: import.meta.env.VITE_REACT_APP_SERVER_URL
-    ? import.meta.env.VITE_REACT_APP_SERVER_URL
-    : '',
-  headers: {
-    'New-API-User': getUserIdFromLocalStorage(),
-    'Cache-Control': 'no-store',
-  },
-});
-
 
 function redirectToOAuthUrl(url, options = {}) {
   const { openInNewTab = false } = options;
   const targetUrl = typeof url === 'string' ? url : url.toString();
 
   if (openInNewTab) {
-    window.open(targetUrl, '_blank');
+    window.open(targetUrl, '_blank', 'noopener,noreferrer');
     return;
   }
 
   window.location.assign(targetUrl);
 }
 
-
-function patchAPIInstance(instance) {
+function installDuplicateGetProtection(instance) {
   const originalGet = instance.get.bind(instance);
   const inFlightGetRequests = new Map();
 
@@ -78,33 +70,41 @@ function patchAPIInstance(instance) {
   };
 }
 
-patchAPIInstance(API);
+function installResponseErrorHandler(instance) {
+  instance.interceptors.response.use(
+    (response) => response,
+    (error) => {
+      // 如果请求配置中显式要求跳过全局错误处理，则不弹出默认错误提示
+      if (error.config && error.config.skipErrorHandler) {
+        return Promise.reject(error);
+      }
+      showError(error);
+      error.__globalErrorHandled = true;
+      return Promise.reject(error);
+    },
+  );
+}
 
-export function updateAPI() {
-  API = axios.create({
-    baseURL: import.meta.env.VITE_REACT_APP_SERVER_URL
-      ? import.meta.env.VITE_REACT_APP_SERVER_URL
-      : '',
+export function createAPIInstance() {
+  const instance = axios.create({
+    baseURL: import.meta.env.VITE_REACT_APP_SERVER_URL || '',
     headers: {
       'New-API-User': getUserIdFromLocalStorage(),
       'Cache-Control': 'no-store',
     },
   });
 
-  patchAPIInstance(API);
+  installDuplicateGetProtection(instance);
+  installResponseErrorHandler(instance);
+  return instance;
 }
 
-API.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    // 如果请求配置中显式要求跳过全局错误处理，则不弹出默认错误提示
-    if (error.config && error.config.skipErrorHandler) {
-      return Promise.reject(error);
-    }
-    showError(error);
-    return Promise.reject(error);
-  },
-);
+export let API = createAPIInstance();
+
+export function updateAPI() {
+  API = createAPIInstance();
+  return API;
+}
 
 // playground
 
@@ -242,7 +242,7 @@ export const processGroupsData = (data, userGroup) => {
 
 export async function getOAuthState() {
   let path = '/api/oauth/state';
-  let affCode = localStorage.getItem('aff');
+  let affCode = getStoredValue('aff', '');
   if (affCode && affCode.length > 0) {
     path += `?aff=${affCode}`;
   }
@@ -262,7 +262,7 @@ async function prepareOAuthState(options = {}) {
     try {
       await API.get('/api/user/logout', { skipErrorHandler: true });
     } catch (err) {}
-    localStorage.removeItem('user');
+    removeStoredValue('user');
     updateAPI();
   }
   return await getOAuthState();
@@ -375,7 +375,7 @@ export async function loadChannelModels() {
     return;
   }
   channelModels = data;
-  localStorage.setItem('channel_models', JSON.stringify(data));
+  setStoredJSON('channel_models', data);
 }
 
 export function getChannelModels(type) {
@@ -385,11 +385,10 @@ export function getChannelModels(type) {
     }
     return channelModels[type];
   }
-  let models = localStorage.getItem('channel_models');
-  if (!models) {
-    return [];
+  channelModels = getStoredJSON('channel_models', {});
+  if (!channelModels || typeof channelModels !== 'object') {
+    channelModels = {};
   }
-  channelModels = JSON.parse(models);
   if (type in channelModels) {
     return channelModels[type];
   }

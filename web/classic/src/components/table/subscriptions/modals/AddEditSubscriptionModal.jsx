@@ -45,6 +45,7 @@ import {
   displayAmountToQuota,
 } from '../../../../helpers/quota';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
+import { useRequestLifecycle } from '../../../../hooks/common/useRequestLifecycle';
 
 const { Text, Title } = Typography;
 
@@ -77,6 +78,7 @@ const AddEditSubscriptionModal = ({
   const [groupLoading, setGroupLoading] = useState(false);
   const isMobile = useIsMobile();
   const formApiRef = useRef(null);
+  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
   const isEdit = editingPlan?.plan?.id !== undefined;
   const formKey = isEdit ? `edit-${editingPlan?.plan?.id}` : 'create';
 
@@ -127,18 +129,29 @@ const AddEditSubscriptionModal = ({
   };
 
   useEffect(() => {
-    if (!visible) return;
+    if (!visible) {
+      beginRequest('groups');
+      beginRequest('submit');
+      setGroupLoading(false);
+      setLoading(false);
+      return;
+    }
+    const requestId = beginRequest('groups');
     setGroupLoading(true);
     API.get('/api/group')
       .then((res) => {
         if (res.data?.success) {
-          setGroupOptions(res.data?.data || []);
+          if (isCurrentRequest('groups', requestId)) setGroupOptions(res.data?.data || []);
         } else {
-          setGroupOptions([]);
+          if (isCurrentRequest('groups', requestId)) setGroupOptions([]);
         }
       })
-      .catch(() => setGroupOptions([]))
-      .finally(() => setGroupLoading(false));
+      .catch(() => {
+        if (isCurrentRequest('groups', requestId)) setGroupOptions([]);
+      })
+      .finally(() => {
+        if (isCurrentRequest('groups', requestId)) setGroupLoading(false);
+      });
   }, [visible]);
 
   const submit = async (values) => {
@@ -146,6 +159,7 @@ const AddEditSubscriptionModal = ({
       showError(t('套餐标题不能为空'));
       return;
     }
+    const requestId = beginRequest('submit');
     setLoading(true);
     try {
       const payload = {
@@ -172,26 +186,28 @@ const AddEditSubscriptionModal = ({
           payload,
         );
         if (res.data?.success) {
+          if (!isCurrentRequest('submit', requestId)) return;
           showSuccess(t('更新成功'));
           handleClose();
           refresh?.();
         } else {
-          showError(res.data?.message || t('更新失败'));
+          if (isCurrentRequest('submit', requestId)) showError(res.data?.message || t('更新失败'));
         }
       } else {
         const res = await API.post('/api/subscription/admin/plans', payload);
         if (res.data?.success) {
+          if (!isCurrentRequest('submit', requestId)) return;
           showSuccess(t('创建成功'));
           handleClose();
           refresh?.();
         } else {
-          showError(res.data?.message || t('创建失败'));
+          if (isCurrentRequest('submit', requestId)) showError(res.data?.message || t('创建失败'));
         }
       }
     } catch (e) {
-      showError(t('请求失败'));
+      if (isCurrentRequest('submit', requestId)) showError(t('请求失败'));
     } finally {
-      setLoading(false);
+      if (isCurrentRequest('submit', requestId)) setLoading(false);
     }
   };
 

@@ -25,13 +25,12 @@ import {
   stringToColor,
   calculateModelPrice,
   getModelPriceItems,
-  getLobeHubIcon,
 } from '../../../../../helpers';
+import { getLobeHubIcon } from '../../../../../helpers/lobeIcon';
 import {
   renderLimitedItems,
   renderDescription,
 } from '../../../../common/ui/RenderUtils';
-import { useIsMobile } from '../../../../../hooks/common/useIsMobile';
 
 function renderQuotaType(type, t) {
   switch (type) {
@@ -113,8 +112,8 @@ export const getPricingTableColumns = ({
   tokenUnit,
   displayPrice,
   showRatio,
+  isMobile = false,
 }) => {
-  const isMobile = useIsMobile();
   const priceDataCache = new WeakMap();
 
   const getPriceData = (record) => {

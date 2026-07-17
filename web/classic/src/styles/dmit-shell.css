@@ -1,0 +1,291 @@
+/*
+ * Shared console shell and Semi surface overrides.
+ * Imported by dmit-console.css to keep the product surface layers explicit.
+ */
+
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
+/* =====================================================================
+   Classic 控制台主题层
+   - 共享壳层与品牌色仍作用于整个控制台
+   - 产品页的专用规则必须依赖具名页面类，避免覆盖管理侧 Semi 结构
+   - 仅作用于亮色；暗色保持 Semi 原样
+   ===================================================================== */
+
+/* ---------- 卡片:纯白浮起卡 + 极浅中性边 + 大圆角 + 柔和层叠阴影 ---------- */
+html:not(.dark) .app-surface-product .semi-card.semi-card-bordered {
+  border: 1px solid var(--dmit-border);
+  border-radius: 16px;
+  background: var(--dmit-card-bg);
+  box-shadow: var(--dmit-shadow);
+}
+
+/* 卡头:仅保留极浅分隔线 */
+html:not(.dark) .app-surface-product .semi-card-header {
+  padding: 16px 18px !important;
+  background: transparent;
+  border-bottom: 1px solid var(--dmit-border-soft);
+}
+
+html:not(.dark) .app-surface-product .semi-card-header .semi-card-header-title {
+  color: var(--semi-color-text-0);
+  font-weight: 700;
+}
+
+/* 输入 / 选择:白色表面,在灰卡上凸显 */
+html:not(.dark) .app-surface-product .semi-input-wrapper,
+html:not(.dark) .app-surface-product .semi-select,
+html:not(.dark) .app-surface-product .semi-datepicker-range-input {
+  background-color: var(--dmit-surface);
+}
+
+/* ---------- 表格:白色表面内嵌在灰卡里 + 浅灰表头 + 行分隔 + hover ---------- */
+html:not(.dark) .app-surface-product .semi-table,
+html:not(.dark) .app-surface-product .semi-table-tbody,
+html:not(.dark) .app-surface-product .semi-table-row,
+html:not(.dark) .app-surface-product .semi-table-row-cell {
+  background-color: var(--dmit-surface);
+}
+
+/* 白色表格内嵌在白卡里:去描边(靠留白+分隔线),圆角 */
+html:not(.dark) .app-surface-product .table-scroll-card .semi-table {
+  border: 1px solid var(--dmit-border-soft);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+/* 表头样式仅由 .dmit-flat-table 自行管理(见下方 flat-table 区域),
+   不在全局覆盖——避免影响未加 dmit-flat-table 的页面(渠道/用户等) */
+
+html:not(.dark)
+  .app-surface-product
+  .semi-table-tbody
+  > .semi-table-row
+  > .semi-table-row-cell {
+  border-bottom: 1px solid var(--dmit-border-soft);
+  padding-top: 15px;
+  padding-bottom: 15px;
+}
+
+html:not(.dark)
+  .app-surface-product
+  .semi-table-tbody
+  > .semi-table-row:hover
+  > .semi-table-row-cell {
+  background-color: var(--dmit-soft);
+}
+
+/* 选中行:DMIT 浅蓝 */
+html:not(.dark) .app-surface-product .semi-table-row-selected > .semi-table-row-cell {
+  background-color: var(--semi-color-primary-light-default) !important;
+}
+
+/* ---------- 标签页:激活态 DMIT 蓝 ---------- */
+html:not(.dark) .app-surface-product .semi-tabs-tab.semi-tabs-tab-active {
+  color: var(--dmit-blue);
+  font-weight: 700;
+}
+
+html:not(.dark) .app-surface-product .semi-tabs-bar-line .semi-tabs-tab-active::after,
+html:not(.dark) .app-surface-product .semi-tabs-ink-bar {
+  background-color: var(--dmit-blue);
+}
+
+/* 卡片型 tab 激活:浅蓝底 */
+html:not(.dark)
+  .app-surface-product
+  .semi-tabs-bar-card
+  .semi-tabs-tab.semi-tabs-tab-active {
+  background-color: var(--semi-color-primary-light-default);
+  border-color: transparent;
+}
+
+/* ---------- 状态标签:柔和彩色胶囊 ---------- */
+html:not(.dark) .app-surface-product .semi-tag {
+  border-radius: 999px;
+}
+
+/* ---------- 分页:激活态 DMIT 蓝 ---------- */
+html:not(.dark) .app-surface-product .semi-page-item-active {
+  background-color: var(--semi-color-primary-light-default);
+  color: var(--dmit-blue);
+  border-color: transparent;
+  font-weight: 700;
+}
+
+/* ---------- 输入 / 选择:聚焦蓝色环 + 浅灰边 ---------- */
+html:not(.dark) .app-surface-product .semi-input-wrapper,
+html:not(.dark) .app-surface-product .semi-select,
+html:not(.dark) .app-surface-product .semi-datepicker-range-input {
+  border-color: var(--dmit-border);
+}
+
+html:not(.dark) .app-surface-product .semi-input-wrapper-focus,
+html:not(.dark) .app-surface-product .semi-input-wrapper:focus-within,
+html:not(.dark) .app-surface-product .semi-select-focus {
+  border-color: var(--dmit-blue);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
+}
+
+/* ---------- 弹窗 / 抽屉 / 下拉(Portal 渲染在 .app-surface-product 之外) ---------- */
+/* 浮层组件不在 .app-surface-product 作用域内,默认仍用 Semi 原主蓝;这里在亮色下
+   把 DMIT 主蓝注入到 .semi-portal,使弹窗/抽屉/下拉里的按钮、开关、选中态
+   与控制台主体严格一致 */
+html:not(.dark) body.app-console-surface[data-app-surface='product'] .semi-portal {
+  --semi-color-primary: rgba(37, 99, 235, 1);
+  --semi-color-primary-hover: rgba(29, 78, 216, 1);
+  --semi-color-primary-active: rgba(30, 64, 175, 1);
+  --semi-color-primary-light-default: rgba(37, 99, 235, 0.1);
+  --semi-color-primary-light-hover: rgba(37, 99, 235, 0.16);
+  --semi-color-primary-light-active: rgba(37, 99, 235, 0.24);
+}
+
+html:not(.dark) body.app-console-surface[data-app-surface='product'] .semi-modal-content {
+  border-radius: 16px;
+}
+
+html:not(.dark) body.app-console-surface[data-app-surface='product'] .semi-dropdown-menu {
+  border-radius: 12px;
+}
+
+/* ---------- 编辑抽屉(SideSheet)DMIT 化:灰底 + 扁平白卡 + 头部分隔 ---------- */
+/* 抽屉正文用浅灰底,内部分区白卡靠边框分层(与控制台一致) */
+html:not(.dark) body.app-console-surface[data-app-surface='product'] .semi-portal .semi-sidesheet-body {
+  background: #f7f8fa;
+}
+
+/* 抽屉内所有分区卡:扁平(去阴影 + 浅中性边 + 12px 圆角 + 白底),
+   覆盖组件里残留的 shadow-sm / border-0 等 Tailwind 类 */
+html:not(.dark) body.app-console-surface[data-app-surface='product'] .semi-portal .semi-sidesheet .semi-card {
+  border: 1px solid #ececf0;
+  box-shadow: none;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+/* 抽屉头部:底部分隔线 */
+html:not(.dark) body.app-console-surface[data-app-surface='product'] .semi-portal .semi-sidesheet-header {
+  border-bottom: 1px solid #f2f3f6;
+}
+
+/* 抽屉/弹窗里旧的"圆形阴影彩色头像"分区图标 → DMIT 浅底彩色方块
+   (只命中具名色头像 semi-avatar-{color},即分区头标志,不影响用户头像) */
+html:not(.dark) body.app-console-surface[data-app-surface='product'] .semi-portal .semi-sidesheet .semi-avatar-blue,
+html:not(.dark) body.app-console-surface[data-app-surface='product'] .semi-portal .semi-modal-content .semi-avatar-blue {
+  background: rgba(37, 99, 235, 0.1);
+  color: #2563eb;
+  border-radius: 8px;
+  box-shadow: none;
+}
+html:not(.dark) body.app-console-surface[data-app-surface='product'] .semi-portal .semi-sidesheet .semi-avatar-green,
+html:not(.dark) body.app-console-surface[data-app-surface='product'] .semi-portal .semi-modal-content .semi-avatar-green,
+html:not(.dark) body.app-console-surface[data-app-surface='product'] .semi-portal .semi-sidesheet .semi-avatar-light-green,
+html:not(.dark) body.app-console-surface[data-app-surface='product'] .semi-portal .semi-modal-content .semi-avatar-light-green {
+  background: rgba(5, 150, 105, 0.1);
+  color: #059669;
+  border-radius: 8px;
+  box-shadow: none;
+}
+html:not(.dark) body.app-console-surface[data-app-surface='product'] .semi-portal .semi-sidesheet .semi-avatar-orange,
+html:not(.dark) body.app-console-surface[data-app-surface='product'] .semi-portal .semi-modal-content .semi-avatar-orange,
+html:not(.dark) body.app-console-surface[data-app-surface='product'] .semi-portal .semi-sidesheet .semi-avatar-amber,
+html:not(.dark) body.app-console-surface[data-app-surface='product'] .semi-portal .semi-modal-content .semi-avatar-amber {
+  background: rgba(245, 158, 11, 0.14);
+  color: #b45309;
+  border-radius: 8px;
+  box-shadow: none;
+}
+html:not(.dark) body.app-console-surface[data-app-surface='product'] .semi-portal .semi-sidesheet .semi-avatar-purple,
+html:not(.dark) body.app-console-surface[data-app-surface='product'] .semi-portal .semi-modal-content .semi-avatar-purple,
+html:not(.dark) body.app-console-surface[data-app-surface='product'] .semi-portal .semi-sidesheet .semi-avatar-violet,
+html:not(.dark) body.app-console-surface[data-app-surface='product'] .semi-portal .semi-modal-content .semi-avatar-violet {
+  background: rgba(124, 58, 237, 0.12);
+  color: #7c3aed;
+  border-radius: 8px;
+  box-shadow: none;
+}
+html:not(.dark) body.app-console-surface[data-app-surface='product'] .semi-portal .semi-sidesheet .semi-avatar-cyan,
+html:not(.dark) body.app-console-surface[data-app-surface='product'] .semi-portal .semi-modal-content .semi-avatar-cyan,
+html:not(.dark) body.app-console-surface[data-app-surface='product'] .semi-portal .semi-sidesheet .semi-avatar-teal,
+html:not(.dark) body.app-console-surface[data-app-surface='product'] .semi-portal .semi-modal-content .semi-avatar-teal {
+  background: rgba(13, 148, 136, 0.12);
+  color: #0d9488;
+  border-radius: 8px;
+  box-shadow: none;
+}
+html:not(.dark) body.app-console-surface[data-app-surface='product'] .semi-portal .semi-sidesheet .semi-avatar-red,
+html:not(.dark) body.app-console-surface[data-app-surface='product'] .semi-portal .semi-modal-content .semi-avatar-red {
+  background: rgba(220, 38, 38, 0.1);
+  color: #dc2626;
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+/* ---------- 开关:开启态从默认绿改为 DMIT 蓝(亮色,控制台 + 浮层) ---------- */
+html:not(.dark) .app-surface-product .semi-switch-checked,
+html:not(.dark) body.app-console-surface[data-app-surface='product'] .semi-portal .semi-switch-checked {
+  background-color: #2563eb;
+}
+html:not(.dark) .app-surface-product .semi-switch-checked:hover,
+html:not(.dark) body.app-console-surface[data-app-surface='product'] .semi-portal .semi-switch-checked:hover {
+  background-color: #1d4ed8;
+}
+
+/* ---------- 单选按钮组(type=button)激活态 → DMIT 蓝 ---------- */
+html:not(.dark)
+  .app-surface-product
+  .semi-radioGroup-buttonRadio
+  .semi-radio-checked
+  .semi-radio-addon-buttonRadio,
+html:not(.dark)
+  body.app-console-surface[data-app-surface='product'] .semi-portal
+  .semi-radioGroup-buttonRadio
+  .semi-radio-checked
+  .semi-radio-addon-buttonRadio {
+  background-color: var(--semi-color-primary-light-default);
+  color: #2563eb;
+}
+
+/* 浮层内的输入/选择:聚焦蓝色环,与控制台一致 */
+html:not(.dark) body.app-console-surface[data-app-surface='product'] .semi-portal .semi-input-wrapper-focus,
+html:not(.dark) body.app-console-surface[data-app-surface='product'] .semi-portal .semi-input-wrapper:focus-within,
+html:not(.dark) body.app-console-surface[data-app-surface='product'] .semi-portal .semi-select-focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
+}
+
+/* 浮层内表单分区标题:蓝强调条(仅纯文字单行标题;富自定义头部不加,避免错位) */
+html:not(.dark) body.app-console-surface[data-app-surface='product'] .semi-portal .semi-form-section-text:not(:has(*)) {
+  position: relative;
+  padding-left: 11px;
+  font-weight: 800;
+}
+
+html:not(.dark) body.app-console-surface[data-app-surface='product'] .semi-portal .semi-form-section-text:not(:has(*))::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: calc(50% - 2px);
+  transform: translateY(-50%);
+  width: 3px;
+  height: 14px;
+  border-radius: 999px;
+  background: #2563eb;
+}

@@ -26,6 +26,7 @@ import {
   showSuccess,
 } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
+import { useRequestLifecycle } from '../../../hooks/common/useRequestLifecycle';
 import { BookOpen } from 'lucide-react';
 
 const defaultInputs = {
@@ -42,6 +43,7 @@ export default function SettingsPaymentGatewayWaffoPancake(props) {
   const [loading, setLoading] = useState(false);
   const [inputs, setInputs] = useState(defaultInputs);
   const formApiRef = useRef(null);
+  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   useEffect(() => {
     if (!props.options || !formApiRef.current) return;
@@ -66,6 +68,7 @@ export default function SettingsPaymentGatewayWaffoPancake(props) {
       ...(formApiRef.current?.getValues?.() || {}),
     };
 
+    const requestId = beginRequest('submit');
     setLoading(true);
     try {
       // Classic admin only persists the three operator-typed fields.
@@ -100,6 +103,7 @@ export default function SettingsPaymentGatewayWaffoPancake(props) {
         ),
       );
 
+      if (!isCurrentRequest('submit', requestId)) return;
       const errorResults = results.filter((res) => !res.data.success);
       if (errorResults.length > 0) {
         errorResults.forEach((res) => showError(res.data.message));
@@ -109,9 +113,9 @@ export default function SettingsPaymentGatewayWaffoPancake(props) {
       showSuccess(t('更新成功'));
       props.refresh?.();
     } catch (error) {
-      showError(t('更新失败'));
+      if (isCurrentRequest('submit', requestId)) showError(t('更新失败'));
     } finally {
-      setLoading(false);
+      if (isCurrentRequest('submit', requestId)) setLoading(false);
     }
   };
 

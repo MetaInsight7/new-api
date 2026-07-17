@@ -28,6 +28,7 @@ import {
 } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import { selectFilter } from '../../../../helpers';
+import { getStoredJSON } from '../../../../helpers/siteStorage';
 
 const APP_CONFIGS = {
   claude: {
@@ -53,14 +54,8 @@ const APP_CONFIGS = {
 };
 
 function getServerAddress() {
-  try {
-    const raw = localStorage.getItem('status');
-    if (raw) {
-      const status = JSON.parse(raw);
-      if (status.server_address) return status.server_address;
-    }
-  } catch (_) {}
-  return window.location.origin;
+  const status = getStoredJSON('status', {});
+  return status?.server_address || window.location.origin;
 }
 
 function buildCCSwitchURL(app, name, models, apiKey) {
@@ -117,7 +112,7 @@ export default function CCSwitchModal({
       return;
     }
     const url = buildCCSwitchURL(app, name, models, 'sk-' + tokenKey);
-    window.open(url, '_blank');
+    window.open(url, '_blank', 'noopener,noreferrer');
     onClose();
   };
 

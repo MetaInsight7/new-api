@@ -18,7 +18,14 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { API, showError } from '../../../helpers';
+import {
+  API,
+  getStoredValue,
+  isSafeExternalUrl,
+  setStoredValue,
+  sanitizeHtml,
+  showError,
+} from '../../../helpers';
 import { Empty, Card, Spin, Typography } from '@douyinfe/semi-ui';
 const { Title } = Typography;
 import {
@@ -28,16 +35,6 @@ import {
 import { useTranslation } from 'react-i18next';
 import MarkdownRenderer from '../markdown/MarkdownRenderer';
 
-// Check whether content is a URL.
-const isUrl = (content) => {
-  try {
-    new URL(content.trim());
-    return true;
-  } catch {
-    return false;
-  }
-};
-
 // Check whether content contains HTML.
 const isHtmlContent = (content) => {
   if (!content || typeof content !== 'string') return false;
@@ -46,19 +43,17 @@ const isHtmlContent = (content) => {
   return htmlTagRegex.test(content);
 };
 
-// Parse HTML content and extract inline styles.
-const sanitizeHtml = (html) => {
+// Parse an HTML document and keep only its safe body content. Global <style>
+// blocks are intentionally discarded so configured documents cannot restyle
+// the surrounding application shell.
+const parseHtmlDocument = (html) => {
   const tempDiv = document.createElement('div');
   tempDiv.innerHTML = html;
 
-  const styles = Array.from(tempDiv.querySelectorAll('style'))
-    .map((style) => style.innerHTML)
-    .join('\n');
-
   const bodyContent = tempDiv.querySelector('body');
-  const content = bodyContent ? bodyContent.innerHTML : html;
+  const content = sanitizeHtml(bodyContent ? bodyContent.innerHTML : html);
 
-  return { content, styles };
+  return { content };
 };
 
 /**
@@ -73,70 +68,52 @@ const DocumentRenderer = ({ apiEndpoint, title, cacheKey, emptyMessage }) => {
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(true);
 
-  const loadContent = async () => {
-    const cachedContent = localStorage.getItem(cacheKey) || '';
-    if (cachedContent) {
-      setContent(cachedContent);
-      setLoading(false);
-    }
-
-    try {
-      const res = await API.get(apiEndpoint);
-      const { success, message, data } = res.data;
-      if (success && data) {
-        setContent(data);
-        localStorage.setItem(cacheKey, data);
-      } else {
-        if (!cachedContent) {
-          showError(message || emptyMessage);
-          setContent('');
-        }
-      }
-    } catch (error) {
-      if (!cachedContent) {
-        showError(emptyMessage);
-        setContent('');
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const htmlPayload = useMemo(() => {
     if (!isHtmlContent(content)) {
-      return { content: '', styles: '' };
+      return { content: '' };
     }
-    return sanitizeHtml(content);
+    return parseHtmlDocument(content);
   }, [content]);
 
   useEffect(() => {
-    loadContent();
-  }, []);
+    let cancelled = false;
 
-  // 处理HTML样式注入
-  useEffect(() => {
-    const styleId = `document-renderer-styles-${cacheKey}`;
-    const { styles } = htmlPayload;
+    const loadContent = async () => {
+      let cachedContent = '';
+      cachedContent = getStoredValue(cacheKey, '');
 
-    if (styles) {
-      let styleEl = document.getElementById(styleId);
-      if (!styleEl) {
-        styleEl = document.createElement('style');
-        styleEl.id = styleId;
-        styleEl.type = 'text/css';
-        document.head.appendChild(styleEl);
+      if (cachedContent && !cancelled) {
+        setContent(cachedContent);
+        setLoading(false);
       }
-      styleEl.innerHTML = styles;
-    } else {
-      const el = document.getElementById(styleId);
-      if (el) el.remove();
-    }
+
+      try {
+        const res = await API.get(apiEndpoint);
+        const { success, message, data } = res.data;
+        if (success && data) {
+          if (cancelled) return;
+          setContent(data);
+          setStoredValue(cacheKey, data);
+        } else if (!cachedContent && !cancelled) {
+          showError(message || emptyMessage);
+          setContent('');
+        }
+      } catch (error) {
+        if (!cachedContent && !cancelled) {
+          showError(emptyMessage);
+          setContent('');
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    loadContent();
 
     return () => {
-      const el = document.getElementById(styleId);
-      if (el) el.remove();
+      cancelled = true;
     };
-  }, [cacheKey, htmlPayload]);
+  }, [apiEndpoint, cacheKey, emptyMessage]);
 
   // 显示加载状态
   if (loading) {
@@ -166,7 +143,7 @@ const DocumentRenderer = ({ apiEndpoint, title, cacheKey, emptyMessage }) => {
   }
 
   // 如果是 URL，显示链接卡片
-  if (isUrl(content)) {
+  if (isSafeExternalUrl(content)) {
     return (
       <div className='classic-page-fill flex justify-center items-center bg-gray-50 p-4'>
         <Card className='max-w-md w-full'>

@@ -39,7 +39,12 @@ export default function SettingsCreditLimit(props) {
     'quota_setting.enable_free_model_pre_consume': true,
   });
   const refForm = useRef();
+  const mountedRef = useRef(true);
   const [inputsRow, setInputsRow] = useState(inputs);
+
+  useEffect(() => () => {
+    mountedRef.current = false;
+  }, []);
   const complianceConfirmed =
     props.options?.['payment_setting.compliance_confirmed'] === true ||
     props.options?.['payment_setting.compliance_confirmed'] === 'true';
@@ -59,23 +64,24 @@ export default function SettingsCreditLimit(props) {
         value,
       });
     });
-    setLoading(true);
+    if (mountedRef.current) setLoading(true);
     Promise.all(requestQueue)
-      .then((res) => {
+      .then(async (res) => {
         if (requestQueue.length === 1) {
           if (res.includes(undefined)) return;
         } else if (requestQueue.length > 1) {
           if (res.includes(undefined))
             return showError(t('部分保存失败，请重试'));
         }
+        if (!mountedRef.current) return;
         showSuccess(t('保存成功'));
-        props.refresh();
+        await props.refresh?.();
       })
       .catch(() => {
-        showError(t('保存失败，请重试'));
+        if (mountedRef.current) showError(t('保存失败，请重试'));
       })
       .finally(() => {
-        setLoading(false);
+        if (mountedRef.current) setLoading(false);
       });
   }
 
@@ -88,7 +94,7 @@ export default function SettingsCreditLimit(props) {
     }
     setInputs(currentInputs);
     setInputsRow(structuredClone(currentInputs));
-    refForm.current.setValues(currentInputs);
+    refForm.current?.setValues(currentInputs);
   }, [props.options]);
   return (
     <>
@@ -119,10 +125,10 @@ export default function SettingsCreditLimit(props) {
                   suffix={'Token'}
                   placeholder={''}
                   onChange={(value) =>
-                    setInputs({
-                      ...inputs,
+                    setInputs((prev) => ({
+                      ...prev,
                       QuotaForNewUser: String(value),
-                    })
+                    }))
                   }
                 />
               </Col>
@@ -136,10 +142,10 @@ export default function SettingsCreditLimit(props) {
                   extraText={t('请求结束后多退少补')}
                   placeholder={''}
                   onChange={(value) =>
-                    setInputs({
-                      ...inputs,
+                    setInputs((prev) => ({
+                      ...prev,
                       PreConsumedQuota: String(value),
-                    })
+                    }))
                   }
                 />
               </Col>
@@ -155,10 +161,10 @@ export default function SettingsCreditLimit(props) {
                   }
                   placeholder={t('例如：2000')}
                   onChange={(value) =>
-                    setInputs({
-                      ...inputs,
+                    setInputs((prev) => ({
+                      ...prev,
                       QuotaForInviter: String(value),
-                    })
+                    }))
                   }
                 />
               </Col>
@@ -176,10 +182,10 @@ export default function SettingsCreditLimit(props) {
                   }
                   placeholder={t('例如：1000')}
                   onChange={(value) =>
-                    setInputs({
-                      ...inputs,
+                    setInputs((prev) => ({
+                      ...prev,
                       QuotaForInvitee: String(value),
-                    })
+                    }))
                   }
                 />
               </Col>
@@ -193,10 +199,10 @@ export default function SettingsCreditLimit(props) {
                     '开启后，对免费模型（倍率为0，或者价格为0）的模型也会预消耗额度',
                   )}
                   onChange={(value) =>
-                    setInputs({
-                      ...inputs,
+                    setInputs((prev) => ({
+                      ...prev,
                       'quota_setting.enable_free_model_pre_consume': value,
-                    })
+                    }))
                   }
                 />
               </Col>

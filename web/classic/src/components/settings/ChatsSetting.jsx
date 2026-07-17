@@ -17,62 +17,34 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Card, Spin } from '@douyinfe/semi-ui';
 import SettingsChats from '../../pages/Setting/Chat/SettingsChats';
-import { API, showError, toBoolean } from '../../helpers';
+import { toBoolean } from '../../helpers';
+import { useOptionSettings } from '../../hooks/settings/useOptionSettings';
 
 const ChatsSetting = () => {
-  let [inputs, setInputs] = useState({
-    /* 聊天设置 */
-    Chats: '[]',
-  });
-
-  let [loading, setLoading] = useState(false);
-
-  const getOptions = async () => {
-    const res = await API.get('/api/option/');
-    const { success, message, data } = res.data;
-    if (success) {
-      let newInputs = {};
+  const { inputs, loading, refresh } = useOptionSettings({
+    initialValues: { Chats: '[]' },
+    parseOptions: (data) => {
+      const nextInputs = {};
       data.forEach((item) => {
-        if (
+        nextInputs[item.key] =
           item.key.endsWith('Enabled') ||
           ['DefaultCollapseSidebar'].includes(item.key)
-        ) {
-          newInputs[item.key] = toBoolean(item.value);
-        } else {
-          newInputs[item.key] = item.value;
-        }
+            ? toBoolean(item.value)
+            : item.value;
       });
-
-      setInputs(newInputs);
-    } else {
-      showError(message);
-    }
-  };
-
-  async function onRefresh() {
-    try {
-      setLoading(true);
-      await getOptions();
-    } catch (error) {
-      showError('刷新失败');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    onRefresh();
-  }, []);
+      return nextInputs;
+    },
+  });
 
   return (
     <>
       <Spin spinning={loading} size='large'>
         {/* 聊天设置 */}
         <Card style={{ marginTop: '10px' }}>
-          <SettingsChats options={inputs} refresh={onRefresh} />
+          <SettingsChats options={inputs} refresh={refresh} />
         </Card>
       </Spin>
     </>

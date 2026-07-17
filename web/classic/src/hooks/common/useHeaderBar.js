@@ -23,11 +23,21 @@ import { useTranslation } from 'react-i18next';
 import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
 import { useSetTheme, useTheme, useActualTheme } from '../../context/Theme';
-import { getLogo, getSystemName, API, showSuccess } from '../../helpers';
+import { API } from '../../helpers/api';
+import {
+  getLogo,
+  getStoredJSON,
+  removeStoredValue,
+  setStoredValue,
+  getSystemName,
+} from '../../helpers/siteStorage';
+import { showSuccess } from '../../helpers/notifications';
 import { normalizeLanguage } from '../../i18n/language';
 import { useIsMobile } from './useIsMobile';
 import { useSidebarCollapsed } from './useSidebarCollapsed';
 import { useMinimumLoadingTime } from './useMinimumLoadingTime';
+import { normalizeHeaderNavModules } from '../../helpers/navigationConfig';
+import { toBoolean } from '../../helpers/boolean';
 
 export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   const { t, i18n } = useTranslation();
@@ -37,10 +47,21 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   const [collapsed, toggleCollapsed] = useSidebarCollapsed();
   const [logoLoaded, setLogoLoaded] = useState(false);
   const navigate = useNavigate();
-  const [currentLang, setCurrentLang] = useState(normalizeLanguage(i18n.language));
+  const [currentLang, setCurrentLang] = useState(
+    normalizeLanguage(i18n.language),
+  );
   const location = useLocation();
 
-  const loading = statusState?.status === undefined;
+  const [cachedStatus] = useState(() => getStoredJSON('status', {}));
+  const effectiveStatus = useMemo(
+    () =>
+      statusState?.status && Object.keys(statusState.status).length > 0
+        ? statusState.status
+        : cachedStatus,
+    [statusState?.status, cachedStatus],
+  );
+  const loading =
+    statusState?.status === undefined && Object.keys(cachedStatus).length === 0;
   const isLoading = useMinimumLoadingTime(loading, 200);
 
   const systemName = getSystemName();
@@ -48,42 +69,23 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   const currentDate = new Date();
   const isNewYear = currentDate.getMonth() === 0 && currentDate.getDate() === 1;
 
-  const isSelfUseMode = statusState?.status?.self_use_mode_enabled || false;
-  const docsLink = statusState?.status?.docs_link || '';
-  const isDemoSiteMode = statusState?.status?.demo_site_enabled || false;
+  const isSelfUseMode = toBoolean(effectiveStatus?.self_use_mode_enabled);
+  const docsLink = effectiveStatus?.docs_link || '';
+  const isDemoSiteMode = toBoolean(effectiveStatus?.demo_site_enabled);
 
   // 获取顶栏模块配置
-  const headerNavModulesConfig = statusState?.status?.HeaderNavModules;
+  const headerNavModulesConfig = effectiveStatus?.HeaderNavModules;
 
   // 使用useMemo确保headerNavModules正确响应statusState变化
-  const headerNavModules = useMemo(() => {
-    if (headerNavModulesConfig) {
-      try {
-        const modules = JSON.parse(headerNavModulesConfig);
-
-        // 处理向后兼容性：如果pricing是boolean，转换为对象格式
-        if (typeof modules.pricing === 'boolean') {
-          modules.pricing = {
-            enabled: modules.pricing,
-            requireAuth: false, // 默认不需要登录鉴权
-          };
-        }
-
-        return modules;
-      } catch (error) {
-        console.error('解析顶栏模块配置失败:', error);
-        return null;
-      }
-    }
-    return null;
-  }, [headerNavModulesConfig]);
+  const headerNavModules = useMemo(
+    () => normalizeHeaderNavModules(headerNavModulesConfig),
+    [headerNavModulesConfig],
+  );
 
   // 获取模型广场权限配置
   const pricingRequireAuth = useMemo(() => {
     if (headerNavModules?.pricing) {
-      return typeof headerNavModules.pricing === 'object'
-        ? headerNavModules.pricing.requireAuth
-        : false; // 默认不需要登录
+      return headerNavModules.pricing.requireAuth;
     }
     return false; // 默认不需要登录
   }, [headerNavModules]);
@@ -103,33 +105,13 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     img.onload = () => setLogoLoaded(true);
   }, [logo]);
 
-  // Send theme to iframe
-  useEffect(() => {
-    try {
-      const iframe = document.querySelector('iframe');
-      const cw = iframe && iframe.contentWindow;
-      if (cw) {
-        cw.postMessage({ themeMode: actualTheme }, '*');
-      }
-    } catch (e) {
-      // Silently ignore cross-origin or access errors
-    }
-  }, [actualTheme]);
-
-  // Language change effect
+  // Keep language state in sync with i18next. Embedded pages are responsible
+  // for receiving their own messages; broadcasting to the first iframe on the
+  // page could leak UI state to an unrelated frame.
   useEffect(() => {
     const handleLanguageChanged = (lng) => {
       const normalizedLang = normalizeLanguage(lng);
       setCurrentLang(normalizedLang);
-      try {
-        const iframe = document.querySelector('iframe');
-        const cw = iframe && iframe.contentWindow;
-        if (cw) {
-          cw.postMessage({ lang: normalizedLang }, '*');
-        }
-      } catch (e) {
-        // Silently ignore cross-origin or access errors
-      }
     };
 
     i18n.on('languageChanged', handleLanguageChanged);
@@ -140,11 +122,15 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
 
   // Actions
   const logout = useCallback(async () => {
-    await API.get('/api/user/logout');
+    try {
+      await API.get('/api/user/logout');
+    } finally {
+      // Clear local auth state even when the server is unavailable.
+      userDispatch({ type: 'logout' });
+      removeStoredValue('user');
+      navigate('/login');
+    }
     showSuccess(t('注销成功!'));
-    userDispatch({ type: 'logout' });
-    localStorage.removeItem('user');
-    navigate('/login');
   }, [navigate, t, userDispatch]);
 
   const handleLanguageChange = useCallback(
@@ -152,7 +138,7 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
       // Change language immediately for responsive UX
       const previousLang = normalizeLanguage(i18n.language);
       i18n.changeLanguage(lang);
-      localStorage.setItem('i18nextLng', lang);
+      setStoredValue('i18nextLng', lang);
 
       // If user is logged in, save preference to backend
       if (userState?.user?.id) {
@@ -182,12 +168,12 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
               type: 'login',
               payload: nextUser,
             });
-            localStorage.setItem('user', JSON.stringify(nextUser));
+            setStoredValue('user', JSON.stringify(nextUser));
           }
         } catch (error) {
           if (previousLang) {
             i18n.changeLanguage(previousLang);
-            localStorage.setItem('i18nextLng', previousLang);
+            setStoredValue('i18nextLng', previousLang);
           }
           console.error('Failed to save language preference:', error);
         }

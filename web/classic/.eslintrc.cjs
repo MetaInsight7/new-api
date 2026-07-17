@@ -36,6 +36,7 @@ module.exports = {
           ],
         ],
         'no-multiple-empty-lines': ['error', { max: 1 }],
+        'react-hooks/rules-of-hooks': 'error',
       },
     },
   ],

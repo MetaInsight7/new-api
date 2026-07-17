@@ -26,6 +26,7 @@ import {
   showSuccess,
 } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
+import { useRequestLifecycle } from '../../../hooks/common/useRequestLifecycle';
 import { BookOpen, TriangleAlert } from 'lucide-react';
 
 export default function SettingsPaymentGateway(props) {
@@ -42,6 +43,7 @@ export default function SettingsPaymentGateway(props) {
   });
   const [originInputs, setOriginInputs] = useState({});
   const formApiRef = useRef(null);
+  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   useEffect(() => {
     if (props.options && formApiRef.current) {
@@ -78,6 +80,7 @@ export default function SettingsPaymentGateway(props) {
       return;
     }
 
+    const requestId = beginRequest('submit');
     setLoading(true);
     try {
       const options = [];
@@ -134,6 +137,7 @@ export default function SettingsPaymentGateway(props) {
       const results = await Promise.all(requestQueue);
 
       // 检查所有请求是否成功
+      if (!isCurrentRequest('submit', requestId)) return;
       const errorResults = results.filter((res) => !res.data.success);
       if (errorResults.length > 0) {
         errorResults.forEach((res) => {
@@ -146,9 +150,10 @@ export default function SettingsPaymentGateway(props) {
         props.refresh?.();
       }
     } catch (error) {
-      showError(t('更新失败'));
+      if (isCurrentRequest('submit', requestId)) showError(t('更新失败'));
+    } finally {
+      if (isCurrentRequest('submit', requestId)) setLoading(false);
     }
-    setLoading(false);
   };
 
   return (

@@ -21,7 +21,7 @@ import React, { useState, useMemo, useCallback } from 'react';
 import { Button, Tooltip, Toast } from '@douyinfe/semi-ui';
 import { Copy, ChevronDown, ChevronUp } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { copy } from '../../helpers';
+import { copy, sanitizeHtml } from '../../helpers';
 
 const PERFORMANCE_CONFIG = {
   MAX_DISPLAY_LENGTH: 50000, // 最大显示字符数
@@ -221,6 +221,13 @@ const CodeViewer = ({ content, title, language = 'json' }) => {
     return linkifyHtml(highlightedContent);
   }, [highlightedContent]);
 
+  // Highlighting is generated locally, but sanitize the final HTML before it
+  // reaches the DOM because linkification creates anchor markup dynamically.
+  const safeRenderedContent = useMemo(
+    () => sanitizeHtml(renderedContent),
+    [renderedContent],
+  );
+
   const handleCopy = useCallback(async () => {
     try {
       const textToCopy =
@@ -347,7 +354,7 @@ const CodeViewer = ({ content, title, language = 'json' }) => {
             {t('正在处理大内容...')}
           </div>
         ) : (
-          <div dangerouslySetInnerHTML={{ __html: renderedContent }} />
+          <div dangerouslySetInnerHTML={{ __html: safeRenderedContent }} />
         )}
       </div>
 

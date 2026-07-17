@@ -34,6 +34,7 @@ import { Wallet, Receipt } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
+import { useRequestLifecycle } from '../../hooks/common/useRequestLifecycle';
 
 import RechargeCard from './RechargeCard';
 import WalletRecharge from './WalletRecharge';
@@ -66,6 +67,7 @@ const TopUp = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [userState, userDispatch] = useContext(UserContext);
   const [statusState] = useContext(StatusContext);
+  const { beginRequest, isCurrentRequest, isMounted } = useRequestLifecycle();
 
   const [redemptionCode, setRedemptionCode] = useState('');
   const [amount, setAmount] = useState(0.0);
@@ -186,21 +188,21 @@ const TopUp = () => {
           content: t('成功兑换额度：') + renderQuota(data),
           centered: true,
         });
-        if (userState.user) {
+        if (isMounted() && userState.user) {
           const updatedUser = {
             ...userState.user,
             quota: userState.user.quota + data,
           };
           userDispatch({ type: 'login', payload: updatedUser });
         }
-        setRedemptionCode('');
+        if (isMounted()) setRedemptionCode('');
       } else {
         showError(message);
       }
     } catch (err) {
-      showError(t('请求失败'));
+      if (isMounted()) showError(t('请求失败'));
     } finally {
-      setIsSubmitting(false);
+      if (isMounted()) setIsSubmitting(false);
     }
   };
 
@@ -209,7 +211,7 @@ const TopUp = () => {
       showError(t('超级管理员未设置充值链接！'));
       return;
     }
-    window.open(topUpLink, '_blank');
+    window.open(topUpLink, '_blank', 'noopener,noreferrer');
   };
 
   const preTopUp = async (payment) => {
@@ -237,30 +239,40 @@ const TopUp = () => {
 
     setPayWay(payment);
     setPaymentLoading(true);
+    const requestId = beginRequest('payment-amount');
     try {
       const selectedMinTopUp = getPaymentMinTopUp(payment);
       await requestAmountByPayment(payment);
 
       if (topUpCount < selectedMinTopUp) {
-        showError(t('充值数量不能小于') + selectedMinTopUp);
+        if (isCurrentRequest('payment-amount', requestId)) {
+          showError(t('充值数量不能小于') + selectedMinTopUp);
+        }
         return;
       }
-      setOpen(true);
+      if (isCurrentRequest('payment-amount', requestId)) setOpen(true);
     } catch (error) {
-      showError(t('获取金额失败'));
+      if (isCurrentRequest('payment-amount', requestId)) {
+        showError(t('获取金额失败'));
+      }
     } finally {
-      setPaymentLoading(false);
+      if (isCurrentRequest('payment-amount', requestId)) {
+        setPaymentLoading(false);
+      }
     }
   };
 
   const onlineTopUp = async () => {
     if (payWay === 'waffo_pancake') {
       setConfirmLoading(true);
+      const requestId = beginRequest('payment-submit');
       try {
         await waffoPancakeTopUp();
       } finally {
-        setOpen(false);
-        setConfirmLoading(false);
+        if (isCurrentRequest('payment-submit', requestId)) {
+          setOpen(false);
+          setConfirmLoading(false);
+        }
       }
       return;
     }
@@ -268,11 +280,14 @@ const TopUp = () => {
     if (payWay.startsWith('waffo:')) {
       const payMethodIndex = Number(payWay.split(':')[1]);
       setConfirmLoading(true);
+      const requestId = beginRequest('payment-submit');
       try {
         await waffoTopUp(Number.isFinite(payMethodIndex) ? payMethodIndex : 0);
       } finally {
-        setOpen(false);
-        setConfirmLoading(false);
+        if (isCurrentRequest('payment-submit', requestId)) {
+          setOpen(false);
+          setConfirmLoading(false);
+        }
       }
       return;
     }
@@ -294,6 +309,7 @@ const TopUp = () => {
       return;
     }
     setConfirmLoading(true);
+    const requestId = beginRequest('payment-submit');
     try {
       let res;
       if (payWay === 'stripe') {
@@ -315,7 +331,7 @@ const TopUp = () => {
         if (message === 'success') {
           if (payWay === 'stripe') {
             // Stripe 支付回调处理
-            window.open(data.pay_link, '_blank');
+            window.open(data.pay_link, '_blank', 'noopener,noreferrer');
           } else {
             // 普通支付表单提交
             let params = data;
@@ -349,10 +365,14 @@ const TopUp = () => {
         showError(res);
       }
     } catch (err) {
-      showError(t('支付请求失败'));
+      if (isCurrentRequest('payment-submit', requestId)) {
+        showError(t('支付请求失败'));
+      }
     } finally {
-      setOpen(false);
-      setConfirmLoading(false);
+      if (isCurrentRequest('payment-submit', requestId)) {
+        setOpen(false);
+        setConfirmLoading(false);
+      }
     }
   };
 
@@ -376,6 +396,7 @@ const TopUp = () => {
       return;
     }
     setConfirmLoading(true);
+    const requestId = beginRequest('creem-submit');
     try {
       const res = await API.post('/api/user/creem/pay', {
         product_id: selectedCreemProduct.productId,
@@ -394,10 +415,14 @@ const TopUp = () => {
         showError(res);
       }
     } catch (err) {
-      showError(t('支付请求失败'));
+      if (isCurrentRequest('creem-submit', requestId)) {
+        showError(t('支付请求失败'));
+      }
     } finally {
-      setCreemOpen(false);
-      setConfirmLoading(false);
+      if (isCurrentRequest('creem-submit', requestId)) {
+        setCreemOpen(false);
+        setConfirmLoading(false);
+      }
     }
   };
 
@@ -418,7 +443,7 @@ const TopUp = () => {
       if (res !== undefined) {
         const { message, data } = res.data;
         if (message === 'success' && data?.payment_url) {
-          window.open(data.payment_url, '_blank');
+          window.open(data.payment_url, '_blank', 'noopener,noreferrer');
         } else {
           showError(data || t('支付请求失败'));
         }
@@ -428,7 +453,7 @@ const TopUp = () => {
     } catch (e) {
       showError(t('支付请求失败'));
     } finally {
-      setPaymentLoading(false);
+      if (isMounted()) setPaymentLoading(false);
     }
   };
 
@@ -437,6 +462,7 @@ const TopUp = () => {
       value = topUpCount;
     }
     setAmountLoading(true);
+    const requestId = beginRequest('amount');
     try {
       const res = await API.post('/api/user/waffo/amount', {
         amount: parseInt(value),
@@ -444,18 +470,21 @@ const TopUp = () => {
       if (res !== undefined) {
         const { message, data } = res.data;
         if (message === 'success') {
-          setAmount(parseFloat(data));
+          if (isCurrentRequest('amount', requestId))
+            setAmount(parseFloat(data));
         } else {
-          setAmount(0);
-          Toast.error({ content: '错误：' + data, id: 'getAmount' });
+          if (isCurrentRequest('amount', requestId)) {
+            setAmount(0);
+            Toast.error({ content: '错误：' + data, id: 'getAmount' });
+          }
         }
-      } else {
+      } else if (isCurrentRequest('amount', requestId)) {
         showError(res);
       }
     } catch (err) {
       // amount fetch failed silently
     } finally {
-      setAmountLoading(false);
+      if (isCurrentRequest('amount', requestId)) setAmountLoading(false);
     }
   };
 
@@ -495,7 +524,7 @@ const TopUp = () => {
     } catch (e) {
       showError(t('支付请求失败'));
     } finally {
-      setPaymentLoading(false);
+      if (isMounted()) setPaymentLoading(false);
     }
   };
 
@@ -504,6 +533,7 @@ const TopUp = () => {
       value = topUpCount;
     }
     setAmountLoading(true);
+    const requestId = beginRequest('amount');
     try {
       const res = await API.post('/api/user/waffo-pancake/amount', {
         amount: parseInt(value),
@@ -511,28 +541,37 @@ const TopUp = () => {
       if (res !== undefined) {
         const { message, data } = res.data;
         if (message === 'success') {
-          setAmount(parseFloat(data));
+          if (isCurrentRequest('amount', requestId))
+            setAmount(parseFloat(data));
         } else {
-          setAmount(0);
-          Toast.error({ content: '错误：' + data, id: 'getAmount' });
+          if (isCurrentRequest('amount', requestId)) {
+            setAmount(0);
+            Toast.error({ content: '错误：' + data, id: 'getAmount' });
+          }
         }
-      } else {
+      } else if (isCurrentRequest('amount', requestId)) {
         showError(res);
       }
     } catch (err) {
       // amount fetch failed silently
     } finally {
-      setAmountLoading(false);
+      if (isCurrentRequest('amount', requestId)) setAmountLoading(false);
     }
   };
 
   const processCreemCallback = (data) => {
     // 与 Stripe 保持一致的实现方式
-    window.open(data.checkout_url, '_blank');
+    if (!isSafeHttpCheckoutUrl(data?.checkout_url)) {
+      showError(t('支付跳转地址不安全'));
+      return;
+    }
+    window.open(data.checkout_url, '_blank', 'noopener,noreferrer');
   };
 
   const getUserQuota = async () => {
+    const requestId = beginRequest('user-quota');
     let res = await API.get(`/api/user/self`);
+    if (!isCurrentRequest('user-quota', requestId)) return;
     const { success, message, data } = res.data;
     if (success) {
       userDispatch({ type: 'login', payload: data });
@@ -542,23 +581,34 @@ const TopUp = () => {
   };
 
   const getSubscriptionPlans = async () => {
+    const requestId = beginRequest('subscription-plans');
     setSubscriptionLoading(true);
     try {
       const res = await API.get('/api/subscription/plans');
-      if (res.data?.success) {
+      if (
+        isCurrentRequest('subscription-plans', requestId) &&
+        res.data?.success
+      ) {
         setSubscriptionPlans(res.data.data || []);
       }
     } catch (e) {
-      setSubscriptionPlans([]);
+      if (isCurrentRequest('subscription-plans', requestId))
+        setSubscriptionPlans([]);
     } finally {
-      setSubscriptionLoading(false);
+      if (isCurrentRequest('subscription-plans', requestId)) {
+        setSubscriptionLoading(false);
+      }
     }
   };
 
   const getSubscriptionSelf = async () => {
+    const requestId = beginRequest('subscription-self');
     try {
       const res = await API.get('/api/subscription/self');
-      if (res.data?.success) {
+      if (
+        isCurrentRequest('subscription-self', requestId) &&
+        res.data?.success
+      ) {
         setBillingPreference(
           res.data.data?.billing_preference || 'subscription_first',
         );
@@ -577,29 +627,39 @@ const TopUp = () => {
   const updateBillingPreference = async (pref) => {
     const previousPref = billingPreference;
     setBillingPreference(pref);
+    const requestId = beginRequest('subscription-preference');
     try {
       const res = await API.put('/api/subscription/self/preference', {
         billing_preference: pref,
       });
-      if (res.data?.success) {
+      if (
+        isCurrentRequest('subscription-preference', requestId) &&
+        res.data?.success
+      ) {
         showSuccess(t('更新成功'));
         const normalizedPref =
           res.data?.data?.billing_preference || pref || previousPref;
         setBillingPreference(normalizedPref);
       } else {
-        showError(res.data?.message || t('更新失败'));
-        setBillingPreference(previousPref);
+        if (isCurrentRequest('subscription-preference', requestId)) {
+          showError(res.data?.message || t('更新失败'));
+          setBillingPreference(previousPref);
+        }
       }
     } catch (e) {
-      showError(t('请求失败'));
-      setBillingPreference(previousPref);
+      if (isCurrentRequest('subscription-preference', requestId)) {
+        showError(t('请求失败'));
+        setBillingPreference(previousPref);
+      }
     }
   };
 
   // 获取充值配置信息
   const getTopupInfo = async () => {
+    const requestId = beginRequest('topup-info');
     try {
       const res = await API.get('/api/user/topup/info');
+      if (!isCurrentRequest('topup-info', requestId)) return;
       const { message, data, success } = res.data;
       if (success) {
         setTopupInfo({
@@ -724,13 +784,17 @@ const TopUp = () => {
         showError(data || t('获取充值配置失败'));
       }
     } catch (error) {
-      showError(t('获取充值配置异常'));
+      if (isCurrentRequest('topup-info', requestId)) {
+        showError(t('获取充值配置异常'));
+      }
     }
   };
 
   // 获取邀请链接
   const getAffLink = async () => {
+    const requestId = beginRequest('aff-link');
     const res = await API.get('/api/user/aff');
+    if (!isCurrentRequest('aff-link', requestId)) return;
     const { success, message, data } = res.data;
     if (success) {
       let link = `${window.location.origin}/register?aff=${data}`;
@@ -746,14 +810,16 @@ const TopUp = () => {
       showError(t('划转金额最低为') + ' ' + renderQuota(getQuotaPerUnit()));
       return;
     }
+    const requestId = beginRequest('aff-transfer');
     const res = await API.post(`/api/user/aff_transfer`, {
       quota: transferAmount,
     });
+    if (!isCurrentRequest('aff-transfer', requestId)) return;
     const { success, message } = res.data;
     if (success) {
       showSuccess(message);
       setOpenTransfer(false);
-      getUserQuota().then();
+      getUserQuota().catch((error) => showError(error));
     } else {
       showError(message);
     }
@@ -776,21 +842,31 @@ const TopUp = () => {
 
   useEffect(() => {
     // 始终获取最新用户数据，确保余额等统计信息准确
-    getUserQuota().then();
+    getUserQuota().catch((error) => {
+      if (isMounted()) showError(error);
+    });
     setTransferAmount(getQuotaPerUnit());
   }, []);
 
   useEffect(() => {
     if (affFetchedRef.current) return;
     affFetchedRef.current = true;
-    getAffLink().then();
+    getAffLink().catch((error) => {
+      if (isMounted()) showError(error);
+    });
   }, []);
 
   // 在 statusState 可用时获取充值信息
   useEffect(() => {
-    getTopupInfo().then();
-    getSubscriptionPlans().then();
-    getSubscriptionSelf().then();
+    getTopupInfo().catch((error) => {
+      if (isMounted()) showError(error);
+    });
+    getSubscriptionPlans().catch((error) => {
+      if (isMounted()) showError(error);
+    });
+    getSubscriptionSelf().catch((error) => {
+      if (isMounted()) showError(error);
+    });
   }, []);
 
   useEffect(() => {
@@ -813,6 +889,7 @@ const TopUp = () => {
       value = topUpCount;
     }
     setAmountLoading(true);
+    const requestId = beginRequest('amount');
     try {
       const res = await API.post('/api/user/amount', {
         amount: parseFloat(value),
@@ -820,18 +897,21 @@ const TopUp = () => {
       if (res !== undefined) {
         const { message, data } = res.data;
         if (message === 'success') {
-          setAmount(parseFloat(data));
+          if (isCurrentRequest('amount', requestId))
+            setAmount(parseFloat(data));
         } else {
-          setAmount(0);
-          Toast.error({ content: '错误：' + data, id: 'getAmount' });
+          if (isCurrentRequest('amount', requestId)) {
+            setAmount(0);
+            Toast.error({ content: '错误：' + data, id: 'getAmount' });
+          }
         }
-      } else {
+      } else if (isCurrentRequest('amount', requestId)) {
         showError(res);
       }
     } catch (err) {
       // amount fetch failed silently
     }
-    setAmountLoading(false);
+    if (isCurrentRequest('amount', requestId)) setAmountLoading(false);
   };
 
   const getStripeAmount = async (value) => {
@@ -839,6 +919,7 @@ const TopUp = () => {
       value = topUpCount;
     }
     setAmountLoading(true);
+    const requestId = beginRequest('amount');
     try {
       const res = await API.post('/api/user/stripe/amount', {
         amount: parseFloat(value),
@@ -846,18 +927,21 @@ const TopUp = () => {
       if (res !== undefined) {
         const { message, data } = res.data;
         if (message === 'success') {
-          setAmount(parseFloat(data));
+          if (isCurrentRequest('amount', requestId))
+            setAmount(parseFloat(data));
         } else {
-          setAmount(0);
-          Toast.error({ content: '错误：' + data, id: 'getAmount' });
+          if (isCurrentRequest('amount', requestId)) {
+            setAmount(0);
+            Toast.error({ content: '错误：' + data, id: 'getAmount' });
+          }
         }
-      } else {
+      } else if (isCurrentRequest('amount', requestId)) {
         showError(res);
       }
     } catch (err) {
       // amount fetch failed silently
     } finally {
-      setAmountLoading(false);
+      if (isCurrentRequest('amount', requestId)) setAmountLoading(false);
     }
   };
 
@@ -976,77 +1060,77 @@ const TopUp = () => {
       {/* 主布局：充值主区通栏 + 兑换/邀请两块置于下方 */}
       <div>
         {subscriptionPlans.length > 0 || creemProducts.length > 0 ? (
-        <>
-        <RechargeCard
-          t={t}
-          enableOnlineTopUp={enableOnlineTopUp}
-          enableStripeTopUp={enableStripeTopUp}
-          enableCreemTopUp={enableCreemTopUp}
-          creemProducts={creemProducts}
-          creemPreTopUp={creemPreTopUp}
-          enableWaffoTopUp={enableWaffoTopUp}
-          enableWaffoPancakeTopUp={enableWaffoPancakeTopUp}
-          presetAmounts={presetAmounts}
-          selectedPreset={selectedPreset}
-          selectPresetAmount={selectPresetAmount}
-          formatLargeNumber={formatLargeNumber}
-          priceRatio={priceRatio}
-          topUpCount={topUpCount}
-          minTopUp={minTopUp}
-          renderQuotaWithAmount={renderQuotaWithAmount}
-          getAmount={getAmount}
-          setTopUpCount={setTopUpCount}
-          setSelectedPreset={setSelectedPreset}
-          renderAmount={renderAmount}
-          amountLoading={amountLoading}
-          payMethods={confirmPayMethods}
-          preTopUp={preTopUp}
-          paymentLoading={paymentLoading}
-          payWay={payWay}
-          redemptionCode={redemptionCode}
-          setRedemptionCode={setRedemptionCode}
-          topUp={topUp}
-          isSubmitting={isSubmitting}
-          topUpLink={topUpLink}
-          openTopUpLink={openTopUpLink}
-          userState={userState}
-          renderQuota={renderQuota}
-          statusLoading={statusLoading}
-          topupInfo={topupInfo}
-          onOpenHistory={handleOpenHistory}
-          subscriptionLoading={subscriptionLoading}
-          subscriptionPlans={subscriptionPlans}
-          billingPreference={billingPreference}
-          onChangeBillingPreference={updateBillingPreference}
-          activeSubscriptions={activeSubscriptions}
-          allSubscriptions={allSubscriptions}
-          reloadSubscriptionSelf={getSubscriptionSelf}
-          enableRedemption={topupInfo.enable_redemption !== false}
-        />
-        <div className='grid grid-cols-1 md:grid-cols-2 gap-6 items-start mt-6'>
-          <RedemptionCard
-            t={t}
-            redemptionCode={redemptionCode}
-            setRedemptionCode={setRedemptionCode}
-            topUp={topUp}
-            isSubmitting={isSubmitting}
-            topUpLink={topUpLink}
-            openTopUpLink={openTopUpLink}
-            enableRedemption={topupInfo.enable_redemption !== false}
-          />
-          <InvitationCard
-            t={t}
-            userState={userState}
-            renderQuota={renderQuota}
-            setOpenTransfer={setOpenTransfer}
-            affLink={affLink}
-            handleAffLinkClick={handleAffLinkClick}
-            complianceConfirmed={
-              topupInfo.payment_compliance_confirmed !== false
-            }
-          />
-        </div>
-        </>
+          <>
+            <RechargeCard
+              t={t}
+              enableOnlineTopUp={enableOnlineTopUp}
+              enableStripeTopUp={enableStripeTopUp}
+              enableCreemTopUp={enableCreemTopUp}
+              creemProducts={creemProducts}
+              creemPreTopUp={creemPreTopUp}
+              enableWaffoTopUp={enableWaffoTopUp}
+              enableWaffoPancakeTopUp={enableWaffoPancakeTopUp}
+              presetAmounts={presetAmounts}
+              selectedPreset={selectedPreset}
+              selectPresetAmount={selectPresetAmount}
+              formatLargeNumber={formatLargeNumber}
+              priceRatio={priceRatio}
+              topUpCount={topUpCount}
+              minTopUp={minTopUp}
+              renderQuotaWithAmount={renderQuotaWithAmount}
+              getAmount={getAmount}
+              setTopUpCount={setTopUpCount}
+              setSelectedPreset={setSelectedPreset}
+              renderAmount={renderAmount}
+              amountLoading={amountLoading}
+              payMethods={confirmPayMethods}
+              preTopUp={preTopUp}
+              paymentLoading={paymentLoading}
+              payWay={payWay}
+              redemptionCode={redemptionCode}
+              setRedemptionCode={setRedemptionCode}
+              topUp={topUp}
+              isSubmitting={isSubmitting}
+              topUpLink={topUpLink}
+              openTopUpLink={openTopUpLink}
+              userState={userState}
+              renderQuota={renderQuota}
+              statusLoading={statusLoading}
+              topupInfo={topupInfo}
+              onOpenHistory={handleOpenHistory}
+              subscriptionLoading={subscriptionLoading}
+              subscriptionPlans={subscriptionPlans}
+              billingPreference={billingPreference}
+              onChangeBillingPreference={updateBillingPreference}
+              activeSubscriptions={activeSubscriptions}
+              allSubscriptions={allSubscriptions}
+              reloadSubscriptionSelf={getSubscriptionSelf}
+              enableRedemption={topupInfo.enable_redemption !== false}
+            />
+            <div className='grid grid-cols-1 md:grid-cols-2 gap-6 items-start mt-6'>
+              <RedemptionCard
+                t={t}
+                redemptionCode={redemptionCode}
+                setRedemptionCode={setRedemptionCode}
+                topUp={topUp}
+                isSubmitting={isSubmitting}
+                topUpLink={topUpLink}
+                openTopUpLink={openTopUpLink}
+                enableRedemption={topupInfo.enable_redemption !== false}
+              />
+              <InvitationCard
+                t={t}
+                userState={userState}
+                renderQuota={renderQuota}
+                setOpenTransfer={setOpenTransfer}
+                affLink={affLink}
+                handleAffLinkClick={handleAffLinkClick}
+                complianceConfirmed={
+                  topupInfo.payment_compliance_confirmed !== false
+                }
+              />
+            </div>
+          </>
         ) : (
           <WalletRecharge
             t={t}

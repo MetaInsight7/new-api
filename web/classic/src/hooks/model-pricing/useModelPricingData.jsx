@@ -51,6 +51,8 @@ export const useModelPricingData = () => {
   const [usableGroup, setUsableGroup] = useState({});
   const [endpointMap, setEndpointMap] = useState({});
   const [autoGroups, setAutoGroups] = useState([]);
+  const mountedRef = useRef(true);
+  const requestSeqRef = useRef(0);
 
   const [statusState] = useContext(StatusContext);
   const [userState] = useContext(UserContext);
@@ -226,38 +228,48 @@ export const useModelPricingData = () => {
   };
 
   const loadPricing = async () => {
+    const requestSeq = ++requestSeqRef.current;
     setLoading(true);
-    let url = '/api/pricing';
-    const res = await API.get(url);
-    const {
-      success,
-      message,
-      data,
-      vendors,
-      group_ratio,
-      usable_group,
-      supported_endpoint,
-      auto_groups,
-    } = res.data;
-    if (success) {
-      setGroupRatio(group_ratio);
-      setUsableGroup(usable_group);
-      setSelectedGroup('all');
-      // 构建供应商 Map 方便查找
-      const vendorMap = {};
-      if (Array.isArray(vendors)) {
-        vendors.forEach((v) => {
-          vendorMap[v.id] = v;
-        });
+    try {
+      const res = await API.get('/api/pricing');
+      if (!mountedRef.current || requestSeq !== requestSeqRef.current) return;
+      const {
+        success,
+        message,
+        data,
+        vendors,
+        group_ratio,
+        usable_group,
+        supported_endpoint,
+        auto_groups,
+      } = res.data;
+      if (success) {
+        setGroupRatio(group_ratio);
+        setUsableGroup(usable_group);
+        setSelectedGroup('all');
+        // 构建供应商 Map 方便查找
+        const vendorMap = {};
+        if (Array.isArray(vendors)) {
+          vendors.forEach((v) => {
+            vendorMap[v.id] = v;
+          });
+        }
+        setVendorsMap(vendorMap);
+        setEndpointMap(supported_endpoint || {});
+        setAutoGroups(auto_groups || []);
+        setModelsFormat(data, group_ratio, vendorMap);
+      } else {
+        showError(message);
       }
-      setVendorsMap(vendorMap);
-      setEndpointMap(supported_endpoint || {});
-      setAutoGroups(auto_groups || []);
-      setModelsFormat(data, group_ratio, vendorMap);
-    } else {
-      showError(message);
+    } catch (error) {
+      if (mountedRef.current && requestSeq === requestSeqRef.current) {
+        showError(t('获取模型价格失败'));
+      }
+    } finally {
+      if (mountedRef.current && requestSeq === requestSeqRef.current) {
+        setLoading(false);
+      }
     }
-    setLoading(false);
   };
 
   const refresh = async () => {
@@ -306,7 +318,13 @@ export const useModelPricingData = () => {
   };
 
   useEffect(() => {
-    refresh().then();
+    mountedRef.current = true;
+    refresh().catch((error) => showError(error));
+  }, []);
+
+  useEffect(() => () => {
+    mountedRef.current = false;
+    requestSeqRef.current += 1;
   }, []);
 
   // 当筛选条件变化时重置到第一页

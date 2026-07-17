@@ -18,25 +18,49 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import { useState, useCallback } from 'react';
+import { useEffect } from 'react';
+import { getStoredValue, setStoredValue } from '../../helpers/siteStorage';
 
 const KEY = 'default_collapse_sidebar';
+const SIDEBAR_STATE_EVENT = 'classic-sidebar-state-change';
+
+const emitSidebarState = (collapsed) => {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(
+    new CustomEvent(SIDEBAR_STATE_EVENT, { detail: { collapsed } }),
+  );
+};
 
 export const useSidebarCollapsed = () => {
   const [collapsed, setCollapsed] = useState(
-    () => localStorage.getItem(KEY) === 'true',
+    () => getStoredValue(KEY, '') === 'true',
   );
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const handleStateChange = (event) => {
+      if (typeof event.detail?.collapsed === 'boolean') {
+        setCollapsed(event.detail.collapsed);
+      }
+    };
+    window.addEventListener(SIDEBAR_STATE_EVENT, handleStateChange);
+    return () => window.removeEventListener(SIDEBAR_STATE_EVENT, handleStateChange);
+  }, []);
 
   const toggle = useCallback(() => {
     setCollapsed((prev) => {
       const next = !prev;
-      localStorage.setItem(KEY, next.toString());
+      setStoredValue(KEY, next.toString());
+      emitSidebarState(next);
       return next;
     });
   }, []);
 
   const set = useCallback((value) => {
-    setCollapsed(value);
-    localStorage.setItem(KEY, value.toString());
+    const next = Boolean(value);
+    setCollapsed(next);
+    setStoredValue(KEY, next.toString());
+    emitSidebarState(next);
   }, []);
 
   return [collapsed, toggle, set];

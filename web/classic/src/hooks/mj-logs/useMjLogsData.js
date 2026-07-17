@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Modal } from '@douyinfe/semi-ui';
 import {
@@ -30,6 +30,7 @@ import {
 } from '../../helpers';
 import { ITEMS_PER_PAGE } from '../../constants';
 import { useTableCompactMode } from '../common/useTableCompactMode';
+import { getStoredJSON, getStoredValue, setStoredJSON, setStoredValue } from '../../helpers/siteStorage';
 
 export const useMjLogsData = () => {
   const { t } = useTranslation();
@@ -56,6 +57,8 @@ export const useMjLogsData = () => {
   const [activePage, setActivePage] = useState(1);
   const [logCount, setLogCount] = useState(0);
   const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE);
+  const requestSeq = useRef(0);
+  const mountedRef = useRef(true);
   const [showBanner, setShowBanner] = useState(false);
 
   // User and admin
@@ -92,10 +95,10 @@ export const useMjLogsData = () => {
 
   // Load saved column preferences from localStorage
   useEffect(() => {
-    const savedColumns = localStorage.getItem(STORAGE_KEY);
-    if (savedColumns) {
+    const savedColumns = getStoredJSON(STORAGE_KEY, null);
+    if (savedColumns && typeof savedColumns === 'object') {
       try {
-        const parsed = JSON.parse(savedColumns);
+        const parsed = savedColumns;
         const defaults = getDefaultColumnVisibility();
         const merged = { ...defaults, ...parsed };
 
@@ -116,7 +119,7 @@ export const useMjLogsData = () => {
 
   // Check banner notification
   useEffect(() => {
-    const mjNotifyEnabled = localStorage.getItem('mj_notify_enabled');
+    const mjNotifyEnabled = getStoredValue('mj_notify_enabled', '');
     if (mjNotifyEnabled !== 'true') {
       setShowBanner(true);
     }
@@ -144,7 +147,7 @@ export const useMjLogsData = () => {
   const initDefaultColumns = () => {
     const defaults = getDefaultColumnVisibility();
     setVisibleColumns(defaults);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(defaults));
+    setStoredJSON(STORAGE_KEY, defaults);
   };
 
   // Handle column visibility change
@@ -175,7 +178,7 @@ export const useMjLogsData = () => {
   // Persist column settings to the role-specific STORAGE_KEY
   useEffect(() => {
     if (Object.keys(visibleColumns).length > 0) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(visibleColumns));
+      setStoredJSON(STORAGE_KEY, visibleColumns);
     }
   }, [visibleColumns]);
 
@@ -223,6 +226,7 @@ export const useMjLogsData = () => {
 
   // Load logs function
   const loadLogs = async (page = 1, size = pageSize) => {
+    const seq = ++requestSeq.current;
     setLoading(true);
     const { channel_id, mj_id, start_timestamp, end_timestamp } =
       getFormValues();
@@ -231,23 +235,27 @@ export const useMjLogsData = () => {
     const url = isAdminUser
       ? `/api/mj/?p=${page}&page_size=${size}&channel_id=${channel_id}&mj_id=${mj_id}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}`
       : `/api/mj/self/?p=${page}&page_size=${size}&mj_id=${mj_id}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}`;
-    const res = await API.get(url);
-    const { success, message, data } = res.data;
-    if (success) {
-      syncPageData(data);
-    } else {
-      showError(message);
+    try {
+      const res = await API.get(url);
+      if (!mountedRef.current || seq !== requestSeq.current) return;
+      const { success, message, data } = res.data;
+      if (success) {
+        syncPageData(data);
+      } else {
+        showError(message);
+      }
+    } finally {
+      if (mountedRef.current && seq === requestSeq.current) setLoading(false);
     }
-    setLoading(false);
   };
 
   // Page handlers
   const handlePageChange = (page) => {
-    loadLogs(page, pageSize).then();
+    loadLogs(page, pageSize).catch((error) => showError(error));
   };
 
   const handlePageSizeChange = async (size) => {
-    localStorage.setItem('mj-page-size', size + '');
+    setStoredValue('mj-page-size', size);
     await loadLogs(1, size);
   };
 
@@ -278,10 +286,17 @@ export const useMjLogsData = () => {
 
   // Initialize data
   useEffect(() => {
+    // Re-arm after StrictMode's simulated cleanup before starting a request.
+    mountedRef.current = true;
     const localPageSize =
-      parseInt(localStorage.getItem('mj-page-size')) || ITEMS_PER_PAGE;
+      parseInt(getStoredValue('mj-page-size', ''), 10) || ITEMS_PER_PAGE;
     setPageSize(localPageSize);
-    loadLogs(1, localPageSize).then();
+    loadLogs(1, localPageSize).catch((error) => showError(error));
+  }, []);
+
+  useEffect(() => () => {
+    mountedRef.current = false;
+    requestSeq.current += 1;
   }, []);
 
   return {

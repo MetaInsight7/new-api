@@ -889,7 +889,7 @@ export default function SettingsChannelAffinity(props) {
     }
     setInputs(currentInputs);
     setInputsRow(structuredClone(currentInputs));
-    if (refForm.current) refForm.current.setValues(currentInputs);
+    refForm.current?.setValues(currentInputs);
     setRules(parseRulesJson(currentInputs[KEY_RULES]));
     refreshCacheStats();
   }, [props.options]);

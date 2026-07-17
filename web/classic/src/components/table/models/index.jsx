@@ -30,6 +30,7 @@ import EditVendorModal from './modals/EditVendorModal';
 import { useModelsData } from '../../../hooks/models/useModelsData';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
 import { createCardProPagination } from '../../../helpers/utils';
+import { getStoredValue, setStoredValue } from '../../../helpers/siteStorage';
 
 const MARKETPLACE_DISPLAY_NOTICE_STORAGE_KEY =
   'models_marketplace_display_notice_dismissed';
@@ -80,7 +81,7 @@ const ModelsPage = () => {
     useState(() => {
       try {
         return (
-          localStorage.getItem(MARKETPLACE_DISPLAY_NOTICE_STORAGE_KEY) !== '1'
+          getStoredValue(MARKETPLACE_DISPLAY_NOTICE_STORAGE_KEY, '') !== '1'
         );
       } catch (_) {
         return true;
@@ -100,7 +101,7 @@ const ModelsPage = () => {
       },
       onOk: () => {
         try {
-          localStorage.setItem(MARKETPLACE_DISPLAY_NOTICE_STORAGE_KEY, '1');
+          setStoredValue(MARKETPLACE_DISPLAY_NOTICE_STORAGE_KEY, '1');
         } catch (_) {}
         setShowMarketplaceDisplayNotice(false);
       },

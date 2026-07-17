@@ -21,6 +21,7 @@ import React, { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { reducer, initialState } from './reducer';
 import { normalizeLanguage } from '../../i18n/language';
+import { setStoredValue } from '../../helpers/siteStorage';
 
 export const UserContext = React.createContext({
   state: initialState,
@@ -30,6 +31,20 @@ export const UserContext = React.createContext({
 export const UserProvider = ({ children }) => {
   const [state, dispatch] = React.useReducer(reducer, initialState);
   const { i18n } = useTranslation();
+
+  useEffect(() => {
+    const handleLanguageChanged = (language) => {
+      const normalizedLanguage = normalizeLanguage(language);
+      if (normalizedLanguage) {
+        setStoredValue('i18nextLng', normalizedLanguage);
+      }
+    };
+
+    i18n.on('languageChanged', handleLanguageChanged);
+    return () => {
+      i18n.off('languageChanged', handleLanguageChanged);
+    };
+  }, [i18n]);
 
   // Sync language preference when user data is loaded
   useEffect(() => {
@@ -41,7 +56,7 @@ export const UserProvider = ({ children }) => {
           i18n.changeLanguage(normalizedLanguage);
         }
         if (normalizedLanguage) {
-          localStorage.setItem('i18nextLng', normalizedLanguage);
+          setStoredValue('i18nextLng', normalizedLanguage);
         }
       } catch (e) {
         // Ignore parse errors

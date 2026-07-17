@@ -18,18 +18,25 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import {
+  Link,
+  useLocation,
+  useNavigate,
+  useSearchParams,
+} from 'react-router-dom';
 import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
+import { toBoolean } from '../../helpers/boolean';
 import {
   API,
   getLogo,
   showError,
   showInfo,
   showSuccess,
+  getStoredValue,
+  setStoredValue,
   updateAPI,
   getSystemName,
-  getOAuthProviderIcon,
   setUserData,
   onGitHubOAuthClicked,
   onDiscordOAuthClicked,
@@ -40,6 +47,7 @@ import {
   buildAssertionResult,
   isPasskeySupported,
 } from '../../helpers';
+import { getOAuthProviderIcon } from '../../helpers/oauthIcons';
 import Turnstile from 'react-turnstile';
 import {
   Button,
@@ -66,9 +74,11 @@ import { useTranslation } from 'react-i18next';
 import { SiDiscord } from 'react-icons/si';
 import AuthLayout from './AuthLayout';
 import { AuthButtonContent, AuthFormHeader } from './AuthFormVisuals';
+import { useRequestLifecycle } from '../../hooks/common/useRequestLifecycle';
 
 const LoginForm = () => {
   let navigate = useNavigate();
+  const location = useLocation();
   const { t } = useTranslation();
   const githubButtonTextKeyByState = {
     idle: '使用 GitHub 继续',
@@ -112,18 +122,25 @@ const LoginForm = () => {
   const githubTimeoutRef = useRef(null);
   const githubButtonText = t(githubButtonTextKeyByState[githubButtonState]);
   const [customOAuthLoading, setCustomOAuthLoading] = useState({});
+  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   const logo = getLogo();
   const systemName = getSystemName();
 
+  const redirectAfterLogin = useMemo(() => {
+    const from = location.state?.from;
+    if (!from || typeof from.pathname !== 'string') return '/console';
+    return `${from.pathname}${from.search || ''}${from.hash || ''}`;
+  }, [location.state]);
+
   let affCode = new URLSearchParams(window.location.search).get('aff');
   if (affCode) {
-    localStorage.setItem('aff', affCode);
+    setStoredValue('aff', affCode);
   }
 
   const status = useMemo(() => {
     if (statusState?.status) return statusState.status;
-    const savedStatus = localStorage.getItem('status');
+    const savedStatus = getStoredValue('status', '');
     if (!savedStatus) return {};
     try {
       return JSON.parse(savedStatus) || {};
@@ -187,27 +204,29 @@ const LoginForm = () => {
       showInfo('请稍后几秒重试，Turnstile 正在检查用户环境！');
       return;
     }
+    const requestId = beginRequest('wechat');
     setWechatCodeSubmitLoading(true);
     try {
       const res = await API.get(
         `/api/oauth/wechat?code=${inputs.wechat_verification_code}`,
       );
       const { success, message, data } = res.data;
-      if (success) {
+      if (isCurrentRequest('wechat', requestId) && success) {
         userDispatch({ type: 'login', payload: data });
-        localStorage.setItem('user', JSON.stringify(data));
+        setStoredValue('user', JSON.stringify(data));
         setUserData(data);
         updateAPI();
-        navigate('/');
+        navigate(redirectAfterLogin, { replace: true });
         showSuccess('登录成功！');
         setShowWeChatLoginModal(false);
       } else {
-        showError(message);
+        if (isCurrentRequest('wechat', requestId)) showError(message);
       }
     } catch (error) {
-      showError('登录失败，请重试');
+      if (isCurrentRequest('wechat', requestId)) showError('登录失败，请重试');
     } finally {
-      setWechatCodeSubmitLoading(false);
+      if (isCurrentRequest('wechat', requestId))
+        setWechatCodeSubmitLoading(false);
     }
   };
 
@@ -225,6 +244,7 @@ const LoginForm = () => {
       return;
     }
     setSubmitted(true);
+    const requestId = beginRequest('login');
     setLoginLoading(true);
     try {
       if (username && password) {
@@ -236,7 +256,7 @@ const LoginForm = () => {
           },
         );
         const { success, message, data } = res.data;
-        if (success) {
+        if (isCurrentRequest('login', requestId) && success) {
           // 检查是否需要2FA验证
           if (data && data.require_2fa) {
             setShowTwoFA(true);
@@ -255,17 +275,17 @@ const LoginForm = () => {
               centered: true,
             });
           }
-          navigate('/console');
+          navigate(redirectAfterLogin, { replace: true });
         } else {
-          showError(message);
+          if (isCurrentRequest('login', requestId)) showError(message);
         }
       } else {
         showError('请输入用户名和密码！');
       }
     } catch (error) {
-      showError('登录失败，请重试');
+      if (isCurrentRequest('login', requestId)) showError('登录失败，请重试');
     } finally {
-      setLoginLoading(false);
+      if (isCurrentRequest('login', requestId)) setLoginLoading(false);
     }
   }
 
@@ -291,21 +311,23 @@ const LoginForm = () => {
         params[field] = response[field];
       }
     });
+    const requestId = beginRequest('telegram');
     try {
       const res = await API.get(`/api/oauth/telegram/login`, { params });
       const { success, message, data } = res.data;
-      if (success) {
+      if (isCurrentRequest('telegram', requestId) && success) {
         userDispatch({ type: 'login', payload: data });
-        localStorage.setItem('user', JSON.stringify(data));
+        setStoredValue('user', JSON.stringify(data));
         showSuccess('登录成功！');
         setUserData(data);
         updateAPI();
-        navigate('/');
+        navigate(redirectAfterLogin, { replace: true });
       } else {
-        showError(message);
+        if (isCurrentRequest('telegram', requestId)) showError(message);
       }
     } catch (error) {
-      showError('登录失败，请重试');
+      if (isCurrentRequest('telegram', requestId))
+        showError('登录失败，请重试');
     }
   };
 
@@ -425,6 +447,7 @@ const LoginForm = () => {
       return;
     }
 
+    const requestId = beginRequest('passkey');
     setPasskeyLoading(true);
     try {
       const beginRes = await API.post('/api/user/passkey/login/begin');
@@ -451,23 +474,26 @@ const LoginForm = () => {
         payload,
       );
       const finish = finishRes.data;
-      if (finish.success) {
+      if (isCurrentRequest('passkey', requestId) && finish.success) {
         userDispatch({ type: 'login', payload: finish.data });
         setUserData(finish.data);
         updateAPI();
         showSuccess('登录成功！');
-        navigate('/console');
+        navigate(redirectAfterLogin, { replace: true });
       } else {
-        showError(finish.message || 'Passkey 登录失败，请重试');
+        if (isCurrentRequest('passkey', requestId)) {
+          showError(finish.message || 'Passkey 登录失败，请重试');
+        }
       }
     } catch (error) {
       if (error?.name === 'AbortError') {
-        showInfo('已取消 Passkey 登录');
-      } else {
+        if (isCurrentRequest('passkey', requestId))
+          showInfo('已取消 Passkey 登录');
+      } else if (isCurrentRequest('passkey', requestId)) {
         showError('Passkey 登录失败，请重试');
       }
     } finally {
-      setPasskeyLoading(false);
+      if (isCurrentRequest('passkey', requestId)) setPasskeyLoading(false);
     }
   };
 
@@ -491,11 +517,15 @@ const LoginForm = () => {
     setUserData(data);
     updateAPI();
     showSuccess('登录成功！');
-    navigate('/console');
+    navigate(redirectAfterLogin, { replace: true });
   };
 
   // 返回登录页面
   const handleBackToLogin = () => {
+    beginRequest('login');
+    beginRequest('wechat');
+    beginRequest('telegram');
+    beginRequest('passkey');
     setShowTwoFA(false);
     setInputs({ username: '', password: '', wechat_verification_code: '' });
   };
@@ -703,7 +733,7 @@ const LoginForm = () => {
           </div>
         )}
 
-        {!status.self_use_mode_enabled && (
+        {!toBoolean(status.self_use_mode_enabled) && (
           <div className='auth-copy-row'>
             <Text>
               {t('还没有 Token 搭子？')}{' '}
@@ -847,7 +877,7 @@ const LoginForm = () => {
           </>
         )}
 
-        {!status.self_use_mode_enabled && (
+        {!toBoolean(status.self_use_mode_enabled) && (
           <div className='auth-copy-row'>
             <Text>
               {t('还没有 Token 搭子？')}{' '}

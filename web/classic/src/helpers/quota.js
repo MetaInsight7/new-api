@@ -17,9 +17,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { getCurrencyConfig } from './render';
+import { getStoredValue } from './siteStorage';
 
 export const getQuotaPerUnit = () => {
-  const raw = parseFloat(localStorage.getItem('quota_per_unit'));
+  const raw = parseFloat(getStoredValue('quota_per_unit', ''));
   return Number.isFinite(raw) && raw > 0 ? raw : 500000;
 };
 

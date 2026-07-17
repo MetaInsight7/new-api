@@ -115,10 +115,7 @@ const ChannelAffinityUsageCacheModal = ({
     })();
   }, [
     showChannelAffinityUsageCacheModal,
-    params.rule_name,
-    params.using_group,
-    params.key_hint,
-    params.key_fp,
+    params,
     t,
   ]);
 
