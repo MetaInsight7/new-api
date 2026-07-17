@@ -42,7 +42,6 @@ import {
 import { ITEMS_PER_PAGE } from '../../constants';
 import { useTableCompactMode } from '../common/useTableCompactMode';
 import ParamOverrideEntry from '../../components/table/usage-logs/components/ParamOverrideEntry';
-import { usageLogMockData } from '../../components/table/usage-logs/usageLogMockData';
 import {
   getStoredJSON,
   getStoredValue,
@@ -52,10 +51,6 @@ import {
 
 export const useLogsData = () => {
   const { t } = useTranslation();
-  const mockMode =
-    import.meta.env.DEV &&
-    new URLSearchParams(window.location.search).get('mock') === '1';
-
   // Define column keys for selection
   const COLUMN_KEYS = {
     TIME: 'time',
@@ -776,41 +771,6 @@ export const useLogsData = () => {
   const loadLogs = async (startIdx, pageSize, customLogType = null) => {
     const requestId = ++requestCounter.current;
     setLoading(true);
-
-    if (mockMode) {
-      const filters = getFormValues();
-      const startAt = Date.parse(filters.start_timestamp) / 1000;
-      const endAt = Date.parse(filters.end_timestamp) / 1000;
-      const includes = (value, keyword) =>
-        !keyword ||
-        String(value || '')
-          .toLowerCase()
-          .includes(String(keyword).toLowerCase());
-      const filteredMockData = usageLogMockData.filter((item) => {
-        const inTime =
-          (!Number.isFinite(startAt) || item.created_at >= startAt) &&
-          (!Number.isFinite(endAt) || item.created_at <= endAt);
-        return (
-          inTime &&
-          (!filters.logType || item.type === filters.logType) &&
-          includes(item.username, filters.username) &&
-          includes(item.token_name, filters.token_name) &&
-          includes(item.model_name, filters.model_name) &&
-          includes(item.channel, filters.channel) &&
-          includes(item.group, filters.group) &&
-          includes(item.request_id, filters.request_id)
-        );
-      });
-      if (!mountedRef.current || requestId !== requestCounter.current) return;
-      setActivePage(1);
-      setPageSize(pageSize);
-      setLogCount(filteredMockData.length);
-      setLogsFormat(filteredMockData.map((item) => ({ ...item })));
-      if (mountedRef.current && requestId === requestCounter.current) {
-        setLoading(false);
-      }
-      return;
-    }
 
     let url = '';
     const {
