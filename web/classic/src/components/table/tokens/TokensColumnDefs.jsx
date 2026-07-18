@@ -184,7 +184,7 @@ function renderKeyCell(record, ctx) {
         </span>
         <span
           className='token-keyic'
-          title={ctx.t('复制密钥')}
+          title={ctx.t('复制 API 密钥')}
           onClick={(e) => {
             e.stopPropagation();
             ctx.copyTokenKey(record);
@@ -312,7 +312,7 @@ function renderOpsCell(record, ctx) {
         onClick={(e) => {
           e.stopPropagation();
           Modal.confirm({
-            title: t('确定是否要删除此令牌？'),
+            title: t('确定是否要删除此 API 密钥？'),
             content: t('此修改将不可逆'),
             onOk: async () => {
               await ctx.manageToken(record.id, 'delete', record);
@@ -386,7 +386,7 @@ function renderTokenMobileCard(record, ctx, groupRatios) {
           {revealed ? <EyeOff size={13} /> : <Eye size={13} />}
         </span>
         <span
-          title={t('复制密钥')}
+          title={t('复制 API 密钥')}
           onClick={(e) => { e.stopPropagation(); ctx.copyTokenKey(record); }}
           style={keyIc}
         >
@@ -475,7 +475,7 @@ export const getTokensColumns = ({
   };
   return [
     {
-      title: t('令牌名称'),
+      title: t('API 密钥名称'),
       dataIndex: 'name',
       width: 124,
       render: (text, record) => renderNameCell(record, t),
@@ -487,7 +487,7 @@ export const getTokensColumns = ({
       render: (text, record) => renderStatusLight(record.status, t),
     },
     {
-      title: t('密钥'),
+      title: t('API 密钥'),
       key: 'token_key',
       width: 194,
       render: (text, record) => renderKeyCell(record, ctx),

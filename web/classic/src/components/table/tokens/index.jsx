@@ -150,7 +150,9 @@ function TokensPage() {
           <div style={{ marginBottom: 8 }}>
             {key
               ? t('请选择模型。')
-              : t('选择模型后可一键填充当前选中令牌（或本页第一个令牌）。')}
+              : t(
+                  '选择模型后可一键填充当前选中的 API 密钥（或本页第一个 API 密钥）。',
+                )}
           </div>
           <div style={{ marginBottom: 8 }}>
             <Select
@@ -244,7 +246,7 @@ function TokensPage() {
             ? tokens[0]
             : null;
       if (!token) {
-        Toast.warning(t('没有可用令牌用于填充'));
+        Toast.warning(t('没有可用 API 密钥用于填充'));
         return;
       }
       try {
@@ -359,15 +361,8 @@ function TokensPage() {
     selectedKeys,
     setEditingToken,
     setShowEdit,
-    batchCopyTokens,
-    batchDeleteTokens,
 
     // Filters state
-    formInitValues,
-    setFormApi,
-    searchTokens,
-    loading,
-    searching,
 
     // Description state
     compactMode,
@@ -393,26 +388,16 @@ function TokensPage() {
         modelOptions={modelOptions}
       />
 
+      <TokensHeader
+        setEditingToken={setEditingToken}
+        setShowEdit={setShowEdit}
+        t={t}
+      />
+
       <CardPro
         type='type1'
         className='dmit-flat-card'
         disableMobileCollapse
-        actionsArea={
-          <TokensHeader
-            tokenCount={tokensData.tokenCount}
-            formInitValues={formInitValues}
-            setFormApi={setFormApi}
-            searchTokens={searchTokens}
-            loading={loading}
-            searching={searching}
-            selectedKeys={selectedKeys}
-            batchCopyTokens={batchCopyTokens}
-            batchDeleteTokens={batchDeleteTokens}
-            setEditingToken={setEditingToken}
-            setShowEdit={setShowEdit}
-            t={t}
-          />
-        }
         paginationArea={createCardProPagination({
           currentPage: tokensData.activePage,
           pageSize: tokensData.pageSize,

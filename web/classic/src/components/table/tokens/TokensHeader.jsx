@@ -17,158 +17,40 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useState } from 'react';
-import { Form, Button, Dropdown } from '@douyinfe/semi-ui';
-import { Search, Plus, ChevronDown, Copy, Trash2, SlidersHorizontal } from 'lucide-react';
-import { showError } from '../../../helpers';
-import CopyTokensModal from './modals/CopyTokensModal';
-import DeleteTokensModal from './modals/DeleteTokensModal';
+import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { Button } from '@douyinfe/semi-ui';
+import { Plus } from 'lucide-react';
 
-// 令牌管理表头工具栏(原型 .tmp/token-proto5.html)
-const TokensHeader = ({
-  tokenCount,
-  formInitValues,
-  setFormApi,
-  searchTokens,
-  loading,
-  searching,
-  selectedKeys,
-  batchCopyTokens,
-  batchDeleteTokens,
-  setEditingToken,
-  setShowEdit,
-  t,
-}) => {
-  const [showCopyModal, setShowCopyModal] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [showFilter, setShowFilter] = useState(false);
+// API 密钥管理表头工具栏(原型 .tmp/token-proto5.html)
+const TokensHeader = ({ setEditingToken, setShowEdit, t }) => {
+  const [actionsHost, setActionsHost] = useState(null);
 
-  const requireSelection = (fn) => () => {
-    if (!selectedKeys || selectedKeys.length === 0) {
-      showError(t('请至少选择一个令牌！'));
-      return;
-    }
-    fn();
-  };
+  useEffect(() => {
+    setActionsHost(document.getElementById('token-page-actions'));
+  }, []);
 
   return (
-    <Form
-      initValues={formInitValues}
-      getFormApi={(api) => setFormApi(api)}
-      onSubmit={() => searchTokens(1)}
-      allowEmpty={true}
-      autoComplete='off'
-      layout='horizontal'
-      trigger='change'
-      stopValidateWithError={false}
-      className='w-full'
-    >
-      <div className='token-toolbar'>
-        <div className='token-toolbar__title'>
-          {t('令牌管理')}
-          <span className='token-toolbar__count'>
-            {tokenCount} {t('个令牌')}
-          </span>
-        </div>
-
-        {/* 搜索 + 批量操作:桌面常显;移动端点「筛选」后作为第二行显示 */}
-        <div
-          className={`token-toolbar__filters${showFilter ? ' is-open' : ''}`}
-        >
-          <div className='token-toolbar__search'>
-            <Form.Input
-              field='searchKeyword'
-              prefix={<Search size={15} />}
-              placeholder={t('搜索名称或密钥')}
-              showClear
-              pure
+    <>
+      {actionsHost &&
+        createPortal(
+          <>
+            <Button
+              type='primary'
+              theme='solid'
               size='small'
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  searchTokens(1);
-                }
+              icon={<Plus size={15} />}
+              onClick={() => {
+                setEditingToken({ id: undefined });
+                setShowEdit(true);
               }}
-            />
-          </div>
-
-          <span className='token-toolbar__batch'>
-            <Dropdown
-              trigger='click'
-              position='bottomRight'
-              clickToHide
-              menu={[
-                {
-                  node: 'item',
-                  name: t('复制所选令牌'),
-                  icon: <Copy size={14} />,
-                  onClick: requireSelection(() => setShowCopyModal(true)),
-                },
-                {
-                  node: 'item',
-                  name: t('删除所选令牌'),
-                  type: 'danger',
-                  icon: <Trash2 size={14} />,
-                  onClick: requireSelection(() => setShowDeleteModal(true)),
-                },
-              ]}
             >
-              <Button
-                type='tertiary'
-                theme='light'
-                size='small'
-                iconPosition='right'
-                icon={<ChevronDown size={15} />}
-              >
-                {t('批量操作')}
-              </Button>
-            </Dropdown>
-          </span>
-        </div>
-
-        {/* 右侧主操作:添加令牌 + 筛选开关(仅移动端可见) */}
-        <div className='token-toolbar__primary'>
-          <Button
-            type='primary'
-            theme='solid'
-            size='small'
-            icon={<Plus size={15} />}
-            onClick={() => {
-              setEditingToken({ id: undefined });
-              setShowEdit(true);
-            }}
-          >
-            {t('添加令牌')}
-          </Button>
-          <button
-            type='button'
-            className='token-toolbar__filter-toggle'
-            aria-label={t('筛选')}
-            aria-pressed={showFilter}
-            onClick={() => setShowFilter((v) => !v)}
-          >
-            <SlidersHorizontal size={16} />
-          </button>
-        </div>
-      </div>
-
-      <CopyTokensModal
-        visible={showCopyModal}
-        onCancel={() => setShowCopyModal(false)}
-        batchCopyTokens={batchCopyTokens}
-        t={t}
-      />
-      <DeleteTokensModal
-        visible={showDeleteModal}
-        onCancel={() => setShowDeleteModal(false)}
-        onConfirm={() => {
-          batchDeleteTokens();
-          setShowDeleteModal(false);
-        }}
-        selectedKeys={selectedKeys}
-        t={t}
-      />
-    </Form>
+              {t('添加 API 密钥')}
+            </Button>
+          </>,
+          actionsHost,
+        )}
+    </>
   );
 };
 

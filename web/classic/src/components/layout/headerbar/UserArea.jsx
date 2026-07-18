@@ -110,7 +110,7 @@ const UserArea = ({
                 onClick={() => navigate('/console/token')}
               >
                 <IconKey size='small' />
-                <span>{t('令牌管理')}</span>
+                <span>{t('API 密钥管理')}</span>
               </Dropdown.Item>
               <Dropdown.Item
                 className='tn-userpop-item'

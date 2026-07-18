@@ -18,11 +18,18 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import TokensTable from '../../components/table/tokens';
 
 const Token = () => {
+  const { t } = useTranslation();
+
   return (
-    <div className='mt-[60px] px-2'>
+    <div className='console-token-page mt-[60px] px-2'>
+      <header className='dmit-page-title'>
+        <h1>{t('API 密钥管理')}</h1>
+        <div id='token-page-actions' className='token-page-actions' />
+      </header>
       <TokensTable />
     </div>
   );

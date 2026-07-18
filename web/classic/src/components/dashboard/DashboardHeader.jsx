@@ -46,7 +46,7 @@ const DashboardHeader = ({
 
       <div className='dashboard-user-bar__controls'>
         <div
-          className='dashboard-time-range'
+          className='dashboard-time-range console-time-range'
           role='group'
           aria-label={t('时间范围')}
         >

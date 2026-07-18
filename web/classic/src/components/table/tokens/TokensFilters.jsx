@@ -71,7 +71,7 @@ const TokensFilters = ({
           <Form.Input
             field='searchToken'
             prefix={<IconSearch />}
-            placeholder={t('密钥')}
+            placeholder={t('API 密钥')}
             showClear
             pure
             size='small'

@@ -70,7 +70,7 @@ const PricingGroups = ({
 
   return (
     <SelectableButtonGroup
-      title={t('可用令牌分组')}
+      title={t('可用 API 密钥分组')}
       items={items}
       activeValue={filterGroup}
       onChange={setFilterGroup}

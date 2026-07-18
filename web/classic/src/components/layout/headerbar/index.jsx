@@ -71,7 +71,7 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
 
   return (
     <header
-      className={`token-nav text-semi-color-text-0 sticky top-0 z-50 transition-colors duration-300${isHomeRoute ? ' token-home-header' : ''}`}
+      className={`token-nav text-semi-color-text-0 sticky top-0 z-50 transition-colors duration-300${isHomeRoute ? ' token-home-header' : ''}${isConsoleRoute ? ' token-console-header' : ''}`}
     >
       {noticeVisible && (
         <Suspense fallback={null}>

@@ -29,7 +29,7 @@ const DeleteTokensModal = ({
 }) => {
   return (
     <Modal
-      title={t('批量删除令牌')}
+      title={t('批量删除 API 密钥')}
       visible={visible}
       onCancel={onCancel}
       onOk={onConfirm}
@@ -39,7 +39,7 @@ const DeleteTokensModal = ({
       type='warning'
     >
       <div>
-        {t('确定要删除所选的 {{count}} 个令牌吗？', {
+        {t('确定要删除所选的 {{count}} 个 API 密钥吗？', {
           count: selectedKeys.length,
         })}
       </div>

@@ -36,7 +36,7 @@ export const supportServices = [
   { value: 'none', label: '无' },
   { value: 'api', label: 'API 调用服务' },
   { value: 'balance', label: '账户余额与充值' },
-  { value: 'token', label: 'API 令牌' },
+  { value: 'token', label: 'API 密钥' },
 ];
 
 export const initialSupportTickets = [
@@ -57,7 +57,7 @@ export const initialSupportTickets = [
         author: '我',
         createdAt: '2026-07-15 09:18',
         content:
-          '今天上午 Claude Code 连续出现 429，使用的是默认分组。请帮忙确认是上游限流还是令牌配置问题。',
+          '今天上午 Claude Code 连续出现 429，使用的是默认分组。请帮忙确认是上游限流还是 API 密钥配置问题。',
       },
       {
         id: 'm-1002',
@@ -99,7 +99,7 @@ export const initialSupportTickets = [
   },
   {
     id: 'TK-20260712003',
-    subject: '如何限制令牌只能访问指定模型',
+    subject: '如何限制 API 密钥只能访问指定模型',
     department: 'technical',
     service: 'token',
     priority: 'low',
@@ -113,7 +113,7 @@ export const initialSupportTickets = [
         sender: 'user',
         author: '我',
         createdAt: '2026-07-12 14:22',
-        content: '想给课程演示用的令牌只开放 gpt-5-mini，应该在哪里设置？',
+        content: '想给课程演示用的 API 密钥只开放 gpt-5-mini，应该在哪里设置？',
       },
       {
         id: 'm-3002',
@@ -121,7 +121,7 @@ export const initialSupportTickets = [
         author: '技术支持',
         createdAt: '2026-07-12 14:48',
         content:
-          '请进入令牌页面编辑对应令牌，打开“模型限制”后选择 gpt-5-mini 并保存即可。',
+          '请进入 API 密钥页面编辑对应 API 密钥，打开“模型限制”后选择 gpt-5-mini 并保存即可。',
       },
       {
         id: 'm-3003',

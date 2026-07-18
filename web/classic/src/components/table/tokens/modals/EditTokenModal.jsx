@@ -194,7 +194,7 @@ const EditTokenModal = (props) => {
         showError(message);
       }
     } catch (error) {
-      if (isCurrentRequest('token', requestId)) showError(t('加载令牌信息失败'));
+      if (isCurrentRequest('token', requestId)) showError(t('加载 API 密钥信息失败'));
     } finally {
       if (isCurrentRequest('token', requestId)) setLoading(false);
     }
@@ -269,7 +269,7 @@ const EditTokenModal = (props) => {
       });
       const { success, message } = res.data;
       if (isCurrentRequest('submit', requestId) && success) {
-        showSuccess(t('令牌更新成功！'));
+        showSuccess(t('API 密钥更新成功！'));
         props.refresh();
         props.handleClose();
       } else if (isCurrentRequest('submit', requestId)) {
@@ -315,7 +315,7 @@ const EditTokenModal = (props) => {
         }
       }
       if (isCurrentRequest('submit', requestId) && successCount > 0) {
-        showSuccess(t('令牌创建成功，请在列表页面点击复制获取令牌！'));
+        showSuccess(t('API 密钥创建成功，请在列表页面点击复制获取 API 密钥！'));
         props.refresh();
         props.handleClose();
       }
@@ -346,7 +346,7 @@ const EditTokenModal = (props) => {
           <div className='min-w-0'>
             <div className='flex items-center gap-2'>
               <Title heading={5} className='m-0'>
-                {isEdit ? t('更新令牌信息') : t('创建新的令牌')}
+                {isEdit ? t('更新 API 密钥信息') : t('创建新的 API 密钥')}
               </Title>
               <Tag color={isEdit ? 'grey' : 'green'} shape='circle' size='small'>
                 {isEdit ? t('更新') : t('新建')}
@@ -432,7 +432,7 @@ const EditTokenModal = (props) => {
                   {groups.length > 0 ? (
                     <Form.Select
                       field='group'
-                      label={t('令牌分组')}
+                      label={t('API 密钥分组')}
                       placeholder={t('默认为你的分组')}
                       optionList={groups}
                       renderOptionItem={renderGroupOption}
@@ -451,7 +451,7 @@ const EditTokenModal = (props) => {
                     <Form.Select
                       placeholder={t('管理员未设置用户可选分组')}
                       disabled
-                      label={t('令牌分组')}
+                      label={t('API 密钥分组')}
                       style={{ width: '100%' }}
                     />
                   )}

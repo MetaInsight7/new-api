@@ -175,7 +175,7 @@ const LedgerTable = (props) => {
                       <div className='subinner'>
                         <div className='subttl'>
                           {m.model_name} ·{' '}
-                          {t('各令牌分组价格（共 {{n}} 组）', {
+                          {t('各 API 密钥分组价格（共 {{n}} 组）', {
                             n: gRows.length,
                           })}
                         </div>

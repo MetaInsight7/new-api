@@ -74,12 +74,9 @@ body {
   height: 100dvh;
 }
 
-.app-console > .semi-layout-header,
 .app-console .app-sider,
 .app-console .semi-layout-content {
   transition:
-    left 0.18s ease,
-    width 0.18s ease,
     margin-left 0.18s ease;
 }
 

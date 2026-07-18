@@ -32,7 +32,6 @@ const TokensTable = (tokensData) => {
     compactMode,
     handlePageChange,
     handlePageSizeChange,
-    rowSelection,
     handleRow,
     showKeys,
     resolvedTokenKeys,
@@ -143,7 +142,6 @@ const TokensTable = (tokensData) => {
       }}
       hidePagination={true}
       loading={loading}
-      rowSelection={rowSelection}
       onRow={handleRow}
       empty={<TableEmpty title={t('搜索无结果')} />}
       className='dmit-flat-table token-table-v2'

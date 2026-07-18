@@ -43,6 +43,14 @@ html.dark .token-nav.token-home-header {
   background: #18181b !important;
 }
 
+/* The console header starts after the sidebar. Keep the main nav at the
+   viewport center so logging in does not make it jump to the right. */
+@media (min-width: 1024px) {
+  .token-nav.token-console-header nav {
+    left: calc(50% - (var(--sidebar-current-width, 0px) / 2)) !important;
+  }
+}
+
 /* ---------- logo(去圆形裁剪,小巧) ---------- */
 .token-nav .tn-logo img {
   border-radius: 0 !important;
@@ -344,4 +352,3 @@ html.dark .tn-userpop-item.tn-logout.semi-dropdown-item:hover {
 html.dark .tn-userpop .semi-dropdown-divider {
   background: #3f3f46 !important;
 }
-

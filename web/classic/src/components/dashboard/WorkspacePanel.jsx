@@ -160,8 +160,8 @@ const WorkspacePanel = ({ user, status, t, onStateChange }) => {
       tokens.map((token) => ({
         badge: token.group || t('默认分组'),
         description: normalizeApiKey(token.key || ''),
-        label: token.name || `${t('令牌')} #${token.id}`,
-        title: token.name || `${t('令牌')} #${token.id}`,
+        label: token.name || `${t('API 密钥')} #${token.id}`,
+        title: token.name || `${t('API 密钥')} #${token.id}`,
         value: token.id,
       })),
     [tokens, t],
@@ -186,7 +186,7 @@ const WorkspacePanel = ({ user, status, t, onStateChange }) => {
       const { success, message, data } = res.data || {};
       if (!success) {
         if (isCurrentRequest('tokens', requestId)) {
-          showError(message || t('获取令牌失败'));
+          showError(message || t('获取 API 密钥失败'));
         }
         return;
       }
@@ -204,7 +204,7 @@ const WorkspacePanel = ({ user, status, t, onStateChange }) => {
       });
     } catch (error) {
       if (isCurrentRequest('tokens', requestId)) {
-        showError(error.message || t('获取令牌失败'));
+        showError(error.message || t('获取 API 密钥失败'));
       }
     } finally {
       if (isCurrentRequest('tokens', requestId)) setLoading(false);
@@ -233,7 +233,7 @@ const WorkspacePanel = ({ user, status, t, onStateChange }) => {
 
   const getSelectedFullKey = async () => {
     if (!selectedToken) {
-      showError(t('请先选择令牌'));
+      showError(t('请先选择 API 密钥'));
       return '';
     }
 
@@ -248,7 +248,7 @@ const WorkspacePanel = ({ user, status, t, onStateChange }) => {
 
   const handleShowKey = async () => {
     if (!selectedToken) {
-      showError(t('请先选择令牌'));
+      showError(t('请先选择 API 密钥'));
       return;
     }
 
@@ -298,9 +298,9 @@ const WorkspacePanel = ({ user, status, t, onStateChange }) => {
   const statusReady = tokens.length > 0;
   const currentLineLabel = selectedEndpoint?.route || t('默认线路');
   const currentTokenLabel = selectedToken
-    ? selectedToken.name || `${t('令牌')} #${selectedToken.id}`
-    : t('未选择令牌');
-  const switchMeta = t('{{lineCount}} 条线路 · {{tokenCount}} 个令牌可切换', {
+    ? selectedToken.name || `${t('API 密钥')} #${selectedToken.id}`
+    : t('未选择 API 密钥');
+  const switchMeta = t('{{lineCount}} 条线路 · {{tokenCount}} 个 API 密钥可切换', {
     lineCount: apiEndpoints.length,
     tokenCount: tokens.length,
   });
@@ -402,12 +402,12 @@ const WorkspacePanel = ({ user, status, t, onStateChange }) => {
             </div>
           </div>
 
-          {/* 令牌字段:上排标签+可切换,发丝线,下排 API Key + 显示/复制 */}
+          {/* API 密钥字段:上排标签+可切换,发丝线,下排 API Key + 显示/复制 */}
           <div className='dashboard-api-access__field'>
             <div className='dashboard-api-access__field-head'>
               <span className='dashboard-api-access__field-label'>
                 <KeyRound size={13} />
-                {t('当前令牌')}
+                {t('当前 API 密钥')}
               </span>
               <Dropdown
                 trigger='custom'
@@ -425,7 +425,7 @@ const WorkspacePanel = ({ user, status, t, onStateChange }) => {
                   >
                     {tokenOptions.length === 0 ? (
                       <Dropdown.Item disabled>
-                        {t('暂无可用令牌')}
+                        {t('暂无可用 API 密钥')}
                       </Dropdown.Item>
                     ) : (
                       tokenOptions.map((option) => (
@@ -466,7 +466,7 @@ const WorkspacePanel = ({ user, status, t, onStateChange }) => {
                   className={`dashboard-api-access__field-pick${
                     statusReady ? '' : ' is-muted'
                   }`}
-                  aria-label={t('切换令牌')}
+                  aria-label={t('切换 API 密钥')}
                   onClick={() => setTokenMenuOpen((open) => !open)}
                 >
                   <strong>{currentTokenLabel}</strong>
@@ -512,14 +512,14 @@ const WorkspacePanel = ({ user, status, t, onStateChange }) => {
                 </>
               ) : (
                 <code className='is-muted'>
-                  {t('新建令牌后可在此复制 API Key')}
+                  {t('新建 API 密钥后可在此复制 API Key')}
                 </code>
               )}
             </div>
           </div>
         </div>
 
-        {/* 底部双按钮:令牌(主蓝实心) / 文档(白底蓝描边) */}
+        {/* 底部双按钮:API 密钥(主蓝实心) / 文档(白底蓝描边) */}
         <div className='dashboard-api-access__actions'>
           <Button
             theme='solid'
@@ -527,7 +527,7 @@ const WorkspacePanel = ({ user, status, t, onStateChange }) => {
             icon={<KeyRound size={15} />}
             onClick={() => navigate('/console/token')}
           >
-            {t('令牌')}
+            {t('API 密钥')}
           </Button>
           <Button
             theme='outline'

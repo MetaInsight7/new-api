@@ -157,11 +157,11 @@ export const useConsoleNav = () => {
       });
     }
 
-    // 3. 令牌（直达，独立突出——API 网关最高频页）
+    // 3. API 密钥（直达，独立突出——API 网关最高频页）
     if (isModuleVisible('console', 'token')) {
       list.push({
         key: 'token',
-        label: t('令牌'),
+        label: t('API 密钥'),
         icon: KeyRound,
         to: consoleRouterMap.token,
       });

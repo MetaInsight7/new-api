@@ -18,22 +18,15 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Empty } from '@douyinfe/semi-ui';
-import {
-  IllustrationNoAccess,
-  IllustrationNoAccessDark,
-} from '@douyinfe/semi-illustrations';
 import { useTranslation } from 'react-i18next';
+import ErrorState from '../../components/common/ErrorState';
 
 const Forbidden = () => {
   const { t } = useTranslation();
   return (
-    <div className='classic-page-fill flex justify-center items-center p-8'>
-      <Empty
-        image={<IllustrationNoAccess style={{ width: 250, height: 250 }} />}
-        darkModeImage={
-          <IllustrationNoAccessDark style={{ width: 250, height: 250 }} />
-        }
+    <div className='classic-page-fill'>
+      <ErrorState
+        code='403'
         description={t('您无权访问此页面，请联系管理员')}
       />
     </div>

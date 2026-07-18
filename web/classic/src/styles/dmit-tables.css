@@ -15,7 +15,10 @@ html:not(.dark)
   .semi-table-thead
   > .semi-table-row
   > .semi-table-row-head,
-html:not(.dark) .app-surface-product .usage-log-table-v2 th.semi-table-row-head {
+html:not(.dark)
+  .app-surface-product
+  .usage-log-table-v2
+  th.semi-table-row-head {
   background-color: #ffffff !important;
   color: #334155;
   font-weight: 600;
@@ -153,9 +156,7 @@ html:not(.dark) .app-surface-product .usage-log-table-v2 table {
 .app-surface-product .usage-log-detail--admin .usage-log-detail__panels {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
-.app-surface-product
-  .usage-log-detail--admin
-  .usage-log-detail__panels--two,
+.app-surface-product .usage-log-detail--admin .usage-log-detail__panels--two,
 .app-surface-product .usage-log-detail__panels--two {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -256,10 +257,14 @@ html:not(.dark) .app-surface-product .usage-log-table-v2 table {
 .app-surface-product .usage-log-detail__section--extra .usage-log-detail__item {
   display: block;
 }
-.app-surface-product .usage-log-detail__section--extra .usage-log-detail__label {
+.app-surface-product
+  .usage-log-detail__section--extra
+  .usage-log-detail__label {
   margin-bottom: 4px;
 }
-.app-surface-product .usage-log-detail__section--extra .usage-log-detail__value {
+.app-surface-product
+  .usage-log-detail__section--extra
+  .usage-log-detail__value {
   justify-content: flex-start;
   text-align: left;
   font-size: 12px;
@@ -335,7 +340,9 @@ html:not(.dark) .app-surface-product .usage-log-table-v2 table {
   .app-surface-product .usage-log-detail {
     padding: 15px 14px 17px;
   }
-  .app-surface-product .usage-log-detail__section--extra .usage-log-detail__grid {
+  .app-surface-product
+    .usage-log-detail__section--extra
+    .usage-log-detail__grid {
     grid-template-columns: 1fr;
   }
 }
@@ -378,6 +385,42 @@ html:not(.dark)
   border-bottom: 1px solid #eef1f5;
   font-size: 14px;
 }
+
+/* Keep the first token column from visually touching the card edge now that
+   the table no longer has a selection column. Mobile cards have their own
+   padding and are intentionally left unchanged. */
+@media (min-width: 768px) {
+  html:not(.dark)
+    .app-surface-product
+    .token-table-v2
+    .semi-table-thead
+    > .semi-table-row
+    > .semi-table-row-head:first-child,
+  html:not(.dark)
+    .app-surface-product
+    .token-table-v2
+    .semi-table-tbody
+    > .semi-table-row
+    > .semi-table-row-cell:first-child {
+    padding-left: 30px;
+  }
+
+  html:not(.dark)
+    .app-surface-product
+    .usage-log-table-v2
+    .semi-table-thead
+    > .semi-table-row
+    > .semi-table-row-head:first-child,
+  html:not(.dark)
+    .app-surface-product
+    .usage-log-table-v2
+    .semi-table-tbody
+    > .semi-table-row
+    > .semi-table-row-cell:first-child {
+    padding-left: 30px;
+  }
+}
+
 html:not(.dark)
   .app-surface-product
   .dmit-flat-table
@@ -442,10 +485,7 @@ html:not(.dark) .app-surface-product .dmit-flat-card .semi-card-body {
   line-height: 18px;
   color: #3c4650;
 }
-.app-surface-product
-  .dmit-flat-table
-  .token-table-secondary
-  .token-table-line {
+.app-surface-product .dmit-flat-table .token-table-secondary .token-table-line {
   font-size: inherit;
   font-weight: inherit;
   line-height: inherit;
@@ -489,7 +529,10 @@ html:not(.dark) .app-surface-product .dmit-flat-card .semi-card-body {
   line-height: 18px;
   color: #141a1f;
 }
-.app-surface-product .dmit-flat-table .token-table-limit-row + .token-table-limit-row {
+.app-surface-product
+  .dmit-flat-table
+  .token-table-limit-row
+  + .token-table-limit-row {
   margin-top: 4px;
 }
 .app-surface-product .dmit-flat-table .token-table-limit-line {
@@ -783,6 +826,36 @@ html:not(.dark)
 .log-time-range .semi-button.semi-button-primary,
 .log-time-range .semi-button.semi-button-primary:hover,
 .log-time-range .semi-button.semi-button-primary:focus {
+  background-color: #2563eb !important;
+}
+
+/* Shared desktop date-range control used by the dashboard and log pages. */
+.app-surface-product .console-time-range {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 3px;
+  height: 38px;
+  box-sizing: border-box;
+  padding: 3px;
+  border: 1px solid var(--semi-color-border);
+  border-radius: 10px;
+  background: var(--semi-color-fill-0);
+}
+
+.app-surface-product .console-time-range .semi-button {
+  height: 30px;
+  min-width: 0;
+  padding: 2px 12px;
+  border-radius: 7px !important;
+  font-weight: 700;
+}
+
+.app-surface-product .console-time-range .semi-button.semi-button-primary,
+.app-surface-product .console-time-range .semi-button.semi-button-primary:hover,
+.app-surface-product
+  .console-time-range
+  .semi-button.semi-button-primary:focus {
   background-color: #2563eb !important;
 }
 

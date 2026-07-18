@@ -152,7 +152,7 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
       typeof tokenOrId === 'object' ? tokenOrId?.id : Number(tokenOrId);
 
     if (!tokenId) {
-      const error = new Error(t('令牌不存在'));
+      const error = new Error(t('API 密钥不存在'));
       if (!suppressError) {
         showError(error.message);
       }
@@ -177,7 +177,7 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
         return fullKey;
       } catch (error) {
         const normalizedError = new Error(
-          error?.message || t('获取令牌密钥失败'),
+          error?.message || t('获取 API 密钥失败'),
         );
         if (!suppressError) {
           showError(normalizedError.message);
@@ -426,7 +426,7 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
   // Batch delete tokens
   const batchDeleteTokens = async () => {
     if (selectedKeys.length === 0) {
-      showError(t('请先选择要删除的令牌！'));
+      showError(t('请先选择要删除的 API 密钥！'));
       return;
     }
     const requestId = ++requestCounter.current;
@@ -437,7 +437,7 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
       if (!mountedRef.current || requestId !== requestCounter.current) return;
       if (res?.data?.success) {
         const count = res.data.data || 0;
-        showSuccess(t('已删除 {{count}} 个令牌！', { count }));
+        showSuccess(t('已删除 {{count}} 个 API 密钥！', { count }));
         await refresh();
         setTimeout(() => {
           if (
@@ -466,7 +466,7 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
   // Batch copy tokens
   const batchCopyTokens = async (copyType) => {
     if (selectedKeys.length === 0) {
-      showError(t('请至少选择一个令牌！'));
+      showError(t('请至少选择一个 API 密钥！'));
       return;
     }
     try {
@@ -487,7 +487,7 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
       }
       await copyText(content);
     } catch (error) {
-      showError(error?.message || t('复制令牌失败'));
+      showError(error?.message || t('复制 API 密钥失败'));
     }
   };
 

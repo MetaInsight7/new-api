@@ -373,7 +373,7 @@ const ViolationDetail = ({ t, detail }) => {
     [t('时间'), fmtTime(detail.created_at)],
     [t('用户'), `${detail.username || '-'} (#${detail.user_id})`],
     [t('分组'), detail.user_group || '-'],
-    [t('令牌'), detail.token_name || '-'],
+    [t('API 密钥'), detail.token_name || '-'],
     [t('模型'), detail.model_name || '-'],
     ['IP', detail.ip || '-'],
     ['Request ID', detail.request_id || '-'],

@@ -39,7 +39,7 @@ const TokensActions = ({
   // Handle copy selected tokens with options
   const handleCopySelectedTokens = () => {
     if (selectedKeys.length === 0) {
-      showError(t('请至少选择一个令牌！'));
+      showError(t('请至少选择一个 API 密钥！'));
       return;
     }
     setShowCopyModal(true);
@@ -48,7 +48,7 @@ const TokensActions = ({
   // Handle delete selected tokens with confirmation
   const handleDeleteSelectedTokens = () => {
     if (selectedKeys.length === 0) {
-      showError(t('请至少选择一个令牌！'));
+      showError(t('请至少选择一个 API 密钥！'));
       return;
     }
     setShowDeleteModal(true);
@@ -76,7 +76,7 @@ const TokensActions = ({
           }}
           size='small'
         >
-          {t('添加令牌')}
+          {t('添加 API 密钥')}
         </Button>
 
         <Button
@@ -87,7 +87,7 @@ const TokensActions = ({
           onClick={handleCopySelectedTokens}
           size='small'
         >
-          {t('复制所选令牌')}
+          {t('复制所选 API 密钥')}
         </Button>
 
         <Button
@@ -98,7 +98,7 @@ const TokensActions = ({
           onClick={handleDeleteSelectedTokens}
           size='small'
         >
-          {t('删除所选令牌')}
+          {t('删除所选 API 密钥')}
         </Button>
       </div>
 

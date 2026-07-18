@@ -131,9 +131,9 @@ const LogsFilters = ({
             />
             <Form.Input
               field='token_name'
-              label={t('令牌名称')}
+              label={t('API 密钥名称')}
               prefix={<IconSearch />}
-              placeholder={t('令牌名称')}
+              placeholder={t('API 密钥名称')}
               showClear
               size='small'
             />

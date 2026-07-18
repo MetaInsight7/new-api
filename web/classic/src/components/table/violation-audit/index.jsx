@@ -30,10 +30,26 @@ import './violation.css';
 
 const FMT = 'YYYY-MM-DD HH:mm:ss';
 const TIME_RANGES = [
-  { value: 'today', label: '今日', range: () => [dayjs().startOf('day'), dayjs()] },
-  { value: '24h', label: '近 24 小时', range: () => [dayjs().subtract(24, 'hour'), dayjs()] },
-  { value: '7d', label: '近 7 天', range: () => [dayjs().subtract(7, 'day'), dayjs()] },
-  { value: '30d', label: '近 30 天', range: () => [dayjs().subtract(30, 'day'), dayjs()] },
+  {
+    value: 'today',
+    label: '今日',
+    range: () => [dayjs().startOf('day'), dayjs()],
+  },
+  {
+    value: '24h',
+    label: '近 24 小时',
+    range: () => [dayjs().subtract(24, 'hour'), dayjs()],
+  },
+  {
+    value: '7d',
+    label: '近 7 天',
+    range: () => [dayjs().subtract(7, 'day'), dayjs()],
+  },
+  {
+    value: '30d',
+    label: '近 30 天',
+    range: () => [dayjs().subtract(30, 'day'), dayjs()],
+  },
 ];
 
 const ViolationAuditTable = () => {
@@ -75,7 +91,11 @@ const ViolationAuditTable = () => {
   const extra =
     tab === 'words' ? null : (
       <div className='va-actions'>
-        <div className='log-time-range' role='group' aria-label={t('时间范围')}>
+        <div
+          className='log-time-range console-time-range'
+          role='group'
+          aria-label={t('时间范围')}
+        >
           {TIME_RANGES.map((opt) => {
             const active = data.activeTimeRange === opt.value;
             return (
@@ -107,7 +127,12 @@ const ViolationAuditTable = () => {
 
   return (
     <div className='va-wrap'>
-      <Tabs type='line' activeKey={tab} onChange={setTab} tabBarExtraContent={extra}>
+      <Tabs
+        type='line'
+        activeKey={tab}
+        onChange={setTab}
+        tabBarExtraContent={extra}
+      >
         <TabPane tab={tabLabel(ScrollText, t('审计记录'))} itemKey='logs'>
           {tab === 'logs' && (
             <div className='va-tab-body'>

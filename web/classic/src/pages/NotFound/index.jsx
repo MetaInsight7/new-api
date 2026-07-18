@@ -18,22 +18,15 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Empty } from '@douyinfe/semi-ui';
-import {
-  IllustrationNotFound,
-  IllustrationNotFoundDark,
-} from '@douyinfe/semi-illustrations';
 import { useTranslation } from 'react-i18next';
+import ErrorState from '../../components/common/ErrorState';
 
 const NotFound = () => {
   const { t } = useTranslation();
   return (
-    <div className='classic-page-fill flex justify-center items-center p-8'>
-      <Empty
-        image={<IllustrationNotFound style={{ width: 250, height: 250 }} />}
-        darkModeImage={
-          <IllustrationNotFoundDark style={{ width: 250, height: 250 }} />
-        }
+    <div className='classic-page-fill'>
+      <ErrorState
+        code='404'
         description={t('页面未找到，请检查您的浏览器地址是否正确')}
       />
     </div>

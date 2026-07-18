@@ -37,7 +37,9 @@
   border: 1px solid #eef1f6;
   border-radius: 16px;
   background: #ffffff;
-  box-shadow: 0 1px 3px rgba(16, 24, 40, .03), 0 12px 32px -14px rgba(16, 24, 40, .12);
+  box-shadow:
+    0 1px 3px rgba(16, 24, 40, 0.03),
+    0 12px 32px -14px rgba(16, 24, 40, 0.12);
   overflow: hidden;
 }
 
@@ -77,8 +79,15 @@
 }
 
 /* 概要栏目头:状态胶囊(左) + 计数文字(右) */
-.dashboard-main-section__header .dashboard-api-status-chip {
+.dashboard-main-section__header .dashboard-api-status-group {
   margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.dashboard-main-section__header .dashboard-api-status-chip {
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -112,7 +121,7 @@
 }
 
 .dashboard-main-section__header .dashboard-api-status-meta {
-  margin-left: 8px;
+  margin-left: 0;
   font-size: 12px;
   font-weight: 600;
   color: #475569;
@@ -211,9 +220,7 @@
 }
 
 /* 文档 = DMIT ghost:白底 + 蓝字 + 蓝 200 描边 */
-.dashboard-main-section
-  .dashboard-api-access__actions
-  .semi-button:last-child {
+.dashboard-main-section .dashboard-api-access__actions .semi-button:last-child {
   background: var(--semi-color-bg-1);
   border: 1px solid #bfdbfe;
   color: var(--semi-color-primary);

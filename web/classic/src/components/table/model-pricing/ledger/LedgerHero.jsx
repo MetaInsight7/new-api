@@ -39,7 +39,7 @@ const LedgerHero = ({ t }) => {
         </h1>
         <p className='lead'>
           {t(
-            '统一接入 40+ 供应商，按量计费，价格随令牌分组透明公开，注册即用。',
+            '统一接入 40+ 供应商，按量计费，价格随 API 密钥分组透明公开，注册即用。',
           )}
         </p>
         <div className='herobar'>
@@ -48,7 +48,7 @@ const LedgerHero = ({ t }) => {
             className='cta-hero'
             onClick={() => navigate(loggedIn ? '/console/token' : '/register')}
           >
-            {loggedIn ? t('去创建令牌') : t('免费注册领额度')} <i>›</i>
+            {loggedIn ? t('去创建 API 密钥') : t('免费注册领额度')} <i>›</i>
           </button>
         </div>
       </div>

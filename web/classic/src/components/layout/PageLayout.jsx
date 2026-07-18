@@ -78,19 +78,22 @@ const PageLayout = () => {
   );
 
   const isHomePage = location.pathname === '/';
+  const isConsoleRoute = location.pathname.startsWith('/console');
 
   const authPages = ['/login', '/register', '/reset', '/user/reset'];
   const isAuthPage = authPages.includes(location.pathname);
   const shouldHideHeader = isAuthPage && isMobile;
 
   const shouldHideFooter =
-    isHomePage || isAuthPage || cardProPages.includes(location.pathname);
+    isHomePage ||
+    isAuthPage ||
+    isConsoleRoute ||
+    cardProPages.includes(location.pathname);
 
   const shouldInnerPadding =
     location.pathname.includes('/console') &&
     !location.pathname.startsWith('/console/chat');
 
-  const isConsoleRoute = location.pathname.startsWith('/console');
   const appSurface = getAppSurface(location.pathname);
   const showSider = isConsoleRoute && (!isMobile || drawerOpen);
   const isFixedLayout = isConsoleRoute;
@@ -280,10 +283,12 @@ const PageLayout = () => {
               minHeight: 0,
             }}
           >
-            <ErrorBoundary routeKey={location.pathname}>
-              {showConsoleSubNav && <ConsoleSubNav />}
-              <App />
-            </ErrorBoundary>
+            <div className={isConsoleRoute ? 'console-content-shell' : undefined}>
+              <ErrorBoundary routeKey={location.pathname}>
+                {showConsoleSubNav && <ConsoleSubNav />}
+                <App />
+              </ErrorBoundary>
+            </div>
           </Content>
           {!shouldHideFooter && (
             <Layout.Footer

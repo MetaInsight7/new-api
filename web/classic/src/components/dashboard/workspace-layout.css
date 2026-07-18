@@ -51,7 +51,7 @@
   padding: 3px;
   border: 1px solid var(--semi-color-border);
   border-radius: 10px;
-  background: #fff;
+  background: var(--semi-color-fill-0);
 }
 
 .dashboard-time-range .semi-button {

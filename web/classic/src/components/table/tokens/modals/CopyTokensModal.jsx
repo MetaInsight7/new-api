@@ -40,16 +40,16 @@ const CopyTokensModal = ({
 
   return (
     <Modal
-      title={t('复制令牌')}
+      title={t('复制 API 密钥')}
       icon={null}
       visible={visible}
       onCancel={onCancel}
       footer={
         <Space>
           <Button type='tertiary' onClick={handleCopyWithName}>
-            {t('名称+密钥')}
+            {t('名称+API 密钥')}
           </Button>
-          <Button onClick={handleCopyKeyOnly}>{t('仅密钥')}</Button>
+          <Button onClick={handleCopyKeyOnly}>{t('仅 API 密钥')}</Button>
         </Space>
       }
     >

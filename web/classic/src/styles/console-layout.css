@@ -5,6 +5,14 @@
   height: calc(100dvh - 64px);
 }
 
+/* Keep every console surface readable on ultrawide screens, like Dashboard. */
+.console-content-shell {
+  width: 100%;
+  max-width: 1536px;
+  min-width: 0;
+  margin-inline: auto;
+}
+
 /* ==================== DMIT 蓝色侧边栏 ==================== */
 .app-sider,
 .app-sider .semi-layout-sider-children {
@@ -238,12 +246,102 @@
 }
 
 /* SubNav 清除固定顶栏(60px)，并吸收紧随其后页面的 mt-[60px]，避免双重间距/被顶栏遮挡 */
-.semi-layout-content > .dmit-subnav {
+.semi-layout-content > .dmit-subnav,
+.console-content-shell > .dmit-subnav {
   margin-top: 60px;
 }
 
-.semi-layout-content > .dmit-subnav + * {
+.semi-layout-content > .dmit-subnav + *,
+.console-content-shell > .dmit-subnav + * {
   margin-top: 0 !important;
+}
+
+/* Standalone console pages use the same title row height as the sub-navigation
+   so their main card aligns with tabbed pages. */
+.dmit-page-title {
+  box-sizing: border-box;
+  height: 45px;
+  margin: 0 8px 18px;
+  padding: 0 8px;
+  border-bottom: 1px solid #e1e6ed;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.token-page-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.token-page-actions .semi-button {
+  height: 34px;
+  border-radius: 9px;
+}
+
+@media (max-width: 767px) {
+  .token-page-actions {
+    gap: 6px;
+  }
+
+  .token-page-actions .semi-button {
+    height: 32px;
+  }
+}
+
+.dmit-page-title h1 {
+  margin: 0;
+  color: #141a1f;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 38px;
+}
+
+@media (max-width: 767px) {
+  .dmit-page-title h1 {
+    font-size: 24px;
+    line-height: 32px;
+  }
+}
+
+@media (min-width: 768px) {
+  .console-token-page .table-scroll-card {
+    height: calc(100dvh - 171px);
+    max-height: calc(100dvh - 171px);
+  }
+}
+
+@media (max-width: 767px) {
+  .console-token-page .table-scroll-card {
+    height: calc(100dvh - 133px);
+    max-height: calc(100dvh - 133px);
+  }
+}
+
+/* Table cards need to reserve space for the console sub-navigation. The shared
+   table height is correct on pages without tabs (for example API keys), but
+   would otherwise push tabbed pages below the viewport. */
+@media (min-width: 768px) {
+  .console-content-shell:has(.dmit-subnav) .table-scroll-card {
+    height: calc(100dvh - 171px);
+    max-height: calc(100dvh - 171px);
+  }
+}
+
+@media (max-width: 767px) {
+  .console-content-shell:has(.dmit-subnav) .table-scroll-card {
+    height: calc(100dvh - 133px);
+    max-height: calc(100dvh - 133px);
+  }
+
+  /* The log page moves its filter actions onto a second sub-nav row. */
+  .console-content-shell:has(.dmit-subnav__actions:not(:empty))
+    .table-scroll-card {
+    height: calc(100dvh - 193px);
+    max-height: calc(100dvh - 193px);
+  }
 }
 
 /* 产品侧配色：管理侧保留 Semi 自己的内容背景 */

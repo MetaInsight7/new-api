@@ -34,10 +34,26 @@ const LogsActions = ({
   t,
 }) => {
   const timeRanges = [
-    { value: 'today', label: t('今日'), range: () => [dayjs().startOf('day'), dayjs()] },
-    { value: '24h', label: t('近 24 小时'), range: () => [dayjs().subtract(24, 'hour'), dayjs()] },
-    { value: '7d', label: t('近 7 天'), range: () => [dayjs().subtract(7, 'day'), dayjs()] },
-    { value: '30d', label: t('近 30 天'), range: () => [dayjs().subtract(30, 'day'), dayjs()] },
+    {
+      value: 'today',
+      label: t('今日'),
+      range: () => [dayjs().startOf('day'), dayjs()],
+    },
+    {
+      value: '24h',
+      label: t('近 24 小时'),
+      range: () => [dayjs().subtract(24, 'hour'), dayjs()],
+    },
+    {
+      value: '7d',
+      label: t('近 7 天'),
+      range: () => [dayjs().subtract(7, 'day'), dayjs()],
+    },
+    {
+      value: '30d',
+      label: t('近 30 天'),
+      range: () => [dayjs().subtract(30, 'day'), dayjs()],
+    },
   ];
 
   const handleRangeChange = (value) => {
@@ -51,7 +67,11 @@ const LogsActions = ({
 
   return (
     <>
-      <div className='log-time-range' role='group' aria-label={t('时间范围')}>
+      <div
+        className='log-time-range console-time-range'
+        role='group'
+        aria-label={t('时间范围')}
+      >
         {timeRanges.map((opt) => {
           const active = activeTimeRange === opt.value;
           return (

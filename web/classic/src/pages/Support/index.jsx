@@ -446,7 +446,7 @@ const Support = () => {
           </span>
           <span className='support-resource-copy'>
             <strong>常见问题</strong>
-            <small>先查看调用、令牌和计费相关解答</small>
+            <small>先查看调用、API 密钥和计费相关解答</small>
           </span>
           <span className='support-resource-action' aria-hidden='true'>
             <ArrowUpRight size={17} />
@@ -633,7 +633,7 @@ const Support = () => {
               onChange={(value) => updateForm('content', value)}
               autosize={{ minRows: 5, maxRows: 9 }}
               maxCount={5000}
-              placeholder='请描述问题现象、发生时间、复现步骤，以及相关模型或令牌名称…'
+              placeholder='请描述问题现象、发生时间、复现步骤，以及相关模型或 API 密钥名称…'
             />
           </label>
           <div className='support-form-field support-form-field--full'>

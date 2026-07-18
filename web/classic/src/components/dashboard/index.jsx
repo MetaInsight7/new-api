@@ -134,8 +134,7 @@ const Dashboard = () => {
   };
 
   const allMonitors = useMemo(
-    () =>
-      (dashboardData.uptimeData || []).flatMap((g) => g.monitors || []),
+    () => (dashboardData.uptimeData || []).flatMap((g) => g.monitors || []),
     [dashboardData.uptimeData],
   );
 
@@ -214,14 +213,23 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Column 2: 概要 (API Info) */}
+        {/* Column 2: API token access */}
         {dashboardData.apiInfoEnabled && (
           <div className='dashboard-main-section'>
             <div className='dashboard-main-section__header'>
               <Server size={16} />
-              <span>{dashboardData.t('概要')}</span>
+              <span>{dashboardData.t('API令牌接入')}</span>
               {apiState.ready !== null && (
-                <>
+                <div className='dashboard-api-status-group'>
+                  <span className='dashboard-api-status-meta'>
+                    {dashboardData.t(
+                      '{{lineCount}} 条线路 · {{tokenCount}} 个 API 密钥',
+                      {
+                        lineCount: apiState.lineCount,
+                        tokenCount: apiState.tokenCount,
+                      },
+                    )}
+                  </span>
                   <span
                     className={`dashboard-api-status-chip is-${
                       apiState.ready ? 'ready' : 'pending'
@@ -232,16 +240,7 @@ const Dashboard = () => {
                       ? dashboardData.t('已就绪')
                       : dashboardData.t('待配置')}
                   </span>
-                  <span className='dashboard-api-status-meta'>
-                    {dashboardData.t(
-                      '{{lineCount}} 条线路 · {{tokenCount}} 个令牌',
-                      {
-                        lineCount: apiState.lineCount,
-                        tokenCount: apiState.tokenCount,
-                      },
-                    )}
-                  </span>
-                </>
+                </div>
               )}
             </div>
             <div className='dashboard-main-section__body'>

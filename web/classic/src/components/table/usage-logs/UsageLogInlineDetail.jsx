@@ -141,7 +141,7 @@ const UsageLogInlineDetail = ({
       }
     />
   ) : (
-    <DetailItem label={t('令牌名称')} value={record.token_name} />
+    <DetailItem label={t('API 密钥名称')} value={record.token_name} />
   );
 
   const requestIdItem = (

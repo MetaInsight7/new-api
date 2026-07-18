@@ -321,7 +321,7 @@ export const useDashboardStats = (
         onClick: () => navigate('/console/topup'),
       },
       {
-        label: t('令牌管理'),
+        label: t('API 密钥管理'),
         icon: 'keys',
         onClick: () => navigate('/console/token'),
       },
@@ -349,4 +349,3 @@ export const useDashboardStats = (
       : t('当前范围统计，历史项展示账户累计口径'),
   };
 };
-

@@ -34,7 +34,7 @@ export function useTokenKeys(id) {
         const fetchedKeys = await fetchTokenKeys();
         if (!mountedRef.current) return;
         if (fetchedKeys.length === 0) {
-          showError('当前没有可用的启用令牌，请确认是否有令牌处于启用状态！');
+          showError('当前没有可用的启用 API 密钥，请确认是否有 API 密钥处于启用状态！');
           setTimeout(() => {
             window.location.href = '/console/token';
           }, 1500); // 延迟 1.5 秒后跳转
@@ -48,7 +48,7 @@ export function useTokenKeys(id) {
         if (mountedRef.current) {
           setKeys([]);
           setIsLoading(false);
-          showError(error?.message || '加载令牌失败');
+          showError(error?.message || '加载 API 密钥失败');
         }
       }
     };

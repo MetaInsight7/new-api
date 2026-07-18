@@ -1548,7 +1548,7 @@ export const getLogsColumns = ({
   } else {
     columns.push({
       key: COLUMN_KEYS.TOKEN_GROUP,
-      title: t('令牌名称'),
+      title: t('API 密钥名称'),
       dataIndex: 'token_name',
       width: 150,
       render: (_text, record) => renderTokenGroupCell(record, ctx),
