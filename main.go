@@ -275,6 +275,8 @@ func InitResources() error {
 
 	service.InitHttpClient()
 
+	service.InitR2()
+
 	service.InitTokenEncoders()
 
 	// Initialize SQL Database

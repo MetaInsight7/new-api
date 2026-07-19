@@ -323,6 +323,26 @@ func SetApiRouter(router *gin.Engine) {
 
 		dataRoute := apiRouter.Group("/data")
 		dataRoute.GET("/", middleware.AdminAuth(), controller.GetAllQuotaDates)
+
+		ticketRoute := apiRouter.Group("/ticket")
+		ticketRoute.Use(middleware.UserAuth())
+		{
+			ticketRoute.GET("/", controller.GetUserTickets)
+			ticketRoute.GET("/:id", controller.GetUserTicket)
+			ticketRoute.POST("/", controller.CreateTicket)
+			ticketRoute.POST("/:id/reply", controller.ReplyTicket)
+			ticketRoute.POST("/:id/messages/:msgId/images", controller.UploadMessageImage)
+			ticketRoute.PUT("/:id/close", controller.CloseTicket)
+			ticketRoute.GET("/image/:image_id", controller.GetTicketImage)
+		}
+		ticketAdminRoute := apiRouter.Group("/ticket/admin")
+		ticketAdminRoute.Use(middleware.AdminAuth())
+		{
+			ticketAdminRoute.GET("/", controller.AdminGetAllTickets)
+			ticketAdminRoute.GET("/:id", controller.AdminGetTicket)
+			ticketAdminRoute.POST("/:id/reply", controller.AdminReplyTicket)
+			ticketAdminRoute.PUT("/:id/status", controller.AdminUpdateTicketStatus)
+		}
 		dataRoute.GET("/users", middleware.AdminAuth(), controller.GetQuotaDatesByUser)
 		dataRoute.GET("/self", middleware.UserAuth(), controller.GetUserQuotaDates)
 

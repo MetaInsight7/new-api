@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Button,
@@ -44,14 +44,11 @@ import {
   Send,
   XCircle,
 } from 'lucide-react';
-import { getStoredValue, setStoredValue, showSuccess } from '../../helpers';
+import { API, isAdmin, showError, showSuccess } from '../../helpers';
 import {
-  SUPPORT_STORAGE_KEY,
   getSupportLabel,
-  initialSupportTickets,
   supportDepartments,
   supportPriorities,
-  supportServices,
   supportStatusMeta,
 } from './supportMockData';
 import './support.css';
@@ -67,22 +64,15 @@ const filterOptions = [
 const createInitialForm = () => ({
   subject: '',
   department: 'technical',
-  service: 'none',
   priority: 'medium',
   content: '',
 });
 
-const loadTickets = () => {
-  try {
-    const saved = getStoredValue(SUPPORT_STORAGE_KEY, '');
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-    }
-  } catch {
-    // Mock 数据损坏时自动回退到初始数据。
-  }
-  return initialSupportTickets;
+const formatTime = (ts) => {
+  if (!ts) return '-';
+  const d = new Date(ts * 1000);
+  const pad = (v) => String(v).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
 const SupportStatus = ({ status }) => {
@@ -94,44 +84,110 @@ const SupportStatus = ({ status }) => {
   );
 };
 
+const TicketImage = ({ imageId, filename }) => {
+  const [src, setSrc] = useState(null);
+  useEffect(() => {
+    let revoked = false;
+    API.get(`/api/ticket/image/${imageId}`, { responseType: 'blob' })
+      .then((res) => {
+        if (!revoked) {
+          setSrc(URL.createObjectURL(res.data));
+        }
+      })
+      .catch(() => {});
+    return () => {
+      revoked = true;
+      if (src) URL.revokeObjectURL(src);
+    };
+  }, [imageId]);
+  if (!src) return null;
+  return <img src={src} alt={filename} className='support-message-img' />;
+};
+
 const Support = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [tickets, setTickets] = useState(loadTickets);
+  const [tickets, setTickets] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [createVisible, setCreateVisible] = useState(false);
   const [form, setForm] = useState(createInitialForm);
   const [reply, setReply] = useState('');
   const [formError, setFormError] = useState('');
+  const [selectedTicket, setSelectedTicket] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [createFiles, setCreateFiles] = useState([]); // Files for create modal
+  const [replyFiles, setReplyFiles] = useState([]); // Files for reply panel
+  const [failedBatches, setFailedBatches] = useState([]); // [{file, messageId, ticketId, expired, noRetry}]
+  const [uploading, setUploading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const pageSize = 20;
   const conversationRef = useRef(null);
+  const searchTimer = useRef(null);
+  const admin = isAdmin();
 
   const selectedId = searchParams.get('ticket');
-  const selectedTicket = tickets.find((ticket) => ticket.id === selectedId);
+
+  const loadTickets = async (page = 1, status = statusFilter, kw = query) => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({
+        p: String(page),
+        page_size: String(pageSize),
+      });
+      if (status && status !== 'all') params.set('status', status);
+      if (kw.trim()) params.set('keyword', kw.trim());
+      const base = admin ? '/api/ticket/admin/' : '/api/ticket/';
+      const res = await API.get(`${base}?${params.toString()}`);
+      const { success, data, message } = res.data;
+      if (success) {
+        setTickets(data?.items || data || []);
+        setTotal(data?.total || 0);
+        setCurrentPage(page);
+      } else {
+        showError(message || '加载工单失败');
+      }
+    } catch (e) {
+      showError(e.message || '加载工单失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadTicketDetail = async (id) => {
+    try {
+      const endpoint = admin ? `/api/ticket/admin/${id}` : `/api/ticket/${id}`;
+      const res = await API.get(endpoint);
+      const { success, data, message } = res.data;
+      if (success) {
+        setSelectedTicket(data);
+      } else {
+        showError(message || '加载工单详情失败');
+      }
+    } catch (e) {
+      showError(e.message || '加载工单详情失败');
+    }
+  };
 
   useEffect(() => {
-    setStoredValue(SUPPORT_STORAGE_KEY, JSON.stringify(tickets));
-  }, [tickets]);
+    loadTickets();
+  }, []);
+
+  useEffect(() => {
+    if (selectedId) {
+      loadTicketDetail(selectedId);
+    } else {
+      setSelectedTicket(null);
+    }
+  }, [selectedId]);
 
   useEffect(() => {
     if (!selectedTicket || !conversationRef.current) return;
     conversationRef.current.scrollTop = conversationRef.current.scrollHeight;
-  }, [selectedId, selectedTicket?.messages.length]);
+  }, [selectedTicket?.messages?.length]);
 
-  const visibleTickets = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
-    return tickets.filter((ticket) => {
-      const matchesStatus =
-        statusFilter === 'all' || ticket.status === statusFilter;
-      const matchesQuery =
-        !normalized ||
-        ticket.subject.toLowerCase().includes(normalized) ||
-        ticket.id.toLowerCase().includes(normalized) ||
-        getSupportLabel(supportDepartments, ticket.department)
-          .toLowerCase()
-          .includes(normalized);
-      return matchesStatus && matchesQuery;
-    });
-  }, [query, statusFilter, tickets]);
+  const visibleTickets = tickets;
 
   const updateForm = (key, value) => {
     setForm((current) => ({ ...current, [key]: value }));
@@ -139,110 +195,276 @@ const Support = () => {
   };
 
   const openTicket = (ticket) => {
-    setTickets((current) =>
-      current.map((item) =>
-        item.id === ticket.id ? { ...item, unread: false } : item,
-      ),
-    );
-    setSearchParams({ ticket: ticket.id });
+    setSearchParams({ ticket: String(ticket.id) });
   };
 
   const closeDetail = () => {
     setReply('');
+    setReplyFiles([]);
+    setSelectedTicket(null);
     setSearchParams({});
+    loadTickets();
   };
 
-  const submitTicket = () => {
+  const allowedMimes = ['image/jpeg', 'image/png', 'image/webp'];
+
+  const uploadOneImage = async (ticketId, messageId, file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await API.post(
+      `/api/ticket/${ticketId}/messages/${messageId}/images`,
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } },
+    );
+    return res.data;
+  };
+
+  const uploadFilesSerial = async (ticketId, messageId, files) => {
+    let failed = 0;
+    for (const file of files) {
+      try {
+        const res = await uploadOneImage(ticketId, messageId, file);
+        if (!res.success) {
+          failed++;
+          const expired = res.message?.includes('过期');
+          setFailedBatches((prev) => [
+            ...prev,
+            { file, messageId, ticketId, expired },
+          ]);
+          if (res.message) showError(res.message);
+        }
+      } catch {
+        failed++;
+        setFailedBatches((prev) => [
+          ...prev,
+          { file, messageId, ticketId, expired: false },
+        ]);
+      }
+    }
+    return failed;
+  };
+
+  const validateFiles = (files, currentCount) => {
+    const valid = [];
+    for (const f of files) {
+      if (f.size > 5 * 1024 * 1024) {
+        showError(`${f.name} 超过 5MB`);
+        continue;
+      }
+      if (!allowedMimes.includes(f.type)) {
+        showError(`${f.name} 格式不支持，仅 JPG/PNG/WebP`);
+        continue;
+      }
+      valid.push(f);
+    }
+    if (currentCount + valid.length > 3) {
+      showError('最多选择 3 张图片');
+      return [];
+    }
+    return valid;
+  };
+
+  const handleCreateFileSelect = (e) => {
+    const files = Array.from(e.target.files || []);
+    const valid = validateFiles(files, createFiles.length);
+    if (valid.length > 0) setCreateFiles((prev) => [...prev, ...valid]);
+    e.target.value = '';
+  };
+
+  const handleReplyFileSelect = (e) => {
+    const files = Array.from(e.target.files || []);
+    const valid = validateFiles(files, replyFiles.length);
+    if (valid.length > 0) setReplyFiles((prev) => [...prev, ...valid]);
+    e.target.value = '';
+  };
+
+  const currentTicketFailed = failedBatches.filter(
+    (b) =>
+      selectedTicket &&
+      b.ticketId === selectedTicket.id &&
+      !b.expired &&
+      !b.noRetry,
+  );
+  const currentTicketNoRetry = failedBatches.filter(
+    (b) =>
+      selectedTicket &&
+      b.ticketId === selectedTicket.id &&
+      (b.expired || b.noRetry),
+  );
+
+  const retryFailedFiles = async () => {
+    if (currentTicketFailed.length === 0 || uploading) return;
+    setUploading(true);
+    const toRetry = [...currentTicketFailed];
+    // Remove these from failedBatches
+    setFailedBatches((prev) =>
+      prev.filter(
+        (b) =>
+          !(
+            selectedTicket &&
+            b.ticketId === selectedTicket.id &&
+            !b.expired &&
+            !b.noRetry
+          ),
+      ),
+    );
+    for (const item of toRetry) {
+      try {
+        const res = await uploadOneImage(
+          item.ticketId,
+          item.messageId,
+          item.file,
+        );
+        if (!res.success) {
+          const expired = res.message?.includes('过期');
+          setFailedBatches((prev) => [...prev, { ...item, expired }]);
+          if (res.message) showError(res.message);
+        }
+      } catch {
+        setFailedBatches((prev) => [...prev, item]);
+      }
+    }
+    setUploading(false);
+    if (selectedTicket) await loadTicketDetail(selectedTicket.id);
+  };
+
+  const discardFailed = () => {
+    setFailedBatches((prev) =>
+      prev.filter((b) => !(selectedTicket && b.ticketId === selectedTicket.id)),
+    );
+  };
+
+  const submitTicket = async () => {
     if (!form.subject.trim() || !form.content.trim()) {
       setFormError('请填写工单主题和问题描述');
       return;
     }
-
-    const now = new Date();
-    const pad = (value) => String(value).padStart(2, '0');
-    const timestamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(
-      now.getDate(),
-    )} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
-    const id = `TK-${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(
-      now.getDate(),
-    )}${String(tickets.length + 1).padStart(3, '0')}`;
-    const ticket = {
-      id,
-      subject: form.subject.trim(),
-      department: form.department,
-      service: form.service,
-      priority: form.priority,
-      status: 'waiting_support',
-      createdAt: timestamp,
-      updatedAt: timestamp,
-      unread: false,
-      messages: [
-        {
-          id: `m-${Date.now()}`,
-          sender: 'user',
-          author: '我',
-          createdAt: timestamp,
-          content: form.content.trim(),
-        },
-      ],
-    };
-
-    setTickets((current) => [ticket, ...current]);
-    setForm(createInitialForm());
-    setCreateVisible(false);
-    showSuccess('工单已创建');
-    setSearchParams({ ticket: ticket.id });
+    setSubmitting(true);
+    try {
+      const res = await API.post('/api/ticket/', {
+        subject: form.subject.trim(),
+        department: form.department,
+        priority: form.priority,
+        content: form.content.trim(),
+      });
+      const { success, data, message } = res.data;
+      if (!success) {
+        setFormError(message || '创建失败');
+        return;
+      }
+      const firstMsgId = data.messages?.[0]?.id;
+      const filesToUpload = [...createFiles];
+      setForm(createInitialForm());
+      setCreateFiles([]);
+      setCreateVisible(false);
+      if (filesToUpload.length > 0) {
+        if (!firstMsgId) {
+          showSuccess('工单已创建，但无法获取消息 ID，附件未上传');
+          for (const file of filesToUpload) {
+            setFailedBatches((prev) => [
+              ...prev,
+              { file, messageId: 0, ticketId: data.id, noRetry: true },
+            ]);
+          }
+        } else {
+          const failed = await uploadFilesSerial(
+            data.id,
+            firstMsgId,
+            filesToUpload,
+          );
+          if (failed > 0) {
+            showSuccess(`工单已创建，${failed} 张图片上传失败`);
+          } else {
+            showSuccess('工单已创建');
+          }
+        }
+      } else {
+        showSuccess('工单已创建');
+      }
+      await loadTickets();
+      setSearchParams({ ticket: String(data.id) });
+    } catch (e) {
+      setFormError(e.message || '创建失败');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const sendReply = () => {
+  const sendReply = async () => {
     if (!selectedTicket || !reply.trim()) return;
-    const now = new Date();
-    const timestamp = now
-      .toLocaleString('zh-CN', {
-        hour12: false,
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-      })
-      .replaceAll('/', '-');
-
-    setTickets((current) =>
-      current.map((ticket) =>
-        ticket.id === selectedTicket.id
-          ? {
-              ...ticket,
-              status: 'waiting_support',
-              updatedAt: timestamp,
-              messages: [
-                ...ticket.messages,
-                {
-                  id: `m-${Date.now()}`,
-                  sender: 'user',
-                  author: '我',
-                  createdAt: timestamp,
-                  content: reply.trim(),
-                },
-              ],
-            }
-          : ticket,
-      ),
-    );
-    setReply('');
-    showSuccess('回复已发送');
+    setSubmitting(true);
+    try {
+      const endpoint = admin
+        ? `/api/ticket/admin/${selectedTicket.id}/reply`
+        : `/api/ticket/${selectedTicket.id}/reply`;
+      const res = await API.post(endpoint, { content: reply.trim() });
+      const { success, data, message } = res.data;
+      if (!success) {
+        showError(message || '回复失败');
+        return;
+      }
+      const msgId = data?.id;
+      const filesToUpload = [...replyFiles];
+      setReply('');
+      setReplyFiles([]);
+      if (filesToUpload.length > 0) {
+        if (!msgId) {
+          showSuccess('回复已发送，但无法获取消息 ID，附件未上传');
+          for (const file of filesToUpload) {
+            setFailedBatches((prev) => [
+              ...prev,
+              {
+                file,
+                messageId: 0,
+                ticketId: selectedTicket.id,
+                noRetry: true,
+              },
+            ]);
+          }
+        } else {
+          const failed = await uploadFilesSerial(
+            selectedTicket.id,
+            msgId,
+            filesToUpload,
+          );
+          if (failed > 0) {
+            showSuccess(`回复已发送，${failed} 张图片上传失败`);
+          } else {
+            showSuccess('回复已发送');
+          }
+        }
+      } else {
+        showSuccess('回复已发送');
+      }
+      await loadTicketDetail(selectedTicket.id);
+      await loadTickets();
+    } catch (e) {
+      showError(e.message || '回复失败');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const closeTicket = () => {
+  const closeTicket = async () => {
     if (!selectedTicket) return;
-    setTickets((current) =>
-      current.map((ticket) =>
-        ticket.id === selectedTicket.id
-          ? { ...ticket, status: 'closed', unread: false }
-          : ticket,
-      ),
-    );
-    showSuccess('工单已关闭');
+    try {
+      const endpoint = admin
+        ? `/api/ticket/admin/${selectedTicket.id}/status`
+        : `/api/ticket/${selectedTicket.id}/close`;
+      const res = admin
+        ? await API.put(endpoint, { status: 'closed' })
+        : await API.put(endpoint);
+      const { success, message } = res.data;
+      if (success) {
+        showSuccess('工单已关闭');
+        await loadTicketDetail(selectedTicket.id);
+        await loadTickets();
+      } else {
+        showError(message || '关闭失败');
+      }
+    } catch (e) {
+      showError(e.message || '关闭失败');
+    }
   };
 
   const columns = [
@@ -252,6 +474,18 @@ const Support = () => {
       width: 126,
       render: (status) => <SupportStatus status={status} />,
     },
+    ...(admin
+      ? [
+          {
+            title: '用户',
+            dataIndex: 'username',
+            width: 120,
+            render: (username) => (
+              <span className='support-table-secondary'>{username}</span>
+            ),
+          },
+        ]
+      : []),
     {
       title: '工单主题',
       dataIndex: 'subject',
@@ -265,7 +499,7 @@ const Support = () => {
             {record.unread && <span className='support-unread-dot' />}
             <span>{subject}</span>
           </span>
-          <span className='support-ticket-id'>{record.id}</span>
+          <span className='support-ticket-id'>{record.ticket_no}</span>
         </button>
       ),
     },
@@ -291,10 +525,10 @@ const Support = () => {
     },
     {
       title: '最后更新',
-      dataIndex: 'updatedAt',
+      dataIndex: 'updated_at',
       width: 168,
-      render: (updatedAt) => (
-        <span className='support-table-time'>{updatedAt}</span>
+      render: (ts) => (
+        <span className='support-table-time'>{formatTime(ts)}</span>
       ),
     },
     {
@@ -326,7 +560,7 @@ const Support = () => {
                 <SupportStatus status={selectedTicket.status} />
               </div>
               <div className='support-detail-meta'>
-                <span>工单编号 {selectedTicket.id}</span>
+                <span>工单编号 {selectedTicket.ticket_no}</span>
                 <span>
                   部门{' '}
                   {getSupportLabel(
@@ -338,7 +572,7 @@ const Support = () => {
                   优先级{' '}
                   {getSupportLabel(supportPriorities, selectedTicket.priority)}
                 </span>
-                <span>创建于 {selectedTicket.createdAt}</span>
+                <span>创建于 {formatTime(selectedTicket.created_at)}</span>
               </div>
             </div>
           </header>
@@ -352,16 +586,35 @@ const Support = () => {
           )}
 
           <div className='support-conversation' ref={conversationRef}>
-            {selectedTicket.messages.map((message) => (
+            {(selectedTicket.messages || []).map((message) => (
               <article
                 key={message.id}
                 className={`support-message support-message--${message.sender}`}
               >
                 <div className='support-message-meta'>
-                  <span>{message.author}</span>
-                  <span>{message.createdAt}</span>
+                  <span>
+                    {message.sender === (admin ? 'support' : 'user')
+                      ? '我'
+                      : admin
+                        ? message.author
+                        : '技术支持'}
+                  </span>
+                  <span>{formatTime(message.created_at)}</span>
                 </div>
-                <div className='support-message-bubble'>{message.content}</div>
+                <div className='support-message-bubble'>
+                  {message.content}
+                  {message.images && message.images.length > 0 && (
+                    <div className='support-message-images'>
+                      {message.images.map((img) => (
+                        <TicketImage
+                          key={img.id}
+                          imageId={img.id}
+                          filename={img.filename}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
               </article>
             ))}
           </div>
@@ -386,9 +639,27 @@ const Support = () => {
               </div>
               <div className='support-reply-actions'>
                 <div className='support-reply-actions-left'>
-                  <Button icon={<Paperclip size={16} />} theme='borderless'>
-                    添加附件
-                  </Button>
+                  <label
+                    className='semi-button semi-button-borderless'
+                    style={{
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4,
+                    }}
+                  >
+                    <input
+                      type='file'
+                      accept='image/jpeg,image/png,image/webp'
+                      multiple
+                      style={{ display: 'none' }}
+                      onChange={handleReplyFileSelect}
+                      disabled={replyFiles.length >= 3 || submitting}
+                    />
+                    <Paperclip size={16} />
+                    添加图片
+                    {replyFiles.length > 0 ? ` (${replyFiles.length}/3)` : ''}
+                  </label>
                   <Button
                     icon={<XCircle size={16} />}
                     theme='borderless'
@@ -402,11 +673,73 @@ const Support = () => {
                   type='primary'
                   icon={<Send size={16} />}
                   disabled={!reply.trim()}
+                  loading={submitting}
                   onClick={sendReply}
                 >
                   发送回复
                 </Button>
               </div>
+              {replyFiles.length > 0 && (
+                <div
+                  className='support-upload-preview'
+                  style={{ marginTop: 8 }}
+                >
+                  {replyFiles.map((file, i) => (
+                    <span key={i} className='support-upload-file'>
+                      {file.name}
+                      <button
+                        type='button'
+                        onClick={() =>
+                          setReplyFiles((prev) =>
+                            prev.filter((_, idx) => idx !== i),
+                          )
+                        }
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              {currentTicketFailed.length > 0 && (
+                <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
+                  <Button
+                    size='small'
+                    type='warning'
+                    loading={uploading}
+                    onClick={retryFailedFiles}
+                  >
+                    重试失败附件（{currentTicketFailed.length} 张）
+                  </Button>
+                  <Button
+                    size='small'
+                    theme='borderless'
+                    onClick={discardFailed}
+                  >
+                    丢弃
+                  </Button>
+                </div>
+              )}
+              {currentTicketNoRetry.length > 0 && (
+                <div
+                  style={{
+                    marginTop: 4,
+                    fontSize: 12,
+                    color: 'var(--semi-color-text-2)',
+                  }}
+                >
+                  {currentTicketNoRetry.length}{' '}
+                  张附件无法上传（窗口过期或响应异常），请通过新回复重新上传
+                  <Button
+                    size='small'
+                    theme='borderless'
+                    onClick={discardFailed}
+                    style={{ marginLeft: 8 }}
+                  >
+                    清除
+                  </Button>
+                </div>
+              )}
             </footer>
           )}
         </section>
@@ -489,10 +822,13 @@ const Support = () => {
                 type='button'
                 key={option.value}
                 className={statusFilter === option.value ? 'is-active' : ''}
-                onClick={() => setStatusFilter(option.value)}
+                onClick={() => {
+                  setStatusFilter(option.value);
+                  loadTickets(1, option.value);
+                }}
               >
                 {option.label}
-                {option.value === 'all' && <span>{tickets.length}</span>}
+                {option.value === 'all' && <span>{total}</span>}
               </button>
             ))}
           </div>
@@ -500,7 +836,13 @@ const Support = () => {
             className='support-search'
             prefix={<Search size={16} />}
             value={query}
-            onChange={setQuery}
+            onChange={(val) => {
+              setQuery(val);
+              if (searchTimer.current) clearTimeout(searchTimer.current);
+              searchTimer.current = setTimeout(() => {
+                loadTickets(1, statusFilter, val);
+              }, 400);
+            }}
             showClear
             placeholder='搜索主题或工单编号'
           />
@@ -511,7 +853,20 @@ const Support = () => {
           columns={columns}
           dataSource={visibleTickets}
           rowKey='id'
-          pagination={false}
+          loading={loading}
+          pagination={
+            total > pageSize
+              ? {
+                  currentPage,
+                  pageSize,
+                  total,
+                  onPageChange: (page) => {
+                    setCurrentPage(page);
+                    loadTickets(page);
+                  },
+                }
+              : false
+          }
           empty={
             <div className='support-empty'>
               <MessageSquareText size={28} />
@@ -533,14 +888,16 @@ const Support = () => {
                 <span className='support-mobile-ticket-top'>
                   <SupportStatus status={ticket.status} />
                   <span className='support-mobile-ticket-time'>
-                    {ticket.updatedAt}
+                    {formatTime(ticket.updated_at)}
                   </span>
                 </span>
                 <strong className='support-mobile-ticket-subject'>
                   {ticket.unread && <span className='support-unread-dot' />}
                   <span>{ticket.subject}</span>
                 </strong>
-                <span className='support-mobile-ticket-id'>{ticket.id}</span>
+                <span className='support-mobile-ticket-id'>
+                  {ticket.ticket_no}
+                </span>
                 <span className='support-mobile-ticket-meta'>
                   <span>
                     {getSupportLabel(supportDepartments, ticket.department)}
@@ -561,7 +918,7 @@ const Support = () => {
         </div>
 
         <div className='support-list-footer'>
-          <span>共 {visibleTickets.length} 个工单</span>
+          <span>共 {total} 个工单</span>
           <span>
             <Clock3 size={14} />
             工单进度以最后更新时间为准
@@ -582,6 +939,7 @@ const Support = () => {
         cancelText='取消'
         width={720}
         centered
+        confirmLoading={submitting}
       >
         <div className='support-create-intro'>
           <LifeBuoy size={18} />
@@ -608,14 +966,6 @@ const Support = () => {
             />
           </label>
           <label className='support-form-field'>
-            <span>关联服务</span>
-            <Select
-              value={form.service}
-              optionList={supportServices}
-              onChange={(value) => updateForm('service', value)}
-            />
-          </label>
-          <label className='support-form-field'>
             <span>优先级</span>
             <Select
               value={form.priority}
@@ -638,10 +988,45 @@ const Support = () => {
           </label>
           <div className='support-form-field support-form-field--full'>
             <span>附件（可选，最多 3 张）</span>
-            <button type='button' className='support-upload-placeholder'>
+            <label
+              className='support-upload-placeholder'
+              style={
+                createFiles.length >= 3
+                  ? { opacity: 0.5, pointerEvents: 'none' }
+                  : {}
+              }
+            >
+              <input
+                type='file'
+                accept='image/jpeg,image/png,image/webp'
+                multiple
+                style={{ display: 'none' }}
+                onChange={handleCreateFileSelect}
+              />
               <ImagePlus size={20} />
-              添加图片
-            </button>
+              {createFiles.length > 0
+                ? `已选择 ${createFiles.length} 张`
+                : '添加图片'}
+            </label>
+            {createFiles.length > 0 && (
+              <div className='support-upload-preview'>
+                {createFiles.map((file, i) => (
+                  <span key={i} className='support-upload-file'>
+                    {file.name}
+                    <button
+                      type='button'
+                      onClick={() =>
+                        setCreateFiles((prev) =>
+                          prev.filter((_, idx) => idx !== i),
+                        )
+                      }
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
           {formError && <div className='support-form-error'>{formError}</div>}
         </div>

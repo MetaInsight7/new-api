@@ -312,3 +312,44 @@
   font-size: 11px;
   font-weight: 550;
 }
+.support-upload-placeholder:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.support-upload-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.support-upload-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  background: #f0f4f8;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #4a5568;
+}
+.support-upload-file button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  color: #a0aec0;
+  padding: 0 2px;
+}
+.support-message-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.support-message-img {
+  max-width: 280px;
+  max-height: 200px;
+  border-radius: 6px;
+  cursor: pointer;
+  object-fit: cover;
+}
