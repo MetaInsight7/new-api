@@ -43,7 +43,6 @@ import {
 import { API, showError, showSuccess } from '../../helpers';
 import { getOAuthProviderIcon } from '../../helpers/oauthIcons';
 import { useTranslation } from 'react-i18next';
-import { useRequestLifecycle } from '../../hooks/common/useRequestLifecycle';
 
 const { Text } = Typography;
 
@@ -204,7 +203,6 @@ const CustomOAuthSetting = ({ serverAddress }) => {
   const [baseUrl, setBaseUrl] = useState('');
   const [discoveryLoading, setDiscoveryLoading] = useState(false);
   const [discoveryInfo, setDiscoveryInfo] = useState(null);
-  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
   const [advancedActiveKeys, setAdvancedActiveKeys] = useState([]);
   const formApiRef = React.useRef(null);
 
@@ -246,22 +244,19 @@ const CustomOAuthSetting = ({ serverAddress }) => {
   };
 
   const fetchProviders = async () => {
-    const requestId = beginRequest('providers');
     setLoading(true);
     try {
       const res = await API.get('/api/custom-oauth-provider/');
-      if (!isCurrentRequest('providers', requestId)) return;
+
       if (res.data.success) {
         setProviders(res.data.data || []);
       } else {
         showError(res.data.message);
       }
     } catch (error) {
-      if (isCurrentRequest('providers', requestId)) {
-        showError(t('获取自定义 OAuth 提供商列表失败'));
-      }
+      showError(t('获取自定义 OAuth 提供商列表失败'));
     } finally {
-      if (isCurrentRequest('providers', requestId)) setLoading(false);
+      setLoading(false);
     }
   };
 
@@ -301,10 +296,9 @@ const CustomOAuthSetting = ({ serverAddress }) => {
   };
 
   const handleDelete = async (id) => {
-    const requestId = beginRequest('provider-delete');
     try {
       const res = await API.delete(`/api/custom-oauth-provider/${id}`);
-      if (!isCurrentRequest('provider-delete', requestId)) return;
+
       if (res.data.success) {
         showSuccess(t('删除成功'));
         fetchProviders();
@@ -312,13 +306,11 @@ const CustomOAuthSetting = ({ serverAddress }) => {
         showError(res.data.message);
       }
     } catch (error) {
-      if (isCurrentRequest('provider-delete', requestId))
-        showError(t('删除失败'));
+      showError(t('删除失败'));
     }
   };
 
   const handleSubmit = async () => {
-    const requestId = beginRequest('provider-submit');
     const currentValues = getLatestFormValues();
 
     // Validate required fields
@@ -382,8 +374,6 @@ const CustomOAuthSetting = ({ serverAddress }) => {
         res = await API.post('/api/custom-oauth-provider/', payload);
       }
 
-      if (!isCurrentRequest('provider-submit', requestId)) return;
-
       if (res.data.success) {
         showSuccess(editingProvider ? t('更新成功') : t('创建成功'));
         closeModal();
@@ -392,7 +382,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
         showError(res.data.message);
       }
     } catch (error) {
-      if (!isCurrentRequest('provider-submit', requestId)) return;
+
       showError(
         error?.response?.data?.message ||
           (editingProvider ? t('更新失败') : t('创建失败')),
@@ -413,13 +403,12 @@ const CustomOAuthSetting = ({ serverAddress }) => {
     }
 
     setDiscoveryLoading(true);
-    const requestId = beginRequest('provider-discovery');
     try {
       const res = await API.post('/api/custom-oauth-provider/discovery', {
         well_known_url: configuredWellKnown || '',
         issuer_url: cleanBaseUrl || '',
       });
-      if (!isCurrentRequest('provider-discovery', requestId)) return;
+
       if (!res.data.success) {
         throw new Error(res.data.message || t('未知错误'));
       }
@@ -491,15 +480,11 @@ const CustomOAuthSetting = ({ serverAddress }) => {
       });
       showSuccess(t('已从 Discovery 自动填充配置'));
     } catch (error) {
-      if (isCurrentRequest('provider-discovery', requestId)) {
-        showError(
-          t('获取 Discovery 配置失败：') + (error?.message || t('未知错误')),
-        );
-      }
+      showError(
+        t('获取 Discovery 配置失败：') + (error?.message || t('未知错误')),
+      );
     } finally {
-      if (isCurrentRequest('provider-discovery', requestId)) {
-        setDiscoveryLoading(false);
-      }
+      setDiscoveryLoading(false);
     }
   };
 

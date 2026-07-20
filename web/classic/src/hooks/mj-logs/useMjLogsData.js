@@ -58,7 +58,6 @@ export const useMjLogsData = () => {
   const [logCount, setLogCount] = useState(0);
   const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE);
   const requestSeq = useRef(0);
-  const mountedRef = useRef(true);
   const [showBanner, setShowBanner] = useState(false);
 
   // User and admin
@@ -237,7 +236,7 @@ export const useMjLogsData = () => {
       : `/api/mj/self/?p=${page}&page_size=${size}&mj_id=${mj_id}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}`;
     try {
       const res = await API.get(url);
-      if (!mountedRef.current || seq !== requestSeq.current) return;
+      if (seq !== requestSeq.current) return;
       const { success, message, data } = res.data;
       if (success) {
         syncPageData(data);
@@ -245,7 +244,7 @@ export const useMjLogsData = () => {
         showError(message);
       }
     } finally {
-      if (mountedRef.current && seq === requestSeq.current) setLoading(false);
+      if (seq === requestSeq.current) setLoading(false);
     }
   };
 
@@ -287,7 +286,6 @@ export const useMjLogsData = () => {
   // Initialize data
   useEffect(() => {
     // Re-arm after StrictMode's simulated cleanup before starting a request.
-    mountedRef.current = true;
     const localPageSize =
       parseInt(getStoredValue('mj-page-size', ''), 10) || ITEMS_PER_PAGE;
     setPageSize(localPageSize);
@@ -295,7 +293,6 @@ export const useMjLogsData = () => {
   }, []);
 
   useEffect(() => () => {
-    mountedRef.current = false;
     requestSeq.current += 1;
   }, []);
 

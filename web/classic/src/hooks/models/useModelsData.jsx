@@ -35,7 +35,6 @@ export const useModelsData = () => {
   const [searching, setSearching] = useState(false);
   const [modelCount, setModelCount] = useState(0);
   const requestSeq = useRef(0);
-  const mountedRef = useRef(true);
 
   // Modal states
   const [showEdit, setShowEdit] = useState(false);
@@ -137,7 +136,7 @@ export const useModelsData = () => {
       }
 
       const res = await API.get(url);
-      if (!mountedRef.current || seq !== requestSeq.current) return;
+      if (seq !== requestSeq.current) return;
       const { success, message, data } = res.data;
       if (success) {
         const newPageData = extractItems(data);
@@ -157,13 +156,13 @@ export const useModelsData = () => {
         setModels([]);
       }
     } catch (error) {
-      if (mountedRef.current && seq === requestSeq.current) {
+      if (seq === requestSeq.current) {
         console.error(error);
         showError(t('获取模型列表失败'));
         setModels([]);
       }
     }
-    if (mountedRef.current && seq === requestSeq.current) setLoading(false);
+    if (seq === requestSeq.current) setLoading(false);
   };
 
   // Refresh data
@@ -272,7 +271,7 @@ export const useModelsData = () => {
       const res = await API.get(
         `/api/models/search?keyword=${encodeURIComponent(searchKeyword)}&vendor=${encodeURIComponent(searchVendor)}&p=1&page_size=${pageSize}`,
       );
-      if (!mountedRef.current || seq !== requestSeq.current) return;
+      if (seq !== requestSeq.current) return;
       const { success, message, data } = res.data;
       if (success) {
         const newPageData = extractItems(data);
@@ -291,13 +290,13 @@ export const useModelsData = () => {
         setModels([]);
       }
     } catch (error) {
-      if (mountedRef.current && seq === requestSeq.current) {
+      if (seq === requestSeq.current) {
         console.error(error);
         showError(t('搜索模型失败'));
         setModels([]);
       }
     }
-    if (mountedRef.current && seq === requestSeq.current) setSearching(false);
+    if (seq === requestSeq.current) setSearching(false);
   };
 
   // Manage model (enable/disable/delete)
@@ -347,7 +346,6 @@ export const useModelsData = () => {
   useEffect(() => {
     // React StrictMode replays effects in development; re-arm the guard so
     // the replayed request can settle the loading state normally.
-    mountedRef.current = true;
     loadModels(1, pageSize, activeVendorKey);
   }, [activeVendorKey]);
 
@@ -434,7 +432,6 @@ export const useModelsData = () => {
 
   // Initial load
   useEffect(() => {
-    mountedRef.current = true;
     (async () => {
       await loadVendors();
     })();
@@ -442,7 +439,6 @@ export const useModelsData = () => {
   }, []);
 
   useEffect(() => () => {
-    mountedRef.current = false;
     requestSeq.current += 1;
   }, []);
 

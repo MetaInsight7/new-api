@@ -27,7 +27,6 @@ import {
   showWarning,
 } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
-import { useRequestLifecycle } from '../../../hooks/common/useRequestLifecycle';
 
 const XAI_VIOLATION_FEE_DOC_URL =
   'https://docs.x.ai/docs/models#usage-guidelines-violation-fee';
@@ -43,11 +42,9 @@ export default function SettingGrokModel(props) {
   const [loading, setLoading] = useState(false);
   const [inputs, setInputs] = useState(DEFAULT_GROK_INPUTS);
   const [inputsRow, setInputsRow] = useState(DEFAULT_GROK_INPUTS);
-  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
   const refForm = useRef();
 
   async function onSubmit() {
-    const requestId = beginRequest('submit');
     await refForm.current
       .validate()
       .then(() => {
@@ -62,7 +59,7 @@ export default function SettingGrokModel(props) {
         setLoading(true);
         Promise.all(requestQueue)
           .then((res) => {
-            if (!isCurrentRequest('submit', requestId)) return;
+
             if (requestQueue.length === 1) {
               if (res.includes(undefined)) return;
             } else if (requestQueue.length > 1) {
@@ -76,7 +73,7 @@ export default function SettingGrokModel(props) {
             showError(t('保存失败，请重试'));
           })
           .finally(() => {
-            if (isCurrentRequest('submit', requestId)) setLoading(false);
+            setLoading(false);
           });
       })
       .catch((error) => {

@@ -38,13 +38,11 @@ import {
 import { Plus, Edit, Trash2, Save, Settings } from 'lucide-react';
 import { API, showError, showSuccess } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
-import { useRequestLifecycle } from '../../../hooks/common/useRequestLifecycle';
 
 const { Text } = Typography;
 
 const SettingsAPIInfo = ({ options, refresh }) => {
   const { t } = useTranslation();
-  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   const [apiInfoList, setApiInfoList] = useState([]);
   const [showApiModal, setShowApiModal] = useState(false);
@@ -101,17 +99,16 @@ const SettingsAPIInfo = ({ options, refresh }) => {
   };
 
   const submitApiInfo = async () => {
-    const requestId = beginRequest('save');
     try {
       setLoading(true);
       const apiInfoJson = JSON.stringify(apiInfoList);
       await updateOption('console_setting.api_info', apiInfoJson);
-      if (isCurrentRequest('save', requestId)) setHasChanges(false);
+      setHasChanges(false);
     } catch (error) {
       console.error('API信息更新失败', error);
-      if (isCurrentRequest('save', requestId)) showError('API信息更新失败');
+      showError('API信息更新失败');
     } finally {
-      if (isCurrentRequest('save', requestId)) setLoading(false);
+      setLoading(false);
     }
   };
 
@@ -223,22 +220,19 @@ const SettingsAPIInfo = ({ options, refresh }) => {
   }, [options['console_setting.api_info_enabled']]);
 
   const handleToggleEnabled = async (checked) => {
-    const requestId = beginRequest('toggle');
     const newValue = checked ? 'true' : 'false';
     try {
       const res = await API.put('/api/option/', {
         key: 'console_setting.api_info_enabled',
         value: newValue,
       });
-      if (isCurrentRequest('toggle', requestId) && res.data.success) {
+      if (res.data.success) {
         setPanelEnabled(checked);
         showSuccess(t('设置已保存'));
         refresh?.();
-      } else if (isCurrentRequest('toggle', requestId)) {
-        showError(res.data.message);
-      }
+      } else showError(res.data.message);
     } catch (err) {
-      if (isCurrentRequest('toggle', requestId)) showError(err.message);
+      showError(err.message);
     }
   };
 

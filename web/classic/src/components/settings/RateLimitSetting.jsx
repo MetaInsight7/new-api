@@ -23,7 +23,6 @@ import { Card, Spin } from '@douyinfe/semi-ui';
 import { API, showError, toBoolean } from '../../helpers';
 import { useTranslation } from 'react-i18next';
 import RequestRateLimit from '../../pages/Setting/RateLimit/SettingsRequestRateLimit';
-import { useRequestLifecycle } from '../../hooks/common/useRequestLifecycle';
 
 const RateLimitSetting = () => {
   const { t } = useTranslation();
@@ -36,12 +35,10 @@ const RateLimitSetting = () => {
   });
 
   let [loading, setLoading] = useState(false);
-  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   const getOptions = async () => {
-    const requestId = beginRequest('options');
     const res = await API.get('/api/option/');
-    if (!isCurrentRequest('options', requestId)) return;
+
     const { success, message, data } = res.data;
     if (success) {
       let newInputs = {};
@@ -63,15 +60,14 @@ const RateLimitSetting = () => {
     }
   };
   async function onRefresh() {
-    const requestId = beginRequest('refresh');
     try {
       setLoading(true);
       await getOptions();
       // showSuccess('刷新成功');
     } catch (error) {
-      if (isCurrentRequest('refresh', requestId)) showError('刷新失败');
+      showError('刷新失败');
     } finally {
-      if (isCurrentRequest('refresh', requestId)) setLoading(false);
+      setLoading(false);
     }
   }
 

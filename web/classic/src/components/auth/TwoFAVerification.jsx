@@ -26,13 +26,11 @@ import {
   Typography,
 } from '@douyinfe/semi-ui';
 import React, { useState } from 'react';
-import { useRequestLifecycle } from '../../hooks/common/useRequestLifecycle';
 
 const { Title, Text, Paragraph } = Typography;
 
 const TwoFAVerification = ({ onSuccess, onBack, isModal = false }) => {
   const [loading, setLoading] = useState(false);
-  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
   const [useBackupCode, setUseBackupCode] = useState(false);
   const [verificationCode, setVerificationCode] = useState('');
 
@@ -50,14 +48,13 @@ const TwoFAVerification = ({ onSuccess, onBack, isModal = false }) => {
       return;
     }
 
-    const requestId = beginRequest('verify');
     setLoading(true);
     try {
       const res = await API.post('/api/user/login/2fa', {
         code: verificationCode,
       });
 
-      if (isCurrentRequest('verify', requestId) && res.data.success) {
+      if (res.data.success) {
         showSuccess('登录成功');
         // 保存用户信息到本地存储
         setStoredValue('user', JSON.stringify(res.data.data));
@@ -65,12 +62,12 @@ const TwoFAVerification = ({ onSuccess, onBack, isModal = false }) => {
           onSuccess(res.data.data);
         }
       } else {
-        if (isCurrentRequest('verify', requestId)) showError(res.data.message);
+        showError(res.data.message);
       }
     } catch (error) {
-      if (isCurrentRequest('verify', requestId)) showError('验证失败，请重试');
+      showError('验证失败，请重试');
     } finally {
-      if (isCurrentRequest('verify', requestId)) setLoading(false);
+      setLoading(false);
     }
   };
 

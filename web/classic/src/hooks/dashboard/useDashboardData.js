@@ -45,7 +45,6 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   const uptimeRequestRef = useRef(0);
   const userQuotaRequestRef = useRef(0);
   const selectedAdminUserRequestRef = useRef(0);
-  const mountedRef = useRef(true);
 
   // ========== 基础状态 ==========
   const [loading, setLoading] = useState(false);
@@ -274,7 +273,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
           API.get(url),
           comparisonRequest,
         ]);
-        if (!mountedRef.current || !isLatestRequest()) {
+        if (!isLatestRequest()) {
           return null;
         }
 
@@ -305,14 +304,14 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
         }
       } catch (err) {
         console.error(err);
-        if (!mountedRef.current || !isLatestRequest()) {
+        if (!isLatestRequest()) {
           return null;
         }
         showError(err?.message || t('请求失败'));
         setComparisonSummary(null);
         return [];
       } finally {
-        if (mountedRef.current && isLatestRequest()) {
+        if (isLatestRequest()) {
           setLoading(false);
         }
       }
@@ -339,7 +338,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     const isLatestRequest = () => recentTokensRequestRef.current === requestId;
 
     if (isAdminUser) {
-      if (mountedRef.current && isLatestRequest()) {
+      if (isLatestRequest()) {
         setRecentTokens(0);
       }
       return 0;
@@ -350,7 +349,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
       const startTimestamp = nowTimestamp - 86400 * 30;
       const url = `/api/data/self/?start_timestamp=${startTimestamp}&end_timestamp=${nowTimestamp}&default_time=day`;
       const res = await API.get(url);
-      if (!mountedRef.current || !isLatestRequest()) {
+      if (!isLatestRequest()) {
         return null;
       }
 
@@ -368,7 +367,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
       return totalTokens;
     } catch (err) {
       console.error(err);
-      if (mountedRef.current && isLatestRequest()) {
+      if (isLatestRequest()) {
         setRecentTokens(0);
       }
       return 0;
@@ -383,7 +382,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     setUptimeLoading(true);
     try {
       const res = await API.get('/api/uptime/status');
-      if (!mountedRef.current || !isLatestRequest()) {
+      if (!isLatestRequest()) {
         return null;
       }
 
@@ -399,7 +398,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     } catch (err) {
       console.error(err);
     } finally {
-      if (mountedRef.current && isLatestRequest()) {
+      if (isLatestRequest()) {
         setUptimeLoading(false);
       }
     }
@@ -425,7 +424,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
         const localEndTimestamp = Date.parse(end_timestamp) / 1000;
         const url = `/api/data/users?start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}`;
         const res = await API.get(url);
-        if (!mountedRef.current || !isLatestRequest()) {
+        if (!isLatestRequest()) {
           return null;
         }
 
@@ -452,7 +451,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
         }
       } catch (err) {
         console.error(err);
-        if (mountedRef.current && isLatestRequest()) {
+        if (isLatestRequest()) {
           setAdminUsageSummary({ activeUsers: 0 });
         }
         return [];
@@ -480,7 +479,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
         const res = await API.get(
           `/api/user/search?keyword=${encodeURIComponent(trimmedUsername)}&group=&p=1&page_size=10`,
         );
-        if (!mountedRef.current || !isLatestRequest()) {
+        if (!isLatestRequest()) {
           return null;
         }
 
@@ -498,7 +497,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
         return exactUser || null;
       } catch (err) {
         console.error(err);
-        if (mountedRef.current && isLatestRequest()) {
+        if (isLatestRequest()) {
           setSelectedAdminUser(null);
         }
         return null;
@@ -558,13 +557,11 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
 
   // ========== Effects ==========
   useEffect(() => {
-    mountedRef.current = true;
     const timer = setTimeout(() => {
       setGreetingVisible(true);
     }, 100);
     return () => {
       clearTimeout(timer);
-      mountedRef.current = false;
       quotaRequestRef.current += 1;
       recentTokensRequestRef.current += 1;
       uptimeRequestRef.current += 1;

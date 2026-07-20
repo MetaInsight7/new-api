@@ -134,7 +134,6 @@ export const useSidebar = () => {
   const [loading, setLoading] = useState(true);
   const instanceIdRef = useRef(null);
   const hasLoadedOnceRef = useRef(false);
-  const mountedRef = useRef(true);
   const requestSeqRef = useRef(0);
 
   if (!instanceIdRef.current) {
@@ -192,26 +191,24 @@ export const useSidebar = () => {
         } else {
           config = res.data.data.sidebar_modules;
         }
-        if (mountedRef.current && requestSeq === requestSeqRef.current) {
+        if (requestSeq === requestSeqRef.current) {
           // A malformed or legacy value must not leave the navigation empty.
           // Fall back to the admin-approved defaults and let explicit false
           // values in a valid user config continue to hide modules.
           setUserConfig(normalizeUserConfig(config, adminConfig));
         }
       } else {
-        if (mountedRef.current && requestSeq === requestSeqRef.current) {
+        if (requestSeq === requestSeqRef.current) {
           setUserConfig(buildDefaultUserConfig(adminConfig));
         }
       }
     } catch (error) {
-      if (mountedRef.current && requestSeq === requestSeqRef.current) {
+      if (requestSeq === requestSeqRef.current) {
         setUserConfig(buildDefaultUserConfig(adminConfig));
       }
     } finally {
       if (
-        shouldShowLoader &&
-        mountedRef.current &&
-        requestSeq === requestSeqRef.current
+        shouldShowLoader && requestSeq === requestSeqRef.current
       ) {
         setLoading(false);
       }
@@ -235,7 +232,6 @@ export const useSidebar = () => {
 
   // 加载用户配置
   useEffect(() => {
-    mountedRef.current = true;
     // 只有当管理员配置加载完成后才加载用户配置
     if (Object.keys(adminConfig).length > 0) {
       loadUserConfig();
@@ -244,7 +240,6 @@ export const useSidebar = () => {
 
   useEffect(
     () => () => {
-      mountedRef.current = false;
       requestSeqRef.current += 1;
     },
     [],

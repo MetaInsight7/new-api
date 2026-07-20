@@ -106,7 +106,6 @@ export const useChannelsData = () => {
     try {
       const res = await API.get('/api/option/');
       if (
-        !mountedRef.current ||
         requestId !== auxiliaryRequestRefs.current.passThrough
       )
         return;
@@ -122,7 +121,6 @@ export const useChannelsData = () => {
       }
     } catch (error) {
       if (
-        mountedRef.current &&
         requestId === auxiliaryRequestRefs.current.passThrough
       ) {
         setGlobalPassThroughEnabled(false);
@@ -139,7 +137,6 @@ export const useChannelsData = () => {
 
   // Refs
   const requestCounter = useRef(0);
-  const mountedRef = useRef(true);
   const allSelectingRef = useRef(false);
   const [formApi, setFormApi] = useState(null);
 
@@ -165,7 +162,6 @@ export const useChannelsData = () => {
 
   // Initialize from localStorage
   useEffect(() => {
-    mountedRef.current = true;
     const localIdSort = getStoredValue('id-sort', '') === 'true';
     const localPageSize =
       parseInt(getStoredValue('page-size', ''), 10) || ITEMS_PER_PAGE;
@@ -358,9 +354,7 @@ export const useChannelsData = () => {
       );
 
       if (
-        !mountedRef.current ||
-        res === undefined ||
-        reqId !== requestCounter.current
+        res === undefined || reqId !== requestCounter.current
       ) {
         return;
       }
@@ -381,11 +375,11 @@ export const useChannelsData = () => {
         showError(message);
       }
     } catch (error) {
-      if (mountedRef.current && reqId === requestCounter.current) {
+      if (reqId === requestCounter.current) {
         showError(error);
       }
     } finally {
-      if (mountedRef.current && reqId === requestCounter.current) {
+      if (reqId === requestCounter.current) {
         setLoading(false);
       }
     }
@@ -426,9 +420,7 @@ export const useChannelsData = () => {
         `/api/channel/search?keyword=${encodeURIComponent(searchKeyword)}&group=${encodeURIComponent(searchGroup)}&model=${encodeURIComponent(searchModel)}&id_sort=${sortFlag}&tag_mode=${enableTagMode}&p=${page}&page_size=${pageSz}${typeParam}${statusParam}`,
       );
       if (
-        !mountedRef.current ||
-        res === undefined ||
-        reqId !== requestCounter.current
+        res === undefined || reqId !== requestCounter.current
       )
         return;
       const { success, message, data } = res.data;
@@ -446,20 +438,17 @@ export const useChannelsData = () => {
         showError(message);
       }
     } catch (error) {
-      if (mountedRef.current && reqId === requestCounter.current) {
+      if (reqId === requestCounter.current) {
         showError(error);
       }
     } finally {
       if (
-        mountedRef.current &&
         (reqId === requestCounter.current || !hasFilters)
       ) {
         setSearching(false);
       }
       if (
-        hasFilters &&
-        mountedRef.current &&
-        reqId === requestCounter.current
+        hasFilters && reqId === requestCounter.current
       ) {
         setLoading(false);
       }
@@ -468,7 +457,6 @@ export const useChannelsData = () => {
 
   useEffect(
     () => () => {
-      mountedRef.current = false;
       requestCounter.current += 1;
     },
     [],
@@ -637,9 +625,7 @@ export const useChannelsData = () => {
     try {
       let res = await API.get(`/api/group/`);
       if (
-        !mountedRef.current ||
-        requestId !== auxiliaryRequestRefs.current.groups ||
-        res === undefined
+        requestId !== auxiliaryRequestRefs.current.groups || res === undefined
       )
         return;
       setGroupOptions(
@@ -650,7 +636,6 @@ export const useChannelsData = () => {
       );
     } catch (error) {
       if (
-        mountedRef.current &&
         requestId === auxiliaryRequestRefs.current.groups
       ) {
         showError(error.message);
@@ -776,12 +761,12 @@ export const useChannelsData = () => {
           ),
         );
         await refresh();
-        if (mountedRef.current) setShowBatchSetTag(false);
+        setShowBatchSetTag(false);
       } else {
         showError(res.data.message);
       }
     } catch (error) {
-      if (mountedRef.current) showError(error);
+      showError(error);
     }
   };
 
@@ -798,20 +783,18 @@ export const useChannelsData = () => {
       if (success) {
         showSuccess(t('已删除 ${data} 个通道！').replace('${data}', data));
         await refresh();
-        if (mountedRef.current) {
-          setTimeout(() => {
-            if (mountedRef.current && channels.length === 0 && activePage > 1) {
-              refresh(activePage - 1);
-            }
-          }, 100);
-        }
+        setTimeout(() => {
+          if (channels.length === 0 && activePage > 1) {
+            refresh(activePage - 1);
+          }
+        }, 100);
       } else {
         showError(message);
       }
     } catch (error) {
-      if (mountedRef.current) showError(error);
+      showError(error);
     } finally {
-      if (mountedRef.current) setLoading(false);
+      setLoading(false);
     }
   };
 

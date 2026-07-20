@@ -57,7 +57,6 @@ import {
   IconEdit,
 } from '@douyinfe/semi-icons';
 import UserBindingManagementModal from './UserBindingManagementModal';
-import { useRequestLifecycle } from '../../../../hooks/common/useRequestLifecycle';
 
 const { Text, Title } = Typography;
 
@@ -77,7 +76,6 @@ const EditUserModal = (props) => {
   const [showAdjustQuotaRaw, setShowAdjustQuotaRaw] = useState(false);
   const [showQuotaInput, setShowQuotaInput] = useState(false);
   const [inputs, setInputs] = useState(null);
-  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   const isEdit = Boolean(userId);
 
@@ -99,39 +97,33 @@ const EditUserModal = (props) => {
   });
 
   const fetchGroups = async () => {
-    const requestId = beginRequest('groups');
     try {
       let res = await API.get(`/api/group/`);
-      if (isCurrentRequest('groups', requestId)) {
-        setGroupOptions(res.data.data.map((g) => ({ label: g, value: g })));
-      }
+      setGroupOptions(res.data.data.map((g) => ({ label: g, value: g })));
     } catch (e) {
-      if (isCurrentRequest('groups', requestId)) showError(e.message);
+      showError(e.message);
     }
   };
 
   const handleCancel = () => props.handleClose();
 
   const loadUser = async () => {
-    const requestId = beginRequest('user');
     setLoading(true);
     try {
       const url = userId ? `/api/user/${userId}` : `/api/user/self`;
       const res = await API.get(url);
       const { success, message, data } = res.data;
-      if (isCurrentRequest('user', requestId) && success) {
+      if (success) {
         data.password = '';
         data.quota_amount = Number(
           quotaToDisplayAmount(data.quota || 0).toFixed(6),
         );
         setInputs({ ...getInitValues(), ...data });
-      } else if (isCurrentRequest('user', requestId)) {
-        showError(message);
-      }
+      } else showError(message);
     } catch (error) {
-      if (isCurrentRequest('user', requestId)) showError(t('加载用户信息失败'));
+      showError(t('加载用户信息失败'));
     } finally {
-      if (isCurrentRequest('user', requestId)) setLoading(false);
+      setLoading(false);
     }
   };
 
@@ -157,7 +149,6 @@ const EditUserModal = (props) => {
 
   /* ----------------------- submit ----------------------- */
   const submit = async (values) => {
-    const requestId = beginRequest('submit');
     setLoading(true);
     try {
       let payload = { ...values };
@@ -169,17 +160,15 @@ const EditUserModal = (props) => {
       const url = userId ? `/api/user/` : `/api/user/self`;
       const res = await API.put(url, payload);
       const { success, message } = res.data;
-      if (isCurrentRequest('submit', requestId) && success) {
+      if (success) {
         showSuccess(t('用户信息更新成功！'));
         props.refresh();
         props.handleClose();
-      } else if (isCurrentRequest('submit', requestId)) {
-        showError(message);
-      }
+      } else showError(message);
     } catch (error) {
-      if (isCurrentRequest('submit', requestId)) showError(t('更新用户信息失败'));
+      showError(t('更新用户信息失败'));
     } finally {
-      if (isCurrentRequest('submit', requestId)) setLoading(false);
+      setLoading(false);
     }
   };
 
@@ -188,7 +177,6 @@ const EditUserModal = (props) => {
     const quotaVal = parseInt(adjustQuotaLocal) || 0;
     if (quotaVal <= 0 && adjustMode !== 'override') return;
     if (adjustMode === 'override' && (adjustQuotaLocal === '' || adjustQuotaLocal == null)) return;
-    const requestId = beginRequest('adjust-quota');
     setAdjustLoading(true);
     try {
       const res = await API.post('/api/user/manage', {
@@ -198,13 +186,13 @@ const EditUserModal = (props) => {
         value: adjustMode === 'override' ? quotaVal : Math.abs(quotaVal),
       });
       const { success, message } = res.data;
-      if (isCurrentRequest('adjust-quota', requestId) && success) {
+      if (success) {
         showSuccess(t('调整额度成功'));
         setAdjustModalOpen(false);
         setAdjustQuotaLocal('');
         setAdjustAmountLocal('');
         const userRes = await API.get(`/api/user/${userId}`);
-        if (isCurrentRequest('adjust-quota', requestId) && userRes.data.success) {
+        if (userRes.data.success) {
           const data = userRes.data.data;
           data.password = '';
           data.quota_amount = Number(
@@ -213,13 +201,11 @@ const EditUserModal = (props) => {
           setInputs({ ...getInitValues(), ...data });
         }
         props.refresh();
-      } else if (isCurrentRequest('adjust-quota', requestId)) {
-        showError(message);
-      }
+      } else showError(message);
     } catch (e) {
-      if (isCurrentRequest('adjust-quota', requestId)) showError(e.message);
+      showError(e.message);
     }
-    if (isCurrentRequest('adjust-quota', requestId)) setAdjustLoading(false);
+    setAdjustLoading(false);
   };
 
   const getPreviewText = () => {

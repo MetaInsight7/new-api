@@ -25,7 +25,6 @@ import { API, showSuccess, showError } from '../../../../helpers';
 import { UserContext } from '../../../../context/User';
 import { normalizeLanguage } from '../../../../i18n/language';
 import { setStoredValue } from '../../../../helpers/siteStorage';
-import { useRequestLifecycle } from '../../../../hooks/common/useRequestLifecycle';
 
 // Language options with native names
 const languageOptions = [
@@ -45,7 +44,6 @@ const PreferencesSettings = ({ t }) => {
     normalizeLanguage(i18n.language) || 'zh-CN',
   );
   const [loading, setLoading] = useState(false);
-  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   // Load saved language preference from user settings
 	useEffect(() => {
@@ -70,7 +68,6 @@ const PreferencesSettings = ({ t }) => {
     if (lang === currentLanguage) return;
 
     setLoading(true);
-    const requestId = beginRequest('language');
     const previousLang = currentLanguage;
 
     try {
@@ -84,7 +81,7 @@ const PreferencesSettings = ({ t }) => {
         language: lang,
       });
 
-      if (isCurrentRequest('language', requestId) && res.data.success) {
+      if (res.data.success) {
         showSuccess(t('语言偏好已保存'));
         // Keep backend preference, context state, and local cache aligned.
         let settings = {};
@@ -106,24 +103,20 @@ const PreferencesSettings = ({ t }) => {
         });
         setStoredValue('user', JSON.stringify(nextUser));
       } else {
-        if (isCurrentRequest('language', requestId)) {
-          showError(res.data.message || t('保存失败'));
-        }
+        showError(res.data.message || t('保存失败'));
         // Revert on error
         setCurrentLanguage(previousLang);
         i18n.changeLanguage(previousLang);
         setStoredValue('i18nextLng', previousLang);
       }
     } catch (error) {
-      if (isCurrentRequest('language', requestId)) {
-        showError(t('保存失败，请重试'));
-      }
+      showError(t('保存失败，请重试'));
       // Revert on error
       setCurrentLanguage(previousLang);
       i18n.changeLanguage(previousLang);
       setStoredValue('i18nextLng', previousLang);
     } finally {
-      if (isCurrentRequest('language', requestId)) setLoading(false);
+      setLoading(false);
     }
   };
 

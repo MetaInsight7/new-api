@@ -33,7 +33,6 @@ import {
 } from '../../../../helpers/quota';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 import { renderSafeDatePickerTrigger } from '../../../common/ui/SafeDatePickerTrigger';
-import { useRequestLifecycle } from '../../../../hooks/common/useRequestLifecycle';
 import {
   Button,
   Modal,
@@ -65,7 +64,6 @@ const EditRedemptionModal = (props) => {
   const isMobile = useIsMobile();
   const formApiRef = useRef(null);
   const [showQuotaInput, setShowQuotaInput] = useState(false);
-  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   const getInitValues = () => ({
     name: '',
@@ -80,12 +78,11 @@ const EditRedemptionModal = (props) => {
   };
 
   const loadRedemption = async () => {
-    const requestId = beginRequest('redemption');
     setLoading(true);
     try {
       let res = await API.get(`/api/redemption/${props.editingRedemption.id}`);
       const { success, message, data } = res.data;
-      if (isCurrentRequest('redemption', requestId) && success) {
+      if (success) {
         if (data.expired_time === 0) {
           data.expired_time = null;
         } else {
@@ -93,13 +90,11 @@ const EditRedemptionModal = (props) => {
         }
         data.amount = Number(quotaToDisplayAmount(data.quota || 0).toFixed(6));
         formApiRef.current?.setValues({ ...getInitValues(), ...data });
-      } else if (isCurrentRequest('redemption', requestId)) {
-        showError(message);
-      }
+      } else showError(message);
     } catch (error) {
-      if (isCurrentRequest('redemption', requestId)) showError(t('加载兑换码信息失败'));
+      showError(t('加载兑换码信息失败'));
     } finally {
-      if (isCurrentRequest('redemption', requestId)) setLoading(false);
+      setLoading(false);
     }
   };
 
@@ -115,14 +110,11 @@ const EditRedemptionModal = (props) => {
 
   useEffect(() => {
     if (!props.visiable) {
-      beginRequest('redemption');
-      beginRequest('submit');
       setLoading(false);
     }
   }, [props.visiable]);
 
   const submit = async (values) => {
-    const requestId = beginRequest('submit');
     setLoading(true);
     try {
       let name = values.name;
@@ -133,7 +125,7 @@ const EditRedemptionModal = (props) => {
       localInputs.count = parseInt(localInputs.count) || 0;
       localInputs.quota = displayAmountToQuota(localInputs.amount);
       if (localInputs.quota <= 0) {
-        if (isCurrentRequest('submit', requestId)) showError(t('请输入金额'));
+        showError(t('请输入金额'));
         return;
       }
       localInputs.name = name;
@@ -156,7 +148,7 @@ const EditRedemptionModal = (props) => {
         });
       }
       const { success, message, data } = res.data;
-      if (!isCurrentRequest('submit', requestId)) return;
+
       if (success) {
         showSuccess(t(isEdit ? '兑换码更新成功！' : '兑换码创建成功！'));
         props.refresh();
@@ -179,11 +171,9 @@ const EditRedemptionModal = (props) => {
         });
       }
     } catch (error) {
-      if (isCurrentRequest('submit', requestId)) {
-        showError(error.response?.data?.message || t('操作失败'));
-      }
+      showError(error.response?.data?.message || t('操作失败'));
     } finally {
-      if (isCurrentRequest('submit', requestId)) setLoading(false);
+      setLoading(false);
     }
   };
 

@@ -30,7 +30,6 @@ import {
 } from '@douyinfe/semi-ui';
 import { IconCopy, IconDelete, IconPlus } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
-import { useRequestLifecycle } from '../../../hooks/common/useRequestLifecycle';
 import { API, copy, showError, showSuccess } from '../../../helpers';
 
 const { Text } = Typography;
@@ -73,7 +72,6 @@ export default function ToolPriceSettings({ options }) {
   const [jsonText, setJsonText] = useState('');
   const [jsonError, setJsonError] = useState('');
   const [saving, setSaving] = useState(false);
-  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   useEffect(() => {
     let prices = {};
@@ -134,22 +132,19 @@ export default function ToolPriceSettings({ options }) {
   const currentPrices = useMemo(() => rowsToObject(rows), [rows]);
 
   const handleSave = async () => {
-    const requestId = beginRequest('save');
     setSaving(true);
     try {
       const res = await API.put('/api/option/', {
         key: OPTION_KEY,
         value: JSON.stringify(currentPrices),
       });
-      if (isCurrentRequest('save', requestId) && res.data.success) {
+      if (res.data.success) {
         showSuccess(t('保存成功'));
-      } else if (isCurrentRequest('save', requestId)) {
-        showError(res.data.message || t('保存失败'));
-      }
+      } else showError(res.data.message || t('保存失败'));
     } catch (e) {
-      if (isCurrentRequest('save', requestId)) showError(e.message);
+      showError(e.message);
     } finally {
-      if (isCurrentRequest('save', requestId)) setSaving(false);
+      setSaving(false);
     }
   };
 

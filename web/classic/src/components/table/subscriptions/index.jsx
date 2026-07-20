@@ -29,7 +29,6 @@ import { useIsMobile } from '../../../hooks/common/useIsMobile';
 import { createCardProPagination } from '../../../helpers/utils';
 import { StatusContext } from '../../../context/Status';
 import { API } from '../../../helpers';
-import { useRequestLifecycle } from '../../../hooks/common/useRequestLifecycle';
 
 const SubscriptionsPage = () => {
   const subscriptionsData = useSubscriptionsData();
@@ -37,7 +36,6 @@ const SubscriptionsPage = () => {
   const [statusState] = useContext(StatusContext);
   const enableEpay = !!statusState?.status?.enable_online_topup;
   const [complianceConfirmed, setComplianceConfirmed] = useState(true);
-  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   const {
     showEdit,
@@ -52,11 +50,10 @@ const SubscriptionsPage = () => {
   } = subscriptionsData;
 
   useEffect(() => {
-    const requestId = beginRequest('compliance');
     const loadComplianceStatus = async () => {
       try {
         const res = await API.get('/api/user/topup/info');
-        if (isCurrentRequest('compliance', requestId) && res.data?.success) {
+        if (res.data?.success) {
           setComplianceConfirmed(
             res.data.data?.payment_compliance_confirmed !== false,
           );
@@ -66,7 +63,7 @@ const SubscriptionsPage = () => {
       }
     };
     loadComplianceStatus();
-  }, [beginRequest, isCurrentRequest]);
+  }, []);
 
   return (
     <>

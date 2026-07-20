@@ -50,7 +50,6 @@ import {
   showError,
   showSuccess,
 } from '../../../../helpers';
-import { useRequestLifecycle } from '../../../../hooks/common/useRequestLifecycle';
 
 const { Text, Title } = Typography;
 
@@ -178,7 +177,6 @@ const OllamaModelModal = ({
   const [pullProgress, setPullProgress] = useState(null);
   const [eventSource, setEventSource] = useState(null);
   const [selectedModelIds, setSelectedModelIds] = useState([]);
-  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   const handleApplyAllModels = () => {
     if (!onApplyModels || selectedModelIds.length === 0) {
@@ -216,7 +214,6 @@ const OllamaModelModal = ({
     const shouldTryLiveFetch = channelType === CHANNEL_TYPE_OLLAMA;
     const resolvedBaseUrl = resolveOllamaBaseUrl(channelInfo);
 
-    const requestId = beginRequest('models');
     setLoading(true);
     let liveFetchSucceeded = false;
     let fallbackSucceeded = false;
@@ -277,7 +274,6 @@ const OllamaModelModal = ({
         showError(`${t('获取模型列表失败')}: ${lastError}`);
       }
 
-      if (!isCurrentRequest('models', requestId)) return;
       const normalized = nextModels;
       setModels(normalized);
       setFilteredModels(normalized);
@@ -296,7 +292,7 @@ const OllamaModelModal = ({
           : normalized.map((item) => item.id).filter(Boolean);
       });
     } finally {
-      if (isCurrentRequest('models', requestId)) setLoading(false);
+      setLoading(false);
     }
   };
 
@@ -307,7 +303,6 @@ const OllamaModelModal = ({
       return;
     }
 
-    const requestId = beginRequest('pull');
     setPullLoading(true);
     setPullProgress({ status: 'starting', completed: 0, total: 0 });
 
@@ -382,7 +377,7 @@ const OllamaModelModal = ({
               try {
                 const eventData = line.substring(6);
                 if (eventData === '[DONE]') {
-                  if (!isCurrentRequest('pull', requestId)) return;
+
                   setPullLoading(false);
                   setPullProgress(null);
                   setEventSource(null);
@@ -391,7 +386,6 @@ const OllamaModelModal = ({
 
                 const data = JSON.parse(eventData);
 
-                if (!isCurrentRequest('pull', requestId)) return;
                 if (data.status) {
                   // 处理进度数据
                   setPullProgress(data);
@@ -422,21 +416,18 @@ const OllamaModelModal = ({
             }
           }
           // 正常结束流
-          if (!isCurrentRequest('pull', requestId)) return;
+
           setPullLoading(false);
           setPullProgress(null);
           setEventSource(null);
           await refreshModels();
         } catch (error) {
           if (
-            error?.name === 'AbortError' ||
-            !isCurrentRequest('pull', requestId)
+            error?.name === 'AbortError'
           ) {
-            if (isCurrentRequest('pull', requestId)) {
-              setPullProgress(null);
-              setPullLoading(false);
-              setEventSource(null);
-            }
+            setPullProgress(null);
+            setPullLoading(false);
+            setEventSource(null);
             return;
           }
           console.error('Stream processing error:', error);
@@ -450,21 +441,18 @@ const OllamaModelModal = ({
 
       await processStream();
     } catch (error) {
-      if (error?.name !== 'AbortError' && isCurrentRequest('pull', requestId)) {
+      if (error?.name !== 'AbortError') {
         showError(t('模型拉取失败: {{error}}', { error: error.message }));
       }
-      if (isCurrentRequest('pull', requestId)) {
-        setPullLoading(false);
-        setPullProgress(null);
-        setEventSource(null);
-        await refreshModels();
-      }
+      setPullLoading(false);
+      setPullProgress(null);
+      setEventSource(null);
+      await refreshModels();
     }
   };
 
   // 删除模型
   const deleteModel = async (modelName) => {
-    const requestId = beginRequest('delete');
     try {
       const res = await API.delete('/api/channel/ollama/delete', {
         data: {
@@ -473,21 +461,17 @@ const OllamaModelModal = ({
         },
       });
 
-      if (isCurrentRequest('delete', requestId) && res.data.success) {
+      if (res.data.success) {
         showSuccess(t('模型删除成功'));
         await fetchModels(); // 重新获取模型列表
         if (onModelsUpdate) {
           onModelsUpdate({ silent: true }); // 通知父组件更新
         }
       } else {
-        if (isCurrentRequest('delete', requestId)) {
-          showError(res.data.message || t('模型删除失败'));
-        }
+        showError(res.data.message || t('模型删除失败'));
       }
     } catch (error) {
-      if (isCurrentRequest('delete', requestId)) {
-        showError(t('模型删除失败: {{error}}', { error: error.message }));
-      }
+      showError(t('模型删除失败: {{error}}', { error: error.message }));
     }
   };
 
@@ -505,9 +489,6 @@ const OllamaModelModal = ({
 
   useEffect(() => {
     if (!visible) {
-      beginRequest('models');
-      beginRequest('pull');
-      beginRequest('delete');
       setLoading(false);
       setSelectedModelIds([]);
       setPullModelName('');
@@ -519,9 +500,6 @@ const OllamaModelModal = ({
   // 组件加载时获取模型列表
   useEffect(() => {
     if (!visible) {
-      beginRequest('models');
-      beginRequest('pull');
-      beginRequest('delete');
       return;
     }
 

@@ -49,7 +49,6 @@ import {
   verifyJSON,
 } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
-import { useRequestLifecycle } from '../../../hooks/common/useRequestLifecycle';
 
 export default function SettingsChats(props) {
   const { t } = useTranslation();
@@ -66,7 +65,6 @@ export default function SettingsChats(props) {
   const [isEdit, setIsEdit] = useState(false);
   const [searchText, setSearchText] = useState('');
   const modalFormRef = useRef();
-  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   const BUILTIN_TEMPLATES = [
     {
@@ -155,7 +153,6 @@ export default function SettingsChats(props) {
   };
 
   async function onSubmit() {
-    const requestId = beginRequest('submit');
     try {
       if (editMode === 'json' && refForm.current) {
         try {
@@ -184,7 +181,7 @@ export default function SettingsChats(props) {
       setLoading(true);
       try {
         const res = await Promise.all(requestQueue);
-        if (!isCurrentRequest('submit', requestId)) return;
+
         if (res.includes(undefined)) {
           if (requestQueue.length > 1) {
             showError(t('部分保存失败，请重试'));
@@ -196,7 +193,7 @@ export default function SettingsChats(props) {
       } catch {
         showError(t('保存失败，请重试'));
       } finally {
-        if (isCurrentRequest('submit', requestId)) setLoading(false);
+        setLoading(false);
       }
     } catch (error) {
       showError(t('请检查输入'));

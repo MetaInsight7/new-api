@@ -70,7 +70,6 @@ import {
   AuthFormHeader,
   AuthRegisterSteps,
 } from './AuthFormVisuals';
-import { useRequestLifecycle } from '../../hooks/common/useRequestLifecycle';
 
 const RegisterForm = () => {
   let navigate = useNavigate();
@@ -108,7 +107,6 @@ const RegisterForm = () => {
     useState(false);
   const [wechatCodeSubmitLoading, setWechatCodeSubmitLoading] = useState(false);
   const [customOAuthLoading, setCustomOAuthLoading] = useState({});
-  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
   const [disableButton, setDisableButton] = useState(false);
   const [countdown, setCountdown] = useState(30);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
@@ -195,14 +193,13 @@ const RegisterForm = () => {
       showInfo('请稍后几秒重试，Turnstile 正在检查用户环境！');
       return;
     }
-    const requestId = beginRequest('wechat');
     setWechatCodeSubmitLoading(true);
     try {
       const res = await API.get(
         `/api/oauth/wechat?code=${inputs.wechat_verification_code}`,
       );
       const { success, message, data } = res.data;
-      if (isCurrentRequest('wechat', requestId) && success) {
+      if (success) {
         userDispatch({ type: 'login', payload: data });
         setStoredValue('user', JSON.stringify(data));
         setUserData(data);
@@ -211,13 +208,12 @@ const RegisterForm = () => {
         showSuccess('登录成功！');
         setShowWeChatLoginModal(false);
       } else {
-        if (isCurrentRequest('wechat', requestId)) showError(message);
+        showError(message);
       }
     } catch (error) {
-      if (isCurrentRequest('wechat', requestId)) showError('登录失败，请重试');
+      showError('登录失败，请重试');
     } finally {
-      if (isCurrentRequest('wechat', requestId))
-        setWechatCodeSubmitLoading(false);
+      setWechatCodeSubmitLoading(false);
     }
   };
 
@@ -239,7 +235,6 @@ const RegisterForm = () => {
         showInfo('请稍后几秒重试，Turnstile 正在检查用户环境！');
         return;
       }
-      const requestId = beginRequest('register');
       setRegisterLoading(true);
       try {
         if (!affCode) {
@@ -251,17 +246,16 @@ const RegisterForm = () => {
           inputs,
         );
         const { success, message } = res.data;
-        if (isCurrentRequest('register', requestId) && success) {
+        if (success) {
           navigate('/login');
           showSuccess('注册成功！');
         } else {
-          if (isCurrentRequest('register', requestId)) showError(message);
+          showError(message);
         }
       } catch (error) {
-        if (isCurrentRequest('register', requestId))
-          showError('注册失败，请重试');
+        showError('注册失败，请重试');
       } finally {
-        if (isCurrentRequest('register', requestId)) setRegisterLoading(false);
+        setRegisterLoading(false);
       }
     }
   }
@@ -272,25 +266,22 @@ const RegisterForm = () => {
       showInfo('请稍后几秒重试，Turnstile 正在检查用户环境！');
       return;
     }
-    const requestId = beginRequest('verification');
     setVerificationCodeLoading(true);
     try {
       const res = await API.get(
         `/api/verification?email=${encodeURIComponent(inputs.email)}&turnstile=${turnstileToken}`,
       );
       const { success, message } = res.data;
-      if (isCurrentRequest('verification', requestId) && success) {
+      if (success) {
         showSuccess('验证码发送成功，请检查你的邮箱！');
         setDisableButton(true); // 发送成功后禁用按钮，开始倒计时
       } else {
-        if (isCurrentRequest('verification', requestId)) showError(message);
+        showError(message);
       }
     } catch (error) {
-      if (isCurrentRequest('verification', requestId))
-        showError('发送验证码失败，请重试');
+      showError('发送验证码失败，请重试');
     } finally {
-      if (isCurrentRequest('verification', requestId))
-        setVerificationCodeLoading(false);
+      setVerificationCodeLoading(false);
     }
   };
 
@@ -309,7 +300,6 @@ const RegisterForm = () => {
       setGithubButtonState('timeout');
       setGithubButtonDisabled(true);
     }, 20000);
-    const requestId = beginRequest('telegram');
     try {
       onGitHubOAuthClicked(status.github_client_id, { shouldLogout: true });
     } finally {
@@ -407,7 +397,7 @@ const RegisterForm = () => {
     try {
       const res = await API.get(`/api/oauth/telegram/login`, { params });
       const { success, message, data } = res.data;
-      if (isCurrentRequest('telegram', requestId) && success) {
+      if (success) {
         userDispatch({ type: 'login', payload: data });
         setStoredValue('user', JSON.stringify(data));
         showSuccess('登录成功！');
@@ -415,11 +405,10 @@ const RegisterForm = () => {
         updateAPI();
         navigate('/');
       } else {
-        if (isCurrentRequest('telegram', requestId)) showError(message);
+        showError(message);
       }
     } catch (error) {
-      if (isCurrentRequest('telegram', requestId))
-        showError('登录失败，请重试');
+      showError('登录失败，请重试');
     }
   };
 

@@ -27,7 +27,6 @@ import { showError } from '../../helpers/notifications';
 import { setStoredValue } from '../../helpers/siteStorage';
 import { StatusContext } from '../../context/Status';
 import { Bell, Megaphone } from 'lucide-react';
-import { useRequestLifecycle } from '../../hooks/common/useRequestLifecycle';
 import './notice-dazi.css';
 
 const NoticeModal = ({
@@ -41,7 +40,6 @@ const NoticeModal = ({
   const [noticeContent, setNoticeContent] = useState('');
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState(defaultTab);
-  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   const [statusState] = useContext(StatusContext);
 
@@ -78,11 +76,10 @@ const NoticeModal = ({
   };
 
   const displayNotice = async () => {
-    const requestId = beginRequest('notice');
     setLoading(true);
     try {
       const res = await API.get('/api/notice');
-      if (!isCurrentRequest('notice', requestId)) return;
+
       const { success, message, data } = res.data;
       if (success) {
         if (data !== '') {
@@ -95,10 +92,10 @@ const NoticeModal = ({
         showError(message);
       }
     } catch (error) {
-      if (!isCurrentRequest('notice', requestId)) return;
+
       showError(error.message);
     } finally {
-      if (isCurrentRequest('notice', requestId)) setLoading(false);
+      setLoading(false);
     }
   };
 

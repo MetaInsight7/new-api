@@ -29,7 +29,6 @@ export const useSubscriptionsData = () => {
   // State management
   const [allPlans, setAllPlans] = useState([]);
   const [loading, setLoading] = useState(true);
-  const mountedRef = useRef(true);
   const requestSeqRef = useRef(0);
 
   // Pagination (client-side for now)
@@ -47,7 +46,7 @@ export const useSubscriptionsData = () => {
     setLoading(true);
     try {
       const res = await API.get('/api/subscription/admin/plans');
-      if (!mountedRef.current || requestSeq !== requestSeqRef.current) return;
+      if (requestSeq !== requestSeqRef.current) return;
       if (res.data?.success) {
         const next = res.data.data || [];
         setAllPlans(next);
@@ -59,11 +58,11 @@ export const useSubscriptionsData = () => {
         showError(res.data?.message || t('加载失败'));
       }
     } catch (e) {
-      if (mountedRef.current && requestSeq === requestSeqRef.current) {
+      if (requestSeq === requestSeqRef.current) {
         showError(t('请求失败'));
       }
     } finally {
-      if (mountedRef.current && requestSeq === requestSeqRef.current) {
+      if (requestSeq === requestSeqRef.current) {
         setLoading(false);
       }
     }
@@ -96,7 +95,7 @@ export const useSubscriptionsData = () => {
       const res = await API.patch(`/api/subscription/admin/plans/${planId}`, {
         enabled: !!enabled,
       });
-      if (!mountedRef.current || requestSeq !== requestSeqRef.current) return;
+      if (requestSeq !== requestSeqRef.current) return;
       if (res.data?.success) {
         showSuccess(enabled ? t('已启用') : t('已禁用'));
         await loadPlans();
@@ -104,11 +103,11 @@ export const useSubscriptionsData = () => {
         showError(res.data?.message || t('操作失败'));
       }
     } catch (e) {
-      if (mountedRef.current && requestSeq === requestSeqRef.current) {
+      if (requestSeq === requestSeqRef.current) {
         showError(t('请求失败'));
       }
     } finally {
-      if (mountedRef.current && requestSeq === requestSeqRef.current) {
+      if (requestSeq === requestSeqRef.current) {
         setLoading(false);
       }
     }
@@ -134,12 +133,10 @@ export const useSubscriptionsData = () => {
 
   // Initialize data on component mount
   useEffect(() => {
-    mountedRef.current = true;
     loadPlans();
   }, []);
 
   useEffect(() => () => {
-    mountedRef.current = false;
     requestSeqRef.current += 1;
   }, []);
 

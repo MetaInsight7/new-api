@@ -28,7 +28,6 @@ export const useDeploymentsData = () => {
   const { t } = useTranslation();
   const [compactMode, setCompactMode] = useTableCompactMode('deployments');
   const requestSeq = useRef(0);
-  const mountedRef = useRef(true);
 
   // State management
   const [deployments, setDeployments] = useState([]);
@@ -198,7 +197,7 @@ export const useDeploymentsData = () => {
       }
 
       const res = await API.get(url);
-      if (!mountedRef.current || seq !== requestSeq.current) return;
+      if (seq !== requestSeq.current) return;
 
       const { success, message, data } = res.data;
       if (!success) {
@@ -210,13 +209,13 @@ export const useDeploymentsData = () => {
 
       applyDeploymentsData({ data, page });
     } catch (error) {
-      if (!mountedRef.current || seq !== requestSeq.current) return;
+      if (seq !== requestSeq.current) return;
       console.error(error);
       showError(isSearchMode ? t('搜索失败') : t('获取部署列表失败'));
       setDeployments([]);
       setDeploymentCount(0);
     } finally {
-      if (!mountedRef.current || seq !== requestSeq.current) return;
+      if (seq !== requestSeq.current) return;
       setLoading(false);
       setSearching(false);
     }
@@ -233,9 +232,7 @@ export const useDeploymentsData = () => {
   };
 
   useEffect(() => {
-    mountedRef.current = true;
     return () => {
-      mountedRef.current = false;
       requestSeq.current += 1;
     };
   }, []);

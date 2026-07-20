@@ -43,7 +43,6 @@ import {
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
 import CustomOAuthSetting from './CustomOAuthSetting';
-import { useRequestLifecycle } from '../../hooks/common/useRequestLifecycle';
 
 const SystemSetting = () => {
   const { t } = useTranslation();
@@ -127,14 +126,12 @@ const SystemSetting = () => {
   const [domainList, setDomainList] = useState([]);
   const [ipList, setIpList] = useState([]);
   const [allowedPorts, setAllowedPorts] = useState([]);
-  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   const getOptions = async () => {
-    const requestId = beginRequest('options');
     setLoading(true);
     try {
       const res = await API.get('/api/option/');
-      if (!isCurrentRequest('options', requestId)) return;
+
       const { success, message, data } = res.data;
       if (success) {
         let newInputs = {};
@@ -239,11 +236,9 @@ const SystemSetting = () => {
         showError(message);
       }
     } catch (error) {
-      if (isCurrentRequest('options', requestId)) {
-        showError(error?.message || t('加载设置失败，请稍后重试'));
-      }
+      showError(error?.message || t('加载设置失败，请稍后重试'));
     } finally {
-      if (isCurrentRequest('options', requestId)) setLoading(false);
+      setLoading(false);
     }
   };
 
@@ -252,7 +247,6 @@ const SystemSetting = () => {
   }, []);
 
   const updateOptions = async (options) => {
-    const requestId = beginRequest('update-options');
     setLoading(true);
     try {
       // 分离 checkbox 类型的选项和其他选项
@@ -270,9 +264,7 @@ const SystemSetting = () => {
           value: opt.value.toString(),
         });
         if (!res.data.success) {
-          if (isCurrentRequest('update-options', requestId)) {
-            showError(res.data.message);
-          }
+          showError(res.data.message);
           return;
         }
       }
@@ -291,12 +283,9 @@ const SystemSetting = () => {
 
         // 检查所有请求是否成功
         const errorResults = results.filter((res) => !res.data.success);
-        if (isCurrentRequest('update-options', requestId)) {
-          errorResults.forEach((res) => showError(res.data.message));
-        }
+        errorResults.forEach((res) => showError(res.data.message));
       }
 
-      if (!isCurrentRequest('update-options', requestId)) return;
       showSuccess(t('更新成功'));
       // 更新本地状态
       const newInputs = { ...inputs };
@@ -305,11 +294,9 @@ const SystemSetting = () => {
       });
       setInputs(newInputs);
     } catch (error) {
-      if (isCurrentRequest('update-options', requestId)) {
-        showError(t('更新失败'));
-      }
+      showError(t('更新失败'));
     } finally {
-      if (isCurrentRequest('update-options', requestId)) setLoading(false);
+      setLoading(false);
     }
   };
 

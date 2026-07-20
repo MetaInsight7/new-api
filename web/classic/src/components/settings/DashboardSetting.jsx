@@ -20,7 +20,6 @@ For commercial licensing, please contact support@quantumnous.com
 import React, { useEffect, useState, useMemo } from 'react';
 import { Card, Spin, Button, Modal } from '@douyinfe/semi-ui';
 import { API, showError, showSuccess, toBoolean } from '../../helpers';
-import { useRequestLifecycle } from '../../hooks/common/useRequestLifecycle';
 import SettingsAPIInfo from '../../pages/Setting/Dashboard/SettingsAPIInfo';
 import SettingsAnnouncements from '../../pages/Setting/Dashboard/SettingsAnnouncements';
 import SettingsFAQ from '../../pages/Setting/Dashboard/SettingsFAQ';
@@ -53,12 +52,10 @@ const DashboardSetting = () => {
 
   let [loading, setLoading] = useState(false);
   const [showMigrateModal, setShowMigrateModal] = useState(false); // 下个版本会删除
-  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   const getOptions = async () => {
-    const requestId = beginRequest('options');
     const res = await API.get('/api/option/');
-    if (!isCurrentRequest('options', requestId)) return;
+
     const { success, message, data } = res.data;
     if (success) {
       let newInputs = {};
@@ -77,15 +74,14 @@ const DashboardSetting = () => {
   };
 
   async function onRefresh() {
-    const requestId = beginRequest('refresh');
     try {
       setLoading(true);
       await getOptions();
     } catch (error) {
-      if (isCurrentRequest('refresh', requestId)) showError('刷新失败');
+      showError('刷新失败');
       console.error(error);
     } finally {
-      if (isCurrentRequest('refresh', requestId)) setLoading(false);
+      setLoading(false);
     }
   }
 
@@ -112,21 +108,18 @@ const DashboardSetting = () => {
   }, [hasLegacyData]);
 
   const handleMigrate = async () => {
-    const requestId = beginRequest('migrate');
     try {
       setLoading(true);
       await API.post('/api/option/migrate_console_setting');
-      if (!isCurrentRequest('migrate', requestId)) return;
+
       showSuccess('旧配置迁移完成');
       await onRefresh();
       setShowMigrateModal(false);
     } catch (err) {
       console.error(err);
-      if (isCurrentRequest('migrate', requestId)) {
-        showError('迁移失败: ' + (err.message || '未知错误'));
-      }
+      showError('迁移失败: ' + (err.message || '未知错误'));
     } finally {
-      if (isCurrentRequest('migrate', requestId)) setLoading(false);
+      setLoading(false);
     }
   };
 

@@ -20,10 +20,8 @@ For commercial licensing, please contact support@quantumnous.com
 import { useState, useCallback } from 'react';
 import { API } from '../../helpers';
 import { showError } from '../../helpers';
-import { useRequestLifecycle } from '../common/useRequestLifecycle';
 
 export const useDeploymentResources = () => {
-  const { beginRequest, isCurrentRequest, isMounted } = useRequestLifecycle();
   const [hardwareTypes, setHardwareTypes] = useState([]);
   const [hardwareTotalAvailable, setHardwareTotalAvailable] = useState(0);
   const [locations, setLocations] = useState([]);
@@ -37,11 +35,10 @@ export const useDeploymentResources = () => {
   const [loadingPrice, setLoadingPrice] = useState(false);
 
   const fetchHardwareTypes = useCallback(async () => {
-    const requestId = beginRequest('hardware');
     try {
       setLoadingHardware(true);
       const response = await API.get('/api/deployments/hardware-types');
-      if (!isCurrentRequest('hardware', requestId)) return [];
+
       if (response.data.success) {
         const { hardware_types: hardwareList = [], total_available } =
           response.data.data || {};
@@ -86,24 +83,21 @@ export const useDeploymentResources = () => {
         return [];
       }
     } catch (error) {
-      if (!isCurrentRequest('hardware', requestId)) return [];
+
       showError('获取硬件类型失败: ' + error.message);
       setHardwareTotalAvailable(0);
       return [];
     } finally {
-      if (isCurrentRequest('hardware', requestId)) setLoadingHardware(false);
+      setLoadingHardware(false);
     }
-  }, [beginRequest, isCurrentRequest]);
+  }, []);
 
   const fetchLocations = useCallback(
     async (hardwareId, gpuCount = 1) => {
-      const requestId = beginRequest('locations');
       if (!hardwareId) {
-        if (isCurrentRequest('locations', requestId)) {
-          setLocations([]);
-          setLocationsTotalAvailable(0);
-          setLoadingLocations(false);
-        }
+        setLocations([]);
+        setLocationsTotalAvailable(0);
+        setLoadingLocations(false);
         return [];
       }
 
@@ -112,7 +106,7 @@ export const useDeploymentResources = () => {
         const response = await API.get(
           `/api/deployments/available-replicas?hardware_id=${hardwareId}&gpu_count=${gpuCount}`,
         );
-        if (!isCurrentRequest('locations', requestId)) return [];
+
         if (response.data.success) {
           const replicas = response.data.data?.replicas || [];
           const nextLocationsMap = new Map();
@@ -169,27 +163,22 @@ export const useDeploymentResources = () => {
           return [];
         }
       } catch (error) {
-        if (!isCurrentRequest('locations', requestId)) return [];
+
         showError('获取部署位置失败: ' + error.message);
         setLocationsTotalAvailable(0);
         return [];
       } finally {
-        if (isCurrentRequest('locations', requestId)) {
-          setLoadingLocations(false);
-        }
+        setLoadingLocations(false);
       }
     },
-    [beginRequest, isCurrentRequest],
+    [],
   );
 
   const fetchAvailableReplicas = useCallback(
     async (hardwareId, gpuCount = 1) => {
-      const requestId = beginRequest('replicas');
       if (!hardwareId) {
-        if (isCurrentRequest('replicas', requestId)) {
-          setAvailableReplicas([]);
-          setLoadingReplicas(false);
-        }
+        setAvailableReplicas([]);
+        setLoadingReplicas(false);
         return [];
       }
 
@@ -198,7 +187,7 @@ export const useDeploymentResources = () => {
         const response = await API.get(
           `/api/deployments/available-replicas?hardware_id=${hardwareId}&gpu_count=${gpuCount}`,
         );
-        if (!isCurrentRequest('replicas', requestId)) return [];
+
         if (response.data.success) {
           const replicas = response.data.data.replicas || [];
           setAvailableReplicas(replicas);
@@ -209,22 +198,19 @@ export const useDeploymentResources = () => {
           return [];
         }
       } catch (error) {
-        if (!isCurrentRequest('replicas', requestId)) return [];
+
         console.error('Load available replicas error:', error);
         setAvailableReplicas([]);
         return [];
       } finally {
-        if (isCurrentRequest('replicas', requestId)) {
-          setLoadingReplicas(false);
-        }
+        setLoadingReplicas(false);
       }
     },
-    [beginRequest, isCurrentRequest],
+    [],
   );
 
   const calculatePrice = useCallback(
     async (params) => {
-      const requestId = beginRequest('price');
       const {
         locationIds,
         hardwareId,
@@ -240,10 +226,8 @@ export const useDeploymentResources = () => {
         !durationHours ||
         !replicaCount
       ) {
-        if (isCurrentRequest('price', requestId)) {
-          setPriceEstimation(null);
-          setLoadingPrice(false);
-        }
+        setPriceEstimation(null);
+        setLoadingPrice(false);
         return null;
       }
 
@@ -261,7 +245,7 @@ export const useDeploymentResources = () => {
           '/api/deployments/price-estimation',
           requestData,
         );
-        if (!isCurrentRequest('price', requestId)) return null;
+
         if (response.data.success) {
           const estimation = response.data.data;
           setPriceEstimation(estimation);
@@ -272,15 +256,15 @@ export const useDeploymentResources = () => {
           return null;
         }
       } catch (error) {
-        if (!isCurrentRequest('price', requestId)) return null;
+
         console.error('Price calculation error:', error);
         setPriceEstimation(null);
         return null;
       } finally {
-        if (isCurrentRequest('price', requestId)) setLoadingPrice(false);
+        setLoadingPrice(false);
       }
     },
-    [beginRequest, isCurrentRequest],
+    [],
   );
 
   const checkClusterNameAvailability = useCallback(
@@ -298,12 +282,12 @@ export const useDeploymentResources = () => {
           return false;
         }
       } catch (error) {
-        if (!isMounted()) return false;
+
         console.error('Check cluster name availability error:', error);
         return false;
       }
     },
-    [isMounted],
+    [],
   );
 
   const createDeployment = useCallback(async (deploymentData) => {

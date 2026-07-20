@@ -51,7 +51,6 @@ export const useModelPricingData = () => {
   const [usableGroup, setUsableGroup] = useState({});
   const [endpointMap, setEndpointMap] = useState({});
   const [autoGroups, setAutoGroups] = useState([]);
-  const mountedRef = useRef(true);
   const requestSeqRef = useRef(0);
 
   const [statusState] = useContext(StatusContext);
@@ -232,7 +231,7 @@ export const useModelPricingData = () => {
     setLoading(true);
     try {
       const res = await API.get('/api/pricing');
-      if (!mountedRef.current || requestSeq !== requestSeqRef.current) return;
+      if (requestSeq !== requestSeqRef.current) return;
       const {
         success,
         message,
@@ -262,11 +261,11 @@ export const useModelPricingData = () => {
         showError(message);
       }
     } catch (error) {
-      if (mountedRef.current && requestSeq === requestSeqRef.current) {
+      if (requestSeq === requestSeqRef.current) {
         showError(t('获取模型价格失败'));
       }
     } finally {
-      if (mountedRef.current && requestSeq === requestSeqRef.current) {
+      if (requestSeq === requestSeqRef.current) {
         setLoading(false);
       }
     }
@@ -318,12 +317,10 @@ export const useModelPricingData = () => {
   };
 
   useEffect(() => {
-    mountedRef.current = true;
     refresh().catch((error) => showError(error));
   }, []);
 
   useEffect(() => () => {
-    mountedRef.current = false;
     requestSeqRef.current += 1;
   }, []);
 

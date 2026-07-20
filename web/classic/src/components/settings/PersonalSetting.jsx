@@ -59,13 +59,11 @@ import AccountDeleteModal from './personal/modals/AccountDeleteModal';
 import ChangePasswordModal from './personal/modals/ChangePasswordModal';
 import SecureVerificationModal from '../common/modals/SecureVerificationModal';
 import { useSecureVerification } from '../../hooks/common/useSecureVerification';
-import { useRequestLifecycle } from '../../hooks/common/useRequestLifecycle';
 
 const PersonalSetting = () => {
   const [userState, userDispatch] = useContext(UserContext);
   let navigate = useNavigate();
   const { t, i18n } = useTranslation();
-  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   const [inputs, setInputs] = useState({
     wechat_verification_code: '',
@@ -155,10 +153,9 @@ const PersonalSetting = () => {
     }
     // Always refresh status from server to avoid stale flags (e.g., admin just enabled OAuth)
     (async () => {
-      const requestId = beginRequest('status');
       try {
         const res = await API.get('/api/status');
-        if (!isCurrentRequest('status', requestId)) return;
+
         const { success, data } = res.data;
         if (success && data) {
           setStatus(data);
@@ -382,9 +379,8 @@ const PersonalSetting = () => {
   };
 
   const getUserData = async () => {
-    const requestId = beginRequest('user');
     let res = await API.get(`/api/user/self`);
-    if (!isCurrentRequest('user', requestId)) return;
+
     const { success, message, data } = res.data;
     if (success) {
       userDispatch({ type: 'login', payload: data });

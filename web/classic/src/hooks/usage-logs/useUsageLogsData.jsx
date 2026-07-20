@@ -76,7 +76,6 @@ export const useLogsData = () => {
   const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE);
   const [logType, setLogType] = useState(0);
   const requestCounter = useRef(0);
-  const mountedRef = useRef(true);
   const statRequestCounter = useRef(0);
 
   // User and admin
@@ -286,7 +285,7 @@ export const useLogsData = () => {
     let url = `/api/log/self/stat?type=${currentLogType}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&group=${group}`;
     url = encodeURI(url);
     let res = await API.get(url);
-    if (!mountedRef.current || requestId !== statRequestCounter.current) return;
+    if (requestId !== statRequestCounter.current) return;
     const { success, message, data } = res.data;
     if (success) {
       setStat(data);
@@ -313,7 +312,7 @@ export const useLogsData = () => {
     let url = `/api/log/stat?type=${currentLogType}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&channel=${channel}&group=${group}`;
     url = encodeURI(url);
     let res = await API.get(url);
-    if (!mountedRef.current || requestId !== statRequestCounter.current) return;
+    if (requestId !== statRequestCounter.current) return;
     const { success, message, data } = res.data;
     if (success) {
       setStat(data);
@@ -333,15 +332,11 @@ export const useLogsData = () => {
       } else {
         await getLogSelfStat();
       }
-      if (mountedRef.current) {
-        setShowStat(true);
-      }
+      setShowStat(true);
     } catch (error) {
-      if (mountedRef.current) showError(error);
+      showError(error);
     } finally {
-      if (mountedRef.current) {
-        setLoadingStat(false);
-      }
+      setLoadingStat(false);
     }
   };
 
@@ -802,7 +797,7 @@ export const useLogsData = () => {
     url = encodeURI(url);
     try {
       const res = await API.get(url);
-      if (!mountedRef.current || requestId !== requestCounter.current) return;
+      if (requestId !== requestCounter.current) return;
       const { success, message, data } = res.data;
       if (success) {
         const newPageData = data.items;
@@ -815,11 +810,11 @@ export const useLogsData = () => {
         showError(message);
       }
     } catch (error) {
-      if (mountedRef.current && requestId === requestCounter.current) {
+      if (requestId === requestCounter.current) {
         showError(error);
       }
     } finally {
-      if (mountedRef.current && requestId === requestCounter.current) {
+      if (requestId === requestCounter.current) {
         setLoading(false);
       }
     }
@@ -858,7 +853,6 @@ export const useLogsData = () => {
   // Initialize data
   useEffect(() => {
     // Re-arm the guard after React StrictMode's simulated effect cleanup.
-    mountedRef.current = true;
     const localPageSize =
       parseInt(getStoredValue('page-size', ''), 10) || ITEMS_PER_PAGE;
     setPageSize(localPageSize);
@@ -867,7 +861,6 @@ export const useLogsData = () => {
 
   useEffect(
     () => () => {
-      mountedRef.current = false;
       requestCounter.current += 1;
       statRequestCounter.current += 1;
     },

@@ -48,7 +48,6 @@ import {
   mergeAdminConfig,
   useSidebar,
 } from '../../../../hooks/common/useSidebar';
-import { useRequestLifecycle } from '../../../../hooks/common/useRequestLifecycle';
 
 const NotificationSettings = ({
   t,
@@ -95,7 +94,6 @@ const NotificationSettings = ({
     },
   });
   const [adminConfig, setAdminConfig] = useState(null);
-  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
   const sidebarAdminConfig = useMemo(() => {
     const rawConfig = statusState?.status?.SidebarModulesAdmin;
     if (!rawConfig) return mergeAdminConfig(null);
@@ -147,26 +145,23 @@ const NotificationSettings = ({
   };
 
   const saveSidebarSettings = async () => {
-    const requestId = beginRequest('sidebarSave');
     setSidebarLoading(true);
     try {
       const res = await API.put('/api/user/self', {
         sidebar_modules: JSON.stringify(sidebarModulesUser),
       });
-      if (isCurrentRequest('sidebarSave', requestId) && res.data.success) {
+      if (res.data.success) {
         showSuccess(t('侧边栏设置保存成功'));
 
         // 刷新useSidebar钩子中的用户配置，实现实时更新
         await refreshUserConfig();
       } else {
-        if (isCurrentRequest('sidebarSave', requestId)) {
-          showError(res.data.message);
-        }
+        showError(res.data.message);
       }
     } catch (error) {
-      if (isCurrentRequest('sidebarSave', requestId)) showError(t('保存失败'));
+      showError(t('保存失败'));
     } finally {
-      if (isCurrentRequest('sidebarSave', requestId)) setSidebarLoading(false);
+      setSidebarLoading(false);
     }
   };
 
@@ -198,7 +193,6 @@ const NotificationSettings = ({
 
   // 加载左侧边栏配置
   useEffect(() => {
-    const requestId = beginRequest('sidebarLoad');
 
     const loadSidebarConfigs = async () => {
       try {
@@ -206,7 +200,7 @@ const NotificationSettings = ({
 
         // 获取用户个人配置
         const userRes = await API.get('/api/user/self');
-        if (!isCurrentRequest('sidebarLoad', requestId)) return;
+
         if (userRes.data.success && userRes.data.data.sidebar_modules) {
           let userConf;
           if (typeof userRes.data.data.sidebar_modules === 'string') {
@@ -227,15 +221,13 @@ const NotificationSettings = ({
           setSidebarModulesUser(buildDefaultUserConfig(sidebarAdminConfig));
         }
       } catch (error) {
-        if (isCurrentRequest('sidebarLoad', requestId)) {
-          setAdminConfig(sidebarAdminConfig);
-          setSidebarModulesUser(buildDefaultUserConfig(sidebarAdminConfig));
-        }
+        setAdminConfig(sidebarAdminConfig);
+        setSidebarModulesUser(buildDefaultUserConfig(sidebarAdminConfig));
       }
     };
 
     loadSidebarConfigs();
-  }, [sidebarAdminConfig, beginRequest, isCurrentRequest]);
+  }, [sidebarAdminConfig]);
 
   // 初始化表单值
   useEffect(() => {

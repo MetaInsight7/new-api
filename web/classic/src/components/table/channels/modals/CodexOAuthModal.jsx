@@ -28,7 +28,6 @@ import {
   Banner,
 } from '@douyinfe/semi-ui';
 import { API, copy, showError, showSuccess } from '../../../../helpers';
-import { useRequestLifecycle } from '../../../../hooks/common/useRequestLifecycle';
 
 const { Text } = Typography;
 
@@ -37,10 +36,8 @@ const CodexOAuthModal = ({ visible, onCancel, onSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [authorizeUrl, setAuthorizeUrl] = useState('');
   const [input, setInput] = useState('');
-  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   const startOAuth = async () => {
-    const requestId = beginRequest('start');
     setLoading(true);
     try {
       const res = await API.post(
@@ -60,16 +57,14 @@ const CodexOAuthModal = ({ visible, onCancel, onSuccess }) => {
         );
         throw new Error(t('响应缺少授权链接'));
       }
-      if (!isCurrentRequest('start', requestId)) return;
+
       setAuthorizeUrl(url);
       window.open(url, '_blank', 'noopener,noreferrer');
       showSuccess(t('已打开授权页面'));
     } catch (error) {
-      if (isCurrentRequest('start', requestId)) {
-        showError(error?.message || t('启动授权失败'));
-      }
+      showError(error?.message || t('启动授权失败'));
     } finally {
-      if (isCurrentRequest('start', requestId)) setLoading(false);
+      setLoading(false);
     }
   };
 
@@ -79,7 +74,6 @@ const CodexOAuthModal = ({ visible, onCancel, onSuccess }) => {
       return;
     }
 
-    const requestId = beginRequest('complete');
     setLoading(true);
     try {
       const res = await API.post(
@@ -98,23 +92,18 @@ const CodexOAuthModal = ({ visible, onCancel, onSuccess }) => {
         throw new Error(t('响应缺少凭据'));
       }
 
-      if (!isCurrentRequest('complete', requestId)) return;
       onSuccess && onSuccess(key);
       showSuccess(t('已生成授权凭据'));
       onCancel && onCancel();
     } catch (error) {
-      if (isCurrentRequest('complete', requestId)) {
-        showError(error?.message || t('授权失败'));
-      }
+      showError(error?.message || t('授权失败'));
     } finally {
-      if (isCurrentRequest('complete', requestId)) setLoading(false);
+      setLoading(false);
     }
   };
 
   useEffect(() => {
     if (!visible) {
-      beginRequest('start');
-      beginRequest('complete');
       return;
     }
     setAuthorizeUrl('');

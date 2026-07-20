@@ -61,7 +61,6 @@ export function useViolationAuditData() {
   const [wordsSaving, setWordsSaving] = useState(false);
 
   const filtersRef = useRef(filters);
-  const mountedRef = useRef(true);
   const logsRequestSeqRef = useRef(0);
   const statRequestSeqRef = useRef(0);
   const wordsRequestSeqRef = useRef(0);
@@ -101,7 +100,7 @@ export function useViolationAuditData() {
           if (f[k]) params[k] = f[k];
         });
         const res = await API.get('/api/violation/logs', { params });
-        if (!mountedRef.current || requestSeq !== logsRequestSeqRef.current)
+        if (requestSeq !== logsRequestSeqRef.current)
           return;
         const { success, message, data } = res.data;
         if (success) {
@@ -113,11 +112,11 @@ export function useViolationAuditData() {
           showError(message);
         }
       } catch (e) {
-        if (mountedRef.current && requestSeq === logsRequestSeqRef.current) {
+        if (requestSeq === logsRequestSeqRef.current) {
           showError(e.message);
         }
       } finally {
-        if (mountedRef.current && requestSeq === logsRequestSeqRef.current) {
+        if (requestSeq === logsRequestSeqRef.current) {
           setLoading(false);
         }
       }
@@ -132,17 +131,17 @@ export function useViolationAuditData() {
       const res = await API.get('/api/violation/stat', {
         params: rangeParams(),
       });
-      if (!mountedRef.current || requestSeq !== statRequestSeqRef.current)
+      if (requestSeq !== statRequestSeqRef.current)
         return;
       const { success, message, data } = res.data;
       if (success) setStat(data);
       else showError(message);
     } catch (e) {
-      if (mountedRef.current && requestSeq === statRequestSeqRef.current) {
+      if (requestSeq === statRequestSeqRef.current) {
         showError(e.message);
       }
     } finally {
-      if (mountedRef.current && requestSeq === statRequestSeqRef.current) {
+      if (requestSeq === statRequestSeqRef.current) {
         setStatLoading(false);
       }
     }
@@ -153,7 +152,7 @@ export function useViolationAuditData() {
     setWordsLoading(true);
     try {
       const res = await API.get('/api/violation/words');
-      if (!mountedRef.current || requestSeq !== wordsRequestSeqRef.current)
+      if (requestSeq !== wordsRequestSeqRef.current)
         return;
       const { success, message, data } = res.data;
       if (success) {
@@ -161,11 +160,11 @@ export function useViolationAuditData() {
         setWordsMeta({ enabled: data.enabled });
       } else showError(message);
     } catch (e) {
-      if (mountedRef.current && requestSeq === wordsRequestSeqRef.current) {
+      if (requestSeq === wordsRequestSeqRef.current) {
         showError(e.message);
       }
     } finally {
-      if (mountedRef.current && requestSeq === wordsRequestSeqRef.current) {
+      if (requestSeq === wordsRequestSeqRef.current) {
         setWordsLoading(false);
       }
     }
@@ -177,7 +176,6 @@ export function useViolationAuditData() {
     try {
       const res = await API.put('/api/violation/words', { words: nextWords });
       if (
-        !mountedRef.current ||
         requestSeq !== wordsSaveRequestSeqRef.current
       ) {
         return false;
@@ -191,12 +189,12 @@ export function useViolationAuditData() {
       showError(message);
       return false;
     } catch (e) {
-      if (mountedRef.current && requestSeq === wordsSaveRequestSeqRef.current) {
+      if (requestSeq === wordsSaveRequestSeqRef.current) {
         showError(e.message);
       }
       return false;
     } finally {
-      if (mountedRef.current && requestSeq === wordsSaveRequestSeqRef.current) {
+      if (requestSeq === wordsSaveRequestSeqRef.current) {
         setWordsSaving(false);
       }
     }
@@ -204,14 +202,12 @@ export function useViolationAuditData() {
   }, []);
 
   useEffect(() => {
-    mountedRef.current = true;
     loadLogs(1, pageSize);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(
     () => () => {
-      mountedRef.current = false;
       logsRequestSeqRef.current += 1;
       statRequestSeqRef.current += 1;
       wordsRequestSeqRef.current += 1;

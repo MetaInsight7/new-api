@@ -28,7 +28,6 @@ import UpstreamRatioSync from '../../pages/Setting/Ratio/UpstreamRatioSync';
 import ToolPriceSettings from '../../pages/Setting/Ratio/ToolPriceSettings';
 
 import { API, showError, toBoolean } from '../../helpers';
-import { useRequestLifecycle } from '../../hooks/common/useRequestLifecycle';
 
 const RatioSetting = () => {
   const { t } = useTranslation();
@@ -52,12 +51,10 @@ const RatioSetting = () => {
   });
 
   const [loading, setLoading] = useState(false);
-  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   const getOptions = async () => {
-    const requestId = beginRequest('options');
     const res = await API.get('/api/option/');
-    if (!isCurrentRequest('options', requestId)) return;
+
     const { success, message, data } = res.data;
     if (success) {
       let newInputs = {};
@@ -82,14 +79,13 @@ const RatioSetting = () => {
   };
 
   const onRefresh = async () => {
-    const requestId = beginRequest('refresh');
     try {
       setLoading(true);
       await getOptions();
     } catch (error) {
-      if (isCurrentRequest('refresh', requestId)) showError('刷新失败');
+      showError('刷新失败');
     } finally {
-      if (isCurrentRequest('refresh', requestId)) setLoading(false);
+      setLoading(false);
     }
   };
 

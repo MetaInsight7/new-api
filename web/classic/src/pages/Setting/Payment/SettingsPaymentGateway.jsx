@@ -27,7 +27,6 @@ import {
 } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
 import { Info } from 'lucide-react';
-import { useRequestLifecycle } from '../../../hooks/common/useRequestLifecycle';
 
 export default function SettingsPaymentGateway(props) {
   const { t } = useTranslation();
@@ -41,7 +40,6 @@ export default function SettingsPaymentGateway(props) {
     MinTopUp: 1,
   });
   const formApiRef = useRef(null);
-  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   useEffect(() => {
     if (props.options && formApiRef.current) {
@@ -75,7 +73,6 @@ export default function SettingsPaymentGateway(props) {
     }
 
     setLoading(true);
-    const requestId = beginRequest('submit');
     try {
       const options = [
         { key: 'PayAddress', value: removeTrailingSlash(inputs.PayAddress) },
@@ -103,7 +100,6 @@ export default function SettingsPaymentGateway(props) {
 
       const results = await Promise.all(requestQueue);
 
-      if (!isCurrentRequest('submit', requestId)) return;
       const errorResults = results.filter((res) => !res.data.success);
       if (errorResults.length > 0) {
         errorResults.forEach((res) => {
@@ -114,9 +110,9 @@ export default function SettingsPaymentGateway(props) {
         props.refresh && props.refresh();
       }
     } catch (error) {
-      if (isCurrentRequest('submit', requestId)) showError(t('更新失败'));
+      showError(t('更新失败'));
     } finally {
-      if (isCurrentRequest('submit', requestId)) setLoading(false);
+      setLoading(false);
     }
   };
 

@@ -36,7 +36,6 @@ import {
 } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
 import { Server, Cloud, Zap, ArrowUpRight } from 'lucide-react';
-import { useRequestLifecycle } from '../../../hooks/common/useRequestLifecycle';
 
 const { Text } = Typography;
 
@@ -54,7 +53,6 @@ export default function SettingModelDeployment(props) {
     'model_deployment.ionet.enabled': false,
   });
   const [testing, setTesting] = useState(false);
-  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   const testApiKey = async () => {
     const apiKey = inputs['model_deployment.ionet.api_key'];
@@ -73,7 +71,6 @@ export default function SettingModelDeployment(props) {
     };
 
     setTesting(true);
-    const requestId = beginRequest('test-connection');
     try {
       const response = await API.post(
         '/api/deployments/settings/test-connection',
@@ -83,7 +80,6 @@ export default function SettingModelDeployment(props) {
         },
       );
 
-      if (!isCurrentRequest('test-connection', requestId)) return;
       if (response?.data?.success) {
         showSuccess(t('API Key 验证成功！连接到 io.net 服务正常'));
       } else {
@@ -94,7 +90,7 @@ export default function SettingModelDeployment(props) {
         showError(localizedMessage);
       }
     } catch (error) {
-      if (!isCurrentRequest('test-connection', requestId)) return;
+
       console.error('io.net API test error:', error);
 
       if (error?.code === 'ERR_NETWORK') {
@@ -108,7 +104,7 @@ export default function SettingModelDeployment(props) {
         showError(t('测试失败：') + localizedMessage);
       }
     } finally {
-      if (isCurrentRequest('test-connection', requestId)) setTesting(false);
+      setTesting(false);
     }
   };
 
@@ -124,11 +120,10 @@ export default function SettingModelDeployment(props) {
       });
     });
 
-    const requestId = beginRequest('submit');
     setLoading(true);
     Promise.all(requestQueue)
       .then((res) => {
-        if (!isCurrentRequest('submit', requestId)) return;
+
         if (requestQueue.length === 1) {
           if (res.includes(undefined)) return;
         } else if (requestQueue.length > 1) {
@@ -141,10 +136,10 @@ export default function SettingModelDeployment(props) {
         props.refresh();
       })
       .catch(() => {
-        if (isCurrentRequest('submit', requestId)) showError(t('保存失败，请重试'));
+        showError(t('保存失败，请重试'));
       })
       .finally(() => {
-        if (isCurrentRequest('submit', requestId)) setLoading(false);
+        setLoading(false);
       });
   }
 

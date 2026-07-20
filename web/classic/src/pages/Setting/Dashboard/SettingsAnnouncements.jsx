@@ -45,14 +45,12 @@ import {
   formatDateTimeString,
 } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
-import { useRequestLifecycle } from '../../../hooks/common/useRequestLifecycle';
 import { renderSafeDatePickerTrigger } from '../../../components/common/ui/SafeDatePickerTrigger';
 
 const { Text } = Typography;
 
 const SettingsAnnouncements = ({ options, refresh }) => {
   const { t } = useTranslation();
-  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   const [announcementsList, setAnnouncementsList] = useState([]);
   const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
@@ -215,17 +213,16 @@ const SettingsAnnouncements = ({ options, refresh }) => {
   };
 
   const submitAnnouncements = async () => {
-    const requestId = beginRequest('save');
     try {
       setLoading(true);
       const announcementsJson = JSON.stringify(announcementsList);
       await updateOption('console_setting.announcements', announcementsJson);
-      if (isCurrentRequest('save', requestId)) setHasChanges(false);
+      setHasChanges(false);
     } catch (error) {
       console.error('系统公告更新失败', error);
-      if (isCurrentRequest('save', requestId)) showError('系统公告更新失败');
+      showError('系统公告更新失败');
     } finally {
-      if (isCurrentRequest('save', requestId)) setLoading(false);
+      setLoading(false);
     }
   };
 
@@ -355,22 +352,19 @@ const SettingsAnnouncements = ({ options, refresh }) => {
   }, [options['console_setting.announcements_enabled']]);
 
   const handleToggleEnabled = async (checked) => {
-    const requestId = beginRequest('toggle');
     const newValue = checked ? 'true' : 'false';
     try {
       const res = await API.put('/api/option/', {
         key: 'console_setting.announcements_enabled',
         value: newValue,
       });
-      if (isCurrentRequest('toggle', requestId) && res.data.success) {
+      if (res.data.success) {
         setPanelEnabled(checked);
         showSuccess(t('设置已保存'));
         refresh?.();
-      } else if (isCurrentRequest('toggle', requestId)) {
-        showError(res.data.message);
-      }
+      } else showError(res.data.message);
     } catch (err) {
-      if (isCurrentRequest('toggle', requestId)) showError(err.message);
+      showError(err.message);
     }
   };
 

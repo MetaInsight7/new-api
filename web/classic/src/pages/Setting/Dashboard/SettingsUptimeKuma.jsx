@@ -36,13 +36,11 @@ import {
 import { Plus, Edit, Trash2, Save, Activity } from 'lucide-react';
 import { API, showError, showSuccess } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
-import { useRequestLifecycle } from '../../../hooks/common/useRequestLifecycle';
 
 const { Text } = Typography;
 
 const SettingsUptimeKuma = ({ options, refresh }) => {
   const { t } = useTranslation();
-  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   const [uptimeGroupsList, setUptimeGroupsList] = useState([]);
   const [showUptimeModal, setShowUptimeModal] = useState(false);
@@ -155,17 +153,16 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
   };
 
   const submitUptimeGroups = async () => {
-    const requestId = beginRequest('save');
     try {
       setLoading(true);
       const groupsJson = JSON.stringify(uptimeGroupsList);
       await updateOption('console_setting.uptime_kuma_groups', groupsJson);
-      if (isCurrentRequest('save', requestId)) setHasChanges(false);
+      setHasChanges(false);
     } catch (error) {
       console.error('Uptime Kuma配置更新失败', error);
-      if (isCurrentRequest('save', requestId)) showError('Uptime Kuma配置更新失败');
+      showError('Uptime Kuma配置更新失败');
     } finally {
-      if (isCurrentRequest('save', requestId)) setLoading(false);
+      setLoading(false);
     }
   };
 
@@ -295,22 +292,19 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
   }, [options['console_setting.uptime_kuma_enabled']]);
 
   const handleToggleEnabled = async (checked) => {
-    const requestId = beginRequest('toggle');
     const newValue = checked ? 'true' : 'false';
     try {
       const res = await API.put('/api/option/', {
         key: 'console_setting.uptime_kuma_enabled',
         value: newValue,
       });
-      if (isCurrentRequest('toggle', requestId) && res.data.success) {
+      if (res.data.success) {
         setPanelEnabled(checked);
         showSuccess(t('设置已保存'));
         refresh?.();
-      } else if (isCurrentRequest('toggle', requestId)) {
-        showError(res.data.message);
-      }
+      } else showError(res.data.message);
     } catch (err) {
-      if (isCurrentRequest('toggle', requestId)) showError(err.message);
+      showError(err.message);
     }
   };
 

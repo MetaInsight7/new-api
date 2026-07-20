@@ -39,7 +39,6 @@ export const useRedemptionsData = () => {
   const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE);
   const [tokenCount, setTokenCount] = useState(0);
   const [selectedKeys, setSelectedKeys] = useState([]);
-  const mountedRef = useRef(true);
   const requestSeqRef = useRef(0);
   const searchSeqRef = useRef(0);
 
@@ -81,7 +80,7 @@ export const useRedemptionsData = () => {
       const res = await API.get(
         `/api/redemption/?p=${page}&page_size=${pageSize}`,
       );
-      if (!mountedRef.current || requestSeq !== requestSeqRef.current) return;
+      if (requestSeq !== requestSeqRef.current) return;
       const { success, message, data } = res.data;
       if (success) {
         const newPageData = data.items;
@@ -92,11 +91,11 @@ export const useRedemptionsData = () => {
         showError(message);
       }
     } catch (error) {
-      if (mountedRef.current && requestSeq === requestSeqRef.current) {
+      if (requestSeq === requestSeqRef.current) {
         showError(error.message);
       }
     }
-    if (mountedRef.current && requestSeq === requestSeqRef.current) {
+    if (requestSeq === requestSeqRef.current) {
       setLoading(false);
     }
   };
@@ -115,7 +114,7 @@ export const useRedemptionsData = () => {
       const res = await API.get(
         `/api/redemption/search?keyword=${encodeURIComponent(searchKeyword)}&p=1&page_size=${pageSize}`,
       );
-      if (!mountedRef.current || requestSeq !== searchSeqRef.current) return;
+      if (requestSeq !== searchSeqRef.current) return;
       const { success, message, data } = res.data;
       if (success) {
         const newPageData = data.items;
@@ -126,11 +125,11 @@ export const useRedemptionsData = () => {
         showError(message);
       }
     } catch (error) {
-      if (mountedRef.current && requestSeq === searchSeqRef.current) {
+      if (requestSeq === searchSeqRef.current) {
         showError(error.message);
       }
     } finally {
-      if (mountedRef.current && requestSeq === searchSeqRef.current) {
+      if (requestSeq === searchSeqRef.current) {
         setSearching(false);
       }
     }
@@ -160,7 +159,7 @@ export const useRedemptionsData = () => {
           throw new Error('Unknown operation type');
       }
 
-      if (!mountedRef.current || requestSeq !== requestSeqRef.current) return;
+      if (requestSeq !== requestSeqRef.current) return;
       const { success, message } = res.data;
       if (success) {
         showSuccess(t('操作成功完成！'));
@@ -174,11 +173,11 @@ export const useRedemptionsData = () => {
         showError(message);
       }
     } catch (error) {
-      if (mountedRef.current && requestSeq === requestSeqRef.current) {
+      if (requestSeq === requestSeqRef.current) {
         showError(error.message);
       }
     } finally {
-      if (mountedRef.current && requestSeq === requestSeqRef.current) {
+      if (requestSeq === requestSeqRef.current) {
         setLoading(false);
       }
     }
@@ -285,7 +284,7 @@ export const useRedemptionsData = () => {
         setLoading(true);
         try {
           const res = await API.delete('/api/redemption/invalid');
-          if (!mountedRef.current || requestSeq !== requestSeqRef.current)
+          if (requestSeq !== requestSeqRef.current)
             return;
           const { success, message, data } = res.data;
           if (success) {
@@ -295,11 +294,11 @@ export const useRedemptionsData = () => {
             showError(message);
           }
         } catch (error) {
-          if (mountedRef.current && requestSeq === requestSeqRef.current) {
+          if (requestSeq === requestSeqRef.current) {
             showError(error.message);
           }
         } finally {
-          if (mountedRef.current && requestSeq === requestSeqRef.current) {
+          if (requestSeq === requestSeqRef.current) {
             setLoading(false);
           }
         }
@@ -331,13 +330,11 @@ export const useRedemptionsData = () => {
 
   // Initialize data loading
   useEffect(() => {
-    mountedRef.current = true;
     loadRedemptions(1, pageSize).catch((reason) => showError(reason));
   }, [pageSize]);
 
   useEffect(
     () => () => {
-      mountedRef.current = false;
       requestSeqRef.current += 1;
       searchSeqRef.current += 1;
     },

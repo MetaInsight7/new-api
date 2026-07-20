@@ -74,7 +74,6 @@ import { useTranslation } from 'react-i18next';
 import { SiDiscord } from 'react-icons/si';
 import AuthLayout from './AuthLayout';
 import { AuthButtonContent, AuthFormHeader } from './AuthFormVisuals';
-import { useRequestLifecycle } from '../../hooks/common/useRequestLifecycle';
 
 const LoginForm = () => {
   let navigate = useNavigate();
@@ -122,7 +121,6 @@ const LoginForm = () => {
   const githubTimeoutRef = useRef(null);
   const githubButtonText = t(githubButtonTextKeyByState[githubButtonState]);
   const [customOAuthLoading, setCustomOAuthLoading] = useState({});
-  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   const logo = getLogo();
   const systemName = getSystemName();
@@ -204,14 +202,13 @@ const LoginForm = () => {
       showInfo('请稍后几秒重试，Turnstile 正在检查用户环境！');
       return;
     }
-    const requestId = beginRequest('wechat');
     setWechatCodeSubmitLoading(true);
     try {
       const res = await API.get(
         `/api/oauth/wechat?code=${inputs.wechat_verification_code}`,
       );
       const { success, message, data } = res.data;
-      if (isCurrentRequest('wechat', requestId) && success) {
+      if (success) {
         userDispatch({ type: 'login', payload: data });
         setStoredValue('user', JSON.stringify(data));
         setUserData(data);
@@ -220,13 +217,12 @@ const LoginForm = () => {
         showSuccess('登录成功！');
         setShowWeChatLoginModal(false);
       } else {
-        if (isCurrentRequest('wechat', requestId)) showError(message);
+        showError(message);
       }
     } catch (error) {
-      if (isCurrentRequest('wechat', requestId)) showError('登录失败，请重试');
+      showError('登录失败，请重试');
     } finally {
-      if (isCurrentRequest('wechat', requestId))
-        setWechatCodeSubmitLoading(false);
+      setWechatCodeSubmitLoading(false);
     }
   };
 
@@ -244,7 +240,6 @@ const LoginForm = () => {
       return;
     }
     setSubmitted(true);
-    const requestId = beginRequest('login');
     setLoginLoading(true);
     try {
       if (username && password) {
@@ -256,7 +251,7 @@ const LoginForm = () => {
           },
         );
         const { success, message, data } = res.data;
-        if (isCurrentRequest('login', requestId) && success) {
+        if (success) {
           // 检查是否需要2FA验证
           if (data && data.require_2fa) {
             setShowTwoFA(true);
@@ -277,15 +272,15 @@ const LoginForm = () => {
           }
           navigate(redirectAfterLogin, { replace: true });
         } else {
-          if (isCurrentRequest('login', requestId)) showError(message);
+          showError(message);
         }
       } else {
         showError('请输入用户名和密码！');
       }
     } catch (error) {
-      if (isCurrentRequest('login', requestId)) showError('登录失败，请重试');
+      showError('登录失败，请重试');
     } finally {
-      if (isCurrentRequest('login', requestId)) setLoginLoading(false);
+      setLoginLoading(false);
     }
   }
 
@@ -311,11 +306,10 @@ const LoginForm = () => {
         params[field] = response[field];
       }
     });
-    const requestId = beginRequest('telegram');
     try {
       const res = await API.get(`/api/oauth/telegram/login`, { params });
       const { success, message, data } = res.data;
-      if (isCurrentRequest('telegram', requestId) && success) {
+      if (success) {
         userDispatch({ type: 'login', payload: data });
         setStoredValue('user', JSON.stringify(data));
         showSuccess('登录成功！');
@@ -323,11 +317,10 @@ const LoginForm = () => {
         updateAPI();
         navigate(redirectAfterLogin, { replace: true });
       } else {
-        if (isCurrentRequest('telegram', requestId)) showError(message);
+        showError(message);
       }
     } catch (error) {
-      if (isCurrentRequest('telegram', requestId))
-        showError('登录失败，请重试');
+      showError('登录失败，请重试');
     }
   };
 
@@ -447,7 +440,6 @@ const LoginForm = () => {
       return;
     }
 
-    const requestId = beginRequest('passkey');
     setPasskeyLoading(true);
     try {
       const beginRes = await API.post('/api/user/passkey/login/begin');
@@ -474,26 +466,21 @@ const LoginForm = () => {
         payload,
       );
       const finish = finishRes.data;
-      if (isCurrentRequest('passkey', requestId) && finish.success) {
+      if (finish.success) {
         userDispatch({ type: 'login', payload: finish.data });
         setUserData(finish.data);
         updateAPI();
         showSuccess('登录成功！');
         navigate(redirectAfterLogin, { replace: true });
       } else {
-        if (isCurrentRequest('passkey', requestId)) {
-          showError(finish.message || 'Passkey 登录失败，请重试');
-        }
+        showError(finish.message || 'Passkey 登录失败，请重试');
       }
     } catch (error) {
       if (error?.name === 'AbortError') {
-        if (isCurrentRequest('passkey', requestId))
-          showInfo('已取消 Passkey 登录');
-      } else if (isCurrentRequest('passkey', requestId)) {
-        showError('Passkey 登录失败，请重试');
-      }
+        showInfo('已取消 Passkey 登录');
+      } else showError('Passkey 登录失败，请重试');
     } finally {
-      if (isCurrentRequest('passkey', requestId)) setPasskeyLoading(false);
+      setPasskeyLoading(false);
     }
   };
 
@@ -522,10 +509,6 @@ const LoginForm = () => {
 
   // 返回登录页面
   const handleBackToLogin = () => {
-    beginRequest('login');
-    beginRequest('wechat');
-    beginRequest('telegram');
-    beginRequest('passkey');
     setShowTwoFA(false);
     setInputs({ username: '', password: '', wechat_verification_code: '' });
   };

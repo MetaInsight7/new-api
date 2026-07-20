@@ -71,7 +71,6 @@ import StatusCodeRiskGuardModal from './StatusCodeRiskGuardModal';
 import ChannelKeyDisplay from '../../../common/ui/ChannelKeyDisplay';
 import { useSecureVerification } from '../../../../hooks/common/useSecureVerification';
 import { parseChannelConnectionString } from '../../../../helpers/token';
-import { useRequestLifecycle } from '../../../../hooks/common/useRequestLifecycle';
 import { createApiCalls } from '../../../../services/secureVerification';
 import {
   getStoredValue,
@@ -173,7 +172,6 @@ const EditChannelModal = (props) => {
   const channelId = props.editingChannel.id;
   const isEdit = channelId !== undefined;
   const [loading, setLoading] = useState(isEdit);
-  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
   const isMobile = useIsMobile();
   const handleCancel = () => {
     props.handleClose();
@@ -454,10 +452,6 @@ const EditChannelModal = (props) => {
     </Tooltip>
   );
 
-  // 2FA状态更新辅助函数
-  const updateTwoFAState = (updates) => {
-    setTwoFAState((prev) => ({ ...prev, ...updates }));
-  };
   // 使用通用安全验证 Hook
   const {
     isModalVisible,
@@ -828,19 +822,16 @@ const EditChannelModal = (props) => {
   };
 
   const loadChannel = async () => {
-    const requestId = beginRequest('channel');
     setLoading(true);
     let res;
     try {
       res = await API.get(`/api/channel/${channelId}`);
     } catch (error) {
-      if (isCurrentRequest('channel', requestId)) {
-        showError(error);
-        setLoading(false);
-      }
+      showError(error);
+      setLoading(false);
       return;
     }
-    if (!isCurrentRequest('channel', requestId)) return;
+
     if (res === undefined) {
       setLoading(false);
       return;
@@ -1064,7 +1055,7 @@ const EditChannelModal = (props) => {
     } else {
       showError(message);
     }
-    if (isCurrentRequest('channel', requestId)) setLoading(false);
+    setLoading(false);
   };
 
   const fetchUpstreamModelList = async (name, options = {}) => {
@@ -1073,7 +1064,6 @@ const EditChannelModal = (props) => {
     //   showError(t('仅支持 OpenAI 接口格式'));
     //   return;
     // }
-    const requestId = beginRequest('upstreamModels');
     setLoading(true);
     try {
       const models = [];
@@ -1086,9 +1076,7 @@ const EditChannelModal = (props) => {
         if (res?.data?.success) models.push(...res.data.data);
         else err = true;
       } else if (!inputs?.key) {
-        if (isCurrentRequest('upstreamModels', requestId)) {
-          showError(t('请填写密钥'));
-        }
+        showError(t('请填写密钥'));
         err = true;
       } else {
         const res = await API.post(
@@ -1104,25 +1092,20 @@ const EditChannelModal = (props) => {
         else err = true;
       }
 
-      if (!isCurrentRequest('upstreamModels', requestId)) return null;
       if (!err) {
         const uniqueModels = Array.from(new Set(models));
         setFetchedModels(uniqueModels);
         if (!silent) setModelModalVisible(true);
         return uniqueModels;
       }
-      if (isCurrentRequest('upstreamModels', requestId)) {
-        showError(t('获取模型列表失败'));
-      }
+      showError(t('获取模型列表失败'));
       return null;
     } catch (error) {
-      if (isCurrentRequest('upstreamModels', requestId)) {
-        console.error('Error fetching models:', error);
-        showError(t('获取模型列表失败'));
-      }
+      console.error('Error fetching models:', error);
+      showError(t('获取模型列表失败'));
       return null;
     } finally {
-      if (isCurrentRequest('upstreamModels', requestId)) setLoading(false);
+      setLoading(false);
     }
   };
 
@@ -1163,7 +1146,6 @@ const EditChannelModal = (props) => {
   };
 
   const fetchModels = async () => {
-    const requestId = beginRequest('models');
     try {
       let res = await API.get(`/api/channel/models`);
       const localModelOptions = res.data.data.map((model) => {
@@ -1174,7 +1156,7 @@ const EditChannelModal = (props) => {
           value: id,
         };
       });
-      if (!isCurrentRequest('models', requestId)) return;
+
       setOriginModelOptions(localModelOptions);
       setFullModels(res.data.data.map((model) => model.id));
       setBasicModels(
@@ -1185,18 +1167,17 @@ const EditChannelModal = (props) => {
           .map((model) => model.id),
       );
     } catch (error) {
-      if (isCurrentRequest('models', requestId)) showError(error.message);
+      showError(error.message);
     }
   };
 
   const fetchGroups = async () => {
-    const requestId = beginRequest('groups');
     try {
       let res = await API.get(`/api/group/`);
       if (res === undefined) {
         return;
       }
-      if (!isCurrentRequest('groups', requestId)) return;
+
       setGroupOptions(
         res.data.data.map((group) => ({
           label: group,
@@ -1204,15 +1185,14 @@ const EditChannelModal = (props) => {
         })),
       );
     } catch (error) {
-      if (isCurrentRequest('groups', requestId)) showError(error.message);
+      showError(error.message);
     }
   };
 
   const fetchModelGroups = async () => {
-    const requestId = beginRequest('modelGroups');
     try {
       const res = await API.get('/api/prefill_group?type=model');
-      if (isCurrentRequest('modelGroups', requestId) && res?.data?.success) {
+      if (res?.data?.success) {
         setModelGroups(res.data.data || []);
       }
     } catch (error) {
@@ -1255,7 +1235,6 @@ const EditChannelModal = (props) => {
   const handleRefreshCodexCredential = async () => {
     if (!isEdit) return;
 
-    const requestId = beginRequest('codexRefresh');
     setCodexCredentialRefreshing(true);
     try {
       const res = await API.post(
@@ -1266,17 +1245,11 @@ const EditChannelModal = (props) => {
       if (!res?.data?.success) {
         throw new Error(res?.data?.message || 'Failed to refresh credential');
       }
-      if (isCurrentRequest('codexRefresh', requestId)) {
-        showSuccess(t('凭证已刷新'));
-      }
+      showSuccess(t('凭证已刷新'));
     } catch (error) {
-      if (isCurrentRequest('codexRefresh', requestId)) {
-        showError(error.message || t('刷新失败'));
-      }
+      showError(error.message || t('刷新失败'));
     } finally {
-      if (isCurrentRequest('codexRefresh', requestId)) {
-        setCodexCredentialRefreshing(false);
-      }
+      setCodexCredentialRefreshing(false);
     }
   };
 
@@ -1372,13 +1345,6 @@ const EditChannelModal = (props) => {
       );
     } else {
       // 统一的模态框关闭重置逻辑
-      beginRequest('channel');
-      beginRequest('upstreamModels');
-      beginRequest('models');
-      beginRequest('groups');
-      beginRequest('modelGroups');
-      beginRequest('codexRefresh');
-      beginRequest('submit');
       resetModalState();
     }
   }, [props.visible, channelId]);
@@ -1570,7 +1536,6 @@ const EditChannelModal = (props) => {
   };
 
   const submit = async () => {
-    const requestId = beginRequest('submit');
     const formValues = formApiRef.current ? formApiRef.current.getValues() : {};
     let localInputs = { ...formValues };
     localInputs.param_override = inputs.param_override;
@@ -1908,7 +1873,7 @@ const EditChannelModal = (props) => {
           channel: localInputs,
         });
       }
-      if (!isCurrentRequest('submit', requestId)) return;
+
       const { success, message } = res.data;
       if (success) {
         if (isEdit) {
@@ -1923,11 +1888,9 @@ const EditChannelModal = (props) => {
         showError(message);
       }
     } catch (error) {
-      if (isCurrentRequest('submit', requestId)) {
-        showError(error);
-      }
+      showError(error);
     } finally {
-      if (isCurrentRequest('submit', requestId)) setLoading(false);
+      setLoading(false);
     }
   };
 

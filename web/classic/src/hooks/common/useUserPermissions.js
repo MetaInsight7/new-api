@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { API } from '../../helpers/api';
 
 /**
@@ -27,19 +27,12 @@ export const useUserPermissions = () => {
   const [permissions, setPermissions] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const mountedRef = useRef(true);
-  const requestSeqRef = useRef(0);
-
   // 加载用户权限（从用户信息接口获取）
   const loadPermissions = useCallback(async () => {
-    const requestSeq = ++requestSeqRef.current;
     try {
-      if (mountedRef.current) {
-        setLoading(true);
-        setError(null);
-      }
+      setLoading(true);
+      setError(null);
       const res = await API.get('/api/user/self');
-      if (!mountedRef.current || requestSeq !== requestSeqRef.current) return;
       if (res.data.success) {
         const userPermissions = res.data.data.permissions;
         setPermissions(userPermissions);
@@ -47,22 +40,14 @@ export const useUserPermissions = () => {
         setError(res.data.message || '获取权限失败');
       }
     } catch (requestError) {
-      if (!mountedRef.current || requestSeq !== requestSeqRef.current) return;
       setError('网络错误，请重试');
     } finally {
-      if (mountedRef.current && requestSeq === requestSeqRef.current) {
-        setLoading(false);
-      }
+      setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    mountedRef.current = true;
     loadPermissions();
-    return () => {
-      mountedRef.current = false;
-      requestSeqRef.current += 1;
-    };
   }, [loadPermissions]);
 
   // 检查是否有边栏设置权限

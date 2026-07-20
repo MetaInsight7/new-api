@@ -39,7 +39,6 @@ import {
 import { useTranslation } from 'react-i18next';
 import { StatusContext } from '../../context/Status';
 import Text from '@douyinfe/semi-ui/lib/es/typography/text';
-import { useRequestLifecycle } from '../../hooks/common/useRequestLifecycle';
 
 const LEGAL_USER_AGREEMENT_KEY = 'legal.user_agreement';
 const LEGAL_PRIVACY_POLICY_KEY = 'legal.privacy_policy';
@@ -63,11 +62,8 @@ const OtherSetting = () => {
     tag_name: '',
     safeContent: '',
   });
-  const mountedRef = useRef(true);
-  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   const updateOption = async (key, value) => {
-    const requestId = beginRequest(`option:${key}`);
     setLoading(true);
     try {
       const res = await API.put('/api/option/', {
@@ -76,14 +72,12 @@ const OtherSetting = () => {
       });
       const { success, message } = res.data;
       if (success) {
-        if (isCurrentRequest(`option:${key}`, requestId)) {
-          setInputs((inputs) => ({ ...inputs, [key]: value }));
-        }
+        setInputs((inputs) => ({ ...inputs, [key]: value }));
       } else {
         showError(message);
       }
     } finally {
-      if (isCurrentRequest(`option:${key}`, requestId)) setLoading(false);
+      setLoading(false);
     }
   };
 
@@ -334,7 +328,6 @@ const OtherSetting = () => {
   };
 
   const getOptions = async () => {
-    const requestId = beginRequest('options');
     try {
       const res = await API.get('/api/option/');
       const { success, message, data } = res.data;
@@ -350,23 +343,16 @@ const OtherSetting = () => {
         }
       });
 
-      if (!mountedRef.current || !isCurrentRequest('options', requestId))
-        return;
       setInputs((currentInputs) => ({ ...currentInputs, ...newInputs }));
       formAPISettingGeneral.current?.setValues(newInputs);
       formAPIPersonalization.current?.setValues(newInputs);
     } catch (error) {
-      if (mountedRef.current && isCurrentRequest('options', requestId)) {
-        showError(t('加载设置失败，请稍后重试'));
-      }
+      showError(t('加载设置失败，请稍后重试'));
     }
   };
 
   useEffect(() => {
     getOptions();
-    return () => {
-      mountedRef.current = false;
-    };
   }, []);
 
   // Function to open GitHub release page

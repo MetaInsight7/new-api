@@ -38,7 +38,6 @@ import {
   IconCopy,
 } from '@douyinfe/semi-icons';
 import React, { useEffect, useState } from 'react';
-import { useRequestLifecycle } from '../../../../hooks/common/useRequestLifecycle';
 
 import { QRCodeSVG } from 'qrcode.react';
 
@@ -64,19 +63,16 @@ const TwoFASetting = ({ t }) => {
   const [backupCodes, setBackupCodes] = useState([]);
   const [confirmDisable, setConfirmDisable] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
-  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   // 获取2FA状态
   const fetchStatus = async () => {
-    const requestId = beginRequest('status');
     try {
       const res = await API.get('/api/user/2fa/status');
-      if (isCurrentRequest('status', requestId) && res.data.success) {
+      if (res.data.success) {
         setStatus(res.data.data);
       }
     } catch (error) {
-      if (isCurrentRequest('status', requestId))
-        showError(t('获取2FA状态失败'));
+      showError(t('获取2FA状态失败'));
     }
   };
 
@@ -86,11 +82,10 @@ const TwoFASetting = ({ t }) => {
 
   // 初始化2FA设置
   const handleSetup2FA = async () => {
-    const requestId = beginRequest('setup');
     setLoading(true);
     try {
       const res = await API.post('/api/user/2fa/setup');
-      if (!isCurrentRequest('setup', requestId)) return;
+
       if (res.data.success) {
         setSetupData(res.data.data);
         setSetupModalVisible(true);
@@ -99,9 +94,9 @@ const TwoFASetting = ({ t }) => {
         showError(res.data.message);
       }
     } catch (error) {
-      if (isCurrentRequest('setup', requestId)) showError(t('设置2FA失败'));
+      showError(t('设置2FA失败'));
     } finally {
-      if (isCurrentRequest('setup', requestId)) setLoading(false);
+      setLoading(false);
     }
   };
 
@@ -112,13 +107,12 @@ const TwoFASetting = ({ t }) => {
       return;
     }
 
-    const requestId = beginRequest('enable');
     setLoading(true);
     try {
       const res = await API.post('/api/user/2fa/enable', {
         code: verificationCode,
       });
-      if (!isCurrentRequest('enable', requestId)) return;
+
       if (res.data.success) {
         showSuccess(t('两步验证启用成功！'));
         setEnableModalVisible(false);
@@ -130,9 +124,9 @@ const TwoFASetting = ({ t }) => {
         showError(res.data.message);
       }
     } catch (error) {
-      if (isCurrentRequest('enable', requestId)) showError(t('启用2FA失败'));
+      showError(t('启用2FA失败'));
     } finally {
-      if (isCurrentRequest('enable', requestId)) setLoading(false);
+      setLoading(false);
     }
   };
 
@@ -148,13 +142,12 @@ const TwoFASetting = ({ t }) => {
       return;
     }
 
-    const requestId = beginRequest('disable');
     setLoading(true);
     try {
       const res = await API.post('/api/user/2fa/disable', {
         code: verificationCode,
       });
-      if (!isCurrentRequest('disable', requestId)) return;
+
       if (res.data.success) {
         showSuccess(t('两步验证已禁用'));
         setDisableModalVisible(false);
@@ -165,9 +158,9 @@ const TwoFASetting = ({ t }) => {
         showError(res.data.message);
       }
     } catch (error) {
-      if (isCurrentRequest('disable', requestId)) showError(t('禁用2FA失败'));
+      showError(t('禁用2FA失败'));
     } finally {
-      if (isCurrentRequest('disable', requestId)) setLoading(false);
+      setLoading(false);
     }
   };
 
@@ -178,13 +171,12 @@ const TwoFASetting = ({ t }) => {
       return;
     }
 
-    const requestId = beginRequest('backup-codes');
     setLoading(true);
     try {
       const res = await API.post('/api/user/2fa/backup_codes', {
         code: verificationCode,
       });
-      if (!isCurrentRequest('backup-codes', requestId)) return;
+
       if (res.data.success) {
         setBackupCodes(res.data.data.backup_codes);
         showSuccess(t('备用码重新生成成功'));
@@ -194,11 +186,9 @@ const TwoFASetting = ({ t }) => {
         showError(res.data.message);
       }
     } catch (error) {
-      if (isCurrentRequest('backup-codes', requestId)) {
-        showError(t('重新生成备用码失败'));
-      }
+      showError(t('重新生成备用码失败'));
     } finally {
-      if (isCurrentRequest('backup-codes', requestId)) setLoading(false);
+      setLoading(false);
     }
   };
 

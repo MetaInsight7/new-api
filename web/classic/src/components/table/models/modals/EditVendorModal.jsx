@@ -24,13 +24,11 @@ import { Typography } from '@douyinfe/semi-ui';
 import { IconLink } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
-import { useRequestLifecycle } from '../../../../hooks/common/useRequestLifecycle';
 
 const EditVendorModal = ({ visible, handleClose, refresh, editingVendor }) => {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const formApiRef = useRef(null);
-  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   const isMobile = useIsMobile();
   const isEdit = editingVendor && editingVendor.id !== undefined;
@@ -50,26 +48,21 @@ const EditVendorModal = ({ visible, handleClose, refresh, editingVendor }) => {
   const loadVendor = async () => {
     if (!isEdit || !editingVendor.id) return;
 
-    const requestId = beginRequest('vendor');
     setLoading(true);
     try {
       const res = await API.get(`/api/vendors/${editingVendor.id}`);
       const { success, message, data } = res.data;
-      if (isCurrentRequest('vendor', requestId) && success) {
+      if (success) {
         // 将数字状态转为布尔值
         data.status = data.status === 1;
-        if (isCurrentRequest('vendor', requestId) && formApiRef.current) {
+        if (formApiRef.current) {
           formApiRef.current.setValues({ ...getInitValues(), ...data });
         }
-      } else if (isCurrentRequest('vendor', requestId)) {
-        showError(message);
-      }
+      } else showError(message);
     } catch (error) {
-      if (isCurrentRequest('vendor', requestId)) {
-        showError(t('加载供应商信息失败'));
-      }
+      showError(t('加载供应商信息失败'));
     }
-    if (isCurrentRequest('vendor', requestId)) setLoading(false);
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -80,15 +73,12 @@ const EditVendorModal = ({ visible, handleClose, refresh, editingVendor }) => {
         formApiRef.current?.setValues(getInitValues());
       }
     } else {
-      beginRequest('vendor');
-      beginRequest('submit');
       setLoading(false);
       formApiRef.current?.reset();
     }
   }, [visible, editingVendor?.id]);
 
   const submit = async (values) => {
-    const requestId = beginRequest('submit');
     setLoading(true);
     try {
       // 转换 status 为数字
@@ -101,30 +91,24 @@ const EditVendorModal = ({ visible, handleClose, refresh, editingVendor }) => {
         submitData.id = editingVendor.id;
         const res = await API.put('/api/vendors/', submitData);
         const { success, message } = res.data;
-        if (isCurrentRequest('submit', requestId) && success) {
+        if (success) {
           showSuccess(t('供应商更新成功！'));
           refresh();
           handleClose();
-        } else if (isCurrentRequest('submit', requestId)) {
-          showError(t(message));
-        }
+        } else showError(t(message));
       } else {
         const res = await API.post('/api/vendors/', submitData);
         const { success, message } = res.data;
-        if (isCurrentRequest('submit', requestId) && success) {
+        if (success) {
           showSuccess(t('供应商创建成功！'));
           refresh();
           handleClose();
-        } else if (isCurrentRequest('submit', requestId)) {
-          showError(t(message));
-        }
+        } else showError(t(message));
       }
     } catch (error) {
-      if (isCurrentRequest('submit', requestId)) {
-        showError(error.response?.data?.message || t('操作失败'));
-      }
+      showError(error.response?.data?.message || t('操作失败'));
     }
-    if (isCurrentRequest('submit', requestId)) setLoading(false);
+    setLoading(false);
   };
 
   return (

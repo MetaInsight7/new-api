@@ -37,13 +37,11 @@ import {
 import { Plus, Edit, Trash2, Save, HelpCircle } from 'lucide-react';
 import { API, showError, showSuccess } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
-import { useRequestLifecycle } from '../../../hooks/common/useRequestLifecycle';
 
 const { Text } = Typography;
 
 const SettingsFAQ = ({ options, refresh }) => {
   const { t } = useTranslation();
-  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   const [faqList, setFaqList] = useState([]);
   const [showFaqModal, setShowFaqModal] = useState(false);
@@ -150,17 +148,16 @@ const SettingsFAQ = ({ options, refresh }) => {
   };
 
   const submitFAQ = async () => {
-    const requestId = beginRequest('save');
     try {
       setLoading(true);
       const faqJson = JSON.stringify(faqList);
       await updateOption('console_setting.faq', faqJson);
-      if (isCurrentRequest('save', requestId)) setHasChanges(false);
+      setHasChanges(false);
     } catch (error) {
       console.error('常见问答更新失败', error);
-      if (isCurrentRequest('save', requestId)) showError('常见问答更新失败');
+      showError('常见问答更新失败');
     } finally {
-      if (isCurrentRequest('save', requestId)) setLoading(false);
+      setLoading(false);
     }
   };
 
@@ -273,22 +270,19 @@ const SettingsFAQ = ({ options, refresh }) => {
   }, [options['console_setting.faq_enabled']]);
 
   const handleToggleEnabled = async (checked) => {
-    const requestId = beginRequest('toggle');
     const newValue = checked ? 'true' : 'false';
     try {
       const res = await API.put('/api/option/', {
         key: 'console_setting.faq_enabled',
         value: newValue,
       });
-      if (isCurrentRequest('toggle', requestId) && res.data.success) {
+      if (res.data.success) {
         setPanelEnabled(checked);
         showSuccess(t('设置已保存'));
         refresh?.();
-      } else if (isCurrentRequest('toggle', requestId)) {
-        showError(res.data.message);
-      }
+      } else showError(res.data.message);
     } catch (err) {
-      if (isCurrentRequest('toggle', requestId)) showError(err.message);
+      showError(err.message);
     }
   };
 

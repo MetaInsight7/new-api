@@ -54,14 +54,6 @@ export default function SettingsLog(props) {
   const [inputs, setInputs] = useState(() => ({ ...DEFAULT_LOG_INPUTS }));
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
-  const mountedRef = useRef(true);
-
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
 
   function onSubmit() {
     const updateArray = compareObjects(inputs, inputsRow).filter(
@@ -90,7 +82,7 @@ export default function SettingsLog(props) {
           if (res.includes(undefined))
             return showError(t('部分保存失败，请重试'));
         }
-        if (!mountedRef.current) return;
+
         showSuccess(t('保存成功'));
         props.refresh();
       })
@@ -98,7 +90,7 @@ export default function SettingsLog(props) {
         showError(t('保存失败，请重试'));
       })
       .finally(() => {
-        if (mountedRef.current) setLoading(false);
+        setLoading(false);
       });
   }
   async function onCleanHistoryLog() {
@@ -172,15 +164,13 @@ export default function SettingsLog(props) {
       okType: 'danger',
       onOk: async () => {
         try {
-          if (mountedRef.current) setLoadingCleanHistoryLog(true);
+          setLoadingCleanHistoryLog(true);
           const res = await API.delete(
             `/api/log/?target_timestamp=${Date.parse(inputs.historyTimestamp) / 1000}`,
           );
           const { success, message, data } = res.data;
           if (success) {
-            if (mountedRef.current) {
-              showSuccess(`${data} ${t('条日志已清理！')}`);
-            }
+            showSuccess(`${data} ${t('条日志已清理！')}`);
             return;
           } else {
             throw new Error(t('日志清理失败：') + message);
@@ -188,7 +178,7 @@ export default function SettingsLog(props) {
         } catch (error) {
           showError(error.message);
         } finally {
-          if (mountedRef.current) setLoadingCleanHistoryLog(false);
+          setLoadingCleanHistoryLog(false);
         }
       },
     });

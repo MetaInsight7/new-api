@@ -53,7 +53,6 @@ import {
 import { useTranslation } from 'react-i18next';
 import { StatusContext } from '../../../../context/Status';
 import { renderSafeDatePickerTrigger } from '../../../common/ui/SafeDatePickerTrigger';
-import { useRequestLifecycle } from '../../../../hooks/common/useRequestLifecycle';
 
 const { Title } = Typography;
 
@@ -66,7 +65,6 @@ const EditTokenModal = (props) => {
   const [models, setModels] = useState([]);
   const [groups, setGroups] = useState([]);
   const [advancedOpen, setAdvancedOpen] = useState(false);
-  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
   const isEdit = props.editingToken.id !== undefined;
 
   const getInitValues = () => ({
@@ -104,16 +102,15 @@ const EditTokenModal = (props) => {
   };
 
   const loadModels = async () => {
-    const requestId = beginRequest('models');
     let res;
     try {
       res = await API.get(`/api/user/models`);
     } catch (error) {
-      if (isCurrentRequest('models', requestId)) showError(t('加载模型列表失败'));
+      showError(t('加载模型列表失败'));
       return;
     }
     const { success, message, data } = res.data;
-    if (isCurrentRequest('models', requestId) && success) {
+    if (success) {
       const categories = getModelCategories(t);
       let localModelOptions = (data || []).map((model) => {
         let icon = null;
@@ -134,22 +131,19 @@ const EditTokenModal = (props) => {
         };
       });
       setModels(localModelOptions);
-    } else if (isCurrentRequest('models', requestId)) {
-      showError(t(message));
-    }
+    } else showError(t(message));
   };
 
   const loadGroups = async () => {
-    const requestId = beginRequest('groups');
     let res;
     try {
       res = await API.get(`/api/user/self/groups`);
     } catch (error) {
-      if (isCurrentRequest('groups', requestId)) showError(t('加载分组失败'));
+      showError(t('加载分组失败'));
       return;
     }
     const { success, message, data } = res.data;
-    if (isCurrentRequest('groups', requestId) && success) {
+    if (success) {
       let localGroupOptions = Object.entries(data).map(([group, info]) => ({
         label: info.desc,
         value: group,
@@ -164,18 +158,15 @@ const EditTokenModal = (props) => {
       // if (statusState?.status?.default_use_auto_group && formApiRef.current) {
       //   formApiRef.current.setValue('group', 'auto');
       // }
-    } else if (isCurrentRequest('groups', requestId)) {
-      showError(t(message));
-    }
+    } else showError(t(message));
   };
 
   const loadToken = async () => {
-    const requestId = beginRequest('token');
     setLoading(true);
     try {
       let res = await API.get(`/api/token/${props.editingToken.id}`);
       const { success, message, data } = res.data;
-      if (isCurrentRequest('token', requestId) && success) {
+      if (success) {
         if (data.expired_time !== -1) {
           data.expired_time = timestamp2string(data.expired_time);
         }
@@ -190,13 +181,11 @@ const EditTokenModal = (props) => {
         if (formApiRef.current) {
           formApiRef.current.setValues({ ...getInitValues(), ...data });
         }
-      } else if (isCurrentRequest('token', requestId)) {
-        showError(message);
-      }
+      } else showError(message);
     } catch (error) {
-      if (isCurrentRequest('token', requestId)) showError(t('加载 API 密钥信息失败'));
+      showError(t('加载 API 密钥信息失败'));
     } finally {
-      if (isCurrentRequest('token', requestId)) setLoading(false);
+      setLoading(false);
     }
   };
 
@@ -219,10 +208,6 @@ const EditTokenModal = (props) => {
         formApiRef.current?.setValues(getInitValues());
       }
     } else {
-      beginRequest('models');
-      beginRequest('groups');
-      beginRequest('token');
-      beginRequest('submit');
       setLoading(false);
       formApiRef.current?.reset();
     }
@@ -241,7 +226,6 @@ const EditTokenModal = (props) => {
   };
 
   const submit = async (values) => {
-    const requestId = beginRequest('submit');
     setLoading(true);
     try {
       if (isEdit) {
@@ -268,13 +252,11 @@ const EditTokenModal = (props) => {
         id: parseInt(props.editingToken.id),
       });
       const { success, message } = res.data;
-      if (isCurrentRequest('submit', requestId) && success) {
+      if (success) {
         showSuccess(t('API 密钥更新成功！'));
         props.refresh();
         props.handleClose();
-      } else if (isCurrentRequest('submit', requestId)) {
-        showError(t(message));
-      }
+      } else showError(t(message));
     } else {
       const count = parseInt(values.tokenCount, 10) || 1;
       let successCount = 0;
@@ -307,28 +289,22 @@ const EditTokenModal = (props) => {
         localInputs.model_limits_enabled = localInputs.model_limits.length > 0;
         let res = await API.post(`/api/token/`, localInputs);
         const { success, message } = res.data;
-        if (isCurrentRequest('submit', requestId) && success) {
+        if (success) {
           successCount++;
-        } else if (isCurrentRequest('submit', requestId)) {
-          showError(t(message));
+        } else showError(t(message));
           break;
-        }
       }
-      if (isCurrentRequest('submit', requestId) && successCount > 0) {
+      if (successCount > 0) {
         showSuccess(t('API 密钥创建成功，请在列表页面点击复制获取 API 密钥！'));
         props.refresh();
         props.handleClose();
       }
       }
     } catch (error) {
-      if (isCurrentRequest('submit', requestId)) {
-        showError(error.response?.data?.message || t('操作失败'));
-      }
+      showError(error.response?.data?.message || t('操作失败'));
     } finally {
-      if (isCurrentRequest('submit', requestId)) {
-        setLoading(false);
-        formApiRef.current?.setValues(getInitValues());
-      }
+      setLoading(false);
+      formApiRef.current?.setValues(getInitValues());
     }
   };
 

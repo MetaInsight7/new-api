@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { fetchTokenKeys, getServerAddress } from '../../helpers/token';
 import { showError } from '../../helpers';
 
@@ -25,14 +25,12 @@ export function useTokenKeys(id) {
   const [keys, setKeys] = useState([]);
   const [serverAddress, setServerAddress] = useState('');
   const [isLoading, setIsLoading] = useState(true);
-  const mountedRef = useRef(true);
 
   useEffect(() => {
-    mountedRef.current = true;
     const loadAllData = async () => {
       try {
         const fetchedKeys = await fetchTokenKeys();
-        if (!mountedRef.current) return;
+
         if (fetchedKeys.length === 0) {
           showError('当前没有可用的启用 API 密钥，请确认是否有 API 密钥处于启用状态！');
           setTimeout(() => {
@@ -45,18 +43,13 @@ export function useTokenKeys(id) {
         const address = getServerAddress();
         setServerAddress(address);
       } catch (error) {
-        if (mountedRef.current) {
-          setKeys([]);
-          setIsLoading(false);
-          showError(error?.message || '加载 API 密钥失败');
-        }
+        setKeys([]);
+        setIsLoading(false);
+        showError(error?.message || '加载 API 密钥失败');
       }
     };
 
     loadAllData();
-    return () => {
-      mountedRef.current = false;
-    };
   }, []);
 
   return { keys, serverAddress, isLoading };

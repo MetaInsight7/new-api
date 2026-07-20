@@ -37,7 +37,6 @@ import {
   showSuccess,
 } from '../../helpers';
 import { fetchTokenKey } from '../../helpers/token';
-import { useRequestLifecycle } from '../../hooks/common/useRequestLifecycle';
 
 const normalizeApiKey = (key) => {
   if (!key) return '';
@@ -120,7 +119,6 @@ const WorkspacePanel = ({ user, status, t, onStateChange }) => {
   const tokenPickRef = useRef(null);
   const fieldsRef = useRef(null);
   const [menuWidth, setMenuWidth] = useState(undefined);
-  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   useEffect(() => {
     const el = fieldsRef.current;
@@ -179,22 +177,19 @@ const WorkspacePanel = ({ user, status, t, onStateChange }) => {
   );
 
   const loadTokens = useCallback(async () => {
-    const requestId = beginRequest('tokens');
     setLoading(true);
     try {
       const res = await API.get('/api/token/?p=1&size=100');
       const { success, message, data } = res.data || {};
       if (!success) {
-        if (isCurrentRequest('tokens', requestId)) {
-          showError(message || t('获取 API 密钥失败'));
-        }
+        showError(message || t('获取 API 密钥失败'));
         return;
       }
 
       const activeTokens = getTokenItems(data).filter(
         (token) => token.status === 1,
       );
-      if (!isCurrentRequest('tokens', requestId)) return;
+
       setTokens(activeTokens);
       setSelectedTokenId((currentId) => {
         if (activeTokens.some((token) => token.id === currentId)) {
@@ -203,13 +198,11 @@ const WorkspacePanel = ({ user, status, t, onStateChange }) => {
         return activeTokens[0]?.id;
       });
     } catch (error) {
-      if (isCurrentRequest('tokens', requestId)) {
-        showError(error.message || t('获取 API 密钥失败'));
-      }
+      showError(error.message || t('获取 API 密钥失败'));
     } finally {
-      if (isCurrentRequest('tokens', requestId)) setLoading(false);
+      setLoading(false);
     }
-  }, [beginRequest, isCurrentRequest, t]);
+  }, [t]);
 
   useEffect(() => {
     loadTokens();

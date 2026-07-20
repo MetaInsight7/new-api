@@ -45,7 +45,6 @@ import {
   getStoredValue,
   setStoredValue,
 } from '../../../helpers/siteStorage';
-import { useRequestLifecycle } from '../../../hooks/common/useRequestLifecycle';
 
 function TokensPage() {
   // Define the function first, then pass it into the hook to avoid TDZ errors
@@ -70,7 +69,6 @@ function TokensPage() {
   const [prefillKey, setPrefillKey] = useState('');
   const [ccSwitchVisible, setCCSwitchVisible] = useState(false);
   const [ccSwitchKey, setCCSwitchKey] = useState('');
-  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   // Keep latest data for handlers inside notifications
   useEffect(() => {
@@ -92,11 +90,10 @@ function TokensPage() {
   ]);
 
   const loadModels = async () => {
-    const requestId = beginRequest('models');
     try {
       const res = await API.get('/api/user/models');
       const { success, message, data } = res.data || {};
-      if (isCurrentRequest('models', requestId) && success) {
+      if (success) {
         const categories = getModelCategories(tokensData.t);
         const options = (data || []).map((model) => {
           let icon = null;
@@ -117,13 +114,9 @@ function TokensPage() {
           };
         });
         setModelOptions(options);
-      } else if (isCurrentRequest('models', requestId)) {
-        showError(tokensData.t(message));
-      }
+      } else showError(tokensData.t(message));
     } catch (e) {
-      if (isCurrentRequest('models', requestId)) {
-        showError(e.message || 'Failed to load models');
-      }
+      showError(e.message || 'Failed to load models');
     }
   };
 

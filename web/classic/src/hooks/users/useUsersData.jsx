@@ -38,7 +38,6 @@ export const useUsersData = () => {
   const [userCount, setUserCount] = useState(0);
   const requestSeq = useRef(0);
   const groupRequestSeq = useRef(0);
-  const mountedRef = useRef(true);
 
   // Modal states
   const [showAddUser, setShowAddUser] = useState(false);
@@ -81,7 +80,7 @@ export const useUsersData = () => {
       const res = await API.get(
         `/api/user/?p=${startIdx}&page_size=${pageSize}`,
       );
-      if (!mountedRef.current || seq !== requestSeq.current) return;
+      if (seq !== requestSeq.current) return;
       const { success, message, data } = res.data;
       if (success) {
         const newPageData = data.items;
@@ -92,11 +91,11 @@ export const useUsersData = () => {
         showError(message);
       }
     } catch (error) {
-      if (mountedRef.current && seq === requestSeq.current) {
+      if (seq === requestSeq.current) {
         showError(error);
       }
     } finally {
-      if (mountedRef.current && seq === requestSeq.current) setLoading(false);
+      if (seq === requestSeq.current) setLoading(false);
     }
   };
 
@@ -125,7 +124,7 @@ export const useUsersData = () => {
       const res = await API.get(
         `/api/user/search?keyword=${encodeURIComponent(searchKeyword)}&group=${encodeURIComponent(searchGroup)}&p=${startIdx}&page_size=${pageSize}`,
       );
-      if (!mountedRef.current || seq !== requestSeq.current) return;
+      if (seq !== requestSeq.current) return;
       const { success, message, data } = res.data;
       if (success) {
         const newPageData = data.items;
@@ -136,11 +135,11 @@ export const useUsersData = () => {
         showError(message);
       }
     } catch (error) {
-      if (mountedRef.current && seq === requestSeq.current) {
+      if (seq === requestSeq.current) {
         showError(error);
       }
     } finally {
-      if (mountedRef.current && seq === requestSeq.current) setSearching(false);
+      if (seq === requestSeq.current) setSearching(false);
     }
   };
 
@@ -155,7 +154,7 @@ export const useUsersData = () => {
         action,
       });
 
-      if (!mountedRef.current || seq !== requestSeq.current) return;
+      if (seq !== requestSeq.current) return;
       const { success, message } = res.data;
       if (success) {
         showSuccess(t('操作成功完成！'));
@@ -177,9 +176,9 @@ export const useUsersData = () => {
         showError(message);
       }
     } catch (error) {
-      if (mountedRef.current && seq === requestSeq.current) showError(error);
+      if (seq === requestSeq.current) showError(error);
     } finally {
-      if (mountedRef.current && seq === requestSeq.current) setLoading(false);
+      if (seq === requestSeq.current) setLoading(false);
     }
   };
 
@@ -267,9 +266,7 @@ export const useUsersData = () => {
     try {
       let res = await API.get(`/api/group/`);
       if (
-        !mountedRef.current ||
-        seq !== groupRequestSeq.current ||
-        res === undefined
+        seq !== groupRequestSeq.current || res === undefined
       ) {
         return;
       }
@@ -280,7 +277,7 @@ export const useUsersData = () => {
         })),
       );
     } catch (error) {
-      if (mountedRef.current && seq === groupRequestSeq.current) {
+      if (seq === groupRequestSeq.current) {
         showError(error.message);
       }
     }
@@ -303,18 +300,16 @@ export const useUsersData = () => {
     // React StrictMode mounts effects twice in development. Reset the guard
     // before the second setup so a prior simulated cleanup cannot strand the
     // table in its initial loading state.
-    mountedRef.current = true;
     loadUsers(0, pageSize).catch((reason) => {
-      if (mountedRef.current) showError(reason);
+      showError(reason);
     });
     fetchGroups().catch((error) => {
-      if (mountedRef.current) showError(error);
+      showError(error);
     });
   }, []);
 
   useEffect(
     () => () => {
-      mountedRef.current = false;
       requestSeq.current += 1;
       groupRequestSeq.current += 1;
     },

@@ -31,7 +31,6 @@ import {
 } from 'lucide-react';
 import { getCurrencyConfig } from '../../helpers/render';
 import { API, timestamp2string } from '../../helpers';
-import { useRequestLifecycle } from '../../hooks/common/useRequestLifecycle';
 
 const payIcon = (type) => {
   if (type === 'alipay') return <SiAlipay size={16} color='#1677FF' />;
@@ -98,7 +97,6 @@ const WalletRecharge = ({
   const activePay = selectedPay || methods[0]?.type || '';
 
   const [recent, setRecent] = useState([]);
-  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   useEffect(() => {
     if (!selectedPay && methods[0]?.type) setSelectedPay(methods[0].type);
@@ -106,22 +104,18 @@ const WalletRecharge = ({
   }, [methods.length]);
 
   useEffect(() => {
-    const requestId = beginRequest('recent-topups');
     (async () => {
       try {
         const res = await API.get('/api/user/topup/self?p=1&page_size=4');
         const { success, data } = res.data;
-        if (isCurrentRequest('recent-topups', requestId) && success) {
+        if (success) {
           setRecent(data?.items || []);
         }
       } catch {
         // 静默失败：无记录时整卡不渲染
       }
     })();
-    return () => {
-      beginRequest('recent-topups');
-    };
-  }, [beginRequest, isCurrentRequest]);
+  }, []);
 
   const presetPrice = (preset) => {
     const discount =

@@ -19,15 +19,13 @@ For commercial licensing, please contact support@quantumnous.com
 
 import { useState } from 'react';
 import { API, showError, showSuccess } from '../../helpers';
-import { useRequestLifecycle } from '../common/useRequestLifecycle';
 
 export const useEnhancedDeploymentActions = (t) => {
   const [loading, setLoading] = useState({});
-  const { isMounted } = useRequestLifecycle();
 
   // Set loading state for specific operation
   const setOperationLoading = (operation, deploymentId, isLoading) => {
-    if (!isMounted()) return;
+
     setLoading((prev) => ({
       ...prev,
       [`${operation}_${deploymentId}`]: isLoading,

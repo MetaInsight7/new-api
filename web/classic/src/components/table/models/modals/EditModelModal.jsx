@@ -38,7 +38,6 @@ import { IconAlertTriangle, IconLink } from '@douyinfe/semi-icons';
 import { API, showError, showSuccess } from '../../../../helpers';
 import { useTranslation } from 'react-i18next';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
-import { useRequestLifecycle } from '../../../../hooks/common/useRequestLifecycle';
 
 const { Text, Title } = Typography;
 
@@ -67,7 +66,6 @@ const EditModelModal = (props) => {
   const formApiRef = useRef(null);
   const isEdit = props.editingModel && props.editingModel.id !== undefined;
   const placement = useMemo(() => (isEdit ? 'right' : 'left'), [isEdit]);
-  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   // 供应商列表
   const [vendors, setVendors] = useState([]);
@@ -78,10 +76,9 @@ const EditModelModal = (props) => {
 
   // 获取供应商列表
   const fetchVendors = async () => {
-    const requestId = beginRequest('vendors');
     try {
       const res = await API.get('/api/vendors/?page_size=1000'); // 获取全部供应商
-      if (isCurrentRequest('vendors', requestId) && res.data.success) {
+      if (res.data.success) {
         const items = res.data.data.items || res.data.data || [];
         setVendors(Array.isArray(items) ? items : []);
       }
@@ -92,16 +89,15 @@ const EditModelModal = (props) => {
 
   // 获取预填组（标签、端点）
   const fetchPrefillGroups = async () => {
-    const requestId = beginRequest('prefill-groups');
     try {
       const [tagRes, endpointRes] = await Promise.all([
         API.get('/api/prefill_group?type=tag'),
         API.get('/api/prefill_group?type=endpoint'),
       ]);
-      if (isCurrentRequest('prefill-groups', requestId) && tagRes?.data?.success) {
+      if (tagRes?.data?.success) {
         setTagGroups(tagRes.data.data || []);
       }
-      if (isCurrentRequest('prefill-groups', requestId) && endpointRes?.data?.success) {
+      if (endpointRes?.data?.success) {
         setEndpointGroups(endpointRes.data.data || []);
       }
     } catch (error) {
@@ -137,12 +133,11 @@ const EditModelModal = (props) => {
   const loadModel = async () => {
     if (!isEdit || !props.editingModel.id) return;
 
-    const requestId = beginRequest('model');
     setLoading(true);
     try {
       const res = await API.get(`/api/models/${props.editingModel.id}`);
       const { success, message, data } = res.data;
-      if (isCurrentRequest('model', requestId) && success) {
+      if (success) {
         // 处理tags
         if (data.tags) {
           data.tags = data.tags.split(',').filter(Boolean);
@@ -156,16 +151,14 @@ const EditModelModal = (props) => {
         // 处理status/sync_official，将数字转为布尔值
         data.status = data.status === 1;
         data.sync_official = (data.sync_official ?? 1) === 1;
-        if (isCurrentRequest('model', requestId) && formApiRef.current) {
+        if (formApiRef.current) {
           formApiRef.current.setValues({ ...getInitValues(), ...data });
         }
-      } else if (isCurrentRequest('model', requestId)) {
-        showError(message);
-      }
+      } else showError(message);
     } catch (error) {
-      if (isCurrentRequest('model', requestId)) showError(t('加载模型信息失败'));
+      showError(t('加载模型信息失败'));
     }
-    if (isCurrentRequest('model', requestId)) setLoading(false);
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -190,17 +183,12 @@ const EditModelModal = (props) => {
         });
       }
     } else {
-      beginRequest('model');
-      beginRequest('submit');
-      beginRequest('vendors');
-      beginRequest('prefill-groups');
       setLoading(false);
       formApiRef.current?.reset();
     }
   }, [props.visiable, props.editingModel?.id, props.editingModel?.model_name]);
 
   const submit = async (values) => {
-    const requestId = beginRequest('submit');
     setLoading(true);
     try {
       const submitData = {
@@ -215,33 +203,25 @@ const EditModelModal = (props) => {
         submitData.id = props.editingModel.id;
         const res = await API.put('/api/models/', submitData);
         const { success, message } = res.data;
-        if (isCurrentRequest('submit', requestId) && success) {
+        if (success) {
           showSuccess(t('模型更新成功！'));
           props.refresh();
           props.handleClose();
-        } else if (isCurrentRequest('submit', requestId)) {
-          showError(t(message));
-        }
+        } else showError(t(message));
       } else {
         const res = await API.post('/api/models/', submitData);
         const { success, message } = res.data;
-        if (isCurrentRequest('submit', requestId) && success) {
+        if (success) {
           showSuccess(t('模型创建成功！'));
           props.refresh();
           props.handleClose();
-        } else if (isCurrentRequest('submit', requestId)) {
-          showError(t(message));
-        }
+        } else showError(t(message));
       }
     } catch (error) {
-      if (isCurrentRequest('submit', requestId)) {
-        showError(error.response?.data?.message || t('操作失败'));
-      }
+      showError(error.response?.data?.message || t('操作失败'));
     }
-    if (isCurrentRequest('submit', requestId)) {
-      setLoading(false);
-      formApiRef.current?.setValues(getInitValues());
-    }
+    setLoading(false);
+    formApiRef.current?.setValues(getInitValues());
   };
 
   return (

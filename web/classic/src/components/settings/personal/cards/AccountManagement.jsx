@@ -51,7 +51,6 @@ import {
 } from '../../../../helpers';
 import { getOAuthProviderIcon } from '../../../../helpers/oauthIcons';
 import TwoFASetting from '../components/TwoFASetting';
-import { useRequestLifecycle } from '../../../../hooks/common/useRequestLifecycle';
 
 // DMIT 绑定列表行：方块图标 + 名称/状态 + 操作按钮（分隔线列表，去卡中卡）
 const BindingRow = ({ icon, name, desc, action }) => (
@@ -142,28 +141,22 @@ const AccountManagement = ({
     React.useState(false);
   const [customOAuthBindings, setCustomOAuthBindings] = React.useState([]);
   const [customOAuthLoading, setCustomOAuthLoading] = React.useState({});
-  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   // Fetch custom OAuth bindings
   const loadCustomOAuthBindings = async () => {
-    const requestId = beginRequest('oauthBindings');
     try {
       const res = await API.get('/api/user/oauth/bindings');
-      if (isCurrentRequest('oauthBindings', requestId) && res.data.success) {
+      if (res.data.success) {
         setCustomOAuthBindings(res.data.data || []);
       } else {
-        if (isCurrentRequest('oauthBindings', requestId)) {
-          showError(res.data.message || t('获取绑定信息失败'));
-        }
+        showError(res.data.message || t('获取绑定信息失败'));
       }
     } catch (error) {
-      if (isCurrentRequest('oauthBindings', requestId)) {
-        showError(
-          error.response?.data?.message ||
-            error.message ||
-            t('获取绑定信息失败'),
-        );
-      }
+      showError(
+        error.response?.data?.message ||
+          error.message ||
+          t('获取绑定信息失败'),
+      );
     }
   };
 
@@ -175,36 +168,28 @@ const AccountManagement = ({
       okText: t('确认'),
       cancelText: t('取消'),
       onOk: async () => {
-        const requestId = beginRequest(`unbind:${providerId}`);
         setCustomOAuthLoading((prev) => ({ ...prev, [providerId]: true }));
         try {
           const res = await API.delete(
             `/api/user/oauth/bindings/${providerId}`,
           );
           if (
-            isCurrentRequest(`unbind:${providerId}`, requestId) &&
             res.data.success
           ) {
             showSuccess(t('解绑成功'));
             await loadCustomOAuthBindings();
           } else {
-            if (isCurrentRequest(`unbind:${providerId}`, requestId)) {
-              showError(res.data.message);
-            }
+            showError(res.data.message);
           }
         } catch (error) {
-          if (isCurrentRequest(`unbind:${providerId}`, requestId)) {
-            showError(
-              error.response?.data?.message || error.message || t('操作失败'),
-            );
-          }
+          showError(
+            error.response?.data?.message || error.message || t('操作失败'),
+          );
         } finally {
-          if (isCurrentRequest(`unbind:${providerId}`, requestId)) {
-            setCustomOAuthLoading((prev) => ({
-              ...prev,
-              [providerId]: false,
-            }));
-          }
+          setCustomOAuthLoading((prev) => ({
+            ...prev,
+            [providerId]: false,
+          }));
         }
       },
     });
@@ -233,9 +218,6 @@ const AccountManagement = ({
 
   React.useEffect(() => {
     loadCustomOAuthBindings();
-    return () => {
-      beginRequest('oauthBindings');
-    };
   }, []);
 
   const passkeyEnabled = passkeyStatus?.enabled;

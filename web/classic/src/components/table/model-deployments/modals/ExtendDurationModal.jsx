@@ -38,7 +38,6 @@ import {
   FaExclamationTriangle,
 } from 'react-icons/fa';
 import { API, showError, showSuccess } from '../../../../helpers';
-import { useRequestLifecycle } from '../../../../hooks/common/useRequestLifecycle';
 
 const { Text } = Typography;
 
@@ -58,7 +57,6 @@ const ExtendDurationModal = ({
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [deploymentDetails, setDeploymentDetails] = useState(null);
   const costRequestIdRef = useRef(0);
-  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   const resetState = () => {
     costRequestIdRef.current += 1;
@@ -70,11 +68,10 @@ const ExtendDurationModal = ({
   };
 
   const fetchDeploymentDetails = async (deploymentId) => {
-    const requestId = beginRequest('details');
     setDetailsLoading(true);
     try {
       const response = await API.get(`/api/deployments/${deploymentId}`);
-      if (isCurrentRequest('details', requestId) && response.data.success) {
+      if (response.data.success) {
         const details = response.data.data;
         setDeploymentDetails(details);
         setPriceError(null);
@@ -83,25 +80,21 @@ const ExtendDurationModal = ({
 
       const message = response.data.message || '';
       const errorMessage = t('获取详情失败') + (message ? `: ${message}` : '');
-      if (isCurrentRequest('details', requestId)) {
-        showError(errorMessage);
-        setDeploymentDetails(null);
-        setPriceEstimation(null);
-        setPriceError(errorMessage);
-      }
+      showError(errorMessage);
+      setDeploymentDetails(null);
+      setPriceEstimation(null);
+      setPriceError(errorMessage);
       return null;
     } catch (error) {
       const message = error?.response?.data?.message || error.message || '';
       const errorMessage = t('获取详情失败') + (message ? `: ${message}` : '');
-      if (isCurrentRequest('details', requestId)) {
-        showError(errorMessage);
-        setDeploymentDetails(null);
-        setPriceEstimation(null);
-        setPriceError(errorMessage);
-      }
+      showError(errorMessage);
+      setDeploymentDetails(null);
+      setPriceEstimation(null);
+      setPriceError(errorMessage);
       return null;
     } finally {
-      if (isCurrentRequest('details', requestId)) setDetailsLoading(false);
+      setDetailsLoading(false);
     }
   };
 
@@ -212,8 +205,6 @@ const ExtendDurationModal = ({
       fetchDeploymentDetails(deployment.id);
     }
     if (!visible) {
-      beginRequest('details');
-      beginRequest('extend');
       resetState();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -231,7 +222,6 @@ const ExtendDurationModal = ({
   }, [durationHours, deploymentDetails, visible]);
 
   const handleExtend = async () => {
-    const requestId = beginRequest('extend');
     try {
       if (formRef.current) {
         await formRef.current.validate();
@@ -245,21 +235,19 @@ const ExtendDurationModal = ({
         },
       );
 
-      if (isCurrentRequest('extend', requestId) && response.data.success) {
+      if (response.data.success) {
         showSuccess(t('容器时长延长成功'));
         onSuccess?.(response.data.data);
         handleCancel();
       }
     } catch (error) {
-      if (isCurrentRequest('extend', requestId)) {
-        showError(
-          t('延长时长失败') +
-            ': ' +
-            (error?.response?.data?.message || error.message),
-        );
-      }
+      showError(
+        t('延长时长失败') +
+          ': ' +
+          (error?.response?.data?.message || error.message),
+      );
     } finally {
-      if (isCurrentRequest('extend', requestId)) setLoading(false);
+      setLoading(false);
     }
   };
 

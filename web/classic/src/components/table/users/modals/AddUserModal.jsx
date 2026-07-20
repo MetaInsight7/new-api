@@ -35,7 +35,6 @@ import {
 } from '@douyinfe/semi-ui';
 import { IconSave, IconClose, IconUserAdd } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
-import { useRequestLifecycle } from '../../../../hooks/common/useRequestLifecycle';
 
 const { Text, Title } = Typography;
 
@@ -43,7 +42,6 @@ const AddUserModal = (props) => {
   const { t } = useTranslation();
   const formApiRef = useRef(null);
   const [loading, setLoading] = useState(false);
-  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
   const isMobile = useIsMobile();
 
   const getInitValues = () => ({
@@ -54,23 +52,20 @@ const AddUserModal = (props) => {
   });
 
   const submit = async (values) => {
-    const requestId = beginRequest('submit');
     setLoading(true);
     try {
       const res = await API.post(`/api/user/`, values);
       const { success, message } = res.data;
-      if (isCurrentRequest('submit', requestId) && success) {
+      if (success) {
         showSuccess(t('用户账户创建成功！'));
         formApiRef.current?.setValues(getInitValues());
         props.refresh();
         props.handleClose();
-      } else if (isCurrentRequest('submit', requestId)) {
-        showError(message);
-      }
+      } else showError(message);
     } catch (error) {
-      if (isCurrentRequest('submit', requestId)) showError(error);
+      showError(error);
     } finally {
-      if (isCurrentRequest('submit', requestId)) setLoading(false);
+      setLoading(false);
     }
   };
 

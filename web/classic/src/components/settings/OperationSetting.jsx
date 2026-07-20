@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Card, Spin } from '@douyinfe/semi-ui';
 import SettingsGeneral from '../../pages/Setting/Operation/SettingsGeneral';
 import SettingsHeaderNavModules from '../../pages/Setting/Operation/SettingsHeaderNavModules';
@@ -95,18 +95,7 @@ const INITIAL_OPTIONS = Object.freeze({
 const OperationSetting = () => {
   const [inputs, setInputs] = useState(() => ({ ...INITIAL_OPTIONS }));
   const [loading, setLoading] = useState(false);
-  const mountedRef = useRef(true);
-  const requestSeqRef = useRef(0);
-
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-      requestSeqRef.current += 1;
-    };
-  }, []);
-
-  const getOptions = useCallback(async (requestSeq) => {
+  const getOptions = useCallback(async () => {
     const res = await API.get('/api/option/');
     const { success, message, data } = res.data;
     if (success) {
@@ -120,27 +109,20 @@ const OperationSetting = () => {
           }
         }
       });
-      if (mountedRef.current && requestSeq === requestSeqRef.current) {
-        setInputs(newInputs);
-      }
-    } else if (mountedRef.current && requestSeq === requestSeqRef.current) {
+      setInputs(newInputs);
+    } else {
       showError(message);
     }
   }, []);
 
   const onRefresh = useCallback(async () => {
-    const requestSeq = ++requestSeqRef.current;
     try {
-      if (mountedRef.current) setLoading(true);
-      await getOptions(requestSeq);
+      setLoading(true);
+      await getOptions();
     } catch (error) {
-      if (mountedRef.current && requestSeq === requestSeqRef.current) {
-        showError('刷新失败');
-      }
+      showError('刷新失败');
     } finally {
-      if (mountedRef.current && requestSeq === requestSeqRef.current) {
-        setLoading(false);
-      }
+      setLoading(false);
     }
   }, [getOptions]);
 

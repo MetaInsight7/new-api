@@ -38,10 +38,8 @@ export default function SettingsHeaderNavModules(props) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [statusState, statusDispatch] = useContext(StatusContext);
-  const mountedRef = React.useRef(true);
 
   React.useEffect(() => () => {
-    mountedRef.current = false;
   }, []);
 
   // 顶栏模块管理状态
@@ -135,7 +133,7 @@ export default function SettingsHeaderNavModules(props) {
         });
 
         // 刷新父组件状态
-        if (mountedRef.current && props.refresh) {
+        if (props.refresh) {
           await props.refresh();
         }
       } else {
@@ -144,7 +142,7 @@ export default function SettingsHeaderNavModules(props) {
     } catch (error) {
       showError(t('保存失败，请重试'));
     } finally {
-      if (mountedRef.current) setLoading(false);
+      setLoading(false);
     }
   }
 

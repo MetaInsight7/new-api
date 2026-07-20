@@ -35,7 +35,6 @@ import {
   useSidebar,
 } from '../../../hooks/common/useSidebar';
 import { Settings } from 'lucide-react';
-import { useRequestLifecycle } from '../../../hooks/common/useRequestLifecycle';
 
 const { Text } = Typography;
 
@@ -54,7 +53,6 @@ export default function SettingsSidebarModulesUser() {
   const { refreshUserConfig, adminConfig, userConfig, loading: sidebarLoading } = useSidebar();
   // 用户个人左侧边栏模块设置
   const [sidebarModulesUser, setSidebarModulesUser] = useState({});
-  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   const generateDefaultConfig = () => {
     const defaults = buildDefaultUserConfig(adminConfig);
@@ -143,26 +141,23 @@ export default function SettingsSidebarModulesUser() {
 
   // 保存配置
   async function onSubmit() {
-    const requestId = beginRequest('submit');
     setLoading(true);
     try {
       const res = await API.put('/api/user/self', {
         sidebar_modules: JSON.stringify(sidebarModulesUser),
       });
       const { success, message } = res.data;
-      if (isCurrentRequest('submit', requestId) && success) {
+      if (success) {
         showSuccess(t('保存成功'));
         // 刷新useSidebar钩子中的用户配置，实现实时更新
         await refreshUserConfig();
-      } else if (isCurrentRequest('submit', requestId)) {
-        showError(message);
+      } else showError(message);
         console.error('用户边栏配置保存失败:', message);
-      }
     } catch (error) {
-      if (isCurrentRequest('submit', requestId)) showError(t('保存失败，请重试'));
+      showError(t('保存失败，请重试'));
       console.error('用户边栏配置保存异常:', error);
     } finally {
-      if (isCurrentRequest('submit', requestId)) setLoading(false);
+      setLoading(false);
     }
   }
 

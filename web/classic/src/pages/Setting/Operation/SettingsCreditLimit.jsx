@@ -39,12 +39,8 @@ export default function SettingsCreditLimit(props) {
     'quota_setting.enable_free_model_pre_consume': true,
   });
   const refForm = useRef();
-  const mountedRef = useRef(true);
   const [inputsRow, setInputsRow] = useState(inputs);
 
-  useEffect(() => () => {
-    mountedRef.current = false;
-  }, []);
   const complianceConfirmed =
     props.options?.['payment_setting.compliance_confirmed'] === true ||
     props.options?.['payment_setting.compliance_confirmed'] === 'true';
@@ -64,7 +60,7 @@ export default function SettingsCreditLimit(props) {
         value,
       });
     });
-    if (mountedRef.current) setLoading(true);
+    setLoading(true);
     Promise.all(requestQueue)
       .then(async (res) => {
         if (requestQueue.length === 1) {
@@ -73,15 +69,15 @@ export default function SettingsCreditLimit(props) {
           if (res.includes(undefined))
             return showError(t('部分保存失败，请重试'));
         }
-        if (!mountedRef.current) return;
+
         showSuccess(t('保存成功'));
         await props.refresh?.();
       })
       .catch(() => {
-        if (mountedRef.current) showError(t('保存失败，请重试'));
+        showError(t('保存失败，请重试'));
       })
       .finally(() => {
-        if (mountedRef.current) setLoading(false);
+        setLoading(false);
       });
   }
 

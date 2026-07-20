@@ -28,7 +28,6 @@ import {
 } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
 import { setStoredValue } from '../../../helpers/siteStorage';
-import { useRequestLifecycle } from '../../../hooks/common/useRequestLifecycle';
 
 export default function DataDashboard(props) {
   const { t } = useTranslation();
@@ -46,7 +45,6 @@ export default function DataDashboard(props) {
   });
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
-  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   function onSubmit() {
     const updateArray = compareObjects(inputs, inputsRow);
@@ -63,11 +61,10 @@ export default function DataDashboard(props) {
         value,
       });
     });
-    const requestId = beginRequest('submit');
     setLoading(true);
     Promise.all(requestQueue)
       .then((res) => {
-        if (!isCurrentRequest('submit', requestId)) return;
+
         if (requestQueue.length === 1) {
           if (res.includes(undefined)) return;
         } else if (requestQueue.length > 1) {
@@ -78,10 +75,10 @@ export default function DataDashboard(props) {
         props.refresh();
       })
       .catch(() => {
-        if (isCurrentRequest('submit', requestId)) showError(t('保存失败，请重试'));
+        showError(t('保存失败，请重试'));
       })
       .finally(() => {
-        if (isCurrentRequest('submit', requestId)) setLoading(false);
+        setLoading(false);
       });
   }
 

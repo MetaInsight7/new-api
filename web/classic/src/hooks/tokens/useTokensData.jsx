@@ -65,7 +65,6 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
   const [loadingTokenKeys, setLoadingTokenKeys] = useState({});
   const keyRequestsRef = useRef({});
   const requestCounter = useRef(0);
-  const mountedRef = useRef(true);
 
   // Form state
   const [formApi, setFormApi] = useState(null);
@@ -109,7 +108,7 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
     setSearchMode(false);
     try {
       const res = await API.get(`/api/token/?p=${page}&size=${size}`);
-      if (!mountedRef.current || requestId !== requestCounter.current) return;
+      if (requestId !== requestCounter.current) return;
       const { success, message, data } = res.data;
       if (success) {
         syncPageData(data);
@@ -117,11 +116,11 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
         showError(message);
       }
     } catch (error) {
-      if (mountedRef.current && requestId === requestCounter.current) {
+      if (requestId === requestCounter.current) {
         showError(error);
       }
     } finally {
-      if (mountedRef.current && requestId === requestCounter.current) {
+      if (requestId === requestCounter.current) {
         setLoading(false);
       }
     }
@@ -171,9 +170,7 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
       setLoadingTokenKeys((prev) => ({ ...prev, [tokenId]: true }));
       try {
         const fullKey = await fetchTokenKeyById(tokenId);
-        if (mountedRef.current) {
-          setResolvedTokenKeys((prev) => ({ ...prev, [tokenId]: fullKey }));
-        }
+        setResolvedTokenKeys((prev) => ({ ...prev, [tokenId]: fullKey }));
         return fullKey;
       } catch (error) {
         const normalizedError = new Error(
@@ -185,13 +182,11 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
         throw normalizedError;
       } finally {
         delete keyRequestsRef.current[tokenId];
-        if (mountedRef.current) {
-          setLoadingTokenKeys((prev) => {
-            const next = { ...prev };
-            delete next[tokenId];
-            return next;
-          });
-        }
+        setLoadingTokenKeys((prev) => {
+          const next = { ...prev };
+          delete next[tokenId];
+          return next;
+        });
       }
     })();
 
@@ -305,7 +300,7 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
         default:
           return;
       }
-      if (!mountedRef.current || requestId !== requestCounter.current) return;
+      if (requestId !== requestCounter.current) return;
       const { success, message } = res.data;
       if (success) {
         showSuccess(t('操作成功完成！'));
@@ -322,11 +317,11 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
         showError(message);
       }
     } catch (error) {
-      if (mountedRef.current && requestId === requestCounter.current) {
+      if (requestId === requestCounter.current) {
         showError(error);
       }
     } finally {
-      if (mountedRef.current && requestId === requestCounter.current) {
+      if (requestId === requestCounter.current) {
         setLoading(false);
       }
     }
@@ -349,7 +344,7 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
       const res = await API.get(
         `/api/token/search?keyword=${encodeURIComponent(searchKeyword)}&token=${encodeURIComponent(searchToken)}&p=${normalizedPage}&size=${normalizedSize}`,
       );
-      if (!mountedRef.current || requestId !== requestCounter.current) return;
+      if (requestId !== requestCounter.current) return;
       const { success, message, data } = res.data;
       if (success) {
         setSearchMode(true);
@@ -358,11 +353,11 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
         showError(message);
       }
     } catch (error) {
-      if (mountedRef.current && requestId === requestCounter.current) {
+      if (requestId === requestCounter.current) {
         showError(error);
       }
     } finally {
-      if (mountedRef.current && requestId === requestCounter.current) {
+      if (requestId === requestCounter.current) {
         setSearching(false);
       }
     }
@@ -434,17 +429,14 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
     try {
       const ids = selectedKeys.map((token) => token.id);
       const res = await API.post('/api/token/batch', { ids });
-      if (!mountedRef.current || requestId !== requestCounter.current) return;
+      if (requestId !== requestCounter.current) return;
       if (res?.data?.success) {
         const count = res.data.data || 0;
         showSuccess(t('已删除 {{count}} 个 API 密钥！', { count }));
         await refresh();
         setTimeout(() => {
           if (
-            mountedRef.current &&
-            requestId === requestCounter.current &&
-            tokens.length === 0 &&
-            activePage > 1
+            requestId === requestCounter.current && tokens.length === 0 && activePage > 1
           ) {
             refresh(activePage - 1);
           }
@@ -453,11 +445,11 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
         showError(res?.data?.message || t('删除失败'));
       }
     } catch (error) {
-      if (mountedRef.current && requestId === requestCounter.current) {
+      if (requestId === requestCounter.current) {
         showError(error.message);
       }
     } finally {
-      if (mountedRef.current && requestId === requestCounter.current) {
+      if (requestId === requestCounter.current) {
         setLoading(false);
       }
     }
@@ -494,13 +486,12 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
   // Initialize data
   useEffect(() => {
     // Re-arm after StrictMode's simulated cleanup before starting a request.
-    mountedRef.current = true;
     loadTokens(1).catch((reason) => {
-      if (mountedRef.current) showError(reason);
+      showError(reason);
     });
     API.get('/api/user/self/groups')
       .then((res) => {
-        if (!mountedRef.current) return;
+
         if (res.data.success && res.data.data) {
           const ratios = {};
           for (const [name, info] of Object.entries(res.data.data)) {
@@ -514,7 +505,6 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
 
   useEffect(
     () => () => {
-      mountedRef.current = false;
       requestCounter.current += 1;
       keyRequestsRef.current = {};
     },

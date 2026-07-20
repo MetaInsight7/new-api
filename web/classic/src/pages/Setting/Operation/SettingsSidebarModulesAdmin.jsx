@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useState, useEffect, useContext, useRef } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Card,
@@ -38,11 +38,6 @@ export default function SettingsSidebarModulesAdmin(props) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [statusState, statusDispatch] = useContext(StatusContext);
-  const mountedRef = useRef(true);
-
-  useEffect(() => () => {
-    mountedRef.current = false;
-  }, []);
 
   // 左侧边栏模块管理状态（管理员全局控制）
   const [sidebarModulesAdmin, setSidebarModulesAdmin] = useState({
@@ -154,7 +149,7 @@ export default function SettingsSidebarModulesAdmin(props) {
         });
 
         // 刷新父组件状态
-        if (mountedRef.current && props.refresh) {
+        if (props.refresh) {
           await props.refresh();
         }
       } else {
@@ -163,7 +158,7 @@ export default function SettingsSidebarModulesAdmin(props) {
     } catch (error) {
       showError(t('保存失败，请重试'));
     } finally {
-      if (mountedRef.current) setLoading(false);
+      setLoading(false);
     }
   }
 

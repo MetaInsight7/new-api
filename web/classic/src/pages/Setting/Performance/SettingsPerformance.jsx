@@ -79,14 +79,6 @@ export default function SettingsPerformance(props) {
   const [logCleanupMode, setLogCleanupMode] = useState('by_count');
   const [logCleanupValue, setLogCleanupValue] = useState(10);
   const [logCleanupLoading, setLogCleanupLoading] = useState(false);
-  const mountedRef = useRef(true);
-
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
 
   function handleFieldChange(fieldName) {
     return (value) => {
@@ -118,7 +110,7 @@ export default function SettingsPerformance(props) {
           if (res.includes(undefined))
             return showError(t('部分保存失败，请重试'));
         }
-        if (!mountedRef.current) return;
+
         showSuccess(t('保存成功'));
         props.refresh();
         fetchStats();
@@ -127,21 +119,21 @@ export default function SettingsPerformance(props) {
         showError(t('保存失败，请重试'));
       })
       .finally(() => {
-        if (mountedRef.current) setLoading(false);
+        setLoading(false);
       });
   }
 
   async function fetchStats() {
-    if (mountedRef.current) setStatsLoading(true);
+    setStatsLoading(true);
     try {
       const res = await API.get('/api/performance/stats');
       if (res.data.success) {
-        if (mountedRef.current) setStats(res.data.data);
+        setStats(res.data.data);
       }
     } catch (error) {
       console.error('Failed to fetch performance stats:', error);
     } finally {
-      if (mountedRef.current) setStatsLoading(false);
+      setStatsLoading(false);
     }
   }
 
@@ -150,7 +142,7 @@ export default function SettingsPerformance(props) {
       const res = await API.delete('/api/performance/disk_cache');
       if (res.data.success) {
         showSuccess(t('磁盘缓存已清理'));
-        if (mountedRef.current) fetchStats();
+        fetchStats();
       } else {
         showError(res.data.message || t('清理失败'));
       }
@@ -164,7 +156,7 @@ export default function SettingsPerformance(props) {
       const res = await API.post('/api/performance/reset_stats');
       if (res.data.success) {
         showSuccess(t('统计已重置'));
-        if (mountedRef.current) fetchStats();
+        fetchStats();
       }
     } catch (error) {
       showError(t('重置失败'));
@@ -176,7 +168,7 @@ export default function SettingsPerformance(props) {
       const res = await API.post('/api/performance/gc');
       if (res.data.success) {
         showSuccess(t('GC 已执行'));
-        if (mountedRef.current) fetchStats();
+        fetchStats();
       }
     } catch (error) {
       showError(t('GC 执行失败'));
@@ -187,7 +179,7 @@ export default function SettingsPerformance(props) {
     try {
       const res = await API.get('/api/performance/logs');
       if (res.data.success) {
-        if (mountedRef.current) setLogInfo(res.data.data);
+        setLogInfo(res.data.data);
       }
     } catch (error) {
       console.error('Failed to fetch log info:', error);
@@ -215,11 +207,11 @@ export default function SettingsPerformance(props) {
       } else {
         showError(res.data.message || t('清理失败'));
       }
-      if (mountedRef.current) fetchLogInfo();
+      fetchLogInfo();
     } catch (error) {
       showError(t('清理失败'));
     } finally {
-      if (mountedRef.current) setLogCleanupLoading(false);
+      setLogCleanupLoading(false);
     }
   }
 

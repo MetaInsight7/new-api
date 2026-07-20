@@ -19,7 +19,6 @@ For commercial licensing, please contact support@quantumnous.com
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { API, showError } from '../../helpers';
-import { useRequestLifecycle } from '../common/useRequestLifecycle';
 
 /**
  * Shared loader for Semi admin settings backed by /api/option/.
@@ -30,16 +29,13 @@ export const useOptionSettings = ({ initialValues, parseOptions }) => {
   const parseOptionsRef = useRef(parseOptions || ((data) => data));
   const [inputs, setInputs] = useState(() => ({ ...initialValuesRef.current }));
   const [loading, setLoading] = useState(false);
-  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   parseOptionsRef.current = parseOptions || ((data) => data);
 
   const refresh = useCallback(async () => {
-    const requestId = beginRequest('options');
     setLoading(true);
     try {
       const response = await API.get('/api/option/');
-      if (!isCurrentRequest('options', requestId)) return;
 
       const { success, message, data } = response.data || {};
       if (!success) {
@@ -53,13 +49,11 @@ export const useOptionSettings = ({ initialValues, parseOptions }) => {
       );
       setInputs(nextInputs || {});
     } catch (error) {
-      if (isCurrentRequest('options', requestId)) {
-        showError(error?.message || '刷新失败');
-      }
+      showError(error?.message || '刷新失败');
     } finally {
-      if (isCurrentRequest('options', requestId)) setLoading(false);
+      setLoading(false);
     }
-  }, [beginRequest, isCurrentRequest]);
+  }, []);
 
   useEffect(() => {
     refresh();

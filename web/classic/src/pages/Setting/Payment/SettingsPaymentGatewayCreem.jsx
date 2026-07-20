@@ -35,7 +35,6 @@ const { Text } = Typography;
 import { API, showError, showSuccess } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
 import { BookOpen, Plus, Trash2 } from 'lucide-react';
-import { useRequestLifecycle } from '../../../hooks/common/useRequestLifecycle';
 
 export default function SettingsPaymentGatewayCreem(props) {
   const { t } = useTranslation();
@@ -59,7 +58,6 @@ export default function SettingsPaymentGatewayCreem(props) {
     currency: 'USD',
   });
   const formApiRef = useRef(null);
-  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   useEffect(() => {
     if (props.options && formApiRef.current) {
@@ -88,7 +86,6 @@ export default function SettingsPaymentGatewayCreem(props) {
   };
 
   const submitCreemSetting = async () => {
-    const requestId = beginRequest('submit');
     setLoading(true);
     try {
       const options = [];
@@ -124,7 +121,7 @@ export default function SettingsPaymentGatewayCreem(props) {
       const results = await Promise.all(requestQueue);
 
       // 检查所有请求是否成功
-      if (!isCurrentRequest('submit', requestId)) return;
+
       const errorResults = results.filter((res) => !res.data.success);
       if (errorResults.length > 0) {
         errorResults.forEach((res) => {
@@ -137,9 +134,9 @@ export default function SettingsPaymentGatewayCreem(props) {
         props.refresh?.();
       }
     } catch (error) {
-      if (isCurrentRequest('submit', requestId)) showError(t('更新失败'));
+      showError(t('更新失败'));
     } finally {
-      if (isCurrentRequest('submit', requestId)) setLoading(false);
+      setLoading(false);
     }
   };
 

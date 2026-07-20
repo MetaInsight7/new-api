@@ -41,7 +41,6 @@ import {
   IconGithubLogo,
 } from '@douyinfe/semi-icons';
 import { SiDiscord, SiTelegram, SiWechat, SiLinux } from 'react-icons/si';
-import { useRequestLifecycle } from '../../../../hooks/common/useRequestLifecycle';
 
 const { Text } = Typography;
 
@@ -59,12 +58,10 @@ const UserBindingManagementModal = ({
   const [customOAuthBindings, setCustomOAuthBindings] = React.useState([]);
   const [builtInBindings, setBuiltInBindings] = React.useState({});
   const [bindingActionLoading, setBindingActionLoading] = React.useState({});
-  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   const loadBindingData = React.useCallback(async () => {
     if (!userId) return;
 
-    const requestId = beginRequest('bindings');
     setBindingLoading(true);
     try {
       const [statusRes, customBindingRes, userRes] = await Promise.all([
@@ -73,19 +70,15 @@ const UserBindingManagementModal = ({
         API.get(`/api/user/${userId}`),
       ]);
 
-      if (isCurrentRequest('bindings', requestId) && statusRes.data?.success) {
+      if (statusRes.data?.success) {
         setStatusInfo(statusRes.data.data || {});
-      } else if (isCurrentRequest('bindings', requestId)) {
-        showError(statusRes.data?.message || t('操作失败'));
-      }
+      } else showError(statusRes.data?.message || t('操作失败'));
 
-      if (isCurrentRequest('bindings', requestId) && customBindingRes.data?.success) {
+      if (customBindingRes.data?.success) {
         setCustomOAuthBindings(customBindingRes.data.data || []);
-      } else if (isCurrentRequest('bindings', requestId)) {
-        showError(customBindingRes.data?.message || t('操作失败'));
-      }
+      } else showError(customBindingRes.data?.message || t('操作失败'));
 
-      if (isCurrentRequest('bindings', requestId) && userRes.data?.success) {
+      if (userRes.data?.success) {
         const userData = userRes.data.data || {};
         setBuiltInBindings({
           email: userData.email || '',
@@ -96,16 +89,14 @@ const UserBindingManagementModal = ({
           telegram_id: userData.telegram_id || '',
           linux_do_id: userData.linux_do_id || '',
         });
-      } else if (isCurrentRequest('bindings', requestId)) {
-        showError(userRes.data?.message || t('操作失败'));
-      }
+      } else showError(userRes.data?.message || t('操作失败'));
     } catch (error) {
-      if (!isCurrentRequest('bindings', requestId)) return;
+
       showError(
         error.response?.data?.message || error.message || t('操作失败'),
       );
     } finally {
-      if (isCurrentRequest('bindings', requestId)) setBindingLoading(false);
+      setBindingLoading(false);
     }
   }, [t, userId]);
 

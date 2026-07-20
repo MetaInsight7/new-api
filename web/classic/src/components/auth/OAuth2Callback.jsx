@@ -30,7 +30,6 @@ import {
 } from '../../helpers';
 import { UserContext } from '../../context/User';
 import Loading from '../common/ui/Loading';
-import { useRequestLifecycle } from '../../hooks/common/useRequestLifecycle';
 
 const OAuth2Callback = (props) => {
   const { t } = useTranslation();
@@ -40,17 +39,11 @@ const OAuth2Callback = (props) => {
 
   // 防止 React 18 Strict Mode 下重复执行
   const hasExecuted = useRef(false);
-  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   // 最大重试次数
   const MAX_RETRIES = 3;
 
-  const sendCode = async (
-    code,
-    state,
-    retry = 0,
-    requestId = beginRequest('oauth'),
-  ) => {
+  const sendCode = async (code, state, retry = 0) => {
     try {
       const { data: resData } = await API.get(
         `/api/oauth/${props.type}?code=${code}&state=${state}`,
@@ -58,7 +51,6 @@ const OAuth2Callback = (props) => {
 
       const { success, message, data } = resData;
 
-      if (requestId && !isCurrentRequest('oauth', requestId)) return;
       if (!success) {
         // 业务错误不重试，直接显示错误
         showError(message || t('授权失败'));
@@ -81,14 +73,12 @@ const OAuth2Callback = (props) => {
       if (retry < MAX_RETRIES) {
         // 递增的退避等待
         await new Promise((resolve) => setTimeout(resolve, (retry + 1) * 2000));
-        return sendCode(code, state, retry + 1, requestId);
+        return sendCode(code, state, retry + 1);
       }
 
       // 重试次数耗尽，提示错误并返回设置页面
-      if (!requestId || isCurrentRequest('oauth', requestId)) {
-        showError(error.message || t('授权失败'));
-        navigate('/console/personal');
-      }
+      showError(error.message || t('授权失败'));
+      navigate('/console/personal');
     }
   };
 

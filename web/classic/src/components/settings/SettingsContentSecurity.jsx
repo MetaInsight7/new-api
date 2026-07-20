@@ -22,7 +22,6 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Button, Form, Spin, Typography } from '@douyinfe/semi-ui';
 import { API, showError, showSuccess, toBoolean } from '../../helpers';
-import { useRequestLifecycle } from '../../hooks/common/useRequestLifecycle';
 
 // 内容安全 / 违规审计:运营设置里只放一个总开关;
 // 词库、审计记录、监控等具体配置都在「违规审计」页面。
@@ -32,7 +31,6 @@ export default function SettingsContentSecurity(props) {
   const [loading, setLoading] = useState(false);
   const [enabled, setEnabled] = useState(false);
   const refForm = useRef();
-  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   useEffect(() => {
     const v = toBoolean(props.options?.ViolationAuditEnabled);
@@ -41,7 +39,6 @@ export default function SettingsContentSecurity(props) {
   }, [props.options]);
 
   const onSubmit = () => {
-    const requestId = beginRequest('save');
     setLoading(true);
     API.put('/api/option/', {
       key: 'ViolationAuditEnabled',
@@ -49,19 +46,16 @@ export default function SettingsContentSecurity(props) {
     })
       .then(async (res) => {
         if (res?.data?.success) {
-          if (!isCurrentRequest('save', requestId)) return;
+
           showSuccess(t('保存成功'));
           await props.refresh?.();
-        } else if (isCurrentRequest('save', requestId)) {
-          showError(res?.data?.message || t('保存失败，请重试'));
-        }
+        } else showError(res?.data?.message || t('保存失败，请重试'));
       })
       .catch(() => {
-        if (isCurrentRequest('save', requestId))
-          showError(t('保存失败，请重试'));
+        showError(t('保存失败，请重试'));
       })
       .finally(() => {
-        if (isCurrentRequest('save', requestId)) setLoading(false);
+        setLoading(false);
       });
   };
 

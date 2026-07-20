@@ -34,7 +34,6 @@ import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import AuthLayout from './AuthLayout';
 import { AuthButtonContent, AuthFormHeader } from './AuthFormVisuals';
-import { useRequestLifecycle } from '../../hooks/common/useRequestLifecycle';
 
 const PasswordResetForm = () => {
   const { t } = useTranslation();
@@ -49,7 +48,6 @@ const PasswordResetForm = () => {
   const [turnstileToken, setTurnstileToken] = useState('');
   const [disableButton, setDisableButton] = useState(false);
   const [countdown, setCountdown] = useState(30);
-  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
 
   const logo = getLogo();
 
@@ -90,7 +88,6 @@ const PasswordResetForm = () => {
       showInfo(t('请稍后几秒重试，Turnstile 正在检查用户环境！'));
       return;
     }
-    const requestId = beginRequest('reset');
     setDisableButton(true);
     setLoading(true);
     try {
@@ -98,18 +95,14 @@ const PasswordResetForm = () => {
         `/api/reset_password?email=${encodeURIComponent(email)}&turnstile=${encodeURIComponent(turnstileToken)}`,
       );
       const { success, message } = res.data;
-      if (isCurrentRequest('reset', requestId) && success) {
+      if (success) {
         showSuccess(t('重置邮件发送成功，请检查邮箱！'));
         setInputs({ ...inputs, email: '' });
-      } else if (isCurrentRequest('reset', requestId)) {
-        showError(message);
-      }
+      } else showError(message);
     } catch (error) {
-      if (isCurrentRequest('reset', requestId)) {
-        showError(error?.message || t('发送失败，请重试'));
-      }
+      showError(error?.message || t('发送失败，请重试'));
     } finally {
-      if (isCurrentRequest('reset', requestId)) setLoading(false);
+      setLoading(false);
     }
   }
 

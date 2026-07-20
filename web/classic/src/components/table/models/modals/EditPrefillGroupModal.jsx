@@ -36,7 +36,6 @@ import { IconLayers, IconSave, IconClose } from '@douyinfe/semi-icons';
 import { API, showError, showSuccess } from '../../../../helpers';
 import { useTranslation } from 'react-i18next';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
-import { useRequestLifecycle } from '../../../../hooks/common/useRequestLifecycle';
 
 const { Text, Title } = Typography;
 
@@ -61,7 +60,6 @@ const EditPrefillGroupModal = ({
   const isMobile = useIsMobile();
   const [loading, setLoading] = useState(false);
   const formRef = useRef(null);
-  const { beginRequest, isCurrentRequest } = useRequestLifecycle();
   const isEdit = editingGroup && editingGroup.id !== undefined;
 
   const [selectedType, setSelectedType] = useState(editingGroup?.type || 'tag');
@@ -73,7 +71,6 @@ const EditPrefillGroupModal = ({
 
   useEffect(() => {
     if (!visible) {
-      beginRequest('submit');
       setLoading(false);
     }
   }, [visible]);
@@ -86,7 +83,6 @@ const EditPrefillGroupModal = ({
 
   // 提交表单
   const handleSubmit = async (values) => {
-    const requestId = beginRequest('submit');
     setLoading(true);
     try {
       const submitData = {
@@ -101,25 +97,21 @@ const EditPrefillGroupModal = ({
       if (editingGroup.id) {
         submitData.id = editingGroup.id;
         const res = await API.put('/api/prefill_group', submitData);
-        if (isCurrentRequest('submit', requestId) && res.data.success) {
+        if (res.data.success) {
           showSuccess(t('更新成功'));
           onSuccess();
-        } else if (isCurrentRequest('submit', requestId)) {
-          showError(res.data.message || t('更新失败'));
-        }
+        } else showError(res.data.message || t('更新失败'));
       } else {
         const res = await API.post('/api/prefill_group', submitData);
-        if (isCurrentRequest('submit', requestId) && res.data.success) {
+        if (res.data.success) {
           showSuccess(t('创建成功'));
           onSuccess();
-        } else if (isCurrentRequest('submit', requestId)) {
-          showError(res.data.message || t('创建失败'));
-        }
+        } else showError(res.data.message || t('创建失败'));
       }
     } catch (error) {
-      if (isCurrentRequest('submit', requestId)) showError(t('操作失败'));
+      showError(t('操作失败'));
     }
-    if (isCurrentRequest('submit', requestId)) setLoading(false);
+    setLoading(false);
   };
 
   return (

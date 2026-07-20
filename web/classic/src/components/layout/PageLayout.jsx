@@ -30,7 +30,6 @@ import React, {
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from 'react';
 import { useIsMobile } from '../../hooks/common/useIsMobile';
@@ -56,8 +55,6 @@ const PageLayout = () => {
   const isMobile = useIsMobile();
   const [collapsed, , setCollapsed] = useSidebarCollapsed();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const mountedRef = useRef(true);
-  const statusRequestSeqRef = useRef(0);
   const location = useLocation();
 
   const cardProPages = useMemo(
@@ -118,33 +115,25 @@ const PageLayout = () => {
   }, [userDispatch]);
 
   const loadStatus = useCallback(async () => {
-    const requestSeq = ++statusRequestSeqRef.current;
     try {
       const res = await API.get('/api/status');
       const { success, data } = res.data;
-      if (success && mountedRef.current && requestSeq === statusRequestSeqRef.current) {
+      if (success) {
         statusDispatch({ type: 'set', payload: data });
         setStatusData(data);
-      } else if (
-        !success &&
-        mountedRef.current &&
-        requestSeq === statusRequestSeqRef.current
-      ) {
+      } else {
         // Resolve the global status gate even when the optional status
         // endpoint is unavailable; consumers can then render their defaults.
         statusDispatch({ type: 'set', payload: {} });
         showError('Unable to connect to server');
       }
     } catch (error) {
-      if (mountedRef.current && requestSeq === statusRequestSeqRef.current) {
-        statusDispatch({ type: 'set', payload: {} });
-        showError('Failed to load status');
-      }
+      statusDispatch({ type: 'set', payload: {} });
+      showError('Failed to load status');
     }
   }, [statusDispatch]);
 
   useEffect(() => {
-    mountedRef.current = true;
     loadUser();
     loadStatus();
     let systemName = getSystemName();
@@ -158,10 +147,6 @@ const PageLayout = () => {
         linkElement.href = logo;
       }
     }
-    return () => {
-      mountedRef.current = false;
-      statusRequestSeqRef.current += 1;
-    };
   }, [loadStatus, loadUser]);
 
   useEffect(() => {

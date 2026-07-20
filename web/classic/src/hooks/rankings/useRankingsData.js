@@ -29,7 +29,6 @@ export function useRankingsData(initialPeriod = 'week') {
   const [snapshot, setSnapshot] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const mountedRef = useRef(true);
   const requestSeqRef = useRef(0);
 
   const fetchRankings = useCallback(async (p) => {
@@ -38,7 +37,7 @@ export function useRankingsData(initialPeriod = 'week') {
     setError(null);
     try {
       const res = await API.get('/api/rankings', { params: { period: p } });
-      if (!mountedRef.current || requestSeq !== requestSeqRef.current) return;
+      if (requestSeq !== requestSeqRef.current) return;
       const { success, message, data } = res.data;
       if (success) {
         setSnapshot(data);
@@ -46,23 +45,21 @@ export function useRankingsData(initialPeriod = 'week') {
         setError(message);
       }
     } catch (err) {
-      if (!mountedRef.current || requestSeq !== requestSeqRef.current) return;
+      if (requestSeq !== requestSeqRef.current) return;
       const msg = err?.response?.data?.message || err.message;
       setError(msg);
     } finally {
-      if (mountedRef.current && requestSeq === requestSeqRef.current) {
+      if (requestSeq === requestSeqRef.current) {
         setLoading(false);
       }
     }
   }, []);
 
   useEffect(() => {
-    mountedRef.current = true;
     fetchRankings(period);
   }, [period, fetchRankings]);
 
   useEffect(() => () => {
-    mountedRef.current = false;
     requestSeqRef.current += 1;
   }, []);
 

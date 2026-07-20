@@ -30,16 +30,15 @@ export const useModelDeploymentSettings = () => {
     ok: null,
     error: null,
   });
-  const mountedRef = useRef(true);
   const settingsRequestSeqRef = useRef(0);
   const connectionRequestSeqRef = useRef(0);
 
   const getSettings = async () => {
     const requestSeq = ++settingsRequestSeqRef.current;
     try {
-      if (mountedRef.current) setLoading(true);
+      setLoading(true);
       const res = await API.get('/api/deployments/settings');
-      if (!mountedRef.current || requestSeq !== settingsRequestSeqRef.current) {
+      if (requestSeq !== settingsRequestSeqRef.current) {
         return;
       }
       const { success, data } = res.data;
@@ -50,21 +49,19 @@ export const useModelDeploymentSettings = () => {
         });
       }
     } catch (error) {
-      if (mountedRef.current && requestSeq === settingsRequestSeqRef.current) {
+      if (requestSeq === settingsRequestSeqRef.current) {
         console.error('Failed to get model deployment settings:', error);
       }
     } finally {
-      if (mountedRef.current && requestSeq === settingsRequestSeqRef.current) {
+      if (requestSeq === settingsRequestSeqRef.current) {
         setLoading(false);
       }
     }
   };
 
   useEffect(() => {
-    mountedRef.current = true;
     getSettings();
     return () => {
-      mountedRef.current = false;
       settingsRequestSeqRef.current += 1;
       connectionRequestSeqRef.current += 1;
     };
@@ -104,7 +101,6 @@ export const useModelDeploymentSettings = () => {
         { skipErrorHandler: true },
       );
       if (
-        !mountedRef.current ||
         requestSeq !== connectionRequestSeqRef.current
       ) {
         return;
@@ -123,7 +119,6 @@ export const useModelDeploymentSettings = () => {
       });
     } catch (error) {
       if (
-        !mountedRef.current ||
         requestSeq !== connectionRequestSeqRef.current
       ) {
         return;
@@ -147,7 +142,7 @@ export const useModelDeploymentSettings = () => {
   }, []);
 
   useEffect(() => {
-    if (!mountedRef.current) return;
+
     if (!loading && isIoNetEnabled) {
       testConnection();
       return;

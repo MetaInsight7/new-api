@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   API,
@@ -36,14 +36,9 @@ export const useDataLoader = (
   setGroups,
 ) => {
   const { t } = useTranslation();
-  const mountedRef = useRef(true);
-  const requestSeqRef = useRef(0);
-
   const loadModels = useCallback(async () => {
-    const requestSeq = ++requestSeqRef.current;
     try {
       const res = await API.get(API_ENDPOINTS.USER_MODELS);
-      if (!mountedRef.current || requestSeq !== requestSeqRef.current) return;
       const { success, message, data } = res.data;
 
       if (success) {
@@ -65,10 +60,8 @@ export const useDataLoader = (
   }, [inputs.model, handleInputChange, setModels, t]);
 
   const loadGroups = useCallback(async () => {
-    const requestSeq = ++requestSeqRef.current;
     try {
       const res = await API.get(API_ENDPOINTS.USER_GROUPS);
-      if (!mountedRef.current || requestSeq !== requestSeqRef.current) return;
       const { success, message, data } = res.data;
 
       if (success) {
@@ -93,15 +86,10 @@ export const useDataLoader = (
 
   // 自动加载数据
   useEffect(() => {
-    mountedRef.current = true;
     if (userState?.user) {
       loadModels();
       loadGroups();
     }
-    return () => {
-      mountedRef.current = false;
-      requestSeqRef.current += 1;
-    };
   }, [userState?.user, loadModels, loadGroups]);
 
   return {
