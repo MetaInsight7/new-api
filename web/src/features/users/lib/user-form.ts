@@ -50,6 +50,8 @@ export const userFormSchema = z.object({
     .min(0, MAX_CONCURRENCY_ERROR)
     .max(2147483647, MAX_CONCURRENCY_ERROR)
     .optional(),
+  sensitive_word_violation_count: z.number().int().min(0).optional(),
+  sensitive_word_whitelist: z.boolean().optional(),
   admin_permissions: z
     .record(z.string(), z.record(z.string(), z.boolean()))
     .optional(),
@@ -70,6 +72,8 @@ export const USER_FORM_DEFAULT_VALUES: UserFormValues = {
   group: DEFAULT_GROUP,
   remark: '',
   max_concurrency: undefined,
+  sensitive_word_violation_count: 0,
+  sensitive_word_whitelist: false,
   // Filled against the backend catalog at render time; see UsersMutateDrawer.
   admin_permissions: {},
 }
@@ -133,6 +137,8 @@ export function transformUserToFormDefaults(user: User): UserFormValues {
     group: user.group || DEFAULT_GROUP,
     remark: user.remark || '',
     max_concurrency: user.max_concurrency ?? 0,
+    sensitive_word_violation_count: user.sensitive_word_violation_count ?? 0,
+    sensitive_word_whitelist: user.sensitive_word_whitelist === true,
     admin_permissions: user.admin_permissions ?? {},
   }
 }

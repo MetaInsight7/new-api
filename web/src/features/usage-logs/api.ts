@@ -17,7 +17,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { api, getFreshAuthHeaders, type ApiRequestConfig } from '@/lib/api'
-import { createServerError } from '@/lib/server-error-message'
+import {
+  createServerError,
+  requireServerSuccess,
+} from '@/lib/server-error-message'
 
 import type { UsageLog } from './data/schema'
 import { buildQueryParams } from './lib/query-params'
@@ -31,6 +34,7 @@ import type {
   GetTaskLogsParams,
   TaskArtifactsResponse,
   UserInfo,
+  SensitiveWordAuditEvent,
 } from './types'
 
 // ============================================================================
@@ -140,6 +144,15 @@ export async function exportLogs(
     throw createServerError(result)
   }
   return result.data?.count ?? 0
+}
+
+export async function getSensitiveWordAudit(auditId: number): Promise<{
+  success: boolean
+  message?: string
+  data?: SensitiveWordAuditEvent
+}> {
+  const res = await api.get(`/api/log/sensitive-word-audit/${auditId}`)
+  return requireServerSuccess(res.data)
 }
 
 export async function getUserInfo(

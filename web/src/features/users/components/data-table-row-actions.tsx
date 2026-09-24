@@ -86,6 +86,8 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   } = useUsers()
   const [resetPasskeyOpen, setResetPasskeyOpen] = useState(false)
   const [resetTwoFAOpen, setResetTwoFAOpen] = useState(false)
+  const [enableResetOpen, setEnableResetOpen] = useState(false)
+  const [isEnabling, setIsEnabling] = useState(false)
   const [bindingDialogOpen, setBindingDialogOpen] = useState(false)
   const [subscriptionsDialogOpen, setSubscriptionsDialogOpen] = useState(false)
 
@@ -99,7 +101,9 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
     setOpen('delete')
   }
 
-  const handleManage = async (action: AdminUserManageAction) => {
+  const handleManage = async (
+    action: AdminUserManageAction
+  ): Promise<boolean> => {
     try {
       const proof = await requestVerification({
         scope: 'admin.user.manage',
@@ -110,11 +114,12 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
           { username: user.username }
         ),
       })
-      if (!proof) return
+      if (!proof) return false
       const result = await manageUser(user.id, action, proof.proof_token)
       if (result.success) {
         toast.success(t(getUserActionMessage(action)))
         triggerRefresh()
+        return true
       } else {
         handleServerError(result, t('Failed to {{action}} user', { action }))
       }
@@ -123,6 +128,25 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
         AuthOperationError.from(error),
         t(ERROR_MESSAGES.UNEXPECTED)
       )
+    }
+    return false
+  }
+
+  const handleEnableSelect = (event: { preventDefault: () => void }) => {
+    if ((user.sensitive_word_violation_count ?? 0) > 0) {
+      event.preventDefault()
+      setEnableResetOpen(true)
+      return
+    }
+    void handleManage('enable')
+  }
+
+  const handleConfirmEnable = async () => {
+    setIsEnabling(true)
+    try {
+      if (await handleManage('enable')) setEnableResetOpen(false)
+    } finally {
+      setIsEnabling(false)
     }
   }
 
@@ -215,7 +239,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
         contentClassName='w-48'
       >
         {isDisabled ? (
-          <DropdownMenuItem onClick={() => handleManage('enable')}>
+          <DropdownMenuItem onSelect={handleEnableSelect}>
             {t('Enable')}
             <DropdownMenuShortcut>
               <Power size={16} />
@@ -339,6 +363,18 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
         )}
         confirmText={t('Reset 2FA')}
         handleConfirm={handleResetTwoFA}
+      />
+
+      <ConfirmDialog
+        open={enableResetOpen}
+        onOpenChange={setEnableResetOpen}
+        title={t('Enable account and reset violations')}
+        desc={t(
+          'This user has sensitive-word violation records. Enabling the account will reset the current violation count, but historical audits, balance, and consumption records will not be deleted. Continue?'
+        )}
+        confirmText={t('Enable and reset')}
+        handleConfirm={() => void handleConfirmEnable()}
+        isLoading={isEnabling}
       />
 
       <UserBindingDialog
