@@ -668,7 +668,9 @@ func GetUserModels(c *gin.Context) {
 func UpdateUser(c *gin.Context) {
 	var request struct {
 		model.User
-		MaxConcurrency *int `json:"max_concurrency"`
+		MaxConcurrency              *int  `json:"max_concurrency"`
+		SensitiveWordViolationCount *int  `json:"sensitive_word_violation_count"`
+		SensitiveWordWhitelist      *bool `json:"sensitive_word_whitelist"`
 	}
 	err := common.DecodeJson(c.Request.Body, &request)
 	updatedUser := request.User
@@ -679,6 +681,8 @@ func UpdateUser(c *gin.Context) {
 		common.ApiErrorT(c, "Invalid parameters")
 		return
 	}
+	sensitiveViolationCount := request.SensitiveWordViolationCount
+	sensitiveWhitelist := request.SensitiveWordWhitelist
 	updatedUser.Username = strings.TrimSpace(updatedUser.Username)
 	if updatedUser.Username == "" {
 		common.ApiErrorT(c, "Invalid parameters")
@@ -725,6 +729,11 @@ func UpdateUser(c *gin.Context) {
 	authzTouched := false
 	if err := model.DB.Transaction(func(tx *gorm.DB) error {
 		if err := updatedUser.EditWithTx(tx, updatePassword, request.MaxConcurrency); err != nil {
+			return err
+		}
+		if err := model.UpdateSensitiveWordUserFieldsWithTx(
+			tx, updatedUser.Id, sensitiveViolationCount, sensitiveWhitelist,
+		); err != nil {
 			return err
 		}
 		touched, err := updateAdminPermissionsForUserInTx(c, tx, updatedUser.Id, originUser.Role, updatedUser.AdminPermissions)
@@ -1156,7 +1165,34 @@ func ManageUser(c *gin.Context) {
 			return
 		}
 	case "enable":
-		user.Status = common.UserStatusEnabled
+		reset, err := model.EnableUserAndResetSensitiveWordViolations(user.Id)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		recordManageAuditFor(c, user.Id, "sensitive_word.enable_reset", map[string]any{
+			"target_user_id": user.Id, "username": user.Username,
+			"status_before": reset.StatusBefore, "status_after": reset.StatusAfter,
+			"violation_count_before": reset.ViolationCountBefore,
+			"violation_count_after":  reset.ViolationCountAfter,
+			"auth_version_before":    reset.AuthVersionBefore,
+			"auth_version_after":     reset.AuthVersionAfter,
+			"quota_before":           reset.QuotaBefore, "quota_after": reset.QuotaAfter,
+			"used_quota_before": reset.UsedQuotaBefore,
+			"used_quota_after":  reset.UsedQuotaAfter,
+			"status_changed":    reset.StatusChanged,
+			"sessions_revoked":  reset.SessionsRevoked,
+			"balance_changed":   false,
+		})
+		c.JSON(http.StatusOK, gin.H{
+			"success": true, "message": "",
+			"data": model.User{
+				Role:                        user.Role,
+				Status:                      common.UserStatusEnabled,
+				SensitiveWordViolationCount: 0,
+			},
+		})
+		return
 	case "delete":
 		if user.Role == common.RoleRootUser {
 			common.ApiErrorT(c, "Cannot delete super administrator account")

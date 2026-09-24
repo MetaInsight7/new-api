@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -112,6 +113,65 @@ func TestTokenAuthReadOnlyTranslatesErrors(t *testing.T) {
 		assert.Equal(t, http.StatusUnauthorized, recorder.Code, tc.acceptLanguage)
 		assert.JSONEq(t, `{"success":false,"message":"`+tc.want+`"}`, recorder.Body.String(), tc.acceptLanguage)
 	}
+}
+
+func setupTokenAuthSensitiveWordTest(t *testing.T) {
+	t.Helper()
+	previousDB, previousLogDB := model.DB, model.LOG_DB
+	previousMainType, previousLogType := common.MainDatabaseType(), common.LogDatabaseType()
+	previousRedis := common.RedisEnabled
+	previousMaster := common.IsMasterNode
+	previousSQLitePath := common.SQLitePath
+	common.SQLitePath = filepath.Join(t.TempDir(), "token-auth-sensitive-word.db")
+	t.Setenv("SQL_DSN", "local")
+	t.Setenv("LOG_SQL_DSN", "")
+	common.RedisEnabled = false
+	common.IsMasterNode = true
+	require.NoError(t, model.InitDB())
+	t.Cleanup(func() {
+		model.DB, model.LOG_DB = previousDB, previousLogDB
+		common.SetDatabaseTypes(previousMainType, previousLogType)
+		common.RedisEnabled = previousRedis
+		common.IsMasterNode = previousMaster
+		common.SQLitePath = previousSQLitePath
+	})
+}
+
+func TestTokenAuthBannedUserReturnsStableErrorCode(t *testing.T) {
+	setupTokenAuthSensitiveWordTest(t)
+	user := &model.User{
+		Username: "banned-sensitive-user", Password: "password-placeholder",
+		Role: common.RoleCommonUser, Status: common.UserStatusDisabled,
+		Group: "default", AuthVersion: 2, AffCode: "banned-sensitive-aff",
+	}
+	require.NoError(t, model.DB.Create(user).Error)
+	token := &model.Token{
+		UserId: user.Id, Key: "bannedsensitivekey", Name: "banned token",
+		Status: common.TokenStatusEnabled, RemainQuota: 1_000_000, ExpiredTime: -1,
+	}
+	require.NoError(t, model.DB.Create(token).Error)
+
+	gin.SetMode(gin.TestMode)
+	called := false
+	router := gin.New()
+	router.GET("/v1/models", TokenAuth(), func(c *gin.Context) {
+		called = true
+		c.Status(http.StatusNoContent)
+	})
+	request := httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	request.Header.Set("Authorization", "Bearer "+token.Key)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	assert.Equal(t, http.StatusForbidden, response.Code)
+	assert.False(t, called)
+	var payload struct {
+		Error struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	require.NoError(t, common.Unmarshal(response.Body.Bytes(), &payload))
+	assert.Equal(t, "user_banned", payload.Error.Code)
 }
 
 func TestUserAuthAllowsOpaqueDottedPAT(t *testing.T) {

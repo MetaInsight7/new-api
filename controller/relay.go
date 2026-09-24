@@ -144,7 +144,9 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			service.RecordRequestPolicyTermination(c, newAPIError)
 			logger.LogError(c, common.LogText("relay error: %s", common.LocalLogPreview(newAPIError.Error())))
 			sanitizeErrorForUser(newAPIError)
-			newAPIError.SetMessage(common.MessageWithRequestId(newAPIError.Error(), requestId))
+			if newAPIError.GetErrorCode() != types.ErrorCodeSensitiveWordsDetected {
+				newAPIError.SetMessage(common.MessageWithRequestId(newAPIError.Error(), requestId))
+			}
 			upstreamURLs := common.UpstreamAddresses(c)
 			if relayFormat != types.RelayFormatOpenAIRealtime && c.Writer.Written() {
 				if strings.HasPrefix(c.Writer.Header().Get("Content-Type"), "text/event-stream") {

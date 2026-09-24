@@ -295,6 +295,11 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 	sampleResult = true
 	common.SetContextKey(c, appconstant.ContextKeyOriginalModel, modelName)
 	common.SetContextKey(c, appconstant.ContextKeyRequestStartTime, time.Now())
+	if apiErr = middleware.CheckSensitiveWordRequestBeforeChannelSelection(
+		c, types.RelayFormatOpenAIResponses, modelName, &create.Request,
+	); apiErr != nil {
+		return apiErr
+	}
 	service.GetChannelConstraints(c).AddFilter(appdto.ChannelFilter{Kind: appdto.FilterRequestPath, RequestPath: c.Request.URL.Path})
 	retry := &service.RetryParam{Ctx: c, TokenGroup: common.GetContextKeyString(c, appconstant.ContextKeyUsingGroup), ModelName: modelName, RequestPath: c.Request.URL.Path, Retry: common.GetPointer(0)}
 	var currentChannel *appmodel.Channel
