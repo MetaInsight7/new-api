@@ -95,3 +95,12 @@ func TestResponsesFunctionOutputKeepsOrdinaryModelVisibleContent(t *testing.T) {
 	require.Contains(t, text, "ordinary-output-text-marker")
 	require.Contains(t, text, "function-output-object-marker")
 }
+
+func TestResponsesFunctionOutputDecodesEscapedObjectStrings(t *testing.T) {
+	request := &OpenAIResponsesRequest{Input: json.RawMessage(`[
+  {"type":"function_call_output","output":{"result":"\u654f\u611f\u8bcd","nested":["safe"]}}
+]`)}
+	text := request.GetTokenCountMeta().CombineText
+	require.Contains(t, text, "敏感词")
+	require.NotContains(t, text, `\u654f\u611f\u8bcd`)
+}
