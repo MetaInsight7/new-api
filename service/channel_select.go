@@ -1,9 +1,12 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
+	"sort"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -15,6 +18,8 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/gin-gonic/gin"
 )
+
+var ErrChannelConcurrencyLimit = errors.New("channel concurrency limit exceeded")
 
 func GetChannelConstraints(c *gin.Context) *dto.ChannelConstraints {
 	if c == nil {
@@ -42,12 +47,13 @@ func AppendTaskPluginIdentityFilter(c *gin.Context, pluginKey string) {
 }
 
 type RetryParam struct {
-	Ctx          *gin.Context
-	TokenGroup   string
-	ModelName    string
-	RequestPath  string
-	Retry        *int
-	resetNextTry bool
+	Ctx               *gin.Context
+	TokenGroup        string
+	ModelName         string
+	RequestPath       string
+	Retry             *int
+	resetNextTry      bool
+	ExcludeChannelIDs map[int]struct{}
 }
 
 func (p *RetryParam) GetRetry() int {
@@ -74,6 +80,16 @@ func (p *RetryParam) IncreaseRetry() {
 
 func (p *RetryParam) ResetRetryNextTry() {
 	p.resetNextTry = true
+}
+
+func (p *RetryParam) AddExcludeChannel(channelID int) {
+	if p == nil || channelID <= 0 {
+		return
+	}
+	if p.ExcludeChannelIDs == nil {
+		p.ExcludeChannelIDs = make(map[int]struct{})
+	}
+	p.ExcludeChannelIDs[channelID] = struct{}{}
 }
 
 // CacheGetRandomSatisfiedChannel tries to get a random channel that satisfies the requirements.
@@ -116,7 +132,15 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 	var err error
 	selectGroup := param.TokenGroup
 	userGroup := common.GetContextKeyString(param.Ctx, constant.ContextKeyUserGroup)
-	filters := GetChannelConstraints(param.Ctx).Filters
+	filters := slices.Clone(GetChannelConstraints(param.Ctx).Filters)
+	hasExcludedChannels := len(param.ExcludeChannelIDs) > 0
+	if len(param.ExcludeChannelIDs) > 0 {
+		excluded := make([]int, 0, len(param.ExcludeChannelIDs))
+		for channelID := range param.ExcludeChannelIDs {
+			excluded = append(excluded, channelID)
+		}
+		filters = append(filters, dto.ChannelFilter{Kind: dto.FilterExcludedChannels, ExcludedChannelIDs: excluded})
+	}
 
 	if param.TokenGroup == "auto" {
 		autoGroups := GetRequestAutoGroups(param.Ctx, userGroup)
@@ -140,6 +164,9 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			// Calculate priorityRetry for current group
 			// 计算当前分组的 priorityRetry
 			priorityRetry := param.GetRetry()
+			if hasExcludedChannels {
+				priorityRetry = 0
+			}
 			// If moved to a new group, reset priorityRetry and update startRetryIndex
 			// 如果切换到新分组，重置 priorityRetry 并更新 startRetryIndex
 			if i > startGroupIndex {
@@ -190,17 +217,86 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			break
 		}
 	} else {
-		channel, err = model.GetRandomSatisfiedChannel(
-			param.TokenGroup,
-			param.ModelName,
-			param.GetRetry(),
-			filters,
-		)
+		channel, err = getRandomSatisfiedChannelWithConcurrency(param, filters)
 		if err != nil {
 			return nil, param.TokenGroup, err
 		}
 	}
 	return channel, selectGroup, nil
+}
+
+func getRandomSatisfiedChannelWithConcurrency(param *RetryParam, filters []dto.ChannelFilter) (*model.Channel, error) {
+	selectionFilters := filters
+	priorityRetry := param.GetRetry()
+	if len(param.ExcludeChannelIDs) > 0 {
+		priorityRetry = 0
+	}
+	candidates, err := model.GetSatisfiedChannelCandidates(param.TokenGroup, param.ModelName, priorityRetry, filters)
+	if err != nil {
+		return nil, err
+	}
+	if len(candidates) == 0 && len(param.ExcludeChannelIDs) > 0 && param.GetRetry() > 0 {
+		priorityRetry = param.GetRetry()
+		candidates, err = model.GetSatisfiedChannelCandidates(param.TokenGroup, param.ModelName, priorityRetry, filters)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if len(candidates) == 0 && len(param.ExcludeChannelIDs) > 0 && param.GetRetry() >= common.RetryTimes {
+		fallbackFilters := slices.DeleteFunc(slices.Clone(filters), func(filter dto.ChannelFilter) bool {
+			return filter.Kind == dto.FilterExcludedChannels
+		})
+		selectionFilters = fallbackFilters
+		candidates, err = model.GetSatisfiedChannelCandidates(param.TokenGroup, param.ModelName, priorityRetry, fallbackFilters)
+		if err != nil {
+			return nil, err
+		}
+	}
+	hasLimitedChannel := false
+	for _, candidate := range candidates {
+		if candidate.GetMaxConcurrency() > 0 {
+			hasLimitedChannel = true
+			break
+		}
+	}
+	if !hasLimitedChannel {
+		return model.GetRandomSatisfiedChannel(param.TokenGroup, param.ModelName, priorityRetry, selectionFilters)
+	}
+
+	ctx := context.Background()
+	if param.Ctx != nil && param.Ctx.Request != nil {
+		ctx = param.Ctx.Request.Context()
+	}
+	loads, err := GetChannelConcurrencyLoads(ctx, candidates)
+	if err != nil {
+		return nil, err
+	}
+	sort.SliceStable(candidates, func(i, j int) bool {
+		left := loads[candidates[i].Id]
+		right := loads[candidates[j].Id]
+		leftScore := left.LoadRate
+		rightScore := right.LoadRate
+		if left.MaxConcurrency <= 0 {
+			leftScore = -1
+		} else if left.CoolingDown {
+			leftScore = 1e9
+		}
+		if right.MaxConcurrency <= 0 {
+			rightScore = -1
+		} else if right.CoolingDown {
+			rightScore = 1e9
+		}
+		if leftScore == rightScore {
+			return candidates[i].GetWeight() > candidates[j].GetWeight()
+		}
+		return leftScore < rightScore
+	})
+	for _, candidate := range candidates {
+		if !loads[candidate.Id].CoolingDown {
+			return candidate, nil
+		}
+	}
+	return nil, ErrChannelConcurrencyLimit
 }
 
 func pinnedTaskPluginIdentities(c *gin.Context, expected string) ([]int, []string) {

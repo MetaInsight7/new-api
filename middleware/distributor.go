@@ -122,7 +122,30 @@ func Distribute() func(c *gin.Context) {
 			}
 		}
 		common.SetContextKey(c, constant.ContextKeyRequestStartTime, time.Now())
-		SetupContextForSelectedChannel(c, channel, modelRequest.Model)
+		if channel != nil {
+			if setupErr := SetupContextForSelectedChannel(c, channel, modelRequest.Model); setupErr != nil {
+				abortWithOpenAiMessage(c, setupErr.StatusCode, setupErr.Error(), setupErr.GetErrorCode())
+				return
+			}
+			ok, acquireErr := service.AcquireChannelConcurrencyWithWaitForContext(c, channel)
+			if acquireErr != nil {
+				if errors.Is(acquireErr, service.ErrChannelConcurrencyLimit) {
+					abortWithOpenAiMessage(c, http.StatusTooManyRequests, "channel concurrency limit exceeded", types.ErrorCodeGetChannelFailed)
+				} else {
+					abortWithOpenAiMessage(c, http.StatusServiceUnavailable, fmt.Sprintf("acquire channel concurrency failed: %s", acquireErr.Error()), types.ErrorCodeGetChannelFailed)
+				}
+				return
+			}
+			if !ok {
+				abortWithOpenAiMessage(c, http.StatusTooManyRequests, "channel concurrency limit exceeded", types.ErrorCodeGetChannelFailed)
+				return
+			}
+			defer func() {
+				if releaseErr := service.ReleaseChannelConcurrencyForContext(c); releaseErr != nil {
+					logger.LogError(c, fmt.Sprintf("release channel concurrency lease failed: %s", releaseErr.Error()))
+				}
+			}()
+		}
 		c.Next()
 		if channel != nil && c.Writer != nil && c.Writer.Status() < http.StatusBadRequest {
 			service.RecordChannelAffinity(c, channel.Id)

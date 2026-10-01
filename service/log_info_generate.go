@@ -4,6 +4,8 @@ import (
 	"encoding/base64"
 	"fmt"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -90,11 +92,56 @@ func AppendRelayLogAdminInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
 	if common.GetContextKeyBool(ctx, constant.ContextKeyLocalCountTokens) {
 		other.SetAdmin("local_count_tokens", true)
 	}
+	if ctx.Request != nil {
+		if userAgent := sanitizeLogUserAgent(ctx.Request.UserAgent()); userAgent != "" {
+			other.SetAdmin("user_agent", userAgent)
+		}
+		if bodySize := requestBodySize(ctx); bodySize > 0 {
+			other.SetAdmin("request_body_size", bodySize)
+		}
+	}
 
 	AppendChannelAffinityAdminInfo(ctx, other)
 	if events := RequestPolicy(ctx).Events(); len(events) > 0 {
 		other.SetAdmin("request_policy", events)
 	}
+}
+
+const maxLoggedUserAgentLength = 512
+
+func sanitizeLogUserAgent(userAgent string) string {
+	userAgent = strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return -1
+		}
+		return r
+	}, userAgent)
+	if len(userAgent) <= maxLoggedUserAgentLength {
+		return userAgent
+	}
+	var builder strings.Builder
+	for _, character := range userAgent {
+		if builder.Len()+utf8.RuneLen(character) > maxLoggedUserAgentLength {
+			break
+		}
+		builder.WriteRune(character)
+	}
+	return builder.String()
+}
+
+func requestBodySize(ctx *gin.Context) int64 {
+	if ctx == nil {
+		return 0
+	}
+	if value, exists := ctx.Get(common.KeyBodyStorage); exists {
+		if storage, ok := value.(common.BodyStorage); ok && storage != nil {
+			return storage.Size()
+		}
+	}
+	if ctx.Request != nil && ctx.Request.ContentLength > 0 {
+		return ctx.Request.ContentLength
+	}
+	return 0
 }
 
 func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, modelRatio, groupRatio, completionRatio float64,

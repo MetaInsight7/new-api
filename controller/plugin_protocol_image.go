@@ -228,6 +228,9 @@ func taskPluginImageResponseFormat(request pluginruntime.ProtocolRequestContext)
 // API. DashScope failure bodies arrive as JSON {code, message}; their message
 // is surfaced so a client sees the vendor reason instead of raw JSON.
 func respondTaskPluginImageError(c *gin.Context, taskErr *dto.TaskError) {
+	if taskErr == nil {
+		return
+	}
 	service.RecordRequestPolicyTermination(c, taskSubmissionAPIError(taskErr))
 	status := http.StatusInternalServerError
 	if taskErr.StatusCode >= 400 && taskErr.StatusCode <= 599 {
@@ -245,6 +248,9 @@ func respondTaskPluginImageError(c *gin.Context, taskErr *dto.TaskError) {
 			code = upstream.Code
 		}
 	}
+	sanitizedTaskErr := &dto.TaskError{Code: taskErr.Code, Message: message, StatusCode: status}
+	sanitizeTaskErrorForUser(sanitizedTaskErr)
+	message = sanitizedTaskErr.Message
 	errorType := "new_api_error"
 	if status < http.StatusInternalServerError {
 		errorType = "invalid_request_error"

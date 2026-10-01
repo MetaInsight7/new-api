@@ -4542,6 +4542,8 @@
     "Primary Passkey domain": "主域名",
     "Prioritize reusing the last successful channel based on keys extracted from request context (sticky routing)": "基于请求上下文提取的 Key，优先复用上一次成功的渠道（粘滞选路）",
     "Priority": "优先级",
+    "Maximum Concurrency": "最大并发数",
+    "Maximum simultaneous upstream requests for this channel; 0 means unlimited.": "此渠道允许的最大同时上游请求数；0 表示不限制。",
     "Priority (Default)": "优先级（默认）",
     "Priority level from 0 (lowest) to 10 (highest), default is 5": "优先级，从 0（最低）到 10（最高），默认为 5",
     "Priority order for automatic group assignment. New tokens rotate through this list.": "自动分组分配的优先级顺序。新 token 将按此列表轮换。",

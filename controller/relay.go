@@ -65,6 +65,54 @@ func geminiRelayHandler(c *gin.Context, info *relaycommon.RelayInfo) *types.NewA
 	return err
 }
 
+func executeRelayAttemptWithConcurrency(c *gin.Context, relayFormat types.RelayFormat, relayInfo *relaycommon.RelayInfo, ws *websocket.Conn) *types.NewAPIError {
+	var channel *model.Channel
+	if channelID := common.GetContextKeyInt(c, constant.ContextKeyChannelId); channelID > 0 {
+		var err error
+		channel, err = model.CacheGetChannel(channelID)
+		if err != nil {
+			return types.NewErrorWithStatusCode(err, types.ErrorCodeGetChannelFailed, http.StatusServiceUnavailable)
+		}
+	}
+	if channel != nil {
+		ok, acquireErr := service.EnsureChannelConcurrencyWithWaitForContext(c, channel)
+		if acquireErr != nil {
+			if errors.Is(acquireErr, service.ErrChannelConcurrencyLimit) {
+				return types.NewErrorWithStatusCode(acquireErr, types.ErrorCodeGetChannelFailed, http.StatusTooManyRequests, types.ErrOptionWithSkipRetry())
+			}
+			return types.NewErrorWithStatusCode(acquireErr, types.ErrorCodeGetChannelFailed, http.StatusServiceUnavailable)
+		}
+		if !ok {
+			return types.NewErrorWithStatusCode(service.ErrChannelConcurrencyLimit, types.ErrorCodeGetChannelFailed, http.StatusTooManyRequests, types.ErrOptionWithSkipRetry())
+		}
+		defer func() {
+			if releaseErr := service.ReleaseChannelConcurrencyForContext(c); releaseErr != nil {
+				logger.LogError(c, fmt.Sprintf("release channel concurrency lease failed: %s", releaseErr.Error()))
+			}
+		}()
+	}
+
+	bodyStorage, bodyErr := common.GetBodyStorage(c)
+	if bodyErr != nil {
+		if common.IsRequestBodyTooLargeError(bodyErr) || errors.Is(bodyErr, common.ErrRequestBodyTooLarge) {
+			return types.NewErrorWithStatusCode(bodyErr, types.ErrorCodeReadRequestBodyFailed, http.StatusRequestEntityTooLarge, types.ErrOptionWithSkipRetry())
+		}
+		return types.NewErrorWithStatusCode(bodyErr, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+	}
+	c.Request.Body = io.NopCloser(bodyStorage)
+
+	switch relayFormat {
+	case types.RelayFormatOpenAIRealtime:
+		return relay.WssHelper(c, relayInfo)
+	case types.RelayFormatClaude:
+		return relay.ClaudeHelper(c, relayInfo)
+	case types.RelayFormatGemini:
+		return geminiRelayHandler(c, relayInfo)
+	default:
+		return relayHandler(c, relayInfo)
+	}
+}
+
 func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 	requestId := c.GetString(common.RequestIdKey)
@@ -90,6 +138,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		if newAPIError != nil {
 			service.RecordRequestPolicyTermination(c, newAPIError)
 			logger.LogError(c, fmt.Sprintf("relay error: %s", common.LocalLogPreview(newAPIError.Error())))
+			sanitizeErrorForUser(newAPIError)
 			newAPIError.SetMessage(common.MessageWithRequestId(newAPIError.Error(), requestId))
 			switch relayFormat {
 			case types.RelayFormatOpenAIRealtime:
@@ -172,28 +221,9 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			break
 		}
 
-		bodyStorage, bodyErr := common.GetBodyStorage(c)
-		if bodyErr != nil {
-			// Ensure consistent 413 for oversized bodies even when error occurs later (e.g., retry path)
-			if common.IsRequestBodyTooLargeError(bodyErr) || errors.Is(bodyErr, common.ErrRequestBodyTooLarge) {
-				newAPIError = types.NewErrorWithStatusCode(bodyErr, types.ErrorCodeReadRequestBodyFailed, http.StatusRequestEntityTooLarge, types.ErrOptionWithSkipRetry())
-			} else {
-				newAPIError = types.NewErrorWithStatusCode(bodyErr, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
-			}
-			break
-		}
-		c.Request.Body = io.NopCloser(bodyStorage)
-
-		switch relayFormat {
-		case types.RelayFormatOpenAIRealtime:
-			newAPIError = relay.WssHelper(c, relayInfo)
-		case types.RelayFormatClaude:
-			newAPIError = relay.ClaudeHelper(c, relayInfo)
-		case types.RelayFormatGemini:
-			newAPIError = geminiRelayHandler(c, relayInfo)
-		default:
-			newAPIError = relayHandler(c, relayInfo)
-		}
+		attemptStartedAt := time.Now()
+		newAPIError = executeRelayAttemptWithConcurrency(c, relayFormat, relayInfo, ws)
+		perfmetrics.RecordChannelAttempt(relayInfo, channel.Id, channel.Name, attemptStartedAt, newAPIError)
 
 		if newAPIError == nil {
 			service.MarkRequestPolicySuccess(c, relayInfo.StreamStatus)
@@ -207,6 +237,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		decision := service.DecideRelayRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry())
 		service.RecordPolicyFailure(c, channel.Id, newAPIError, decision)
 		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError, relayInfo)
+		retryParam.AddExcludeChannel(channel.Id)
 
 		if decision.Action != "retry" {
 			break
@@ -469,6 +500,41 @@ func executeTaskSubmission(c *gin.Context, relayInfo *relaycommon.RelayInfo) (*t
 
 type taskSubmitAttempt func(*gin.Context, *relaycommon.RelayInfo) (*relay.TaskSubmitResult, *taskdto.TaskError)
 
+func submitTaskAttemptWithConcurrency(c *gin.Context, relayInfo *relaycommon.RelayInfo, channel *model.Channel, submit taskSubmitAttempt) (*relay.TaskSubmitResult, *taskdto.TaskError) {
+	ok, acquireErr := service.EnsureChannelConcurrencyWithWaitForContext(c, channel)
+	if acquireErr != nil {
+		if errors.Is(acquireErr, service.ErrChannelConcurrencyLimit) {
+			return nil, service.TaskErrorWrapperLocal(acquireErr, "channel_concurrency_limit_exceeded", http.StatusTooManyRequests)
+		}
+		return nil, service.TaskErrorWrapperLocal(acquireErr, "acquire_channel_concurrency_failed", http.StatusServiceUnavailable)
+	}
+	if !ok {
+		return nil, service.TaskErrorWrapperLocal(service.ErrChannelConcurrencyLimit, "channel_concurrency_limit_exceeded", http.StatusTooManyRequests)
+	}
+	defer func() {
+		if releaseErr := service.ReleaseChannelConcurrencyForContext(c); releaseErr != nil {
+			logger.LogError(c, fmt.Sprintf("release channel concurrency lease failed: %s", releaseErr.Error()))
+		}
+	}()
+
+	bodyStorage, bodyErr := common.GetBodyStorage(c)
+	if bodyErr != nil {
+		if common.IsRequestBodyTooLargeError(bodyErr) || errors.Is(bodyErr, common.ErrRequestBodyTooLarge) {
+			return nil, service.TaskErrorWrapperLocal(bodyErr, "read_request_body_failed", http.StatusRequestEntityTooLarge)
+		}
+		return nil, service.TaskErrorWrapperLocal(bodyErr, "read_request_body_failed", http.StatusBadRequest)
+	}
+	c.Request.Body = io.NopCloser(bodyStorage)
+	attemptStartedAt := time.Now()
+	result, taskErr := submit(c, relayInfo)
+	var apiErr *types.NewAPIError
+	if taskErr != nil {
+		apiErr = taskSubmissionAPIError(taskErr)
+	}
+	perfmetrics.RecordChannelAttempt(relayInfo, channel.Id, channel.Name, attemptStartedAt, apiErr)
+	return result, taskErr
+}
+
 func executeTaskSubmissionWith(
 	c *gin.Context,
 	relayInfo *relaycommon.RelayInfo,
@@ -531,20 +597,8 @@ func executeTaskSubmissionWith(
 		diagnostics.attempt(retryParam.GetRetry()+1, channel, relayInfo.LockedChannel != nil)
 
 		service.AppendUsedChannel(c, channel.Id)
-		bodyStorage, bodyErr := common.GetBodyStorage(c)
-		if bodyErr != nil {
-			stage = "read_body"
-			if common.IsRequestBodyTooLargeError(bodyErr) || errors.Is(bodyErr, common.ErrRequestBodyTooLarge) {
-				taskErr = service.TaskErrorWrapperLocal(bodyErr, "read_request_body_failed", http.StatusRequestEntityTooLarge)
-			} else {
-				taskErr = service.TaskErrorWrapperLocal(bodyErr, "read_request_body_failed", http.StatusBadRequest)
-			}
-			break
-		}
-		c.Request.Body = io.NopCloser(bodyStorage)
-
 		stage = "submit"
-		result, taskErr = submit(c, relayInfo)
+		result, taskErr = submitTaskAttemptWithConcurrency(c, relayInfo, channel, submit)
 		if requestErr := c.Request.Context().Err(); requestErr != nil {
 			diagnostics.cancelled("after_submit", retryParam.GetRetry()+1)
 			taskErr = service.TaskErrorWrapperLocal(requestErr, "request_cancelled", http.StatusRequestTimeout)
@@ -566,6 +620,7 @@ func executeTaskSubmissionWith(
 				taskAPIError,
 				relayInfo)
 		}
+		retryParam.AddExcludeChannel(channel.Id)
 
 		willRetry := decision.Action == "retry"
 		diagnostics.attemptFailed(retryParam.GetRetry()+1, channel, taskErr, willRetry)
@@ -771,8 +826,13 @@ func respondTaskSubmissionError(c *gin.Context, taskErr *taskdto.TaskError) {
 
 // respondTaskError 统一输出 Task 错误响应（含 429 限流提示改写）
 func respondTaskError(c *gin.Context, taskErr *taskdto.TaskError) {
+	if taskErr == nil {
+		return
+	}
 	if taskErr.StatusCode == http.StatusTooManyRequests {
 		taskErr.Message = "当前分组上游负载已饱和，请稍后再试"
+	} else {
+		sanitizeTaskErrorForUser(taskErr)
 	}
 	c.JSON(taskErr.StatusCode, taskErr)
 }
@@ -780,6 +840,9 @@ func respondTaskError(c *gin.Context, taskErr *taskdto.TaskError) {
 // taskSubmissionAPIError adapts a task error for the shared relay error paths.
 // TaskError.Error is nil for many local rejections, so fall back to the message.
 func taskSubmissionAPIError(taskErr *taskdto.TaskError) *types.NewAPIError {
+	if taskErr == nil {
+		return nil
+	}
 	err := taskErr.Error
 	if err == nil {
 		err = errors.New(taskErr.Message)

@@ -2216,6 +2216,32 @@ export function ChannelMutateDrawer({
             </FormItem>
           )}
         />
+
+        <FormField
+          control={form.control}
+          name='max_concurrency'
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{t('Maximum Concurrency')}</FormLabel>
+              <FormControl>
+                <Input
+                  type='number'
+                  min={0}
+                  step={1}
+                  placeholder='0'
+                  {...field}
+                  onChange={(e) => field.onChange(Number(e.target.value))}
+                />
+              </FormControl>
+              <FormDescription>
+                {t(
+                  'Maximum simultaneous upstream requests for this channel; 0 means unlimited.'
+                )}
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
       </div>
 
       <FormField

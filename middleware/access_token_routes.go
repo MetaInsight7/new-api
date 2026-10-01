@@ -174,6 +174,8 @@ var accessTokenRouteRules = map[string]accessTokenRouteRule{
 	"POST /api/ratio_sync/fetch":                accessTokenScopeRule("option:write"),
 
 	// router/api-router.go: /api/performance, /api/system-task, /api/system-info
+	"GET /api/model-health":                        accessTokenScopeRule("ops:read"),
+	"GET /api/model-health/detail":                 accessTokenScopeRule("ops:read"),
 	"GET /api/performance/stats":                   accessTokenScopeRule("ops:read"),
 	"DELETE /api/performance/disk_cache":           accessTokenScopeRule("ops:write"),
 	"POST /api/performance/reset_stats":            accessTokenScopeRule("ops:write"),

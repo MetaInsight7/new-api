@@ -547,6 +547,9 @@ func validateChannel(channel *model.Channel, isAdd bool) error {
 	if channel == nil {
 		return fmt.Errorf("channel cannot be empty")
 	}
+	if channel.MaxConcurrency < 0 {
+		return fmt.Errorf("channel max concurrency cannot be negative")
+	}
 
 	// 校验 channel settings
 	if err := channel.ValidateSettings(); err != nil {

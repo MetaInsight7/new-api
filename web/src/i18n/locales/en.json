@@ -4542,6 +4542,8 @@
     "Primary Passkey domain": "Primary Passkey domain",
     "Prioritize reusing the last successful channel based on keys extracted from request context (sticky routing)": "Prioritize reusing the last successful channel based on keys extracted from request context (sticky routing)",
     "Priority": "Priority",
+    "Maximum Concurrency": "Maximum Concurrency",
+    "Maximum simultaneous upstream requests for this channel; 0 means unlimited.": "Maximum simultaneous upstream requests for this channel; 0 means unlimited.",
     "Priority (Default)": "Priority (Default)",
     "Priority level from 0 (lowest) to 10 (highest), default is 5": "Priority level from 0 (lowest) to 10 (highest), default is 5",
     "Priority order for automatic group assignment. New tokens rotate through this list.": "Priority order for automatic group assignment. New tokens rotate through this list.",

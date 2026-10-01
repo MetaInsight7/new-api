@@ -1,7 +1,10 @@
 package service
 
 import (
+	"context"
 	"fmt"
+	"net/http"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -66,6 +69,13 @@ func ProcessChannelError(c *gin.Context, channelError types.ChannelError, err *t
 		return
 	}
 	logger.LogError(c, fmt.Sprintf("channel error (channel #%d, status code: %d): %s", channelError.ChannelId, err.StatusCode, common.LocalLogPreview(err.MaskSensitiveErrorWithStatusCode())))
+	if shouldMarkChannelConcurrencyCooldown(err) {
+		cooldownCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		if cooldownErr := MarkChannelConcurrencyCooldown(cooldownCtx, channelError.ChannelId, 0, err.MaskSensitiveErrorWithStatusCode()); cooldownErr != nil {
+			logger.LogError(c, fmt.Sprintf("mark channel concurrency cooldown failed: %s", cooldownErr.Error()))
+		}
+	}
 	if ShouldDisableChannel(err) && channelError.AutoBan {
 		reason := err.MaskSensitiveErrorWithStatusCode()
 		gopool.Go(func() {
@@ -96,4 +106,26 @@ func ProcessChannelError(c *gin.Context, channelError types.ChannelError, err *t
 		useTimeSeconds := int(time.Since(startTime).Seconds())
 		model.RecordErrorLog(c, userId, channelError.ChannelId, modelName, tokenName, err.MaskSensitiveErrorWithStatusCode(), tokenId, useTimeSeconds, common.GetContextKeyBool(c, constant.ContextKeyIsStream), userGroup, other)
 	}
+}
+
+func shouldMarkChannelConcurrencyCooldown(err *types.NewAPIError) bool {
+	if err == nil {
+		return false
+	}
+	message := strings.ToLower(err.Error())
+	if strings.Contains(message, "insufficient_quota") ||
+		strings.Contains(message, "quota exceeded") ||
+		strings.Contains(message, "balance") ||
+		strings.Contains(message, "余额") ||
+		strings.Contains(message, "额度") {
+		return false
+	}
+	if err.StatusCode == http.StatusTooManyRequests {
+		return true
+	}
+	return strings.Contains(message, "rate limit") ||
+		strings.Contains(message, "rate limited") ||
+		strings.Contains(message, "too many requests") ||
+		strings.Contains(message, "overload") ||
+		strings.Contains(message, "capacity")
 }
