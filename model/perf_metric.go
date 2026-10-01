@@ -95,6 +95,40 @@ type ModelHealthAggregate struct {
 	LastBucketTs   int64  `json:"last_bucket_ts"`
 }
 
+type ModelAvailabilityState struct {
+	Status string `json:"availability_status"`
+}
+
+func GetModelAvailabilityStateMap(modelNames []string) (map[string]ModelAvailabilityState, error) {
+	result := make(map[string]ModelAvailabilityState, len(modelNames))
+	if len(modelNames) == 0 {
+		return result, nil
+	}
+
+	now := time.Now().Unix()
+	summaries, err := GetModelHealthSummaries(now-24*60*60, now)
+	if err != nil {
+		return result, nil
+	}
+	wanted := make(map[string]struct{}, len(modelNames))
+	for _, name := range modelNames {
+		wanted[name] = struct{}{}
+	}
+	for _, summary := range summaries {
+		if _, ok := wanted[summary.ModelName]; !ok {
+			continue
+		}
+		status := "unknown"
+		if summary.SuccessCount > 0 {
+			status = "available"
+		} else if summary.RequestCount > 0 {
+			status = "temporary_failure"
+		}
+		result[summary.ModelName] = ModelAvailabilityState{Status: status}
+	}
+	return result, nil
+}
+
 func GetModelHealthSummaries(startTs, cutoffTs int64) ([]ModelHealthAggregate, error) {
 	var summaries []ModelHealthAggregate
 	err := DB.Model(&PerfMetric{}).

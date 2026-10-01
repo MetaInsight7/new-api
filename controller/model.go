@@ -322,6 +322,38 @@ func ChannelListModels(c *gin.Context) {
 	})
 }
 
+func AvailableModels(c *gin.Context) {
+	access, err := resolveTokenModelAccessFromContext(c)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "get available models failed",
+		})
+		return
+	}
+
+	availableModels := make([]dto.OpenAIModels, 0, len(access.Models))
+	for _, accessModel := range access.Models {
+		owner := "custom"
+		if accessModel.Vendor != nil && accessModel.Vendor.Name != "" {
+			owner = accessModel.Vendor.Name
+		}
+		availableModels = append(availableModels, dto.OpenAIModels{
+			Id:                     accessModel.ID,
+			Object:                 "model",
+			Created:                1626777600,
+			OwnedBy:                owner,
+			SupportedEndpointTypes: accessModel.SupportedEndpointTypes,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    availableModels,
+		"object":  "list",
+	})
+}
+
 func DashboardListModels(c *gin.Context) {
 	modelsByChannel := make(map[int][]string, len(channelId2Models))
 	for channelType, models := range channelId2Models {
