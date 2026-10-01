@@ -17,11 +17,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { createFileRoute, redirect } from '@tanstack/react-router'
+import { useAuthStore } from '@/stores/auth-store'
+import { ROLE } from '@/lib/roles'
 
 import { DASHBOARD_DEFAULT_SECTION } from '@/features/dashboard/section-registry'
 
 export const Route = createFileRoute('/_authenticated/dashboard/')({
   beforeLoad: () => {
+    const role = useAuthStore.getState().auth.user?.role
+    if (!role || role < ROLE.ADMIN) {
+      throw redirect({ to: '/workspace' })
+    }
     throw redirect({
       to: '/dashboard/$section',
       params: { section: DASHBOARD_DEFAULT_SECTION },
