@@ -11,8 +11,8 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
-	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
+	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -391,13 +391,38 @@ func usageSemanticFromUsage(relayInfo *relaycommon.RelayInfo, usage *dto.Usage) 
 	return "openai"
 }
 
+func shouldZeroLocalUsage(ctx *gin.Context, info *relaycommon.RelayInfo, usage *dto.Usage) bool {
+	if info == nil || !info.IsStream {
+		return false
+	}
+	if !common.GetContextKeyBool(ctx, constant.ContextKeyLocalCountTokens) {
+		return false
+	}
+	if usage != nil && usage.CompletionTokens > 0 {
+		return false
+	}
+	return !info.HasSendResponse()
+}
+
 func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.Usage, extraContent []string) {
 	originUsage := usage
 	billingUsage := effectiveBillingUsage(usage)
+	zeroLocalUsage := shouldZeroLocalUsage(ctx, relayInfo, billingUsage)
+	if zeroLocalUsage {
+		endReason := relaycommon.StreamEndReasonNone
+		if relayInfo.StreamStatus != nil {
+			endReason = relayInfo.StreamStatus.EndReason
+		}
+		logger.LogInfo(ctx, fmt.Sprintf(
+			"zeroing locally estimated usage: no real output delivered (end_reason=%s, received=%d)",
+			endReason, relayInfo.ReceivedResponseCount,
+		))
+		billingUsage = &dto.Usage{}
+	}
 	if usage == nil {
 		extraContent = append(extraContent, "上游无计费信息")
 	}
-	if originUsage != nil {
+	if originUsage != nil && !zeroLocalUsage {
 		ObserveChannelAffinityUsageCacheByRelayFormat(ctx, billingUsage, relayInfo.GetFinalRequestRelayFormat())
 	}
 
@@ -411,10 +436,10 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	// Providers normally estimate missing usage before settlement. Preserve the
 	// same prompt estimate when a fixed-price expression reaches us without it;
 	// its conditions must still run and may select a token-priced fallback.
-	if billingUsage == nil && snap != nil && billingexpr.UsesFixedPricingByHash(snap.ExprString, snap.ExprHash) {
+	if !zeroLocalUsage && billingUsage == nil && snap != nil && billingexpr.UsesFixedPricingByHash(snap.ExprString, snap.ExprHash) {
 		billingUsage = &dto.Usage{PromptTokens: summary.PromptTokens, CompletionTokens: summary.CompletionTokens, TotalTokens: summary.TotalTokens}
 	}
-	if billingUsage != nil {
+	if !zeroLocalUsage && billingUsage != nil {
 		var tieredUsedVars map[string]bool
 		if snap := relayInfo.TieredBillingSnapshot; snap != nil {
 			tieredUsedVars = billingexpr.UsedVarsByHash(snap.ExprString, snap.ExprHash)

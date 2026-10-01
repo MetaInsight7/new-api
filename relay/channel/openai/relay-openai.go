@@ -181,8 +181,12 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	}
 
 	if !containStreamUsage {
-		usage = service.ResponseText2Usage(c, responseTextBuilder.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
-		usage.CompletionTokens += toolCount * 7
+		common.SetContextKey(c, constant.ContextKeyLocalCountTokens, true)
+		responseText := responseTextBuilder.String()
+		if len(responseText) > 0 || toolCount > 0 {
+			usage = service.ResponseText2Usage(c, responseText, info.UpstreamModelName, info.GetEstimatePromptTokens())
+			usage.CompletionTokens += toolCount * 7
+		}
 	}
 
 	applyUsagePostProcessing(info, usage, common.StringToByteSlice(usageFrame))

@@ -350,6 +350,47 @@ func TestCalculateTextQuotaSummaryUnifiedForClaudeSemantic(t *testing.T) {
 	require.Equal(t, 1488, chatSummary.Quota)
 }
 
+func TestShouldZeroLocalUsageOnlyWithoutRealStreamOutput(t *testing.T) {
+	newContext := func() *gin.Context {
+		context, _ := gin.CreateTestContext(httptest.NewRecorder())
+		common.SetContextKey(context, constant.ContextKeyLocalCountTokens, true)
+		return context
+	}
+	newRelayInfo := func() *relaycommon.RelayInfo {
+		return &relaycommon.RelayInfo{
+			StartTime: time.Now().Add(-time.Second),
+			IsStream:  true,
+		}
+	}
+
+	t.Run("zeros local prompt-only usage without output", func(t *testing.T) {
+		info := newRelayInfo()
+		assert.True(t, shouldZeroLocalUsage(newContext(), info, &dto.Usage{PromptTokens: 10}))
+	})
+
+	t.Run("keeps usage after a response is sent", func(t *testing.T) {
+		info := newRelayInfo()
+		info.FirstResponseTime = info.StartTime.Add(time.Millisecond)
+		assert.False(t, shouldZeroLocalUsage(newContext(), info, &dto.Usage{PromptTokens: 10}))
+	})
+
+	t.Run("keeps usage with completion tokens", func(t *testing.T) {
+		info := newRelayInfo()
+		assert.False(t, shouldZeroLocalUsage(newContext(), info, &dto.Usage{CompletionTokens: 1}))
+	})
+
+	t.Run("does not apply to non-stream requests or upstream usage", func(t *testing.T) {
+		info := newRelayInfo()
+		info.IsStream = false
+		assert.False(t, shouldZeroLocalUsage(newContext(), info, nil))
+
+		context := newContext()
+		common.SetContextKey(context, constant.ContextKeyLocalCountTokens, false)
+		info.IsStream = true
+		assert.False(t, shouldZeroLocalUsage(context, info, nil))
+	})
+}
+
 func TestCalculateTextQuotaSummaryUsesSplitClaudeCacheCreationRatios(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
