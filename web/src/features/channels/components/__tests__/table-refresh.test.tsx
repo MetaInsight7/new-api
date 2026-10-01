@@ -63,6 +63,7 @@ function channel(name: string): Channel {
     other_info: '',
     remark: '',
     max_input_tokens: 0,
+    max_concurrency: 0,
     channel_info: {
       is_multi_key: false,
       multi_key_size: 0,
