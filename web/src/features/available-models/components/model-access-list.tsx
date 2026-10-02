@@ -56,6 +56,9 @@ import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { getModelAvailabilityConfig } from '@/lib/model-availability'
 import { cn } from '@/lib/utils'
+import { DEFAULT_TOKEN_UNIT, QUOTA_TYPE_VALUES } from '@/features/pricing/constants'
+import { formatFixedPrice, formatGroupPrice } from '@/features/pricing/lib/price'
+import type { PricingModel } from '@/features/pricing/types'
 
 import {
   getModelEndpointLabel,
@@ -64,6 +67,8 @@ import {
 import type { ModelAccessModel } from '../types'
 
 type ModelAccessListProps = {
+  pricingModels?: ReadonlyMap<string, PricingModel>
+  pricingLoading?: boolean
   models: ModelAccessModel[]
   scopeIsEmpty: boolean
   onClearFilters: () => void
@@ -101,6 +106,8 @@ export function getEffectiveVisibleModelCount(
 }
 
 export function ModelAccessList({
+  pricingModels = new Map(),
+  pricingLoading = false,
   models,
   scopeIsEmpty,
   onClearFilters,
@@ -182,6 +189,39 @@ export function ModelAccessList({
                 )
               )
             )
+            const pricing = pricingModels.get(model.id)
+            const requestPrice =
+              pricing?.quota_type === QUOTA_TYPE_VALUES.REQUEST
+                ? formatFixedPrice(pricing, '__official__', false, 1, 1, {
+                    __official__: 1,
+                  })
+                : null
+            const inputPrice =
+              pricing?.quota_type === QUOTA_TYPE_VALUES.TOKEN
+                ? formatGroupPrice(
+                    pricing,
+                    '__official__',
+                    'input',
+                    DEFAULT_TOKEN_UNIT,
+                    false,
+                    1,
+                    1,
+                    { __official__: 1 }
+                  )
+                : null
+            const outputPrice =
+              pricing?.quota_type === QUOTA_TYPE_VALUES.TOKEN
+                ? formatGroupPrice(
+                    pricing,
+                    '__official__',
+                    'output',
+                    DEFAULT_TOKEN_UNIT,
+                    false,
+                    1,
+                    1,
+                    { __official__: 1 }
+                  )
+                : null
 
             return (
               <Item
@@ -252,14 +292,22 @@ export function ModelAccessList({
                 </ItemActions>
                 <ItemFooter className='justify-start'>
                   <div className='flex flex-wrap gap-1.5'>
-                    {model.pricing && model.pricing.quota_type === 1 && (
+                    {pricingLoading && !pricing && (
+                      <Badge variant='secondary'>{t('Loading price')}</Badge>
+                    )}
+                    {requestPrice !== null && (
                       <Badge variant='secondary'>
-                        {t('Price')} {model.pricing.model_price}
+                        {t('Per Request')} {requestPrice}
                       </Badge>
                     )}
-                    {model.pricing && model.pricing.quota_type !== 1 && (
+                    {inputPrice !== null && (
                       <Badge variant='secondary'>
-                        {t('Model ratio')} {model.pricing.model_ratio}×
+                        {t('Input')} {inputPrice}
+                      </Badge>
+                    )}
+                    {outputPrice !== null && (
+                      <Badge variant='secondary'>
+                        {t('Output')} {outputPrice}
                       </Badge>
                     )}
                     {endpointLabels.length > 0 ? (

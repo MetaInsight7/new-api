@@ -34,6 +34,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { usePricingData } from '@/features/pricing/hooks/use-pricing-data'
 
 import {
   ALL_MODEL_VENDORS,
@@ -60,6 +61,14 @@ type ModelAccessBrowserProps = {
 export function ModelAccessBrowser({ access }: ModelAccessBrowserProps) {
   const { t } = useTranslation()
   const fixedView = isFixedModelAccessView(access)
+  const pricingQuery = usePricingData()
+  const pricingModels = useMemo(
+    () =>
+      new Map(
+        pricingQuery.models.map((model) => [model.model_name, model] as const)
+      ),
+    [pricingQuery.models]
+  )
   const [selectedScopeId, setSelectedScopeId] = useState<string | null>(null)
   const [query, setQuery] = useState('')
 
@@ -271,6 +280,8 @@ export function ModelAccessBrowser({ access }: ModelAccessBrowserProps) {
       </div>
 
       <ModelAccessList
+        pricingModels={pricingModels}
+        pricingLoading={pricingQuery.isLoading}
         models={visibleModels}
         scopeIsEmpty={scopeModels.length === 0}
         onClearFilters={clearFilters}
@@ -296,6 +307,8 @@ export function ModelAccessBrowser({ access }: ModelAccessBrowserProps) {
             </Badge>
           </div>
           <ModelAccessList
+            pricingModels={pricingModels}
+            pricingLoading={pricingQuery.isLoading}
             models={visibleUnavailableModels}
             scopeIsEmpty={false}
             onClearFilters={clearFilters}

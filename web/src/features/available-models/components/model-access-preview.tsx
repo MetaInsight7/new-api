@@ -32,6 +32,7 @@ import {
 } from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { usePricingData } from '@/features/pricing/hooks/use-pricing-data'
 
 import {
   ALL_MODEL_VENDORS,
@@ -58,6 +59,14 @@ export type ModelAccessPreviewProps = {
 
 export function ModelAccessPreview(props: ModelAccessPreviewProps) {
   const { t } = useTranslation()
+  const pricingQuery = usePricingData()
+  const pricingModels = useMemo(
+    () =>
+      new Map(
+        pricingQuery.models.map((model) => [model.model_name, model] as const)
+      ),
+    [pricingQuery.models]
+  )
   const [query, setQuery] = useState('')
   const vendorFilters = useMemo(
     () => getModelVendorFilters(props.models),
@@ -201,6 +210,8 @@ export function ModelAccessPreview(props: ModelAccessPreviewProps) {
         </Empty>
       ) : (
         <ModelAccessList
+          pricingModels={pricingModels}
+          pricingLoading={pricingQuery.isLoading}
           models={visibleModels}
           scopeIsEmpty={false}
           onClearFilters={clearFilters}
