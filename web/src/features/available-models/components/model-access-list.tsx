@@ -22,7 +22,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { StatusBadge } from '@/components/status-badge'
@@ -46,6 +46,7 @@ import {
   ItemMedia,
   ItemTitle,
 } from '@/components/ui/item'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   Tooltip,
   TooltipContent,
@@ -56,8 +57,14 @@ import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { getModelAvailabilityConfig } from '@/lib/model-availability'
 import { cn } from '@/lib/utils'
-import { DEFAULT_TOKEN_UNIT, QUOTA_TYPE_VALUES } from '@/features/pricing/constants'
-import { formatFixedPrice, formatGroupPrice } from '@/features/pricing/lib/price'
+import {
+  DEFAULT_TOKEN_UNIT,
+  QUOTA_TYPE_VALUES,
+} from '@/features/pricing/constants'
+import {
+  formatFixedPrice,
+  formatGroupPrice,
+} from '@/features/pricing/lib/price'
 import type { PricingModel } from '@/features/pricing/types'
 
 import {
@@ -182,13 +189,13 @@ export function ModelAccessList({
               availability[
                 normalizeModelAvailabilityStatus(model.availability_status)
               ] || availability.unknown_failure
-            const endpointLabels = Array.from(
-              new Set(
+            const endpointLabels = [
+              ...new Set(
                 model.supported_endpoint_types.map((endpoint) =>
                   getModelEndpointLabel(endpoint, t)
                 )
-              )
-            )
+              ),
+            ]
             const pricing = pricingModels.get(model.id)
             const requestPrice =
               pricing?.quota_type === QUOTA_TYPE_VALUES.REQUEST
@@ -222,6 +229,56 @@ export function ModelAccessList({
                     { __official__: 1 }
                   )
                 : null
+            const showPricingPanel =
+              pricingLoading ||
+              requestPrice !== null ||
+              inputPrice !== null ||
+              outputPrice !== null
+            let pricingPanelContent: ReactNode
+            if (pricingLoading && !pricing) {
+              pricingPanelContent = (
+                <div className='grid w-full grid-cols-2 gap-3'>
+                  <Skeleton className='col-span-2 h-3 w-20' />
+                  <Skeleton className='h-9 w-full' />
+                  <Skeleton className='h-9 w-full' />
+                </div>
+              )
+            } else if (requestPrice !== null) {
+              pricingPanelContent = (
+                <div className='flex min-w-0 flex-col gap-1'>
+                  <span className='text-muted-foreground text-xs'>
+                    {t('Per Request')}
+                  </span>
+                  <span className='text-base font-semibold tabular-nums'>
+                    {requestPrice}
+                  </span>
+                </div>
+              )
+            } else {
+              pricingPanelContent = (
+                <div className='grid w-full grid-cols-2 gap-x-4 gap-y-1'>
+                  <span className='text-muted-foreground col-span-2 text-xs'>
+                    {t('Per 1M tokens')}
+                  </span>
+                  <div className='flex min-w-0 flex-col gap-0.5'>
+                    <span className='text-muted-foreground text-xs'>
+                      {t('Input')}
+                    </span>
+                    <span className='truncate text-sm font-semibold tabular-nums'>
+                      {inputPrice}
+                    </span>
+                  </div>
+                  <div className='border-border flex min-w-0 flex-col gap-0.5 border-l pl-4'>
+                    <span className='text-muted-foreground text-xs'>
+                      {t('Output')}
+                    </span>
+                    <span className='truncate text-sm font-semibold tabular-nums'>
+                      {outputPrice}
+                    </span>
+                  </div>
+                </div>
+              )
+            }
 
             return (
               <Item
@@ -229,20 +286,72 @@ export function ModelAccessList({
                 variant='outline'
                 size='sm'
                 className={cn(
+                  '@container flex items-stretch gap-0 overflow-hidden p-0',
+                  showPricingPanel && 'flex-wrap',
                   officiallyUnsupported &&
                     'border-destructive/40 bg-destructive/5'
                 )}
               >
-                <ItemMedia variant='icon'>
-                  {getLobeIcon(model.vendor?.icon, 18)}
-                </ItemMedia>
-                <ItemContent className='min-w-0'>
-                  <ItemTitle className='max-w-full font-mono'>
-                    <span className='truncate'>{model.id}</span>
-                  </ItemTitle>
-                  <ItemDescription>
-                    {model.vendor?.name ?? t('Unknown')}
-                  </ItemDescription>
+                <div
+                  className={cn(
+                    'flex min-w-0 flex-1 flex-col justify-center gap-2.5 px-3 py-2.5',
+                    showPricingPanel && 'grow-[2] basis-[22rem]'
+                  )}
+                >
+                  <div className='flex min-w-0 items-center gap-2.5'>
+                    <ItemMedia className='translate-y-0 self-center'>
+                      {getLobeIcon(model.vendor?.icon, 32)}
+                    </ItemMedia>
+                    <ItemContent className='min-w-0 gap-0.5'>
+                      <ItemTitle className='max-w-full font-mono'>
+                        <span className='truncate'>{model.id}</span>
+                      </ItemTitle>
+                      <ItemDescription className='text-xs leading-4'>
+                        {model.vendor?.name ?? t('Unknown')}
+                      </ItemDescription>
+                    </ItemContent>
+                    <ItemActions>
+                      {officiallyUnsupported ? (
+                        <Badge variant='destructive'>
+                          <HugeiconsIcon
+                            icon={Alert02Icon}
+                            strokeWidth={2}
+                            data-icon='inline-start'
+                            aria-hidden='true'
+                          />
+                          {t('Not callable · Officially unsupported')}
+                        </Badge>
+                      ) : (
+                        <StatusBadge
+                          label={availabilityConfig.label}
+                          variant={availabilityConfig.variant}
+                          copyable={false}
+                        />
+                      )}
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <Button
+                              type='button'
+                              size='icon-sm'
+                              variant='ghost'
+                              aria-label={t('Copy to clipboard')}
+                              onClick={() => void copyToClipboard(model.id)}
+                            />
+                          }
+                        >
+                          <HugeiconsIcon
+                            icon={Copy01Icon}
+                            strokeWidth={2}
+                            aria-hidden='true'
+                          />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          {t('Copy to clipboard')}
+                        </TooltipContent>
+                      </Tooltip>
+                    </ItemActions>
+                  </div>
                   {officiallyUnsupported && (
                     <p className='text-destructive text-xs font-medium'>
                       {t(
@@ -250,79 +359,27 @@ export function ModelAccessList({
                       )}
                     </p>
                   )}
-                </ItemContent>
-                <ItemActions>
-                  {officiallyUnsupported ? (
-                    <Badge variant='destructive'>
-                      <HugeiconsIcon
-                        icon={Alert02Icon}
-                        strokeWidth={2}
-                        data-icon='inline-start'
-                        aria-hidden='true'
-                      />
-                      {t('Not callable · Officially unsupported')}
-                    </Badge>
-                  ) : (
-                    <StatusBadge
-                      label={availabilityConfig.label}
-                      variant={availabilityConfig.variant}
-                      copyable={false}
-                    />
-                  )}
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <Button
-                          type='button'
-                          size='icon-sm'
-                          variant='ghost'
-                          aria-label={t('Copy to clipboard')}
-                          onClick={() => void copyToClipboard(model.id)}
-                        />
-                      }
-                    >
-                      <HugeiconsIcon
-                        icon={Copy01Icon}
-                        strokeWidth={2}
-                        aria-hidden='true'
-                      />
-                    </TooltipTrigger>
-                    <TooltipContent>{t('Copy to clipboard')}</TooltipContent>
-                  </Tooltip>
-                </ItemActions>
-                <ItemFooter className='justify-start'>
-                  <div className='flex flex-wrap gap-1.5'>
-                    {pricingLoading && !pricing && (
-                      <Badge variant='secondary'>{t('Loading price')}</Badge>
-                    )}
-                    {requestPrice !== null && (
-                      <Badge variant='secondary'>
-                        {t('Per Request')} {requestPrice}
-                      </Badge>
-                    )}
-                    {inputPrice !== null && (
-                      <Badge variant='secondary'>
-                        {t('Input')} {inputPrice}
-                      </Badge>
-                    )}
-                    {outputPrice !== null && (
-                      <Badge variant='secondary'>
-                        {t('Output')} {outputPrice}
-                      </Badge>
-                    )}
-                    {endpointLabels.length > 0 ? (
-                      endpointLabels.map((endpoint) => (
-                        <Badge key={endpoint} variant='outline'>
-                          {endpoint}
+                  <ItemFooter className='justify-start pl-[42px]'>
+                    <div className='flex flex-wrap gap-1.5'>
+                      {endpointLabels.length > 0 ? (
+                        endpointLabels.map((endpoint) => (
+                          <Badge key={endpoint} variant='outline'>
+                            {endpoint}
+                          </Badge>
+                        ))
+                      ) : (
+                        <Badge variant='outline'>
+                          {t('Endpoint not specified')}
                         </Badge>
-                      ))
-                    ) : (
-                      <Badge variant='outline'>
-                        {t('Endpoint not specified')}
-                      </Badge>
-                    )}
+                      )}
+                    </div>
+                  </ItemFooter>
+                </div>
+                {showPricingPanel && (
+                  <div className='bg-muted/25 border-border flex grow basis-44 items-center border-t px-3 py-2.5 @min-[33rem]:border-t-0 @min-[33rem]:border-l'>
+                    {pricingPanelContent}
                   </div>
-                </ItemFooter>
+                )}
               </Item>
             )
           })}
