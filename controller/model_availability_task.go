@@ -58,6 +58,14 @@ func (modelAvailabilityHandler) Interval() time.Duration {
 	return time.Duration(seconds) * time.Second
 }
 
+func modelAvailabilityUnsupportedThreshold() int {
+	threshold := common.GetEnvOrDefault("MODEL_AVAILABILITY_OFFICIAL_UNSUPPORTED_THRESHOLD", 2)
+	if threshold < 1 {
+		return 1
+	}
+	return threshold
+}
+
 func (modelAvailabilityHandler) NewPayload() any { return nil }
 
 func (modelAvailabilityHandler) Run(ctx context.Context, task *model.SystemTask, runnerID string) {
@@ -235,11 +243,7 @@ func saveModelAvailabilityProbeResult(modelName string, outcome modelProbeOutcom
 		}
 		state.LastSuccessAt = existing.LastSuccessAt
 	}
-	threshold := common.GetEnvOrDefault("MODEL_AVAILABILITY_OFFICIAL_UNSUPPORTED_THRESHOLD", 2)
-	if threshold < 1 {
-		threshold = 1
-	}
-	if outcome.Class == modelProbeOfficialUnsupported && state.ConsecutiveFailures < threshold {
+	if outcome.Class == modelProbeOfficialUnsupported && state.ConsecutiveFailures < modelAvailabilityUnsupportedThreshold() {
 		state.Status = model.ModelAvailabilityUnknownFailure
 		state.ReasonType = "official_model_unsupported_candidate"
 	}
