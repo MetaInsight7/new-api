@@ -16,8 +16,8 @@ import (
 const (
 	ModelAccessScopeSelectableGroup = "selectable_group"
 	ModelAccessScopeFixedAccount    = "fixed_account"
-	modelAccessPLGGroup             = "plg"
 	ModelAvailabilityUnknown        = "unknown"
+	modelAccessDefaultGroup         = "default"
 )
 
 type ModelAccessVendor struct {
@@ -122,11 +122,16 @@ func ResolveUserModelAccess(user *model.UserBase) (*UserModelAccess, error) {
 		}, nil
 	}
 
-	acceptUnpriced := UserAcceptsUnpricedModels(user)
-	if user.Group == modelAccessPLGGroup || strings.TrimSpace(user.Group) == "" {
-		return resolveFixedAccountModelAccess(user.Group, acceptUnpriced)
+	identityGroup := normalizeModelAccessIdentityGroup(user.Group)
+	return resolveSelectableGroupModelAccess(identityGroup, UserAcceptsUnpricedModels(user))
+}
+
+func normalizeModelAccessIdentityGroup(group string) string {
+	group = strings.TrimSpace(group)
+	if group == "" {
+		return modelAccessDefaultGroup
 	}
-	return resolveSelectableGroupModelAccess(user.Group, acceptUnpriced)
+	return group
 }
 
 type strictModelAccess struct {
@@ -280,32 +285,11 @@ func resolveSelectableGroupModelAccess(identityGroup string, acceptUnpriced bool
 	}, nil
 }
 
-func resolveFixedAccountModelAccess(group string, acceptUnpriced bool) (*UserModelAccess, error) {
-	group = strings.TrimSpace(group)
-	if group == "" {
-		group = modelAccessPLGGroup
-	}
-	strict, err := resolveStrictModelAccess([]string{group}, acceptUnpriced)
-	if err != nil {
-		return nil, err
-	}
-	return &UserModelAccess{
-		ScopeMode:        ModelAccessScopeFixedAccount,
-		IdentityModelIDs: []string{},
-		Groups:           []ModelAccessScope{},
-		AccountModelIDs:  strict.modelIDs,
-		Models:           strict.models,
-	}, nil
-}
-
 func resolveTokenAccessGroups(identityGroup, tokenGroup string) []string {
 	identityGroup = strings.TrimSpace(identityGroup)
 	tokenGroup = strings.TrimSpace(tokenGroup)
 	if identityGroup == "" {
 		return []string{}
-	}
-	if identityGroup == modelAccessPLGGroup {
-		return []string{modelAccessPLGGroup}
 	}
 	if tokenGroup == "" {
 		return []string{identityGroup}
