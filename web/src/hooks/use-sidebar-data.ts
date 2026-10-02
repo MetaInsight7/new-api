@@ -19,6 +19,8 @@ For commercial licensing, please contact support@quantumnous.com
 import {
   Activity,
   Box,
+  Boxes,
+  BriefcaseBusiness,
   ClipboardList,
   CreditCard,
   FileText,
@@ -73,6 +75,16 @@ export function useSidebarData(): SidebarData {
         id: 'general',
         title: t('General'),
         items: [
+          {
+            title: t('Workspaces'),
+            url: '/workspace',
+            icon: BriefcaseBusiness,
+          },
+          {
+            title: t('Available Models'),
+            url: '/available-models',
+            icon: Boxes,
+          },
           {
             title: t('Overview'),
             url: '/dashboard/overview',

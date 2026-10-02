@@ -120,6 +120,22 @@ describe('security sidebar visibility', () => {
   })
 })
 
+describe('primary navigation', () => {
+  it('exposes workspace and available models routes', () => {
+    const { result } = sidebarFor()
+    const items = result.current
+      .flatMap((group) => group.items)
+      .filter((item) => 'url' in item)
+
+    expect(items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ url: '/workspace' }),
+        expect.objectContaining({ url: '/available-models' }),
+      ])
+    )
+  })
+})
+
 describe('audit log sidebar entry', () => {
   it('admin settings default Audit Logs to visible and preserve its independent toggle when saved', () => {
     const config = parseSidebarModulesAdmin(
