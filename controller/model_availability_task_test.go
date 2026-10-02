@@ -1,9 +1,11 @@
 package controller
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
@@ -167,6 +169,22 @@ func TestSaveModelAvailabilityProbeResultRequiresConsecutiveUnsupportedResults(t
 	require.NoError(t, err)
 	require.Equal(t, model.ModelAvailabilityAvailable, state.Status)
 	require.Zero(t, state.ConsecutiveFailures)
+}
+
+func TestModelAvailabilityProbeInterval(t *testing.T) {
+	t.Setenv("MODEL_AVAILABILITY_PROBE_INTERVAL_SECONDS", "17")
+	require.Equal(t, 17*time.Second, modelAvailabilityProbeInterval())
+
+	t.Setenv("MODEL_AVAILABILITY_PROBE_INTERVAL_SECONDS", "0")
+	require.Equal(t, 60*time.Second, modelAvailabilityProbeInterval())
+}
+
+func TestWaitForModelAvailabilityProbeIntervalHonorsCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	require.ErrorIs(t, waitForModelAvailabilityProbeInterval(ctx, time.Hour), context.Canceled)
+	require.NoError(t, waitForModelAvailabilityProbeInterval(ctx, 0))
 }
 
 func TestClassifyModelProbeModality(t *testing.T) {

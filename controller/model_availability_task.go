@@ -66,6 +66,14 @@ func modelAvailabilityUnsupportedThreshold() int {
 	return threshold
 }
 
+func modelAvailabilityProbeInterval() time.Duration {
+	seconds := common.GetEnvOrDefault("MODEL_AVAILABILITY_PROBE_INTERVAL_SECONDS", 60)
+	if seconds < 1 {
+		seconds = 60
+	}
+	return time.Duration(seconds) * time.Second
+}
+
 func (modelAvailabilityHandler) NewPayload() any { return nil }
 
 func (modelAvailabilityHandler) Run(ctx context.Context, task *model.SystemTask, runnerID string) {
@@ -333,6 +341,10 @@ func probeOneModelAvailability(ctx context.Context, modelName string, testUserID
 }
 
 func runModelAvailabilityDetection(ctx context.Context, report func(processed, total int)) (modelAvailabilityTaskSummary, error) {
+	return runModelAvailabilityDetectionWithInterval(ctx, report, modelAvailabilityProbeInterval())
+}
+
+func runModelAvailabilityDetectionWithInterval(ctx context.Context, report func(processed, total int), probeInterval time.Duration) (modelAvailabilityTaskSummary, error) {
 	testUserID, err := resolveChannelTestUserID(nil)
 	if err != nil {
 		return modelAvailabilityTaskSummary{}, err
@@ -365,9 +377,28 @@ func runModelAvailabilityDetection(ctx context.Context, report func(processed, t
 		if report != nil {
 			report(summary.Processed, summary.Total)
 		}
+		if index < len(modelNames)-1 {
+			if err := waitForModelAvailabilityProbeInterval(ctx, probeInterval); err != nil {
+				return summary, err
+			}
+		}
 	}
 	model.InvalidatePricingCache()
 	return summary, nil
+}
+
+func waitForModelAvailabilityProbeInterval(ctx context.Context, interval time.Duration) error {
+	if interval <= 0 {
+		return nil
+	}
+	timer := time.NewTimer(interval)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 // TriggerModelAvailabilityDetection enqueues a leased system task instead of
