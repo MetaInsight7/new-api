@@ -370,6 +370,7 @@ func migrateDB() error {
 		&CustomOAuthProvider{},
 		&UserOAuthBinding{},
 		&PerfMetric{},
+		&ModelAvailabilityState{},
 		&SystemInstance{},
 		&SystemTask{},
 		&SystemTaskLock{},

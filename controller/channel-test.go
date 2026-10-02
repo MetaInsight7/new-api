@@ -41,6 +41,16 @@ type testResult struct {
 	newAPIError *types.NewAPIError
 }
 
+type channelTestOptions struct {
+	Prompt     string
+	ExpectPong bool
+	TokenName  string
+	LogContent string
+	MaxTokens  uint
+	SkipLog    bool
+	Context    context.Context
+}
+
 func normalizeChannelTestEndpoint(channel *model.Channel, endpointType string) string {
 	normalized := strings.TrimSpace(endpointType)
 	if normalized != "" {
@@ -70,6 +80,11 @@ func resolveChannelTestUserID(c *gin.Context) (int, error) {
 }
 
 func testChannel(ctx context.Context, channel *model.Channel, testUserID int, testModel string, endpointType string, isStream bool) testResult {
+	return testChannelWithOptions(channel, testUserID, testModel, endpointType, isStream, channelTestOptions{Context: ctx})
+}
+
+func testChannelWithOptions(channel *model.Channel, testUserID int, testModel string, endpointType string, isStream bool, options channelTestOptions) testResult {
+	ctx := options.Context
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -227,7 +242,7 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 		}
 	}
 
-	request := buildTestRequest(testModel, endpointType, channel, isStream)
+	request := buildTestRequestWithOptions(testModel, endpointType, channel, isStream, options.Prompt, options.MaxTokens)
 
 	info, err := relaycommon.GenRelayInfo(c, relayFormat, request, nil)
 
@@ -495,6 +510,15 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 			newAPIError: types.NewOpenAIError(bodyErr, types.ErrorCodeBadResponseBody, http.StatusInternalServerError),
 		}
 	}
+	if options.ExpectPong {
+		if bodyErr := validatePongTestResponseBody(respBody); bodyErr != nil {
+			return testResult{
+				context:     c,
+				localErr:    bodyErr,
+				newAPIError: types.NewOpenAIError(bodyErr, types.ErrorCodeBadResponseBody, http.StatusInternalServerError),
+			}
+		}
+	}
 	info.SetEstimatePromptTokens(usage.PromptTokens)
 
 	quota, tieredResult := settleTestQuota(info, priceData, usage)
@@ -502,19 +526,29 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 	milliseconds := tok.Sub(tik).Milliseconds()
 	consumedTime := float64(milliseconds) / 1000.0
 	other := buildTestLogOther(c, info, priceData, usage, tieredResult)
-	model.RecordConsumeLog(c, testUserID, model.RecordConsumeLogParams{
-		ChannelId:        channel.Id,
-		PromptTokens:     usage.PromptTokens,
-		CompletionTokens: usage.CompletionTokens,
-		ModelName:        info.OriginModelName,
-		TokenName:        "模型测试",
-		Quota:            quota,
-		Content:          "模型测试",
-		UseTimeSeconds:   int(consumedTime),
-		IsStream:         info.IsStream,
-		Group:            info.UsingGroup,
-		Other:            other,
-	})
+	if !options.SkipLog {
+		tokenName := options.TokenName
+		if tokenName == "" {
+			tokenName = "模型测试"
+		}
+		logContent := options.LogContent
+		if logContent == "" {
+			logContent = "模型测试"
+		}
+		model.RecordConsumeLog(c, testUserID, model.RecordConsumeLogParams{
+			ChannelId:        channel.Id,
+			PromptTokens:     usage.PromptTokens,
+			CompletionTokens: usage.CompletionTokens,
+			ModelName:        info.OriginModelName,
+			TokenName:        tokenName,
+			Quota:            quota,
+			Content:          logContent,
+			UseTimeSeconds:   int(consumedTime),
+			IsStream:         info.IsStream,
+			Group:            info.UsingGroup,
+			Other:            other,
+		})
+	}
 	common.SysLog(fmt.Sprintf("testing channel #%d, response: \n%s", channel.Id, string(respBody)))
 	return testResult{
 		context:     c,
@@ -665,6 +699,72 @@ func validateTestResponseBody(respBody []byte, isStream bool) error {
 	return nil
 }
 
+func normalizePongCandidate(text string) string {
+	text = strings.TrimSpace(strings.ToLower(text))
+	text = strings.Trim(text, `"'“”‘’.。！!`)
+	return strings.TrimSpace(text)
+}
+
+func extractPongCandidatesFromJSON(jsonBytes []byte) []string {
+	candidates := make([]string, 0, 4)
+	for _, path := range []string{
+		"choices.0.message.content",
+		"choices.0.delta.content",
+		"choices.0.text",
+		"output_text",
+		"output.0.content.0.text",
+		"content.0.text",
+		"content",
+	} {
+		if value := gjson.GetBytes(jsonBytes, path); value.Exists() {
+			candidates = append(candidates, value.String())
+		}
+	}
+	return candidates
+}
+
+func validatePongTestResponseBody(respBody []byte) error {
+	body := bytes.TrimSpace(respBody)
+	if len(body) == 0 {
+		return errors.New("model availability probe response body is empty")
+	}
+
+	candidates := make([]string, 0, 8)
+	if body[0] == '{' {
+		candidates = append(candidates, extractPongCandidatesFromJSON(body)...)
+	}
+	for _, line := range bytes.Split(body, []byte{'\n'}) {
+		line = bytes.TrimSpace(line)
+		if !bytes.HasPrefix(line, []byte("data:")) {
+			continue
+		}
+		payload := bytes.TrimSpace(bytes.TrimPrefix(line, []byte("data:")))
+		if len(payload) == 0 || bytes.Equal(payload, []byte("[DONE]")) || payload[0] != '{' {
+			continue
+		}
+		candidates = append(candidates, extractPongCandidatesFromJSON(payload)...)
+	}
+	if len(candidates) == 0 {
+		candidates = append(candidates, string(body))
+	}
+	for _, candidate := range candidates {
+		if normalizePongCandidate(candidate) == "pong" {
+			return nil
+		}
+	}
+	// A successful response with substantive content still proves reachability;
+	// models may explain the instruction or place reasoning outside content.
+	for _, candidate := range candidates {
+		if strings.TrimSpace(candidate) != "" {
+			return nil
+		}
+	}
+	if body[0] == '{' || bytes.Contains(body, []byte("data:")) {
+		return nil
+	}
+	return fmt.Errorf("model availability probe returned no usable completion, got %q", common.LocalLogPreview(strings.Join(candidates, " ")))
+}
+
 func shouldUseStreamForAutomaticChannelTest(channel *model.Channel) bool {
 	return channel != nil && channel.Type == constant.ChannelTypeCodex
 }
@@ -699,7 +799,17 @@ func detectErrorMessageFromJSONBytes(jsonBytes []byte) string {
 }
 
 func buildTestRequest(model string, endpointType string, channel *model.Channel, isStream bool) dto.Request {
-	testResponsesInput := json.RawMessage(`[{"role":"user","content":"hi"}]`)
+	return buildTestRequestWithOptions(model, endpointType, channel, isStream, "hi", 16)
+}
+
+func buildTestRequestWithOptions(model string, endpointType string, channel *model.Channel, isStream bool, prompt string, maxTokens uint) dto.Request {
+	if prompt == "" {
+		prompt = "hi"
+	}
+	if maxTokens == 0 {
+		maxTokens = 16
+	}
+	testResponsesInput := json.RawMessage(fmt.Sprintf(`[{"role":"user","content":%q}]`, prompt))
 
 	// 根据端点类型构建不同的测试请求
 	if endpointType != "" {
@@ -730,7 +840,7 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 			// 返回 OpenAIResponsesRequest
 			return &dto.OpenAIResponsesRequest{
 				Model:  model,
-				Input:  json.RawMessage(`[{"role":"user","content":"hi"}]`),
+				Input:  testResponsesInput,
 				Stream: lo.ToPtr(isStream),
 			}
 		case constant.EndpointTypeOpenAIResponseCompact:
@@ -743,11 +853,11 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 			return &dto.ClaudeRequest{
 				Model:     model,
 				Stream:    lo.ToPtr(isStream),
-				MaxTokens: lo.ToPtr(uint(16)),
+				MaxTokens: lo.ToPtr(maxTokens),
 				Messages: []dto.ClaudeMessage{
 					{
 						Role:    "user",
-						Content: "hi",
+						Content: prompt,
 					},
 				},
 			}
@@ -756,11 +866,11 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 				Contents: []dto.GeminiChatContent{
 					{
 						Role:  "user",
-						Parts: []dto.GeminiPart{{Text: "hi"}},
+						Parts: []dto.GeminiPart{{Text: prompt}},
 					},
 				},
 				GenerationConfig: dto.GeminiChatGenerationConfig{
-					MaxOutputTokens: lo.ToPtr(uint(3000)),
+					MaxOutputTokens: lo.ToPtr(maxTokens),
 				},
 			}
 		case constant.EndpointTypeOpenAI:
@@ -770,10 +880,10 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 				Messages: []dto.Message{
 					{
 						Role:    "user",
-						Content: "hi",
+						Content: prompt,
 					},
 				},
-				MaxTokens: lo.ToPtr(uint(16)),
+				MaxTokens: lo.ToPtr(maxTokens),
 			}
 			if isStream {
 				req.StreamOptions = &dto.StreamOptions{IncludeUsage: true}
@@ -807,7 +917,7 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 	if strings.Contains(strings.ToLower(model), "codex") {
 		return &dto.OpenAIResponsesRequest{
 			Model:  model,
-			Input:  json.RawMessage(`[{"role":"user","content":"hi"}]`),
+			Input:  testResponsesInput,
 			Stream: lo.ToPtr(isStream),
 		}
 	}
@@ -819,7 +929,7 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 		Messages: []dto.Message{
 			{
 				Role:    "user",
-				Content: "hi",
+				Content: prompt,
 			},
 		},
 	}
@@ -828,15 +938,15 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 	}
 
 	if dto.IsOpenAIReasoningOModel(model) {
-		testRequest.MaxCompletionTokens = lo.ToPtr(uint(16))
+		testRequest.MaxCompletionTokens = lo.ToPtr(maxTokens)
 	} else if strings.Contains(model, "thinking") {
 		if !strings.Contains(model, "claude") {
-			testRequest.MaxTokens = lo.ToPtr(uint(50))
+			testRequest.MaxTokens = lo.ToPtr(maxTokens)
 		}
 	} else if strings.Contains(model, "gemini") {
-		testRequest.MaxTokens = lo.ToPtr(uint(3000))
+		testRequest.MaxTokens = lo.ToPtr(maxTokens)
 	} else {
-		testRequest.MaxTokens = lo.ToPtr(uint(16))
+		testRequest.MaxTokens = lo.ToPtr(maxTokens)
 	}
 
 	return testRequest

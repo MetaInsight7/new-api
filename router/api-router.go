@@ -47,6 +47,7 @@ func SetApiRouter(router *gin.Engine) {
 		{
 			modelHealthRoute.GET("", controller.GetModelHealthOverview)
 			modelHealthRoute.GET("/detail", controller.GetModelHealthDetail)
+			modelHealthRoute.POST("/trigger", controller.TriggerModelAvailabilityDetection)
 		}
 		apiRouter.GET("/rankings", middleware.HeaderNavModuleAuth("rankings"), controller.GetRankings)
 		apiRouter.GET("/verification", middleware.EmailVerificationRateLimit(), middleware.TurnstileCheck(), controller.SendEmailVerification)
