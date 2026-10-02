@@ -35,6 +35,7 @@ import { Input } from '@/components/ui/input'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { usePricingData } from '@/features/pricing/hooks/use-pricing-data'
+import { cn } from '@/lib/utils'
 
 import {
   ALL_MODEL_VENDORS,
@@ -129,7 +130,12 @@ export function ModelAccessBrowser({ access }: ModelAccessBrowserProps) {
   }
 
   const catalog = (
-    <div className='flex min-w-0 flex-col gap-3'>
+    <div
+      className={cn(
+        'flex min-w-0 flex-col gap-3',
+        !fixedView && 'gap-0 lg:min-h-0 lg:overflow-hidden'
+      )}
+    >
       {fixedView && (
         <Card size='sm'>
           <CardHeader>
@@ -159,7 +165,7 @@ export function ModelAccessBrowser({ access }: ModelAccessBrowserProps) {
       )}
 
       {!fixedView && (
-        <div className='flex flex-col gap-2 lg:hidden'>
+        <div className='flex flex-col gap-2 border-b p-3 lg:hidden'>
           <NativeSelect
             className='w-full'
             value={activeScopeId ?? ''}
@@ -176,62 +182,73 @@ export function ModelAccessBrowser({ access }: ModelAccessBrowserProps) {
             ))}
           </NativeSelect>
           {selectedScope && (
-            <Card size='sm'>
-              <CardHeader>
-                <CardTitle>{selectedScope.label}</CardTitle>
-              </CardHeader>
-              <CardContent className='flex flex-col gap-2'>
-                {selectedScope.description && (
-                  <p className='text-muted-foreground text-xs'>
-                    {selectedScope.description}
-                  </p>
-                )}
-                <div className='flex flex-wrap gap-1.5'>
-                  <Badge variant='secondary'>
-                    {t('{{count}} models available', {
-                      count: scopeModelCounts.get(selectedScope.id) ?? 0,
+            <div className='flex items-center justify-between gap-3'>
+              <div className='flex min-w-0 flex-wrap gap-1.5'>
+                <Badge variant='secondary'>
+                  {t('{{count}} models available', {
+                    count: scopeModelCounts.get(selectedScope.id) ?? 0,
+                  })}
+                </Badge>
+                {selectedScope.ratio !== null && (
+                  <Badge variant='outline'>
+                    {t('Group default ratio {{ratio}}×', {
+                      ratio: selectedScope.ratio,
                     })}
                   </Badge>
-                  {selectedScope.ratio !== null && (
-                    <Badge variant='outline'>
-                      {t('Ratio')} {selectedScope.ratio}×
-                    </Badge>
-                  )}
-                </div>
-              </CardContent>
-              <CardFooter>
-                <Button
-                  size='sm'
-                  variant='outline'
-                  className='w-full justify-between'
-                  render={<Link to='/keys' />}
-                >
-                  {t('Use this group to create an API key')}
-                  <HugeiconsIcon
-                    icon={ArrowRight01Icon}
-                    strokeWidth={2}
-                    data-icon='inline-end'
-                    aria-hidden='true'
-                  />
-                </Button>
-              </CardFooter>
-            </Card>
+                )}
+              </div>
+              <Button
+                size='sm'
+                variant='ghost'
+                className='text-primary hover:text-primary shrink-0'
+                render={<Link to='/keys' />}
+              >
+                {t('Create API Key')}
+                <HugeiconsIcon
+                  icon={ArrowRight01Icon}
+                  strokeWidth={2}
+                  data-icon='inline-end'
+                  aria-hidden='true'
+                />
+              </Button>
+            </div>
           )}
         </div>
       )}
 
-      <div className='bg-card flex flex-col gap-2.5 rounded-xl border p-3 sm:p-4'>
+      <div
+        className={cn(
+          'bg-card flex flex-col gap-2.5 rounded-xl border p-3 sm:p-4',
+          !fixedView &&
+            'min-h-[67px] justify-center rounded-none border-0 border-b'
+        )}
+      >
         <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
           <div className='min-w-0'>
             {!fixedView && (
-              <h3 className='truncate text-sm font-semibold'>
-                {selectedScope?.label}
-              </h3>
+              <div className='flex min-w-0 items-center gap-2'>
+                <h3 className='truncate text-sm font-semibold'>
+                  {t('{{group}} available models', {
+                    group: selectedScope?.label,
+                  })}
+                </h3>
+                <Badge variant='secondary' className='shrink-0 text-[10px]'>
+                  {t('Selected')}
+                </Badge>
+              </div>
             )}
             <p className='text-muted-foreground text-xs' aria-live='polite'>
               {t('{{count}} models available', {
-                count: `${visibleModels.length} / ${scopeModels.length}`,
+                count: scopeModels.length,
               })}
+              {!fixedView && selectedScope?.ratio != null && (
+                <>
+                  {' · '}
+                  {t('Group default ratio {{ratio}}×', {
+                    ratio: selectedScope.ratio,
+                  })}
+                </>
+              )}
             </p>
           </div>
           <Input
@@ -243,82 +260,108 @@ export function ModelAccessBrowser({ access }: ModelAccessBrowserProps) {
           />
         </div>
 
-        <div className='flex flex-col gap-1.5'>
-          <span className='text-muted-foreground text-xs font-medium'>
-            {t('Model vendors')}
-          </span>
-          <div className='overflow-x-auto pb-0.5'>
-            <ToggleGroup
-              value={[activeVendor]}
-              variant='outline'
-              size='sm'
-              aria-label={t('Model vendors')}
-              onValueChange={(values) => {
-                if (values[0]) {
-                  setVendorState(
-                    createModelVendorFilterState(
-                      vendorFilters,
-                      activeScopeId,
-                      values[0] as ModelVendorFilter
-                    )
+      </div>
+
+      <div
+        className={cn(
+          'flex flex-col gap-1.5',
+          fixedView
+            ? 'bg-card rounded-xl border p-3 sm:p-4'
+            : 'border-b px-3 py-2.5 sm:px-4'
+        )}
+      >
+        <span className='text-muted-foreground text-xs font-medium'>
+          {t('Model vendors')}
+        </span>
+        <div className='overflow-x-auto pb-0.5'>
+          <ToggleGroup
+            value={[activeVendor]}
+            variant='outline'
+            size='sm'
+            aria-label={t('Model vendors')}
+            onValueChange={(values) => {
+              if (values[0]) {
+                setVendorState(
+                  createModelVendorFilterState(
+                    vendorFilters,
+                    activeScopeId,
+                    values[0] as ModelVendorFilter
                   )
-                }
-              }}
-            >
-              {vendorFilters.map((option) => {
-                let label = option.label
-                if (option.value === ALL_MODEL_VENDORS) {
-                  label = t('All')
-                } else if (option.value === UNLABELLED_MODEL_VENDOR) {
-                  label = t('Unlabelled vendor')
-                }
-                return (
-                  <ToggleGroupItem key={option.value} value={option.value}>
-                    {label}
-                  </ToggleGroupItem>
                 )
-              })}
-            </ToggleGroup>
-          </div>
+              }
+            }}
+          >
+            {vendorFilters.map((option) => {
+              let label = option.label
+              if (option.value === ALL_MODEL_VENDORS) {
+                label = t('All')
+              } else if (option.value === UNLABELLED_MODEL_VENDOR) {
+                label = t('Unlabelled vendor')
+              }
+              return (
+                <ToggleGroupItem key={option.value} value={option.value}>
+                  {label}
+                </ToggleGroupItem>
+              )
+            })}
+          </ToggleGroup>
         </div>
       </div>
 
-      <ModelAccessList
-        pricingModels={pricingModels}
-        pricingLoading={pricingQuery.isLoading}
-        models={visibleModels}
-        scopeIsEmpty={scopeModels.length === 0}
-        onClearFilters={clearFilters}
-      />
-
-      {unavailableScopeModels.length > 0 && (
-        <section className='flex flex-col gap-2.5'>
-          <div className='flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between'>
-            <div className='min-w-0'>
-              <h3 className='text-sm font-semibold'>
-                {t('Unavailable models')}
-              </h3>
-              <p className='text-muted-foreground text-xs'>
-                {t(
-                  'These models cannot be called because upstreams no longer support them.'
-                )}
-              </p>
-            </div>
-            <Badge variant='destructive' className='shrink-0'>
-              {t('{{count}} unavailable models', {
-                count: unavailableScopeModels.length,
-              })}
-            </Badge>
-          </div>
+      <div
+        className={cn(
+          !fixedView &&
+            'lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain [scrollbar-gutter:stable]'
+        )}
+      >
+        <div className={cn(!fixedView && 'p-3 sm:p-4')}>
           <ModelAccessList
             pricingModels={pricingModels}
             pricingLoading={pricingQuery.isLoading}
-            models={visibleUnavailableModels}
-            scopeIsEmpty={false}
+            models={visibleModels}
+            scopeIsEmpty={scopeModels.length === 0}
             onClearFilters={clearFilters}
           />
-        </section>
-      )}
+        </div>
+
+        {unavailableScopeModels.length > 0 && (
+          <section
+            className={cn(
+              'flex flex-col gap-2.5',
+              !fixedView && 'border-t p-3 sm:p-4'
+            )}
+          >
+            <div className='flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between'>
+              <div className='min-w-0'>
+                <h3 className='text-sm font-semibold'>
+                  {t('Unavailable models')}
+                </h3>
+                <p className='text-muted-foreground text-xs'>
+                  {t(
+                    'These models cannot be called because upstreams no longer support them.'
+                  )}
+                </p>
+              </div>
+              <Badge variant='destructive' className='shrink-0'>
+                {t('{{count}} unavailable models', {
+                  count: unavailableScopeModels.length,
+                })}
+              </Badge>
+            </div>
+            <ModelAccessList
+              pricingModels={pricingModels}
+              pricingLoading={pricingQuery.isLoading}
+              models={visibleUnavailableModels}
+              scopeIsEmpty={false}
+              onClearFilters={clearFilters}
+            />
+          </section>
+        )}
+      </div>
+
+      <div className='text-muted-foreground flex shrink-0 items-center justify-center border-t px-3 py-2 text-xs'>
+        {t('{{count}} models available', { count: visibleModels.length })}
+      </div>
     </div>
   )
 
@@ -328,14 +371,22 @@ export function ModelAccessBrowser({ access }: ModelAccessBrowserProps) {
       {fixedView ? (
         catalog
       ) : (
-        <div className='grid min-w-0 gap-4 lg:grid-cols-[18rem_minmax(0,1fr)] lg:items-start'>
-          <aside className='hover-scrollbar hidden lg:sticky lg:top-4 lg:block lg:max-h-[calc(100dvh-2rem)] lg:self-start lg:overflow-y-auto lg:overscroll-contain lg:px-2'>
-            <ModelAccessScopeRail
-              scopes={access.groups}
-              modelCounts={scopeModelCounts}
-              selectedScopeId={activeScopeId}
-              onScopeChange={handleScopeChange}
-            />
+        <div className='bg-card grid min-w-0 overflow-hidden rounded-xl border lg:h-[calc(100dvh-12rem)] lg:min-h-[32rem] lg:grid-cols-[18rem_minmax(0,1fr)] lg:items-stretch'>
+          <aside className='bg-muted/20 hidden min-h-0 min-w-0 border-r lg:flex lg:flex-col'>
+            <div className='flex min-h-[67px] shrink-0 flex-col justify-center border-b px-4 py-3'>
+              <h3 className='text-sm font-semibold'>{t('Access groups')}</h3>
+              <p className='text-muted-foreground mt-0.5 text-xs'>
+                {access.groups.length} {t('Groups')}
+              </p>
+            </div>
+            <div className='hover-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain p-2.5'>
+              <ModelAccessScopeRail
+                scopes={access.groups}
+                modelCounts={scopeModelCounts}
+                selectedScopeId={activeScopeId}
+                onScopeChange={handleScopeChange}
+              />
+            </div>
           </aside>
           {catalog}
         </div>

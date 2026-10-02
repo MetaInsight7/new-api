@@ -55,18 +55,36 @@ export function getAvailableModelsViewState(options: {
 
 function ModelAccessSkeleton() {
   return (
-    <div className='mx-auto grid w-full max-w-7xl gap-4 lg:grid-cols-[18rem_minmax(0,1fr)]'>
-      <div className='hidden flex-col gap-2 lg:flex'>
-        <Skeleton className='h-4 w-24' />
-        <Skeleton className='h-36 w-full rounded-xl' />
-        <Skeleton className='h-36 w-full rounded-xl' />
+    <div className='mx-auto grid w-full max-w-7xl overflow-hidden rounded-xl border lg:grid-cols-[18rem_minmax(0,1fr)]'>
+      <div className='bg-muted/20 hidden border-r lg:flex lg:flex-col'>
+        <div className='flex h-[67px] flex-col justify-center gap-1.5 border-b px-4'>
+          <Skeleton className='h-4 w-24' />
+          <Skeleton className='h-3 w-20' />
+        </div>
+        <div className='flex flex-col gap-2 p-2.5'>
+          <Skeleton className='h-[90px] w-full rounded-lg' />
+          <Skeleton className='h-14 w-full rounded-lg' />
+          <Skeleton className='h-14 w-full rounded-lg' />
+        </div>
       </div>
-      <div className='flex flex-col gap-3'>
-        <Skeleton className='h-8 w-full rounded-lg lg:hidden' />
-        <Skeleton className='h-24 w-full rounded-xl' />
-        <Skeleton className='h-24 w-full rounded-xl' />
-        <Skeleton className='h-24 w-full rounded-xl' />
-        <Skeleton className='h-24 w-full rounded-xl' />
+      <div className='flex flex-col'>
+        <div className='flex h-[67px] items-center justify-between gap-4 border-b px-4'>
+          <div className='flex flex-col gap-1.5'>
+            <Skeleton className='h-4 w-40' />
+            <Skeleton className='h-3 w-28' />
+          </div>
+          <Skeleton className='hidden h-9 w-64 rounded-lg sm:block' />
+        </div>
+        <div className='flex gap-2 border-b p-4'>
+          <Skeleton className='h-8 w-16 rounded-md' />
+          <Skeleton className='h-8 w-20 rounded-md' />
+          <Skeleton className='h-8 w-20 rounded-md' />
+        </div>
+        <div className='flex flex-col gap-3 p-4'>
+          <Skeleton className='h-24 w-full rounded-xl' />
+          <Skeleton className='h-24 w-full rounded-xl' />
+          <Skeleton className='h-24 w-full rounded-xl' />
+        </div>
       </div>
     </div>
   )
@@ -139,7 +157,11 @@ export function AvailableModels() {
 
   return (
     <SectionPageLayout>
-      <SectionPageLayout.Title>{t('Available Models')}</SectionPageLayout.Title>
+      <SectionPageLayout.Title>
+        <span className='mx-auto block w-full max-w-7xl'>
+          {t('Available Models')}
+        </span>
+      </SectionPageLayout.Title>
       <SectionPageLayout.Content>{content}</SectionPageLayout.Content>
     </SectionPageLayout>
   )

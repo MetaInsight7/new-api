@@ -21,16 +21,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { cn } from '@/lib/utils'
@@ -53,11 +44,9 @@ export function ModelAccessScopeRail({
   const { t } = useTranslation()
 
   return (
-    <div className='flex flex-col gap-2.5'>
-      <div className='text-muted-foreground px-1 text-xs font-medium tracking-wide uppercase'>
-        {t('Access groups')}
-      </div>
+    <div className='flex flex-col'>
       <RadioGroup
+        className='gap-2'
         value={selectedScopeId ?? undefined}
         aria-label={t('Access groups')}
         onValueChange={onScopeChange}
@@ -66,52 +55,50 @@ export function ModelAccessScopeRail({
           const selected = scope.id === selectedScopeId
           const inputId = `model-access-scope-${index}`
           return (
-            <Card
+            <div
               key={scope.id}
-              size='sm'
-              className={cn(selected && 'ring-primary/60 ring-2')}
+              className={cn(
+                'bg-card text-card-foreground border-border relative overflow-hidden rounded-lg border text-sm transition-colors',
+                'hover:border-primary/40',
+                selected && 'border-primary bg-primary/5 ring-primary/20 ring-1'
+              )}
             >
               <Label
                 htmlFor={inputId}
-                className='flex cursor-pointer flex-col gap-3 text-left'
+                className='flex h-14 cursor-pointer items-center justify-between gap-3 px-3 text-left'
               >
-                <CardHeader className='w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-3'>
-                  <CardTitle className='min-w-0 [overflow-wrap:anywhere] break-words whitespace-normal'>
+                <span className='min-w-0'>
+                  <span className='block truncate text-sm leading-5 font-semibold'>
                     {scope.label}
-                  </CardTitle>
-                  <CardAction className='shrink-0'>
-                    <RadioGroupItem
-                      id={inputId}
-                      value={scope.id}
-                      aria-label={scope.label}
-                    />
-                  </CardAction>
-                </CardHeader>
-                <CardContent className='flex flex-col gap-2'>
-                  {scope.description && (
-                    <p className='text-muted-foreground line-clamp-2 text-xs'>
-                      {scope.description}
-                    </p>
-                  )}
-                  <div className='flex flex-wrap gap-1.5'>
-                    <Badge variant='secondary'>
-                      {t('{{count}} models available', {
-                        count: modelCounts.get(scope.id) ?? 0,
-                      })}
-                    </Badge>
-                    {scope.ratio !== null && (
-                      <Badge variant='outline'>
-                        {t('Ratio')} {scope.ratio}×
-                      </Badge>
-                    )}
-                  </div>
-                </CardContent>
+                  </span>
+                  <span className='text-muted-foreground mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] leading-4'>
+                    <span className='truncate'>
+                      {t('Available Models')}{' '}
+                      <strong className='text-foreground font-semibold tabular-nums'>
+                        {modelCounts.get(scope.id) ?? 0}
+                      </strong>
+                    </span>
+                    <span aria-hidden='true'>·</span>
+                    <span className='truncate'>
+                      {t('Group Ratio')}{' '}
+                      <strong className='text-foreground font-semibold tabular-nums'>
+                        {scope.ratio === null ? '—' : `${scope.ratio}×`}
+                      </strong>
+                    </span>
+                  </span>
+                </span>
+                <RadioGroupItem
+                  id={inputId}
+                  value={scope.id}
+                  aria-label={scope.label}
+                  className='shrink-0'
+                />
               </Label>
-              <CardFooter>
+              {selected && (
                 <Button
                   size='sm'
                   variant='ghost'
-                  className='w-full justify-between'
+                  className='text-primary hover:bg-background/80 hover:text-primary border-primary/20 h-[34px] w-full justify-center rounded-none border-t px-3 text-xs font-medium'
                   render={<Link to='/keys' />}
                 >
                   {t('Use this group to create an API key')}
@@ -122,8 +109,8 @@ export function ModelAccessScopeRail({
                     aria-hidden='true'
                   />
                 </Button>
-              </CardFooter>
-            </Card>
+              )}
+            </div>
           )
         })}
       </RadioGroup>
