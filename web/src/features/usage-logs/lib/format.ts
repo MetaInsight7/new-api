@@ -340,6 +340,22 @@ export function hasAnyCacheTokens(
   )
 }
 
+export function getCacheHitRate(
+  log: Pick<UsageLog, 'prompt_tokens'>,
+  other: Pick<LogOtherData, 'cache_tokens' | 'cache_creation_tokens' | 'claude'>
+): number | null {
+  const promptTokens = log.prompt_tokens || 0
+  const cacheReadTokens = other.cache_tokens || 0
+  if (promptTokens <= 0 || cacheReadTokens <= 0) return null
+
+  const totalTokens = other.claude
+    ? promptTokens + cacheReadTokens + (other.cache_creation_tokens || 0)
+    : promptTokens
+  if (totalTokens <= 0) return null
+
+  return (cacheReadTokens / totalTokens) * 100
+}
+
 export function getTieredBillingSummary(
   other: LogOtherData | null
 ): TieredBillingSummary | null {

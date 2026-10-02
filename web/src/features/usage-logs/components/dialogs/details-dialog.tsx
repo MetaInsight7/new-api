@@ -56,6 +56,7 @@ import { Dialog } from '@/components/dialog'
 import { StatusBadge, type StatusBadgeProps } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
+import { formatBytes } from '@/features/channels/lib/ollama-utils'
 import { DynamicPricingBreakdown } from '@/features/pricing/components/dynamic-pricing-breakdown'
 import { usePricingData } from '@/features/pricing/hooks/use-pricing-data'
 import { BILLING_PRICING_VARS } from '@/features/pricing/lib/billing-expr'
@@ -74,6 +75,7 @@ import {
   parseAuditLine,
   decodeBillingExprB64,
   getTieredBillingSummary,
+  getCacheHitRate,
   hasAnyCacheTokens,
   isViolationFeeLog,
   getFirstResponseTimeColor,
@@ -616,6 +618,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
   const useChannel = other?.admin_info?.use_channel
   const channelChain =
     useChannel && useChannel.length > 0 ? useChannel.join(' → ') : undefined
+  const cacheHitRate = getCacheHitRate(props.log, other ?? {})
   const reasoningEffortVariant = getReasoningEffortVariant(
     other?.reasoning_effort
   )
@@ -685,6 +688,32 @@ export function DetailsDialog(props: DetailsDialogProps) {
 
           {channelChain && props.isAdmin && (
             <DetailRow label={t('Retry Chain')} value={channelChain} mono />
+          )}
+
+          {props.isAdmin && other?.admin_info?.user_agent && (
+            <DetailRow
+              label={t('User Agent')}
+              value={other.admin_info.user_agent}
+              mono
+            />
+          )}
+
+          {props.isAdmin &&
+            other?.admin_info?.request_body_size != null &&
+            other.admin_info.request_body_size > 0 && (
+              <DetailRow
+                label={t('Request Body Size')}
+                value={formatBytes(other.admin_info.request_body_size)}
+                mono
+              />
+            )}
+
+          {props.isAdmin && cacheHitRate != null && (
+            <DetailRow
+              label={t('Cache Hit Rate')}
+              value={`${cacheHitRate.toFixed(1)}%`}
+              mono
+            />
           )}
 
           {props.log.token_name && (
