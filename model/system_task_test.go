@@ -183,6 +183,39 @@ func TestSystemTaskCreateAndActiveLifecycle(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestRequestSystemTaskCancellation(t *testing.T) {
+	truncateTables(t)
+
+	pending, err := CreateSystemTask(SystemTaskTypeModelAvailability, nil, nil)
+	require.NoError(t, err)
+	cancelled, requested, err := RequestSystemTaskCancellation(pending.TaskID)
+	require.NoError(t, err)
+	assert.True(t, requested)
+	assert.Equal(t, SystemTaskStatusFailed, cancelled.Status)
+	assert.Equal(t, "system task cancelled", cancelled.Error)
+	assert.Nil(t, cancelled.ActiveKey)
+
+	running, err := CreateSystemTask(SystemTaskTypeModelAvailability, nil, nil)
+	require.NoError(t, err)
+	running, claimed, err := ClaimSystemTask(running.ID, SystemTaskTypeModelAvailability, "runner-a", common.GetTimestamp()+60)
+	require.NoError(t, err)
+	require.True(t, claimed)
+	cancelled, requested, err = RequestSystemTaskCancellation(running.TaskID)
+	require.NoError(t, err)
+	assert.True(t, requested)
+	assert.True(t, cancelled.CancelRequested)
+
+	requested, err = IsSystemTaskCancellationRequested(running.TaskID, "runner-a")
+	require.NoError(t, err)
+	assert.True(t, requested)
+	require.NoError(t, FinishSystemTask(running.TaskID, "runner-a", SystemTaskStatusFailed, nil, "model availability detection cancelled"))
+
+	finished, err := GetSystemTaskByTaskID(running.TaskID)
+	require.NoError(t, err)
+	assert.Equal(t, SystemTaskStatusFailed, finished.Status)
+	assert.Nil(t, finished.ActiveKey)
+}
+
 func TestSystemTaskActiveKeyPreventsDuplicateActiveRun(t *testing.T) {
 	truncateTables(t)
 

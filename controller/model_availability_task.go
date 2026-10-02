@@ -79,6 +79,11 @@ func (modelAvailabilityHandler) NewPayload() any { return nil }
 func (modelAvailabilityHandler) Run(ctx context.Context, task *model.SystemTask, runnerID string) {
 	summary, err := runModelAvailabilityDetection(ctx, service.NewSystemTaskProgressReporter(task, runnerID))
 	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			if cancelled, cancelErr := model.IsSystemTaskCancellationRequested(task.TaskID, runnerID); cancelErr == nil && cancelled {
+				err = errors.New("model availability detection cancelled")
+			}
+		}
 		finishSystemTaskHandler(task, runnerID, model.SystemTaskStatusFailed, summary, err)
 		return
 	}
@@ -99,30 +104,52 @@ func classifyModelProbeError(err error, apiErr *types.NewAPIError) modelProbeOut
 	lower := strings.ToLower(message)
 
 	for _, pattern := range []string{
-		"model is not supported", "model not supported", "not supported when using",
-		"unsupported model", "model_not_found", "does not exist", "invalid model",
-		"not available for", "has been deprecated", "has been retired", "sunset",
-	} {
-		if strings.Contains(lower, pattern) {
-			return modelProbeOutcome{Class: modelProbeOfficialUnsupported, ReasonType: "official_model_unsupported", Message: message}
-		}
-	}
-	for _, pattern := range []string{
-		"invalid api key", "unauthorized", "permission denied", "insufficient balance",
-		"quota exceeded", "billing", "no available key",
+		"invalid api key", "invalid credential", "unauthorized", "not authorized",
+		"permission denied", "access denied", "forbidden", "insufficient balance",
+		"insufficient quota", "quota exceeded", "exceeded quota", "billing",
+		"no available key", "do not have access", "for your account", "for this account",
 	} {
 		if strings.Contains(lower, pattern) {
 			return modelProbeOutcome{Class: modelProbeUnknownFailure, ReasonType: "channel_account_issue", Message: message}
 		}
 	}
+	if statusCode == http.StatusUnauthorized || statusCode == http.StatusForbidden {
+		return modelProbeOutcome{Class: modelProbeUnknownFailure, ReasonType: "channel_account_issue", Message: message}
+	}
 	if statusCode == http.StatusTooManyRequests || statusCode == http.StatusRequestTimeout ||
-		statusCode == http.StatusBadGateway || statusCode == http.StatusServiceUnavailable ||
-		statusCode == http.StatusGatewayTimeout || strings.Contains(lower, "timeout") ||
-		strings.Contains(lower, "temporarily unavailable") || strings.Contains(lower, "service unavailable") ||
-		strings.Contains(lower, "overloaded") || strings.Contains(lower, "rate limit") {
+		(statusCode >= http.StatusInternalServerError && statusCode <= 599) ||
+		strings.Contains(lower, "timeout") || strings.Contains(lower, "temporarily unavailable") ||
+		strings.Contains(lower, "service unavailable") || strings.Contains(lower, "overloaded") ||
+		strings.Contains(lower, "rate limit") {
 		return modelProbeOutcome{Class: modelProbeTemporaryFailure, ReasonType: "temporary_upstream_failure", Message: message}
 	}
+
+	for _, pattern := range []string{
+		"model is not supported", "model not supported", "not supported when using",
+		"unsupported model", "model_not_found", "model is not available", "has been deprecated", "has been retired", "sunset",
+	} {
+		if strings.Contains(lower, pattern) {
+			return modelProbeOutcome{Class: modelProbeOfficialUnsupported, ReasonType: "official_model_unsupported", Message: message}
+		}
+	}
+	if statusCode == http.StatusNotFound && (strings.Contains(lower, "model") || strings.Contains(lower, "does not exist")) {
+		return modelProbeOutcome{Class: modelProbeOfficialUnsupported, ReasonType: "official_model_unsupported", Message: message}
+	}
+	if strings.Contains(lower, "model") && strings.Contains(lower, "does not exist") {
+		return modelProbeOutcome{Class: modelProbeOfficialUnsupported, ReasonType: "official_model_unsupported", Message: message}
+	}
+	if statusCode == http.StatusNotFound && strings.Contains(lower, "invalid model") {
+		return modelProbeOutcome{Class: modelProbeOfficialUnsupported, ReasonType: "official_model_unsupported", Message: message}
+	}
 	return modelProbeOutcome{Class: modelProbeUnknownFailure, ReasonType: "unknown_probe_failure", Message: message}
+}
+
+func modelProbeOutcomeForUntestableChannels() modelProbeOutcome {
+	return modelProbeOutcome{Class: modelProbeAvailable, ReasonType: "no_testable_channel"}
+}
+
+func shouldPersistModelProbeOutcome(outcome modelProbeOutcome) bool {
+	return outcome.ReasonType != "no_testable_channel"
 }
 
 type modelProbeModality int
@@ -270,10 +297,10 @@ func buildModelAvailabilityReason(outcome modelProbeOutcome) string {
 }
 
 func summarizeModelProbeOutcomes(outcomes []modelProbeOutcome, sawUntestable bool) modelProbeOutcome {
-	if sawUntestable {
-		return modelProbeOutcome{Class: modelProbeAvailable}
-	}
 	if len(outcomes) == 0 {
+		if sawUntestable {
+			return modelProbeOutcomeForUntestableChannels()
+		}
 		return modelProbeOutcome{Class: modelProbeUnknownFailure, ReasonType: "empty_probe_result"}
 	}
 	allOfficialUnsupported := true
@@ -337,6 +364,9 @@ func probeOneModelAvailability(ctx context.Context, modelName string, testUserID
 		outcomes = append(outcomes, outcome)
 	}
 	final := summarizeModelProbeOutcomes(outcomes, sawUntestable)
+	if !shouldPersistModelProbeOutcome(final) {
+		return final, nil
+	}
 	return final, saveModelAvailabilityProbeResult(modelName, final)
 }
 

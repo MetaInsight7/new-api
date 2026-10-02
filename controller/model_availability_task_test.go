@@ -42,6 +42,24 @@ func TestClassifyModelProbeError(t *testing.T) {
 			wantReason: "temporary_upstream_failure",
 		},
 		{
+			name:       "internal server error is temporary",
+			apiErr:     &types.NewAPIError{StatusCode: http.StatusInternalServerError},
+			wantClass:  modelProbeTemporaryFailure,
+			wantReason: "temporary_upstream_failure",
+		},
+		{
+			name:       "permission error is not model retirement",
+			apiErr:     &types.NewAPIError{StatusCode: http.StatusForbidden},
+			wantClass:  modelProbeUnknownFailure,
+			wantReason: "channel_account_issue",
+		},
+		{
+			name:       "generic invalid model message is unknown",
+			err:        errors.New("invalid model parameter"),
+			wantClass:  modelProbeUnknownFailure,
+			wantReason: "unknown_probe_failure",
+		},
+		{
 			name:       "rate limit message",
 			err:        errors.New("upstream rate limit exceeded"),
 			wantClass:  modelProbeTemporaryFailure,
@@ -107,10 +125,16 @@ func TestSummarizeModelProbeOutcomes(t *testing.T) {
 			wantReasonType: "channel_account_issue",
 		},
 		{
-			name:          "untestable channel keeps model available",
+			name:          "untestable channel does not prevent unsupported classification",
 			outcomes:      []modelProbeOutcome{{Class: modelProbeOfficialUnsupported}},
 			sawUntestable: true,
-			wantClass:     modelProbeAvailable,
+			wantClass:     modelProbeOfficialUnsupported,
+		},
+		{
+			name:           "all channels untestable are skipped",
+			sawUntestable:  true,
+			wantClass:      modelProbeAvailable,
+			wantReasonType: "no_testable_channel",
 		},
 		{
 			name:           "empty result is unknown",

@@ -142,3 +142,34 @@ func GetSystemTask(c *gin.Context) {
 		"data":    task.ToResponse(),
 	})
 }
+
+func CancelSystemTask(c *gin.Context) {
+	taskID := c.Param("task_id")
+	if taskID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "task id is required"})
+		return
+	}
+
+	task, cancelled, err := service.CancelSystemTask(taskID)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if task == nil {
+		c.JSON(http.StatusNotFound, gin.H{"success": false, "message": "task not found"})
+		return
+	}
+	if !cancelled {
+		c.JSON(http.StatusConflict, gin.H{
+			"success": false,
+			"message": "system task is already finished",
+			"data":    task.ToResponse(),
+		})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "system task cancellation requested",
+		"data":    task.ToResponse(),
+	})
+}

@@ -70,6 +70,8 @@ var accessTokenExemptRoutes = []string{
 	// API key authentication (TokenAuthReadOnly).
 	"GET /api/usage/token/",
 	"GET /api/log/token",
+	"POST /api/model-health/trigger",
+	"POST /api/system-task/:task_id/cancel",
 }
 
 // accessTokenHelperRoutes are declared through handlePermissionRoute outside

@@ -343,6 +343,7 @@ func SetApiRouter(router *gin.Engine) {
 			systemTaskRoute.GET("/list", controller.ListSystemTasks)
 			systemTaskRoute.DELETE("/history", controller.DeleteSystemTaskHistory)
 			systemTaskRoute.GET("/current", controller.GetCurrentSystemTask)
+			systemTaskRoute.POST("/:task_id/cancel", controller.CancelSystemTask)
 			systemTaskRoute.GET("/:task_id", controller.GetSystemTask)
 		}
 		systemInfoRoute := apiRouter.Group("/system-info")

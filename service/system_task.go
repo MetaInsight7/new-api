@@ -219,6 +219,15 @@ func EnqueueSystemTask(taskType string, payload any) (*model.SystemTask, bool, e
 	return task, true, nil
 }
 
+func CancelSystemTask(taskID string) (*model.SystemTask, bool, error) {
+	task, cancelled, err := model.RequestSystemTaskCancellation(taskID)
+	if err != nil || !cancelled {
+		return task, cancelled, err
+	}
+	notifySystemTaskRunner()
+	return task, true, nil
+}
+
 // runSystemTaskClaimPass tries to claim one pending task per registered type
 // and dispatches each claimed task in its own goroutine so a long-running
 // handler (e.g. channel test) never blocks another type (e.g. log cleanup).
@@ -323,6 +332,13 @@ func runWithLeaseHeartbeat(task *model.SystemTask, runnerID string, fn func(ctx 
 			case <-done:
 				return
 			case <-ticker.C:
+				cancelRequested, err := model.IsSystemTaskCancellationRequested(task.TaskID, runnerID)
+				if err != nil {
+					logger.LogWarn(context.Background(), fmt.Sprintf("system task cancellation check failed: %v", err))
+				} else if cancelRequested {
+					cancel()
+					return
+				}
 				if err := model.RenewSystemTaskLock(task.TaskID, runnerID, systemTaskLockUntil()); err != nil {
 					cancel()
 					return
