@@ -204,6 +204,7 @@ func TestRequestSystemTaskCancellation(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, requested)
 	assert.True(t, cancelled.CancelRequested)
+	assert.True(t, cancelled.ToResponse().CancelRequested)
 
 	requested, err = IsSystemTaskCancellationRequested(running.TaskID, "runner-a")
 	require.NoError(t, err)

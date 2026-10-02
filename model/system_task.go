@@ -51,18 +51,19 @@ type SystemTaskLock struct {
 }
 
 type SystemTaskResponse struct {
-	ID        int64            `json:"id"`
-	TaskID    string           `json:"task_id"`
-	Type      string           `json:"type"`
-	Status    SystemTaskStatus `json:"status"`
-	ActiveKey *string          `json:"active_key,omitempty"`
-	Payload   any              `json:"payload"`
-	State     any              `json:"state"`
-	Result    any              `json:"result"`
-	Error     string           `json:"error"`
-	LockedBy  string           `json:"locked_by"`
-	CreatedAt int64            `json:"created_at"`
-	UpdatedAt int64            `json:"updated_at"`
+	ID              int64            `json:"id"`
+	TaskID          string           `json:"task_id"`
+	Type            string           `json:"type"`
+	Status          SystemTaskStatus `json:"status"`
+	ActiveKey       *string          `json:"active_key,omitempty"`
+	Payload         any              `json:"payload"`
+	State           any              `json:"state"`
+	Result          any              `json:"result"`
+	Error           string           `json:"error"`
+	CancelRequested bool             `json:"cancel_requested"`
+	LockedBy        string           `json:"locked_by"`
+	CreatedAt       int64            `json:"created_at"`
+	UpdatedAt       int64            `json:"updated_at"`
 }
 
 func (task *SystemTask) BeforeCreate(_ *gorm.DB) error {
@@ -533,18 +534,19 @@ func (task *SystemTask) DecodeState(v any) error {
 
 func (task *SystemTask) ToResponse() SystemTaskResponse {
 	return SystemTaskResponse{
-		ID:        task.ID,
-		TaskID:    task.TaskID,
-		Type:      task.Type,
-		Status:    task.Status,
-		ActiveKey: task.ActiveKey,
-		Payload:   decodeSystemTaskJSONValue(task.Payload),
-		State:     decodeSystemTaskJSONValue(task.State),
-		Result:    decodeSystemTaskJSONValue(task.Result),
-		Error:     task.Error,
-		LockedBy:  task.LockedBy,
-		CreatedAt: task.CreatedAt,
-		UpdatedAt: task.UpdatedAt,
+		ID:              task.ID,
+		TaskID:          task.TaskID,
+		Type:            task.Type,
+		Status:          task.Status,
+		ActiveKey:       task.ActiveKey,
+		Payload:         decodeSystemTaskJSONValue(task.Payload),
+		State:           decodeSystemTaskJSONValue(task.State),
+		Result:          decodeSystemTaskJSONValue(task.Result),
+		Error:           task.Error,
+		CancelRequested: task.CancelRequested,
+		LockedBy:        task.LockedBy,
+		CreatedAt:       task.CreatedAt,
+		UpdatedAt:       task.UpdatedAt,
 	}
 }
 

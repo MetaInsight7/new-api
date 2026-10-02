@@ -126,19 +126,16 @@ func classifyModelProbeError(err error, apiErr *types.NewAPIError) modelProbeOut
 
 	for _, pattern := range []string{
 		"model is not supported", "model not supported", "not supported when using",
-		"unsupported model", "model_not_found", "model is not available", "has been deprecated", "has been retired", "sunset",
+		"unsupported model", "model_not_found", "has been deprecated", "has been retired", "sunset",
 	} {
 		if strings.Contains(lower, pattern) {
 			return modelProbeOutcome{Class: modelProbeOfficialUnsupported, ReasonType: "official_model_unsupported", Message: message}
 		}
 	}
-	if statusCode == http.StatusNotFound && (strings.Contains(lower, "model") || strings.Contains(lower, "does not exist")) {
+	if statusCode == http.StatusNotFound && (strings.Contains(lower, "model not found") || strings.Contains(lower, "model does not exist") || strings.Contains(lower, "invalid model")) {
 		return modelProbeOutcome{Class: modelProbeOfficialUnsupported, ReasonType: "official_model_unsupported", Message: message}
 	}
-	if strings.Contains(lower, "model") && strings.Contains(lower, "does not exist") {
-		return modelProbeOutcome{Class: modelProbeOfficialUnsupported, ReasonType: "official_model_unsupported", Message: message}
-	}
-	if statusCode == http.StatusNotFound && strings.Contains(lower, "invalid model") {
+	if strings.Contains(lower, "model does not exist") {
 		return modelProbeOutcome{Class: modelProbeOfficialUnsupported, ReasonType: "official_model_unsupported", Message: message}
 	}
 	return modelProbeOutcome{Class: modelProbeUnknownFailure, ReasonType: "unknown_probe_failure", Message: message}
