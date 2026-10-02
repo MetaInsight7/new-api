@@ -172,6 +172,9 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		newAPIError = types.NewError(err, types.ErrorCodeGenRelayInfoFailed)
 		return
 	}
+	if newAPIError = rejectOfficiallyUnsupportedModel(relayInfo); newAPIError != nil {
+		return
+	}
 
 	defer func() {
 		recovered := recover()
@@ -249,6 +252,30 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		retryLogStr := fmt.Sprintf("重试：%s", strings.Trim(strings.Join(strings.Fields(fmt.Sprint(useChannel)), "->"), "[]"))
 		logger.LogInfo(c, retryLogStr)
 	}
+}
+
+func rejectOfficiallyUnsupportedModel(relayInfo *relaycommon.RelayInfo) *types.NewAPIError {
+	if relayInfo == nil {
+		return nil
+	}
+	if unsupported, state := model.IsModelOfficiallyUnsupported(relayInfo.OriginModelName); unsupported {
+		return newModelOfficiallyUnsupportedError(relayInfo.OriginModelName, state)
+	}
+	return nil
+}
+
+func newModelOfficiallyUnsupportedError(modelName string, state *model.ModelAvailabilityState) *types.NewAPIError {
+	message := fmt.Sprintf("当前模型 %s 已不再被上游官方支持，暂时无法调用。请切换到官方仍支持的新模型，或联系管理员更新模型映射/替代模型。", modelName)
+	if state != nil && strings.TrimSpace(state.Reason) != "" {
+		message = fmt.Sprintf("%s 检测说明：%s", message, strings.TrimSpace(state.Reason))
+	}
+	return types.NewOpenAIError(
+		errors.New(message),
+		types.ErrorCodeModelOfficiallyUnsupported,
+		http.StatusBadRequest,
+		types.ErrOptionWithSkipRetry(),
+		types.ErrOptionWithNoRecordErrorLog(),
+	)
 }
 
 // CountClaudeTokens implements Anthropic's token-counting utility endpoint.
