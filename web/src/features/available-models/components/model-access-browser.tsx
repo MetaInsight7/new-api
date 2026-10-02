@@ -265,15 +265,19 @@ export function ModelAccessBrowser({ access }: ModelAccessBrowserProps) {
                 }
               }}
             >
-              {vendorFilters.map((option) => (
-                <ToggleGroupItem key={option.value} value={option.value}>
-                  {option.value === ALL_MODEL_VENDORS
-                    ? t('All')
-                    : option.value === UNLABELLED_MODEL_VENDOR
-                      ? t('Unlabelled vendor')
-                      : option.label}
-                </ToggleGroupItem>
-              ))}
+              {vendorFilters.map((option) => {
+                let label = option.label
+                if (option.value === ALL_MODEL_VENDORS) {
+                  label = t('All')
+                } else if (option.value === UNLABELLED_MODEL_VENDOR) {
+                  label = t('Unlabelled vendor')
+                }
+                return (
+                  <ToggleGroupItem key={option.value} value={option.value}>
+                    {label}
+                  </ToggleGroupItem>
+                )
+              })}
             </ToggleGroup>
           </div>
         </div>
@@ -325,7 +329,7 @@ export function ModelAccessBrowser({ access }: ModelAccessBrowserProps) {
         catalog
       ) : (
         <div className='grid min-w-0 gap-4 lg:grid-cols-[18rem_minmax(0,1fr)] lg:items-start'>
-          <aside className='hover-scrollbar hidden lg:sticky lg:top-4 lg:block lg:max-h-[calc(100dvh-2rem)] lg:self-start lg:overflow-y-auto lg:overscroll-contain lg:pr-2'>
+          <aside className='hover-scrollbar hidden lg:sticky lg:top-4 lg:block lg:max-h-[calc(100dvh-2rem)] lg:self-start lg:overflow-y-auto lg:overscroll-contain lg:px-2'>
             <ModelAccessScopeRail
               scopes={access.groups}
               modelCounts={scopeModelCounts}
