@@ -26,6 +26,7 @@ func setupBackendModelAccessTest(t *testing.T) {
 	originalLogType := common.LogDatabaseType()
 	originalModelRatios := ratio_setting.ModelRatio2JSONString()
 	originalGroupRatios := ratio_setting.GroupRatio2JSONString()
+	originalGroupModelRatios := ratio_setting.GroupModelRatio2JSONString()
 	originalUsableGroups := setting.UserUsableGroups2JSONString()
 	originalAutoGroups := setting.AutoGroups2JsonString()
 	originalSelfUse := operation_setting.SelfUseModeEnabled
@@ -40,6 +41,7 @@ func setupBackendModelAccessTest(t *testing.T) {
 	require.NoError(t, model.DB.AutoMigrate(&model.Channel{}, &model.Ability{}, &model.Model{}, &model.Vendor{}, &model.ModelAvailabilityState{}))
 	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{"shared":1,"default-only":1,"vip-only":1}`))
 	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"default":1,"vip":2}`))
+	require.NoError(t, ratio_setting.UpdateGroupModelRatioByJSONString(`{}`))
 	require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(`{"default":"Default","vip":"VIP","auto":"Auto"}`))
 	require.NoError(t, setting.UpdateAutoGroupsByJsonString(`["default","vip"]`))
 	operation_setting.SelfUseModeEnabled = false
@@ -47,6 +49,7 @@ func setupBackendModelAccessTest(t *testing.T) {
 	t.Cleanup(func() {
 		require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(originalModelRatios))
 		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(originalGroupRatios))
+		require.NoError(t, ratio_setting.UpdateGroupModelRatioByJSONString(originalGroupModelRatios))
 		require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(originalUsableGroups))
 		require.NoError(t, setting.UpdateAutoGroupsByJsonString(originalAutoGroups))
 		operation_setting.SelfUseModeEnabled = originalSelfUse
@@ -91,14 +94,24 @@ func TestResolveUserModelAccessUsesBaseGroupsAndAvailabilityStates(t *testing.T)
 	require.NoError(t, model.DB.Model(&model.Ability{}).Where("model = ?", "disabled-channel").Update("enabled", false).Error)
 	require.NoError(t, model.DB.Create(&model.ModelAvailabilityState{ModelName: "shared", Status: model.ModelAvailabilityTemporaryFailure}).Error)
 	require.NoError(t, model.DB.Create(&model.ModelAvailabilityState{ModelName: "vip-only", Status: model.ModelAvailabilityOfficialUnsupported}).Error)
+	require.NoError(t, ratio_setting.UpdateGroupModelRatioByJSONString(`{"vip":{"vip-only":0.6}}`))
 
 	access, err := ResolveUserModelAccess(&model.UserBase{Group: "default"})
 	require.NoError(t, err)
 	require.Equal(t, ModelAccessScopeSelectableGroup, access.ScopeMode)
 	require.Equal(t, []string{"default-only", "shared"}, access.IdentityModelIDs)
+	require.Empty(t, access.IdentityModelRatios)
 	require.Equal(t, []string{"auto", "default", "vip"}, modelAccessScopeIDsForBackendTest(access.Groups))
 	require.Equal(t, []string{"default-only", "shared", "vip-only"}, modelAccessModelIDsForBackendTest(access.Models))
 	require.NotContains(t, modelAccessModelIDsForBackendTest(access.Models), "disabled-channel")
+	for _, scope := range access.Groups {
+		if scope.ID == "auto" {
+			require.Empty(t, scope.ModelRatios)
+		}
+		if scope.ID == "vip" {
+			require.Equal(t, map[string]float64{"vip-only": 0.6}, scope.ModelRatios)
+		}
+	}
 
 	byID := make(map[string]ModelAccessModel, len(access.Models))
 	for _, item := range access.Models {

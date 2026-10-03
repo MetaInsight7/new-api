@@ -61,6 +61,11 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo, task *model
 	if info.PriceData.GroupRatioInfo.HasSpecialRatio {
 		other.SetPublic("user_group_ratio", info.PriceData.GroupRatioInfo.GroupSpecialRatio)
 	}
+	if info.PriceData.GroupRatioInfo.HasGroupModelRatio {
+		other.SetPublic("group_model_ratio", info.PriceData.GroupRatioInfo.GroupModelRatio)
+		other.SetPublic("group_model_ratio_group", info.PriceData.GroupRatioInfo.GroupModelRatioGroup)
+		other.SetPublic("group_model_ratio_model", info.PriceData.GroupRatioInfo.GroupModelRatioModel)
+	}
 	if info.IsModelMapped {
 		other.SetPublic("is_model_mapped", true)
 		other.SetPublic("upstream_model_name", info.UpstreamModelName)
@@ -153,6 +158,11 @@ func taskBillingOther(task *model.Task) *model.LogOther {
 			other.SetPublic("model_ratio", bc.ModelRatio)
 		}
 		other.SetPublic("group_ratio", bc.GroupRatio)
+		if bc.GroupModelRatioGroup != "" {
+			other.SetPublic("group_model_ratio", bc.GroupModelRatio)
+			other.SetPublic("group_model_ratio_group", bc.GroupModelRatioGroup)
+			other.SetPublic("group_model_ratio_model", bc.GroupModelRatioModel)
+		}
 		if priceData := taskBillingContextPriceData(bc); priceData != nil {
 			for k, v := range priceData.OtherRatios() {
 				if !other.SetPublic(k, v) {
@@ -404,14 +414,15 @@ func RecalculateTaskQuotaByTokens(ctx context.Context, task *model.Task, totalTo
 		return false
 	}
 
-	groupRatio := ratio_setting.GetGroupRatio(group)
-	userGroupRatio, hasUserGroupRatio := ratio_setting.GetGroupGroupRatio(group, group)
-
-	var finalGroupRatio float64
-	if hasUserGroupRatio {
-		finalGroupRatio = userGroupRatio
+	finalGroupRatio := 1.0
+	if billingContext := task.PrivateData.BillingContext; billingContext != nil {
+		finalGroupRatio = billingContext.GroupRatio
 	} else {
-		finalGroupRatio = groupRatio
+		userGroup := group
+		if user, err := model.GetUserById(task.UserId, false); err == nil && strings.TrimSpace(user.Group) != "" {
+			userGroup = user.Group
+		}
+		finalGroupRatio = ratio_setting.GetEffectiveGroupRatio(userGroup, group, modelName).GroupRatio
 	}
 
 	// 计算 OtherRatios 乘积（视频折扣、时长等）

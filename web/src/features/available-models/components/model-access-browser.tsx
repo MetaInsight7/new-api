@@ -37,6 +37,8 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { usePricingData } from '@/features/pricing/hooks/use-pricing-data'
 import { cn } from '@/lib/utils'
 
+import { resolveModelRatioContext } from '../lib/model-access'
+
 import {
   ALL_MODEL_VENDORS,
   createModelVendorFilterState,
@@ -74,6 +76,7 @@ export function ModelAccessBrowser({ access }: ModelAccessBrowserProps) {
   const [query, setQuery] = useState('')
 
   const activeScopeId = resolveModelAccessScope(access, selectedScopeId)
+  const ratioContext = resolveModelRatioContext(access, activeScopeId)
 
   const scopeModels = useMemo(
     () => getModelAccessScopeModels(access, activeScopeId),
@@ -316,6 +319,8 @@ export function ModelAccessBrowser({ access }: ModelAccessBrowserProps) {
       >
         <div className={cn(!fixedView && 'p-3 sm:p-4')}>
           <ModelAccessList
+            defaultRatio={ratioContext.defaultRatio}
+            modelRatios={ratioContext.modelRatios}
             pricingModels={pricingModels}
             pricingLoading={pricingQuery.isLoading}
             models={visibleModels}
@@ -349,6 +354,8 @@ export function ModelAccessBrowser({ access }: ModelAccessBrowserProps) {
               </Badge>
             </div>
             <ModelAccessList
+              defaultRatio={ratioContext.defaultRatio}
+              modelRatios={ratioContext.modelRatios}
               pricingModels={pricingModels}
               pricingLoading={pricingQuery.isLoading}
               models={visibleUnavailableModels}

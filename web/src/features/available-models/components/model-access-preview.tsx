@@ -47,9 +47,11 @@ import type { ModelAccessModel } from '../types'
 import { ModelAccessList } from './model-access-list'
 
 export type ModelAccessPreviewProps = {
+  defaultRatio: number | null
   emptyDescription?: string
   emptyTitle?: string
   models: ModelAccessModel[]
+  modelRatios: Readonly<Record<string, number>>
   scopeDescription?: string
   scopeKey?: string
   scopeTitle: string
@@ -175,15 +177,19 @@ export function ModelAccessPreview(props: ModelAccessPreviewProps) {
                 }
               }}
             >
-              {vendorFilters.map((option) => (
-                <ToggleGroupItem key={option.value} value={option.value}>
-                  {option.value === ALL_MODEL_VENDORS
-                    ? t('All')
-                    : option.value === UNLABELLED_MODEL_VENDOR
-                      ? t('Unlabelled vendor')
-                      : option.label}
-                </ToggleGroupItem>
-              ))}
+              {vendorFilters.map((option) => {
+                let label = option.label
+                if (option.value === ALL_MODEL_VENDORS) {
+                  label = t('All')
+                } else if (option.value === UNLABELLED_MODEL_VENDOR) {
+                  label = t('Unlabelled vendor')
+                }
+                return (
+                  <ToggleGroupItem key={option.value} value={option.value}>
+                    {label}
+                  </ToggleGroupItem>
+                )
+              })}
             </ToggleGroup>
           </div>
         </div>
@@ -210,6 +216,8 @@ export function ModelAccessPreview(props: ModelAccessPreviewProps) {
         </Empty>
       ) : (
         <ModelAccessList
+          defaultRatio={props.defaultRatio}
+          modelRatios={props.modelRatios}
           pricingModels={pricingModels}
           pricingLoading={pricingQuery.isLoading}
           models={visibleModels}

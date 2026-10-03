@@ -74,6 +74,8 @@ import {
 import type { ModelAccessModel } from '../types'
 
 type ModelAccessListProps = {
+  defaultRatio: number | null
+  modelRatios: Readonly<Record<string, number>>
   pricingModels?: ReadonlyMap<string, PricingModel>
   pricingLoading?: boolean
   models: ModelAccessModel[]
@@ -113,6 +115,8 @@ export function getEffectiveVisibleModelCount(
 }
 
 export function ModelAccessList({
+  defaultRatio,
+  modelRatios,
   pricingModels = new Map(),
   pricingLoading = false,
   models,
@@ -196,6 +200,8 @@ export function ModelAccessList({
                 )
               ),
             ]
+            const hasExclusiveRatio = Object.hasOwn(modelRatios, model.id)
+            const exclusiveRatio = modelRatios[model.id]
             const pricing = pricingModels.get(model.id)
             const requestPrice =
               pricing?.quota_type === QUOTA_TYPE_VALUES.REQUEST
@@ -279,6 +285,32 @@ export function ModelAccessList({
                 </div>
               )
             }
+            const exclusiveRatioLabel = hasExclusiveRatio
+              ? t('Exclusive ratio {{ratio}}×', { ratio: exclusiveRatio })
+              : ''
+            let exclusiveRatioDescription = ''
+            if (hasExclusiveRatio && officiallyUnsupported) {
+              exclusiveRatioDescription =
+                defaultRatio === null
+                  ? t(
+                      'If this model becomes callable again, it will use the exclusive ratio {{ratio}}×, overriding the default ratio; the two are not multiplied.',
+                      { ratio: exclusiveRatio }
+                    )
+                  : t(
+                      'If this model becomes callable again, it will use the exclusive ratio {{ratio}}×, overriding the default ratio {{defaultRatio}}×; the two are not multiplied.',
+                      { ratio: exclusiveRatio, defaultRatio }
+                    )
+            } else if (hasExclusiveRatio) {
+              exclusiveRatioDescription =
+                defaultRatio === null
+                  ? t(
+                      'This exclusive ratio overrides the default ratio; the two are not multiplied.'
+                    )
+                  : t(
+                      'This exclusive ratio overrides the default ratio {{defaultRatio}}×; the two are not multiplied.',
+                      { defaultRatio }
+                    )
+            }
 
             return (
               <Item
@@ -361,6 +393,25 @@ export function ModelAccessList({
                   )}
                   <ItemFooter className='justify-start pl-[42px]'>
                     <div className='flex flex-wrap gap-1.5'>
+                      {hasExclusiveRatio && (
+                        <Tooltip>
+                          <TooltipTrigger
+                            render={
+                              <Badge
+                                variant='outline'
+                                className='border-warning bg-warning text-warning-foreground font-semibold'
+                                tabIndex={0}
+                                aria-label={`${exclusiveRatioLabel}. ${exclusiveRatioDescription}`}
+                              />
+                            }
+                          >
+                            {exclusiveRatioLabel}
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {exclusiveRatioDescription}
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
                       {endpointLabels.length > 0 ? (
                         endpointLabels.map((endpoint) => (
                           <Badge key={endpoint} variant='outline'>

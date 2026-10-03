@@ -42,6 +42,7 @@ func GetExposedData() gin.H {
 	}
 	newData := gin.H{
 		"model_ratio":        GetModelRatioCopy(),
+		"group_model_ratio":  GetGroupModelRatioCopy(),
 		"completion_ratio":   GetCompletionRatioCopy(),
 		"cache_ratio":        GetCacheRatioCopy(),
 		"create_cache_ratio": GetCreateCacheRatioCopy(),

@@ -35,9 +35,14 @@ const access: UserModelAccess = {
       label: 'VIP',
       ratio: 0.8,
       model_ids: ['callable-model', 'unavailable-model'],
+      model_ratios: {},
     },
   ],
   account_model_ids: [],
+  account_model_ratios: {},
+  account_default_ratio: null,
+  identity_model_ratios: {},
+  identity_default_ratio: 1,
   models: [
     {
       id: 'callable-model',
