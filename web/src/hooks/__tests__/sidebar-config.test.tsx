@@ -26,10 +26,12 @@ import {
   parseSidebarModulesAdmin,
   serializeSidebarModulesAdmin,
 } from '@/features/system-settings/maintenance/config'
+import { ROLE } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 
 import { useSidebarConfig } from '../use-sidebar-config'
 import { useSidebarData } from '../use-sidebar-data'
+import { filterSidebarGroupsByRole } from '../use-sidebar-view'
 
 beforeEach(() => {
   vi.stubGlobal('localStorage', {
@@ -133,6 +135,20 @@ describe('primary navigation', () => {
         expect.objectContaining({ url: '/available-models' }),
       ])
     )
+  })
+
+  it('keeps role filtering from bypassing configured dashboard visibility', () => {
+    const { result } = sidebarFor({ console: { enabled: true, detail: false } })
+
+    for (const role of [ROLE.USER, ROLE.ADMIN]) {
+      const items = filterSidebarGroupsByRole(result.current, role).flatMap(
+        (group) => group.items
+      )
+
+      expect(items.map((item) => item.title)).not.toEqual(
+        expect.arrayContaining(['Overview', 'Dashboard'])
+      )
+    }
   })
 })
 
