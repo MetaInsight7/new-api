@@ -287,7 +287,7 @@ func getRandomSatisfiedChannelWithConcurrency(param *RetryParam, filters []dto.C
 			rightScore = 1e9
 		}
 		if leftScore == rightScore {
-			return candidates[i].GetWeight() > candidates[j].GetWeight()
+			return candidates[i].GetWeightForGroup(param.TokenGroup) > candidates[j].GetWeightForGroup(param.TokenGroup)
 		}
 		return leftScore < rightScore
 	})

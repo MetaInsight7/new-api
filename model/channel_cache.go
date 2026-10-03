@@ -24,6 +24,8 @@ var channelsIDM map[int]*Channel                     // all channels include dis
 var channel2advancedCustomConfig map[int]*kitdto.AdvancedCustomConfig
 var channelSyncLock sync.RWMutex
 
+const maxInt64ForWeight = uint64(^uint64(0) >> 1)
+
 func InitChannelCache() {
 	if !common.MemoryCacheEnabled {
 		InvalidatePricingCache()
@@ -68,11 +70,12 @@ func InitChannelCache() {
 		}
 	}
 
-	// sort by priority
+	// sort by priority (per-group)
 	for group, model2channels := range newGroup2model2channels {
 		for model, channels := range model2channels {
+			groupName := group
 			sort.Slice(channels, func(i, j int) bool {
-				return newChannelId2channel[channels[i]].GetPriority() > newChannelId2channel[channels[j]].GetPriority()
+				return newChannelId2channel[channels[i]].GetPriorityForGroup(groupName) > newChannelId2channel[channels[j]].GetPriorityForGroup(groupName)
 			})
 			newGroup2model2channels[group][model] = channels
 		}
@@ -148,32 +151,39 @@ func GetRandomSatisfiedChannel(
 		return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channels[0])
 	}
 
-	uniquePriorities := make(map[int]bool)
+	uniquePriorities := make(map[int64]bool)
 	for _, channelId := range channels {
 		if channel, ok := channelsIDM[channelId]; ok {
-			uniquePriorities[int(channel.GetPriority())] = true
+			uniquePriorities[channel.GetPriorityForGroup(group)] = true
 		} else {
 			return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channelId)
 		}
 	}
-	var sortedUniquePriorities []int
+	var sortedUniquePriorities []int64
 	for priority := range uniquePriorities {
 		sortedUniquePriorities = append(sortedUniquePriorities, priority)
 	}
-	sort.Sort(sort.Reverse(sort.IntSlice(sortedUniquePriorities)))
+	sort.Slice(sortedUniquePriorities, func(i, j int) bool { return sortedUniquePriorities[i] > sortedUniquePriorities[j] })
 
 	if retry >= len(uniquePriorities) {
 		retry = len(uniquePriorities) - 1
 	}
-	targetPriority := int64(sortedUniquePriorities[retry])
+	if retry < 0 {
+		retry = 0
+	}
+	targetPriority := sortedUniquePriorities[retry]
 
 	// get the priority for the given retry number
-	var sumWeight = 0
+	var sumWeight uint64
 	var targetChannels []*Channel
 	for _, channelId := range channels {
 		if channel, ok := channelsIDM[channelId]; ok {
-			if channel.GetPriority() == targetPriority {
-				sumWeight += channel.GetWeight()
+			if channel.GetPriorityForGroup(group) == targetPriority {
+				weight := channel.GetWeightForGroup(group)
+				if weight > maxInt64ForWeight || sumWeight > maxInt64ForWeight-weight {
+					return nil, errors.New("channel weight overflow")
+				}
+				sumWeight += weight
 				targetChannels = append(targetChannels, channel)
 			}
 		} else {
@@ -186,31 +196,35 @@ func GetRandomSatisfiedChannel(
 	}
 
 	// smoothing factor and adjustment
-	smoothingFactor := 1
-	smoothingAdjustment := 0
+	var smoothingFactor uint64 = 1
+	var smoothingAdjustment uint64
 
 	if sumWeight == 0 {
 		// when all channels have weight 0, set sumWeight to the number of channels and set smoothing adjustment to 100
 		// each channel's effective weight = 100
-		sumWeight = len(targetChannels) * 100
+		sumWeight = uint64(len(targetChannels)) * 100
 		smoothingAdjustment = 100
-	} else if sumWeight/len(targetChannels) < 10 {
+	} else if sumWeight/uint64(len(targetChannels)) < 10 {
 		// when the average weight is less than 10, set smoothing factor to 100
 		smoothingFactor = 100
 	}
 
 	// Calculate the total weight of all channels up to endIdx
+	if sumWeight > maxInt64ForWeight/smoothingFactor {
+		return nil, errors.New("channel weight overflow")
+	}
 	totalWeight := sumWeight * smoothingFactor
 
 	// Generate a random value in the range [0, totalWeight)
-	randomWeight := rand.Intn(totalWeight)
+	randomWeight := uint64(rand.Int63n(int64(totalWeight)))
 
 	// Find a channel based on its weight
 	for _, channel := range targetChannels {
-		randomWeight -= channel.GetWeight()*smoothingFactor + smoothingAdjustment
-		if randomWeight < 0 {
+		effectiveWeight := channel.GetWeightForGroup(group)*smoothingFactor + smoothingAdjustment
+		if randomWeight < effectiveWeight {
 			return channel, nil
 		}
+		randomWeight -= effectiveWeight
 	}
 	// return null if no channel is not found
 	return nil, errors.New("channel not found")

@@ -50,6 +50,7 @@ type Channel struct {
 	Setting           *string `json:"setting" gorm:"type:text"` // 渠道额外设置
 	ParamOverride     *string `json:"param_override" gorm:"type:text"`
 	HeaderOverride    *string `json:"header_override" gorm:"type:text"`
+	GroupPriority     *string `json:"group_priority" gorm:"type:text"`
 	Remark            *string `json:"remark" gorm:"type:varchar(255)" validate:"max=255"`
 	// add after v0.8.5
 	ChannelInfo ChannelInfo `json:"channel_info" gorm:"type:json"`
@@ -519,6 +520,86 @@ func (channel *Channel) GetWeight() int {
 		return 0
 	}
 	return int(*channel.Weight)
+}
+
+type GroupPriorityOverride struct {
+	Priority *int64 `json:"priority,omitempty"`
+	Weight   *uint  `json:"weight,omitempty"`
+}
+
+func (channel *Channel) ParseGroupPriorityMap() (map[string]GroupPriorityOverride, error) {
+	if channel == nil || channel.GroupPriority == nil || strings.TrimSpace(*channel.GroupPriority) == "" {
+		return nil, nil
+	}
+
+	var rawOverrides map[string]common.RawMessage
+	if err := common.Unmarshal([]byte(*channel.GroupPriority), &rawOverrides); err != nil {
+		return nil, err
+	}
+	if rawOverrides == nil {
+		return nil, errors.New("group priority must be a JSON object")
+	}
+	overrides := make(map[string]GroupPriorityOverride, len(rawOverrides))
+	for group, rawOverride := range rawOverrides {
+		if strings.TrimSpace(group) == "" {
+			return nil, errors.New("group priority group name cannot be empty")
+		}
+		var rawFields map[string]common.RawMessage
+		if err := common.Unmarshal(rawOverride, &rawFields); err != nil {
+			return nil, err
+		}
+		if rawFields == nil {
+			return nil, errors.New("group priority override must be a JSON object")
+		}
+		for field := range rawFields {
+			if field != "priority" && field != "weight" {
+				return nil, fmt.Errorf("unknown group priority field %q", field)
+			}
+		}
+		var override GroupPriorityOverride
+		if err := common.Unmarshal(rawOverride, &override); err != nil {
+			return nil, err
+		}
+		overrides[group] = override
+	}
+	return overrides, nil
+}
+
+func (channel *Channel) ValidateGroupPriority() error {
+	_, err := channel.ParseGroupPriorityMap()
+	return err
+}
+
+func (channel *Channel) GetGroupPriorityMap() map[string]GroupPriorityOverride {
+	overrides, err := channel.ParseGroupPriorityMap()
+	if err != nil {
+		if channel != nil && channel.GroupPriority != nil {
+			common.SysLog(fmt.Sprintf("invalid group priority: channel_id=%d, error=%v", channel.Id, err))
+		}
+		return nil
+	}
+	return overrides
+}
+
+func (channel *Channel) GetPriorityForGroup(group string) int64 {
+	if overrides := channel.GetGroupPriorityMap(); overrides != nil {
+		if override, ok := overrides[group]; ok && override.Priority != nil {
+			return *override.Priority
+		}
+	}
+	return channel.GetPriority()
+}
+
+func (channel *Channel) GetWeightForGroup(group string) uint64 {
+	if overrides := channel.GetGroupPriorityMap(); overrides != nil {
+		if override, ok := overrides[group]; ok && override.Weight != nil {
+			return uint64(*override.Weight)
+		}
+	}
+	if channel.Weight == nil {
+		return 0
+	}
+	return uint64(*channel.Weight)
 }
 
 func (channel *Channel) GetMaxConcurrency() int {

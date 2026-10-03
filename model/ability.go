@@ -3,6 +3,7 @@ package model
 import (
 	"errors"
 	"fmt"
+	"math/rand"
 	"sort"
 	"strings"
 	"sync"
@@ -117,50 +118,78 @@ func GetChannel(
 		return nil, err
 	}
 	abilities = filterAbilitiesByConstraints(abilities, model, filters)
-	if len(abilities) > 0 {
-		priorities := make([]int64, 0)
-		seen := make(map[int64]bool)
-		for _, ability := range abilities {
-			priority := int64(0)
-			if ability.Priority != nil {
-				priority = *ability.Priority
-			}
-			if !seen[priority] {
-				seen[priority] = true
-				priorities = append(priorities, priority)
-			}
-		}
-		sort.Slice(priorities, func(i, j int) bool { return priorities[i] > priorities[j] })
-		if retry >= len(priorities) {
-			retry = len(priorities) - 1
-		}
-		targetPriority := priorities[retry]
-		abilities = lo.Filter(abilities, func(ability Ability, _ int) bool {
-			return ability.Priority == nil && targetPriority == 0 || ability.Priority != nil && *ability.Priority == targetPriority
-		})
-	}
-	channel := Channel{}
-	if len(abilities) > 0 {
-		// Randomly choose one
-		weightSum := uint(0)
-		for _, ability_ := range abilities {
-			weightSum += ability_.Weight + 10
-		}
-		// Randomly choose one
-		weight := common.GetRandomInt(int(weightSum))
-		for _, ability_ := range abilities {
-			weight -= int(ability_.Weight) + 10
-			//log.Printf("weight: %d, ability weight: %d", weight, *ability_.Weight)
-			if weight <= 0 {
-				channel.Id = ability_.ChannelId
-				break
-			}
-		}
-	} else {
+	if len(abilities) == 0 {
 		return nil, nil
 	}
-	err = DB.First(&channel, "id = ?", channel.Id).Error
-	return &channel, err
+
+	channelIDs := make([]int, 0, len(abilities))
+	for _, ability := range abilities {
+		channelIDs = append(channelIDs, ability.ChannelId)
+	}
+	var channels []*Channel
+	if err := DB.Where("id IN ?", channelIDs).Find(&channels).Error; err != nil {
+		return nil, err
+	}
+	channelsByID := make(map[int]*Channel, len(channels))
+	for _, channel := range channels {
+		channelsByID[channel.Id] = channel
+	}
+
+	candidates := make([]channelSelectionCandidate, 0, len(abilities))
+	for _, ability := range abilities {
+		channel, ok := channelsByID[ability.ChannelId]
+		if !ok {
+			return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", ability.ChannelId)
+		}
+		candidates = append(candidates, channelSelectionCandidate{
+			channel:  channel,
+			priority: channel.GetPriorityForGroup(group),
+			weight:   channel.GetWeightForGroup(group),
+		})
+	}
+
+	priorities := make([]int64, 0, len(candidates))
+	seen := make(map[int64]bool, len(candidates))
+	for _, candidate := range candidates {
+		if !seen[candidate.priority] {
+			seen[candidate.priority] = true
+			priorities = append(priorities, candidate.priority)
+		}
+	}
+	sort.Slice(priorities, func(i, j int) bool { return priorities[i] > priorities[j] })
+	if retry < 0 {
+		retry = 0
+	}
+	if retry >= len(priorities) {
+		retry = len(priorities) - 1
+	}
+	targetPriority := priorities[retry]
+	targetCandidates := lo.Filter(candidates, func(candidate channelSelectionCandidate, _ int) bool {
+		return candidate.priority == targetPriority
+	})
+
+	var weightSum uint64
+	for _, candidate := range targetCandidates {
+		if candidate.weight > maxInt64ForWeight-10 || weightSum > maxInt64ForWeight-candidate.weight-10 {
+			return nil, errors.New("channel weight overflow")
+		}
+		weightSum += candidate.weight + 10
+	}
+	weight := uint64(rand.Int63n(int64(weightSum)))
+	for _, candidate := range targetCandidates {
+		effectiveWeight := candidate.weight + 10
+		if weight < effectiveWeight {
+			return candidate.channel, nil
+		}
+		weight -= effectiveWeight
+	}
+	return nil, errors.New("channel not found")
+}
+
+type channelSelectionCandidate struct {
+	channel  *Channel
+	priority int64
+	weight   uint64
 }
 
 // filterAbilitiesByConstraints applies the same ChannelSatisfiesFilters

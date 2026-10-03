@@ -137,8 +137,8 @@ func GetModelAvailabilityProbeTargets(modelName string) ([]ModelAvailabilityProb
 		Select("abilities.model as model_name, channels.id as channel_id, channels.type as channel_type, channels.name as channel_name").
 		Joins("JOIN channels ON abilities.channel_id = channels.id").
 		Where("abilities.model = ? AND abilities.enabled = ? AND channels.status = ?", modelName, true, common.ChannelStatusEnabled).
-		Order("COALESCE(abilities.priority, 0) DESC").
-		Order("abilities.weight DESC").
+		Order("COALESCE(channels.priority, 0) DESC").
+		Order("COALESCE(channels.weight, 0) DESC").
 		Order("channels.id ASC").
 		Scan(&targets).Error
 	if err != nil {

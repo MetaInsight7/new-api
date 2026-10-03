@@ -1,6 +1,7 @@
 package model
 
 import (
+	"fmt"
 	"sort"
 
 	"github.com/QuantumNous/new-api/common"
@@ -27,33 +28,9 @@ func GetSatisfiedChannelCandidates(group string, modelName string, retry int, fi
 		return nil, nil
 	}
 
-	priorities := make([]int64, 0)
-	seenPriorities := make(map[int64]struct{})
-	for _, ability := range abilities {
-		priority := int64(0)
-		if ability.Priority != nil {
-			priority = *ability.Priority
-		}
-		if _, seen := seenPriorities[priority]; !seen {
-			seenPriorities[priority] = struct{}{}
-			priorities = append(priorities, priority)
-		}
-	}
-	if retry >= len(priorities) {
-		retry = len(priorities) - 1
-	}
-	targetPriority := priorities[retry]
-
 	ids := make([]int, 0, len(abilities))
-	seenIDs := make(map[int]struct{})
+	seenIDs := make(map[int]struct{}, len(abilities))
 	for _, ability := range abilities {
-		priority := int64(0)
-		if ability.Priority != nil {
-			priority = *ability.Priority
-		}
-		if priority != targetPriority {
-			continue
-		}
 		if _, seen := seenIDs[ability.ChannelId]; !seen {
 			seenIDs[ability.ChannelId] = struct{}{}
 			ids = append(ids, ability.ChannelId)
@@ -66,6 +43,45 @@ func GetSatisfiedChannelCandidates(group string, modelName string, retry int, fi
 	byID := make(map[int]*Channel, len(channels))
 	for _, channel := range channels {
 		byID[channel.Id] = channel
+	}
+
+	priorities := make([]int64, 0)
+	seenPriorities := make(map[int64]struct{})
+	for _, ability := range abilities {
+		channel, ok := byID[ability.ChannelId]
+		if !ok {
+			return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", ability.ChannelId)
+		}
+		priority := channel.GetPriorityForGroup(group)
+		if _, seen := seenPriorities[priority]; !seen {
+			seenPriorities[priority] = struct{}{}
+			priorities = append(priorities, priority)
+		}
+	}
+	sort.Slice(priorities, func(i, j int) bool { return priorities[i] > priorities[j] })
+	if retry < 0 {
+		retry = 0
+	}
+	if retry >= len(priorities) {
+		retry = len(priorities) - 1
+	}
+	targetPriority := priorities[retry]
+
+	ids = ids[:0]
+	seenIDs = make(map[int]struct{})
+	for _, ability := range abilities {
+		channel, ok := byID[ability.ChannelId]
+		if !ok {
+			return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", ability.ChannelId)
+		}
+		priority := channel.GetPriorityForGroup(group)
+		if priority != targetPriority {
+			continue
+		}
+		if _, seen := seenIDs[ability.ChannelId]; !seen {
+			seenIDs[ability.ChannelId] = struct{}{}
+			ids = append(ids, ability.ChannelId)
+		}
 	}
 	ordered := make([]*Channel, 0, len(ids))
 	for _, id := range ids {
@@ -96,7 +112,7 @@ func getCachedSatisfiedChannelCandidates(group string, modelName string, retry i
 		if channel == nil {
 			continue
 		}
-		priority := channel.GetPriority()
+		priority := channel.GetPriorityForGroup(group)
 		if _, seen := seenPriorities[priority]; !seen {
 			seenPriorities[priority] = struct{}{}
 			priorities = append(priorities, priority)
@@ -114,7 +130,7 @@ func getCachedSatisfiedChannelCandidates(group string, modelName string, retry i
 	channels := make([]*Channel, 0, len(ids))
 	for _, id := range ids {
 		channel := channelsIDM[id]
-		if channel != nil && channel.GetPriority() == targetPriority {
+		if channel != nil && channel.GetPriorityForGroup(group) == targetPriority {
 			channels = append(channels, channel)
 		}
 	}

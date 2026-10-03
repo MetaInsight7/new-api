@@ -550,6 +550,9 @@ func validateChannel(channel *model.Channel, isAdd bool) error {
 	if channel.MaxConcurrency < 0 {
 		return fmt.Errorf("channel max concurrency cannot be negative")
 	}
+	if err := channel.ValidateGroupPriority(); err != nil {
+		return fmt.Errorf("group_priority must be a valid JSON object: %w", err)
+	}
 
 	// 校验 channel settings
 	if err := channel.ValidateSettings(); err != nil {
@@ -1305,6 +1308,9 @@ func UpdateChannel(c *gin.Context) {
 	}
 	if !equalStringPtr(channel.BaseURL, originChannel.BaseURL) {
 		changedFields = append(changedFields, "base_url")
+	}
+	if !equalStringPtr(channel.GroupPriority, originChannel.GroupPriority) {
+		changedFields = append(changedFields, "group_priority")
 	}
 	if channel.Key != "" && channel.Key != originChannel.Key {
 		changedFields = append(changedFields, "key")

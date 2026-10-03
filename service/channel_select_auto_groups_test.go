@@ -127,3 +127,41 @@ func TestCacheGetRandomSatisfiedChannelUsesTokenAutoGroupsWhenGlobalAutoIsEmpty(
 	assert.Equal(t, "default", selectedGroup)
 	assert.Equal(t, "default", common.GetContextKeyString(ctx, constant.ContextKeyAutoGroup))
 }
+
+func TestCacheGetRandomSatisfiedChannelUsesResolvedAutoGroupOverrides(t *testing.T) {
+	db := setupChannelSelectAutoGroupsTest(t)
+	const modelName = "auto-group-override-model"
+	priorityHigh := int64(10)
+	priorityLow := int64(0)
+	weight := uint(1)
+	groupPriority := `{"vip":{"priority":20}}`
+	channels := []model.Channel{
+		{Id: 2201, Type: constant.ChannelTypeOpenAI, Key: "key-2201", Status: common.ChannelStatusEnabled, Models: modelName, Group: "vip", Priority: &priorityHigh, Weight: &weight},
+		{Id: 2202, Type: constant.ChannelTypeOpenAI, Key: "key-2202", Status: common.ChannelStatusEnabled, Models: modelName, Group: "vip", Priority: &priorityLow, Weight: &weight, GroupPriority: &groupPriority},
+		{Id: 2203, Type: constant.ChannelTypeOpenAI, Key: "key-2203", Status: common.ChannelStatusEnabled, Models: modelName, Group: "default", Priority: &priorityHigh, Weight: &weight},
+	}
+	require.NoError(t, db.Create(&channels).Error)
+	require.NoError(t, db.Create(&[]model.Ability{
+		{Group: "vip", Model: modelName, ChannelId: 2201, Enabled: true, Priority: &priorityHigh, Weight: weight},
+		{Group: "vip", Model: modelName, ChannelId: 2202, Enabled: true, Priority: &priorityLow, Weight: weight},
+		{Group: "default", Model: modelName, ChannelId: 2203, Enabled: true, Priority: &priorityHigh, Weight: weight},
+	}).Error)
+	model.InitChannelCache()
+
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	common.SetContextKey(ctx, constant.ContextKeyUserGroup, "default")
+	common.SetContextKey(ctx, constant.ContextKeyTokenAutoGroups, []string{"vip", "default"})
+
+	retry := 0
+	channel, selectedGroup, err := CacheGetRandomSatisfiedChannel(&RetryParam{
+		Ctx:        ctx,
+		TokenGroup: "auto",
+		ModelName:  modelName,
+		Retry:      &retry,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, channel)
+	assert.Equal(t, 2202, channel.Id)
+	assert.Equal(t, "vip", selectedGroup)
+}
