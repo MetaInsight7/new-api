@@ -16,7 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 */
 const DEFAULT_OFFICIAL_DOCUMENTATION_URL = 'https://docs.flatkey.ai/'
 
-export const OFFICIAL_DOCUMENTATION_URL =
-  (
-    import.meta.env.VITE_OFFICIAL_DOCUMENTATION_URL as string | undefined
-  )?.trim() || DEFAULT_OFFICIAL_DOCUMENTATION_URL
+export function resolveOfficialDocumentationUrl(
+  configuredUrl: string | undefined
+): string {
+  return configuredUrl?.trim() || DEFAULT_OFFICIAL_DOCUMENTATION_URL
+}
+
+export const OFFICIAL_DOCUMENTATION_URL = resolveOfficialDocumentationUrl(
+  import.meta.env.VITE_OFFICIAL_DOCUMENTATION_URL as string | undefined
+)

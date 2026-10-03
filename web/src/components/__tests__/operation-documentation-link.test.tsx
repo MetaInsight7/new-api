@@ -17,7 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 import { render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { OperationDocumentationLink } from './operation-documentation-link'
+import { resolveOfficialDocumentationUrl } from '../../lib/origins'
+import { OperationDocumentationLink } from '../OperationDocumentationLink'
 
 afterEach(() => {
   document.body.replaceChildren()
@@ -36,5 +37,14 @@ describe('OperationDocumentationLink', () => {
     )
     expect(documentationButton).toHaveAttribute('target', '_blank')
     expect(documentationButton).toHaveAttribute('rel', 'noreferrer noopener')
+  })
+
+  it('uses a configured documentation URL and falls back for blank values', () => {
+    expect(resolveOfficialDocumentationUrl('https://docs.example.test/')).toBe(
+      'https://docs.example.test/'
+    )
+    expect(resolveOfficialDocumentationUrl('  ')).toBe(
+      'https://docs.flatkey.ai/'
+    )
   })
 })

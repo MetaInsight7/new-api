@@ -22,7 +22,7 @@ import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SectionPageLayout } from '@/components/layout'
-import { OperationDocumentationLink } from '@/components/operation-documentation-link'
+import { OperationDocumentationLink } from '@/components/OperationDocumentationLink'
 import {
   Alert,
   AlertAction,

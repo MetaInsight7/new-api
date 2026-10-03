@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 */
 import { LinkSquare02Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -27,7 +28,7 @@ type OperationDocumentationLinkProps = {
 
 export function OperationDocumentationLink(
   props: OperationDocumentationLinkProps
-) {
+): ReactNode {
   const { t } = useTranslation()
 
   return (
