@@ -30,21 +30,8 @@ type ModelAccessModel struct {
 	ID                     string                  `json:"id"`
 	AllowlistMatchKey      string                  `json:"allowlist_match_key"`
 	Vendor                 *ModelAccessVendor      `json:"vendor"`
-	Pricing                *ModelAccessPricing     `json:"pricing,omitempty"`
 	SupportedEndpointTypes []constant.EndpointType `json:"supported_endpoint_types"`
 	AvailabilityStatus     string                  `json:"availability_status"`
-}
-
-type ModelAccessPricing struct {
-	QuotaType            int      `json:"quota_type"`
-	ModelRatio           float64  `json:"model_ratio"`
-	ModelPrice           float64  `json:"model_price"`
-	CompletionRatio      float64  `json:"completion_ratio"`
-	CacheRatio           *float64 `json:"cache_ratio,omitempty"`
-	CreateCacheRatio     *float64 `json:"create_cache_ratio,omitempty"`
-	ImageRatio           *float64 `json:"image_ratio,omitempty"`
-	AudioRatio           *float64 `json:"audio_ratio,omitempty"`
-	AudioCompletionRatio *float64 `json:"audio_completion_ratio,omitempty"`
 }
 
 type ModelAccessScope struct {
@@ -178,11 +165,7 @@ func resolveStrictModelAccess(groups []string, acceptUnpriced bool) (strictModel
 	}
 	availabilityByModel, err := model.GetModelAvailabilityStateMap(allModelIDs)
 	if err != nil {
-		availabilityByModel = map[string]model.ModelAvailabilityState{}
-	}
-	pricingByModel := make(map[string]model.Pricing, len(allModelIDs))
-	for _, pricing := range model.GetPricing() {
-		pricingByModel[pricing.ModelName] = pricing
+		return strictModelAccess{}, err
 	}
 
 	models := make([]ModelAccessModel, 0, len(allModelIDs))
@@ -193,25 +176,10 @@ func resolveStrictModelAccess(groups []string, acceptUnpriced bool) (strictModel
 		if state, ok := availabilityByModel[modelName]; ok && strings.TrimSpace(state.Status) != "" {
 			availability = state.Status
 		}
-		var modelPricing *ModelAccessPricing
-		if pricing, ok := pricingByModel[modelName]; ok {
-			modelPricing = &ModelAccessPricing{
-				QuotaType:            pricing.QuotaType,
-				ModelRatio:           pricing.ModelRatio,
-				ModelPrice:           pricing.ModelPrice,
-				CompletionRatio:      pricing.CompletionRatio,
-				CacheRatio:           pricing.CacheRatio,
-				CreateCacheRatio:     pricing.CreateCacheRatio,
-				ImageRatio:           pricing.ImageRatio,
-				AudioRatio:           pricing.AudioRatio,
-				AudioCompletionRatio: pricing.AudioCompletionRatio,
-			}
-		}
 		models = append(models, ModelAccessModel{
 			ID:                     modelName,
 			AllowlistMatchKey:      AllowlistMatchKey(modelName),
 			Vendor:                 publicVendor(metadata.Vendor),
-			Pricing:                modelPricing,
 			SupportedEndpointTypes: endpoints,
 			AvailabilityStatus:     availability,
 		})

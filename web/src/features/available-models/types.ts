@@ -26,23 +26,10 @@ export type ModelAccessVendor = {
   icon?: string
 }
 
-export type ModelAccessPricing = {
-  quota_type: number
-  model_ratio: number
-  model_price: number
-  completion_ratio: number
-  cache_ratio?: number | null
-  create_cache_ratio?: number | null
-  image_ratio?: number | null
-  audio_ratio?: number | null
-  audio_completion_ratio?: number | null
-}
-
 export type ModelAccessModel = {
   id: string
   allowlist_match_key: string
   vendor: ModelAccessVendor | null
-  pricing?: ModelAccessPricing | null
   supported_endpoint_types: string[]
   availability_status: ModelAvailabilityStatus | 'unknown'
 }

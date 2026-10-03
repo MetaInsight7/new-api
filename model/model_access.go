@@ -107,6 +107,12 @@ func GetPublicModelMetadataMap(modelNames []string) (map[string]PublicModelMetad
 			item, ok = matchPublicModelMetadataRule(modelName, rules)
 		}
 		if !ok {
+			if inferredVendor, inferred := inferDefaultVendor(modelName); inferred {
+				result[modelName] = PublicModelMetadata{
+					ModelName: modelName,
+					Vendor:    &inferredVendor,
+				}
+			}
 			continue
 		}
 		var vendor *Vendor

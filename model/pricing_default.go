@@ -1,7 +1,7 @@
 package model
 
 import (
-	"slices"
+	"sort"
 	"strings"
 )
 
@@ -39,6 +39,20 @@ var defaultVendorRules = map[string]string{
 	"vidu":     "Vidu",
 }
 
+var defaultVendorRulePatterns = func() []string {
+	patterns := make([]string, 0, len(defaultVendorRules))
+	for pattern := range defaultVendorRules {
+		patterns = append(patterns, pattern)
+	}
+	sort.Slice(patterns, func(i, j int) bool {
+		if len(patterns[i]) == len(patterns[j]) {
+			return patterns[i] < patterns[j]
+		}
+		return len(patterns[i]) > len(patterns[j])
+	})
+	return patterns
+}()
+
 // 供应商默认图标映射
 var defaultVendorIcons = map[string]string{
 	"OpenAI":     "OpenAI",
@@ -71,31 +85,15 @@ var defaultVendorIcons = map[string]string{
 
 // initDefaultVendorMapping 简化的默认供应商映射
 func initDefaultVendorMapping(metaMap map[string]*Model, vendorMap map[int]*Vendor, enableAbilities []AbilityWithChannel) {
-	patterns := make([]string, 0, len(defaultVendorRules))
-	for pattern := range defaultVendorRules {
-		patterns = append(patterns, pattern)
-	}
-	slices.SortFunc(patterns, func(a, b string) int {
-		if len(a) != len(b) {
-			return len(b) - len(a)
-		}
-		return strings.Compare(a, b)
-	})
 	for _, ability := range enableAbilities {
 		modelName := ability.Model
 		if _, exists := metaMap[modelName]; exists {
 			continue
 		}
 
-		// 匹配供应商
 		vendorID := 0
-		modelLower := strings.ToLower(modelName)
-		for _, pattern := range patterns {
-			vendorName := defaultVendorRules[pattern]
-			if strings.Contains(modelLower, pattern) {
-				vendorID = getDisplayVendor(vendorName, vendorMap)
-				break
-			}
+		if vendor, ok := inferDefaultVendor(modelName); ok {
+			vendorID = getDisplayVendor(vendor.Name, vendorMap)
 		}
 
 		// 创建模型元数据
@@ -106,6 +104,22 @@ func initDefaultVendorMapping(metaMap map[string]*Model, vendorMap map[int]*Vend
 			NameRule:  NameRuleExact,
 		}
 	}
+}
+
+func inferDefaultVendor(modelName string) (Vendor, bool) {
+	modelLower := strings.ToLower(modelName)
+	for _, pattern := range defaultVendorRulePatterns {
+		if !strings.Contains(modelLower, pattern) {
+			continue
+		}
+		vendorName := defaultVendorRules[pattern]
+		return Vendor{
+			Name:   vendorName,
+			Icon:   getDefaultVendorIcon(vendorName),
+			Status: 1,
+		}, true
+	}
+	return Vendor{}, false
 }
 
 // Default vendor entries are presentation data. Reading pricing must never
