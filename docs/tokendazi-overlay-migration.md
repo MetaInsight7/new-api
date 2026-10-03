@@ -382,7 +382,7 @@ Overlay 最终代码额外包含：
 
 因此，当前 Available Models 页面虽然已经具备“显示健康状态”的前后端结构，但状态来源仍是被动请求统计，并未达到 Overlay 的主动可用性探测行为。这项功能不能标记为完全对齐，后续应作为独立功能迁移，并重点审查其对真实渠道的调用成本、测试用户权限和误判风险。
 
-### 12.4 管理员日志诊断：后端部分已存在，前端部分缺失
+### 12.4 管理员日志诊断：已完成迁移
 
 Overlay 提交链：
 
@@ -394,14 +394,15 @@ Overlay 提交链：
 - `admin_info.user_agent`；
 - `admin_info.request_body_size`。
 
-目标前端 `web/src/features/usage-logs/components/dialogs/details-dialog.tsx` 当前已经显示 User Agent，但没有 Overlay 最终版中的：
+目标前端 `web/src/features/usage-logs/components/dialogs/details-dialog.tsx` 已显示：
 
+- User Agent；
 - Request Body Size；
 - Cache Hit Rate。
 
-Overlay 的 `7f528ecbb` 提交明确把这两个字段限制为管理员可见；迁移时必须保留 `admin_info` 的脱敏边界，不能把请求体大小或缓存信息暴露给普通用户。
+缓存命中率已按 Overlay 最终提交修正：普通模型使用 `cache_tokens / prompt_tokens`，Claude 使用 `cache_tokens / (prompt_tokens + cache_tokens + cache_creation_tokens)`。请求体大小使用 Base 的实际 `BodyStorage` 大小读取，并由统一的 `AppendRelayLogAdminInfo` 覆盖成功和错误日志。
 
-同时，目标分支的日志结构已经包含其他较新的 Base 字段，例如配额饱和、插件和根节点信息。因此不能直接覆盖整个日志详情组件，应只迁移缺失的两个展示字段，并补充类型、翻译和行为测试。
+Overlay 的 `7f528ecbb` 提交明确把这两个字段限制为管理员可见；当前迁移保留了 `admin_info` 的脱敏边界，普通用户不会获得请求体大小、缓存信息或 User Agent。目标分支的日志结构还包含较新的 Base 字段，因此采用局部适配而不是覆盖整个日志详情组件。详细 Spec 和 Ticket 见 `docs/admin-log-metadata-migration-spec.md` 与 `docs/admin-log-metadata-migration-ticket.md`。
 
 ### 12.5 按分组覆盖渠道优先级/权重：目标分支缺失
 
