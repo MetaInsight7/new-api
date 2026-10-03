@@ -22,6 +22,7 @@ import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SectionPageLayout } from '@/components/layout'
+import { OperationDocumentationLink } from '@/components/operation-documentation-link'
 import {
   Alert,
   AlertAction,
@@ -162,6 +163,9 @@ export function AvailableModels() {
           {t('Available Models')}
         </span>
       </SectionPageLayout.Title>
+      <SectionPageLayout.Actions>
+        <OperationDocumentationLink />
+      </SectionPageLayout.Actions>
       <SectionPageLayout.Content>{content}</SectionPageLayout.Content>
     </SectionPageLayout>
   )
