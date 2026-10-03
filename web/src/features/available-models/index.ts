@@ -26,8 +26,10 @@ export {
   getUnavailableScopeModels,
   isCallableModel,
   resolveCreateScope,
+  resolveModelRatioContext,
 } from './lib/model-access'
 export {
+  getCreateKeySearch,
   filterModelAccessModels,
   getModelAccessScopeModels,
   getModelAccessUnavailableScopeModels,

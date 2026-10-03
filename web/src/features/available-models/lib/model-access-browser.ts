@@ -33,6 +33,13 @@ import {
 export const ALL_MODEL_VENDORS = 'all'
 export const UNLABELLED_MODEL_VENDOR = 'unlabelled'
 
+export function getCreateKeySearch(scopeId?: string | null): {
+  open: 'create'
+  group?: string
+} {
+  return scopeId ? { open: 'create', group: scopeId } : { open: 'create' }
+}
+
 export type ModelVendorFilter = string
 
 export type ModelVendorFilterOption = {

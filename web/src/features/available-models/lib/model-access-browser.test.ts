@@ -21,6 +21,7 @@ import type { UserModelAccess } from '../types'
 import {
   ALL_MODEL_VENDORS,
   filterModelAccessModels,
+  getCreateKeySearch,
   getModelEndpointLabel,
   getModelVendorFilters,
   normalizeModelAvailabilityStatus,
@@ -65,6 +66,14 @@ const access: UserModelAccess = {
 }
 
 describe('available model browser filtering', () => {
+  test('builds a create-key deep link for a selected scope', () => {
+    expect(getCreateKeySearch('premium')).toEqual({
+      open: 'create',
+      group: 'premium',
+    })
+    expect(getCreateKeySearch()).toEqual({ open: 'create' })
+  })
+
   test('filters by model name and vendor', () => {
     const filters = getModelVendorFilters(access.models)
     expect(filters.map((filter) => filter.value)).toEqual([

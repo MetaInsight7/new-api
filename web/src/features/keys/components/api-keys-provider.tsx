@@ -19,11 +19,16 @@ For commercial licensing, please contact support@quantumnous.com
 import React, { useState, useCallback, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useModelAccess } from '@/features/available-models'
 import useDialogState from '@/hooks/use-dialog'
 import { handleServerError } from '@/lib/handle-server-error'
 
 import { fetchTokenKey, fetchTokenKeysBatch } from '../api'
 import { ERROR_MESSAGES } from '../constants'
+import {
+  getCreateDialogDeepLinkAction,
+  getCreateDialogRequestKey,
+} from '../lib/api-key-create-dialog'
 import type { ApiKey, ApiKeysDialogType } from '../types'
 
 type ApiKeysContextType = {
@@ -41,13 +46,30 @@ type ApiKeysContextType = {
   loadingKeys: Record<number, boolean>
   copiedKeyId: number | null
   markKeyCopied: (id: number) => void
+  initialCreateGroup?: string | null
+  modelAccessQuery: ReturnType<typeof useModelAccess>
+}
+
+type ApiKeysProviderProps = {
+  children: React.ReactNode
+  createDialogRequested?: boolean
+  requestedCreateGroup?: string
+  onCreateDialogConsumed?: () => void
 }
 
 const ApiKeysContext = React.createContext<ApiKeysContextType | null>(null)
 
-export function ApiKeysProvider({ children }: { children: React.ReactNode }) {
+export function ApiKeysProvider({
+  children,
+  createDialogRequested = false,
+  requestedCreateGroup,
+  onCreateDialogConsumed,
+}: ApiKeysProviderProps) {
   const { t } = useTranslation()
-  const [open, setOpen] = useDialogState<ApiKeysDialogType>(null)
+  const [dialogOpen, setDialogOpen] = useDialogState<ApiKeysDialogType>(null)
+  const [initialCreateGroup, setInitialCreateGroup] = useState<
+    string | null | undefined
+  >(undefined)
   const [currentRow, setCurrentRow] = useState<ApiKey | null>(null)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
   const [resolvedKey, setResolvedKey] = useState('')
@@ -55,6 +77,10 @@ export function ApiKeysProvider({ children }: { children: React.ReactNode }) {
   const [resolvedKeys, setResolvedKeys] = useState<Record<number, string>>({})
   const [loadingKeys, setLoadingKeys] = useState<Record<number, boolean>>({})
   const pendingRequests = useRef<Record<number, Promise<string | null>>>({})
+  const modelAccessQuery = useModelAccess()
+  const deepLinkActiveRef = useRef(false)
+  const didOpenDeepLinkRef = useRef(false)
+  const deepLinkRequestKeyRef = useRef<string | null>(null)
 
   const [copiedKeyId, setCopiedKeyId] = useState<number | null>(null)
   const copiedTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
@@ -72,6 +98,54 @@ export function ApiKeysProvider({ children }: { children: React.ReactNode }) {
   const triggerRefresh = useCallback(() => {
     setRefreshTrigger((prev) => prev + 1)
   }, [])
+
+  const setOpen = useCallback(
+    (nextOpen: ApiKeysDialogType | null) => {
+      setDialogOpen(nextOpen)
+      if (nextOpen === null) {
+        setInitialCreateGroup(undefined)
+        if (deepLinkActiveRef.current) {
+          deepLinkActiveRef.current = false
+          onCreateDialogConsumed?.()
+        }
+      }
+    },
+    [onCreateDialogConsumed, setDialogOpen]
+  )
+
+  useEffect(() => {
+    const requestKey = getCreateDialogRequestKey(
+      createDialogRequested,
+      requestedCreateGroup
+    )
+    if (requestKey !== deepLinkRequestKeyRef.current) {
+      deepLinkRequestKeyRef.current = requestKey
+      didOpenDeepLinkRef.current = false
+      setInitialCreateGroup(undefined)
+    }
+    if (!createDialogRequested) return
+
+    const action = getCreateDialogDeepLinkAction(
+      true,
+      modelAccessQuery.data,
+      modelAccessQuery.isError,
+      requestedCreateGroup
+    )
+    if (action.resolvedGroup !== undefined) {
+      setInitialCreateGroup(action.resolvedGroup)
+    }
+    if (didOpenDeepLinkRef.current || !action.shouldOpen) return
+
+    didOpenDeepLinkRef.current = true
+    deepLinkActiveRef.current = true
+    setDialogOpen('create')
+  }, [
+    createDialogRequested,
+    modelAccessQuery.data,
+    modelAccessQuery.isError,
+    requestedCreateGroup,
+    setDialogOpen,
+  ])
 
   const resolveRealKey = useCallback(
     async (id: number): Promise<string | null> => {
@@ -157,7 +231,7 @@ export function ApiKeysProvider({ children }: { children: React.ReactNode }) {
   return (
     <ApiKeysContext
       value={{
-        open,
+        open: dialogOpen,
         setOpen,
         currentRow,
         setCurrentRow,
@@ -171,6 +245,8 @@ export function ApiKeysProvider({ children }: { children: React.ReactNode }) {
         loadingKeys,
         copiedKeyId,
         markKeyCopied,
+        initialCreateGroup,
+        modelAccessQuery,
       }}
     >
       {children}

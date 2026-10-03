@@ -1,3 +1,4 @@
+import { createFileRoute } from '@tanstack/react-router'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -16,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { createFileRoute } from '@tanstack/react-router'
+import { useCallback } from 'react'
 import z from 'zod'
 
 import { ApiKeys } from '@/features/keys'
@@ -31,9 +32,42 @@ const apiKeySearchSchema = z.object({
     .catch([]),
   filter: z.string().optional().catch(''),
   token: z.string().optional().catch(''),
+  open: z.literal('create').optional().catch(undefined),
+  group: z.string().min(1).optional().catch(undefined),
 })
 
+export function validateApiKeySearch(search: Record<string, unknown>) {
+  const result = apiKeySearchSchema.parse(search)
+  if (result.open !== 'create') {
+    delete result.group
+  }
+  return result
+}
+
+export function clearCreateDialogSearch(search: Record<string, unknown>) {
+  return { ...search, open: undefined, group: undefined }
+}
+
 export const Route = createFileRoute('/_authenticated/keys/')({
-  validateSearch: apiKeySearchSchema,
-  component: ApiKeys,
+  validateSearch: validateApiKeySearch,
+  component: ApiKeysRoute,
 })
+
+function ApiKeysRoute() {
+  const { open, group } = Route.useSearch()
+  const navigate = Route.useNavigate()
+  const handleCreateDialogConsumed = useCallback(() => {
+    navigate({
+      replace: true,
+      search: clearCreateDialogSearch,
+    })
+  }, [navigate])
+
+  return (
+    <ApiKeys
+      createDialogRequested={open === 'create'}
+      requestedCreateGroup={group}
+      onCreateDialogConsumed={handleCreateDialogConsumed}
+    />
+  )
+}

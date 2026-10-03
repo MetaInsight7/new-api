@@ -25,10 +25,24 @@ import { ApiKeysPrimaryButtons } from './components/api-keys-primary-buttons'
 import { ApiKeysProvider } from './components/api-keys-provider'
 import { ApiKeysTable } from './components/api-keys-table'
 
-export function ApiKeys() {
+type ApiKeysProps = {
+  createDialogRequested?: boolean
+  requestedCreateGroup?: string
+  onCreateDialogConsumed?: () => void
+}
+
+export function ApiKeys({
+  createDialogRequested,
+  requestedCreateGroup,
+  onCreateDialogConsumed,
+}: ApiKeysProps = {}) {
   const { t } = useTranslation()
   return (
-    <ApiKeysProvider>
+    <ApiKeysProvider
+      createDialogRequested={createDialogRequested}
+      requestedCreateGroup={requestedCreateGroup}
+      onCreateDialogConsumed={onCreateDialogConsumed}
+    >
       <SectionPageLayout fixedContent>
         <SectionPageLayout.Title>{t('API Keys')}</SectionPageLayout.Title>
         <SectionPageLayout.Actions>

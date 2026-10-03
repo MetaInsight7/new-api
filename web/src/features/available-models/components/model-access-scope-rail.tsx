@@ -26,6 +26,7 @@ import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { cn } from '@/lib/utils'
 
+import { getCreateKeySearch } from '../lib/model-access-browser'
 import type { ModelAccessScope } from '../types'
 
 type ModelAccessScopeRailProps = {
@@ -99,7 +100,9 @@ export function ModelAccessScopeRail({
                   size='sm'
                   variant='ghost'
                   className='text-primary hover:bg-background/80 hover:text-primary border-primary/20 h-[34px] w-full justify-center rounded-none border-t px-3 text-xs font-medium'
-                  render={<Link to='/keys' />}
+                  render={
+                    <Link to='/keys' search={getCreateKeySearch(scope.id)} />
+                  }
                 >
                   {t('Use this group to create an API key')}
                   <HugeiconsIcon

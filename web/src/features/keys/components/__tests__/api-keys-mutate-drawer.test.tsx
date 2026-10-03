@@ -132,6 +132,9 @@ async function renderCreateDrawer(): Promise<void> {
   )
   await waitFor(
     () => {
+      expect(
+        screen.getByRole('dialog', { name: 'Create API Key' })
+      ).toBeVisible()
       const saveButton = findButton('Save changes', false)
       expect(saveButton).toBeEnabled()
     },
