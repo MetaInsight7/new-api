@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import {
   Activity,
+  BarChart3,
   Box,
   Boxes,
   BriefcaseBusiness,
@@ -167,6 +168,11 @@ export function useSidebarData(): SidebarData {
             title: t('Ops Daily Report'),
             url: '/ops-report',
             icon: CalendarRange,
+          },
+          {
+            title: t('Usage Report'),
+            url: '/usage-report',
+            icon: BarChart3,
           },
           {
             title: t('Users'),

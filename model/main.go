@@ -357,6 +357,8 @@ func migrateDB() error {
 		&QuotaData{},
 		&OpsUserLogStatsRow{},
 		&OpsUserLogStatsMeta{},
+		&UsageReportDay{},
+		&UsageReportDayModel{},
 		&Task{},
 		&TaskPlugin{},
 		&Model{},
