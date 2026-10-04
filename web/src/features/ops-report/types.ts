@@ -115,6 +115,8 @@ export interface OpsReportData {
   dau_scope: string
   include_disabled: boolean
   paid_only: boolean
+  stripe_configured: boolean
+  ads_daily_configured: boolean
   daily: OpsDailyRow[]
   weekly_funnel: OpsFunnelRow[]
   campaign_funnel: OpsCampaignRow[]

@@ -38,7 +38,11 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useTheme } from '@/context/theme-provider'
 
-import { getOpsReport, opsReportQueryKeys } from './api'
+import {
+  getOpsReport,
+  getOpsStripeReport,
+  opsReportQueryKeys,
+} from './api'
 import type {
   OpsDailyRow,
   OpsDauRow,
@@ -46,6 +50,8 @@ import type {
   OpsPayerRow,
   OpsRegisteredUserRow,
   OpsPaymentRow,
+  OpsStripePersonRow,
+  OpsStripeReport,
 } from './types'
 
 const DAY_OPTIONS = [7, 30, 60, 90]
@@ -56,6 +62,7 @@ const TAB_VALUES = [
   'users',
   'funnel',
   'payment',
+  'stripe',
   'active',
   'payers',
 ] as const
@@ -272,6 +279,13 @@ const shortTime = (timestamp: number): string => {
 
 const countryLabel = (country: string, _language?: string): string => country
 
+const STRIPE_STATUS_LABELS: Record<string, string> = {
+  paid: 'Paid OK',
+  failed: 'Card Failed',
+  no_action: 'Opened, No Action',
+  setup: 'Card Binding',
+}
+
 const SUBSCRIPTION_SOURCE_LABELS: Record<string, string> = {
   cash: 'Cash',
   wallet: 'Wallet',
@@ -372,6 +386,232 @@ function DailyFunnelTable({ rows }: { rows: OpsDailyRow[] }) {
           ))}
         </TableBody>
       </Table>
+    </div>
+  )
+}
+
+function StripeStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className='bg-muted/40 rounded-md px-3 py-2'>
+      <div className='text-muted-foreground text-xs'>{label}</div>
+      <div className='text-lg font-semibold'>{value}</div>
+    </div>
+  )
+}
+
+function StripePersonStatus({ status }: { status: string }) {
+  const { t } = useTranslation()
+  const label = STRIPE_STATUS_LABELS[status] ?? status
+  if (status === 'paid') {
+    return (
+      <Badge className='border-transparent bg-green-600 text-white dark:bg-green-700'>
+        {t(label)}
+      </Badge>
+    )
+  }
+  return (
+    <Badge variant={status === 'failed' ? 'destructive' : 'secondary'}>
+      {t(label)}
+    </Badge>
+  )
+}
+
+function StripePersonsTable({ rows }: { rows: OpsStripePersonRow[] }) {
+  const { t, i18n } = useTranslation()
+  const names = (row: OpsStripePersonRow): string => {
+    const list = row.billing_names ?? []
+    const shown = list.slice(0, 2).join(', ')
+    return list.length > 2 ? `${shown} +${list.length - 2}` : shown
+  }
+  return (
+    <div className='overflow-x-auto'>
+      <Table
+        className={`${TABLE_GRID} text-xs [&_td]:px-2 [&_td]:py-1.5 [&_th]:px-2`}
+      >
+        <TableHeader>
+          <TableRow>
+            <TableHead>{t('Last Attempt')}</TableHead>
+            <TableHead>{t('User')}</TableHead>
+            <TableHead>{t('Stuck At')}</TableHead>
+            <TableHead>{t('Attempts')}</TableHead>
+            <TableHead>{t('Card / Billing')}</TableHead>
+            <TableHead>{t('Source')}</TableHead>
+            <TableHead className='text-right'>{t('Usage')}</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map((row) => (
+            <TableRow key={row.email}>
+              <TableCell className='whitespace-nowrap'>
+                {shortTime(row.last_at)}
+              </TableCell>
+              <TableCell className='max-w-40 whitespace-normal'>
+                <div className='break-all'>
+                  {row.email}{' '}
+                  <span className='text-muted-foreground text-xs'>
+                    #{row.user_id}
+                  </span>
+                </div>
+                <div className='text-muted-foreground text-xs'>
+                  {[row.display_name, row.signup_method]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </div>
+                {(row.billing_names ?? []).length > 0 && (
+                  <div
+                    className={
+                      (row.billing_names ?? []).length > 1
+                        ? 'text-destructive text-xs'
+                        : 'text-muted-foreground text-xs'
+                    }
+                  >
+                    {t('Cardholder')}: {names(row)}
+                  </div>
+                )}
+              </TableCell>
+              <TableCell className='max-w-36'>
+                <StripePersonStatus status={row.status} />
+                {(row.fail_reasons ?? []).length > 0 && (
+                  <div className='mt-1 flex flex-wrap gap-1'>
+                    {(row.fail_reasons ?? []).map((f) => (
+                      <Badge key={f.name} variant='outline'>
+                        {f.name} {f.count}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </TableCell>
+              <TableCell className='max-w-36 break-words whitespace-normal'>
+                <div>
+                  {(row.amounts ?? [])
+                    .map((a) => `${a.name}\u00d7${a.count}`)
+                    .join(', ') || '-'}
+                </div>
+                <div className='text-muted-foreground text-xs'>
+                  {row.sessions} {t('opened')} / {row.attempts} {t('tried')}
+                  {row.succeeded > 0 && ` / ${row.succeeded} OK`}
+                </div>
+              </TableCell>
+              <TableCell className='max-w-44 break-words whitespace-normal'>
+                <div>
+                  {row.attempts > 0 &&
+                    [
+                      (row.card_country ?? [])
+                        .map((cc) => countryLabel(cc, i18n.language))
+                        .join(' '),
+                      (row.card_brands ?? []).join(' '),
+                      (row.billing_cc ?? []).join(','),
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  {(row.methods ?? []).length > 0 && (
+                    <span className='text-muted-foreground'>
+                      {row.attempts > 0 ? ' · ' : ''}
+                      {(row.methods ?? []).join('+')}
+                    </span>
+                  )}
+                </div>
+                <div className='text-muted-foreground'>
+                  {countryLabel(row.ip_country, i18n.language) || '-'}
+                  {row.last_ip && (
+                    <>
+                      {' '}
+                      <a
+                        href={`https://ipinfo.io/${row.last_ip}`}
+                        target='_blank'
+                        rel='noreferrer'
+                        className='font-mono underline decoration-dotted'
+                      >
+                        {row.last_ip}
+                      </a>
+                    </>
+                  )}
+                  {row.browser_lang && (
+                    <Badge variant='secondary' className='ml-1'>
+                      {row.browser_lang}
+                    </Badge>
+                  )}
+                </div>
+              </TableCell>
+              <TableCell className='max-w-44'>
+                <div className='truncate'>
+                  {row.campaign}
+                  {row.keyword && (
+                    <span className='text-muted-foreground text-xs'>
+                      {' '}
+                      {row.keyword}
+                    </span>
+                  )}
+                </div>
+                <div className='text-muted-foreground truncate text-xs'>
+                  {[
+                    [...(row.locales ?? []), row.lng]
+                      .filter(Boolean)
+                      .filter((v, i, arr) => arr.indexOf(v) === i)
+                      .join(','),
+                    row.landing,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </div>
+              </TableCell>
+              <TableCell className='text-right whitespace-nowrap'>
+                <div>{usd(row.balance_usd)}</div>
+                <div className='text-muted-foreground text-xs'>
+                  {row.requests} req · {usd(row.consumed_usd)}
+                </div>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  )
+}
+
+function StripeTab({ report }: { report: OpsStripeReport }) {
+  const { t } = useTranslation()
+  return (
+    <div className='space-y-4'>
+      <Card>
+        <CardHeader>
+          <CardTitle>{t('Payment Conversion (Stripe)')}</CardTitle>
+        </CardHeader>
+        <CardContent className='space-y-4'>
+          {report.capped ? (
+            <p className='text-destructive text-sm font-medium'>
+              {t(
+                'Stripe fetch limit reached — data below is truncated and metrics undercount. Narrow the day range for complete numbers.'
+              )}
+            </p>
+          ) : null}
+          <div className='grid grid-cols-2 gap-2 md:grid-cols-4'>
+            <StripeStat
+              label={t('Sessions Created')}
+              value={String(report.sessions_created)}
+            />
+            <StripeStat
+              label={t('Completed')}
+              value={`${report.sessions_completed} (${pct(report.sessions_completed, report.sessions_created)})`}
+            />
+            <StripeStat
+              label={t('Charges')}
+              value={`${report.charges_succeeded} / ${report.charges_succeeded + report.charges_failed}`}
+            />
+            <StripeStat
+              label={t('Blocked by Radar')}
+              value={String(report.charges_blocked)}
+            />
+          </div>
+          <p className='text-muted-foreground text-sm'>
+            {t(
+              'One row per customer who reached Stripe checkout in the window, newest first. Sessions that cannot be matched to a local customer are excluded.'
+            )}{' '}
+            ({t('Unmatched sessions')}: {report.unmatched_sessions})
+          </p>
+          <StripePersonsTable rows={report.persons ?? []} />
+        </CardContent>
+      </Card>
     </div>
   )
 }
@@ -767,12 +1007,39 @@ export function OpsReport() {
     queryFn: () => getOpsReport(days, includeDisabled, paidOnly),
   })
   const report = reportQuery.data?.data
+  const activeTab: TabValue =
+    report && tab === 'stripe' && !report.stripe_configured
+      ? 'registrations'
+      : tab
+
+  const stripeQuery = useQuery({
+    queryKey: opsReportQueryKeys.stripe(days),
+    queryFn: () => getOpsStripeReport(days),
+    enabled: activeTab === 'stripe' && report?.stripe_configured === true,
+    retry: false,
+  })
+  const stripeReport = stripeQuery.data?.data
+
   const responseFailed = Boolean(reportQuery.data && !reportQuery.data.success)
   const loadError = reportQuery.isError || responseFailed
   let loadErrorMessage =
     reportQuery.data?.message || t('The report data source returned an error.')
   if (reportQuery.isError && reportQuery.error instanceof Error) {
     loadErrorMessage = reportQuery.error.message
+  }
+  let stripeContent = <Skeleton className='h-40 w-full' />
+  if (!stripeQuery.isLoading && stripeReport) {
+    stripeContent = <StripeTab report={stripeReport} />
+  } else if (!stripeQuery.isLoading) {
+    stripeContent = (
+      <Card>
+        <CardContent className='text-muted-foreground py-8 text-center text-sm'>
+          {stripeQuery.error instanceof Error
+            ? stripeQuery.error.message
+            : t('Stripe data unavailable')}
+        </CardContent>
+      </Card>
+    )
   }
 
   return (
@@ -850,7 +1117,7 @@ export function OpsReport() {
               {t('Generated at')}: {formatTimestamp(report.generated_at)}
             </p>
 
-            <Tabs value={tab} onValueChange={handleTabChange}>
+            <Tabs value={activeTab} onValueChange={handleTabChange}>
               <TabsList>
                 <TabsTrigger value='registrations'>
                   {t('Daily Registrations')}
@@ -862,6 +1129,11 @@ export function OpsReport() {
                 <TabsTrigger value='payment'>
                   {t('Payment Funnel (Weekly)')}
                 </TabsTrigger>
+                {report.stripe_configured && (
+                  <TabsTrigger value='stripe'>
+                    {t('Payment Conversion (Stripe)')}
+                  </TabsTrigger>
+                )}
                 <TabsTrigger value='active'>
                   {t('Active Users (Key Usage)')}
                 </TabsTrigger>
@@ -954,6 +1226,8 @@ export function OpsReport() {
                   </CardContent>
                 </Card>
               </TabsContent>
+
+              <TabsContent value='stripe'>{stripeContent}</TabsContent>
 
               <TabsContent value='active'>
                 <Card>

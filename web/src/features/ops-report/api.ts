@@ -18,12 +18,21 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
 
-import type { ApiResponse, OpsReportData } from './types'
+import type {
+  AdsDailyReport,
+  ApiResponse,
+  OpsReportData,
+  OpsStripeReport,
+} from './types'
 
 export const opsReportQueryKeys = {
   all: ['ops-report'] as const,
   report: (days: number, includeDisabled: boolean, paidOnly: boolean) =>
     [...opsReportQueryKeys.all, days, includeDisabled, paidOnly] as const,
+  stripe: (days: number) =>
+    [...opsReportQueryKeys.all, 'stripe', days] as const,
+  adsDaily: (days: number) =>
+    [...opsReportQueryKeys.all, 'ads-daily', days] as const,
 }
 
 export async function getOpsReport(
@@ -37,6 +46,24 @@ export async function getOpsReport(
       include_disabled: includeDisabled || undefined,
       paid_only: paidOnly || undefined,
     },
+  })
+  return res.data
+}
+
+export async function getOpsStripeReport(
+  days: number
+): Promise<ApiResponse<OpsStripeReport>> {
+  const res = await api.get('/api/data/ops_report_stripe', {
+    params: { days },
+  })
+  return res.data
+}
+
+export async function getOpsAdsDailyReport(
+  days: number
+): Promise<ApiResponse<AdsDailyReport>> {
+  const res = await api.get('/api/data/ops_report_ads_daily', {
+    params: { days },
   })
   return res.data
 }

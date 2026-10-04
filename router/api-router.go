@@ -361,6 +361,7 @@ func SetApiRouter(router *gin.Engine) {
 		dataRoute.GET("/flow", middleware.AdminAuth(), controller.GetAllFlowQuotaDates)
 		dataRoute.GET("/flow/self", middleware.UserAuth(), controller.GetUserFlowQuotaDates)
 		dataRoute.GET("/ops_report", middleware.AdminAuth(), controller.GetOpsReport)
+		dataRoute.GET("/ops_report_stripe", middleware.AdminAuth(), controller.GetOpsStripeReport)
 		dataRoute.GET("/usage_report", middleware.AdminAuth(), controller.GetUsageReport)
 
 		logRoute.Use(middleware.CORS(), middleware.CriticalRateLimit())

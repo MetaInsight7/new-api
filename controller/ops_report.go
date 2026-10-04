@@ -157,6 +157,7 @@ type opsReportData struct {
 	DauScope        string           `json:"dau_scope"`
 	IncludeDisabled bool             `json:"include_disabled"`
 	PaidOnly        bool             `json:"paid_only"`
+	StripeConfigured bool            `json:"stripe_configured"`
 	Daily           []opsDailyRow    `json:"daily"`
 	WeeklyFunnel    []opsFunnelRow   `json:"weekly_funnel"`
 	CampaignFunnel  []opsCampaignRow `json:"campaign_funnel"`
@@ -434,7 +435,7 @@ func buildOpsReport(days int, dauScope string, includeDisabled bool, paidOnly bo
 		}
 	}
 
-	report := &opsReportData{GeneratedAt: now, Days: days, DauScope: dauScope, IncludeDisabled: includeDisabled, PaidOnly: paidOnly}
+	report := &opsReportData{GeneratedAt: now, Days: days, DauScope: dauScope, IncludeDisabled: includeDisabled, PaidOnly: paidOnly, StripeConfigured: isStripeTopUpEnabled()}
 	keyDaily, err := model.GetOpsKeyDailyUsage(ids, dayStarts)
 	if err != nil {
 		return nil, time.Time{}, err
