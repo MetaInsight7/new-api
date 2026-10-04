@@ -597,6 +597,7 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 		// Perform post-transaction tasks
 		user.FinalizeOAuthUserCreation(inviterId)
 	}
+	invalidateOpsReportCache()
 
 	return user, nil, nil
 }

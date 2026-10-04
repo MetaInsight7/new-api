@@ -307,6 +307,7 @@ func Register(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	invalidateOpsReportCache()
 
 	// 获取插入后的用户ID
 	var insertedUser model.User
@@ -1061,6 +1062,7 @@ func CreateUser(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	invalidateOpsReportCache()
 	if authzTouched {
 		if err := authz.ReloadPolicy(); err != nil {
 			common.ApiError(c, err)

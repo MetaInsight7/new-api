@@ -105,6 +105,7 @@ func WeChatAuth(c *gin.Context) {
 				})
 				return
 			}
+			invalidateOpsReportCache()
 		} else {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
