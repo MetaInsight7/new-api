@@ -50,7 +50,11 @@ import {
   useCallback,
   useRef,
 } from 'react'
-import { type SubmitErrorHandler, useForm } from 'react-hook-form'
+import {
+  type SubmitErrorHandler,
+  type UseFormReturn,
+  useForm,
+} from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -183,6 +187,8 @@ import {
   hasModelConfigChanged,
   findMissingModelsInMapping,
   validateModelMappingJson,
+  parseGroupPriority,
+  type GroupPriorityOverrides,
 } from '../../lib'
 import {
   getChannelConfigurationSection,
@@ -2216,6 +2222,8 @@ export function ChannelMutateDrawer({
             </FormItem>
           )}
         />
+
+        <GroupPriorityInline form={form} groups={currentGroups || []} />
 
         <FormField
           control={form.control}
@@ -5086,5 +5094,179 @@ export function ChannelMutateDrawer({
         handleConfirm={() => handlePassthroughWarningAction(true)}
       />
     </>
+  )
+}
+
+function GroupPriorityInline({
+  form,
+  groups,
+}: {
+  form: UseFormReturn<ChannelFormValues>
+  groups: string[]
+}) {
+  const { t } = useTranslation()
+  const groupPriority = form.watch('group_priority')
+  const overrides: GroupPriorityOverrides = useMemo(
+    () => parseGroupPriority(groupPriority),
+    [groupPriority]
+  )
+  const defaultPriority = form.watch('priority') ?? 0
+  const defaultWeight = form.watch('weight') ?? 0
+  const [selectKey, setSelectKey] = useState(0)
+
+  const update = (
+    group: string,
+    field: 'priority' | 'weight',
+    value: number
+  ) => {
+    const next = {
+      ...overrides,
+      [group]: {
+        ...overrides[group],
+        [field]: value,
+      },
+    }
+    form.setValue('group_priority', JSON.stringify(next), {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
+  }
+
+  const remove = (group: string) => {
+    const next = { ...overrides }
+    delete next[group]
+    form.setValue(
+      'group_priority',
+      Object.keys(next).length > 0 ? JSON.stringify(next) : '{}',
+      { shouldDirty: true, shouldValidate: true }
+    )
+  }
+
+  const configuredGroups = Object.keys(overrides)
+  const availableGroups = groups.filter(
+    (group) => group.trim() && !overrides[group]
+  )
+
+  if (groups.length === 0) return null
+
+  return (
+    <div className='space-y-3 border-t pt-4 sm:col-span-2'>
+      <div className='flex items-center justify-between'>
+        <span className='flex items-center gap-1.5 text-xs font-semibold'>
+          <SlidersHorizontal
+            className='text-muted-foreground size-3.5'
+            aria-hidden='true'
+          />
+          {t('Group Priority Override')}
+        </span>
+        {configuredGroups.length > 0 && (
+          <Badge variant='secondary' className='h-5 min-w-5 px-1.5 text-[10px]'>
+            {configuredGroups.length}
+          </Badge>
+        )}
+      </div>
+
+      {configuredGroups.map((group, index) => {
+        const priorityId = `group-priority-${index}`
+        const weightId = `group-weight-${index}`
+        const override = overrides[group]
+        return (
+          <div
+            key={group}
+            className='bg-muted/30 space-y-2 rounded-lg border p-2.5'
+          >
+            <div className='flex items-center justify-between'>
+              <span className='text-xs font-semibold'>{group}</span>
+              <Button
+                type='button'
+                variant='ghost'
+                size='icon-xs'
+                aria-label={t('Remove group override')}
+                onClick={() => remove(group)}
+              >
+                <Trash2 className='size-3' aria-hidden='true' />
+              </Button>
+            </div>
+            <div className='grid grid-cols-2 gap-2'>
+              <div className='space-y-1'>
+                <label
+                  htmlFor={priorityId}
+                  className='text-muted-foreground text-[10px]'
+                >
+                  {t('Priority')}
+                </label>
+                <Input
+                  id={priorityId}
+                  type='number'
+                  className='h-7 text-xs'
+                  value={override?.priority ?? defaultPriority}
+                  onChange={(event) =>
+                    update(group, 'priority', Number(event.target.value))
+                  }
+                />
+              </div>
+              <div className='space-y-1'>
+                <label
+                  htmlFor={weightId}
+                  className='text-muted-foreground text-[10px]'
+                >
+                  {t('Weight')}
+                </label>
+                <Input
+                  id={weightId}
+                  type='number'
+                  min={0}
+                  step={1}
+                  className='h-7 text-xs'
+                  value={override?.weight ?? defaultWeight}
+                  onChange={(event) =>
+                    update(group, 'weight', Number(event.target.value))
+                  }
+                />
+              </div>
+            </div>
+          </div>
+        )
+      })}
+
+      {availableGroups.length > 0 && (
+        <Select
+          key={selectKey}
+          onValueChange={(value) => {
+            const group = typeof value === 'string' ? value : ''
+            if (!group) return
+            const next = {
+              ...overrides,
+              [group]: {
+                priority: defaultPriority,
+                weight: defaultWeight,
+              },
+            }
+            form.setValue('group_priority', JSON.stringify(next), {
+              shouldDirty: true,
+              shouldValidate: true,
+            })
+            setSelectKey((value) => value + 1)
+          }}
+        >
+          <SelectTrigger className='border-dashed text-xs'>
+            <SelectValue placeholder={`+ ${t('Add group override')}`} />
+          </SelectTrigger>
+          <SelectContent>
+            {availableGroups.map((group) => (
+              <SelectItem key={group} value={group}>
+                {group}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+
+      <p className='text-muted-foreground text-[10px]'>
+        {t('Groups without override use default values')}: {t('Priority')}{' '}
+        {defaultPriority}, {t('Weight')} {defaultWeight}.{' '}
+        {t('Active model probes always use global channel values.')}
+      </p>
+    </div>
   )
 }

@@ -81,6 +81,7 @@ import {
   handleUpdateTagField,
   createChannelFieldUpdateScheduler,
   isTagAggregateRow,
+  parseGroupPriority,
   type TagRow,
 } from '../lib'
 import { parseUpstreamUpdateMeta } from '../lib/upstream-update-utils'
@@ -179,6 +180,81 @@ function UpstreamUpdateTags({ channel }: { channel: Channel }) {
   )
 }
 
+const GROUP_OVERRIDE_TAG_COLORS = [
+  'bg-blue-100 text-blue-700',
+  'bg-emerald-100 text-emerald-700',
+  'bg-amber-100 text-amber-700',
+  'bg-purple-100 text-purple-700',
+]
+
+function shortenGroupName(name: string): string {
+  if (name.length <= 8) return name
+  const parts = name.split('-')
+  if (parts.length > 1) return parts.map((part) => part.slice(0, 4)).join('-')
+  return name.slice(0, 8)
+}
+
+function GroupOverrideTags({
+  overrides,
+  field,
+  defaultValue,
+}: {
+  overrides: ReturnType<typeof parseGroupPriority>
+  field: 'priority' | 'weight'
+  defaultValue: number
+}) {
+  const { t } = useTranslation()
+  const entries = Object.entries(overrides).filter(
+    ([, override]) => override[field] !== undefined
+  )
+  const visible = entries.slice(0, 2)
+  const hidden = entries.slice(2)
+  const fieldLabel = field === 'priority' ? t('Priority') : t('Weight')
+
+  return (
+    <span className='ml-1 inline-flex items-center gap-0.5'>
+      {visible.map(([group, override], index) => {
+        const value = override[field] ?? defaultValue
+        return (
+          <span
+            key={group}
+            className={`inline-flex h-[18px] items-center rounded px-1 text-[10px] font-medium ${GROUP_OVERRIDE_TAG_COLORS[index % GROUP_OVERRIDE_TAG_COLORS.length]}`}
+            aria-label={`${group}: ${fieldLabel} ${value}`}
+          >
+            {shortenGroupName(group)}:{value}
+          </span>
+        )
+      })}
+      {hidden.length > 0 && (
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <span
+                className='inline-flex h-[18px] cursor-pointer items-center rounded bg-gray-100 px-1 text-[10px] font-semibold text-gray-500'
+                role='img'
+                aria-label={t('{{count}} more group overrides', {
+                  count: hidden.length,
+                })}
+              />
+            }
+          >
+            +{hidden.length}
+          </TooltipTrigger>
+          <TooltipContent>
+            <div className='space-y-0.5 text-xs'>
+              {hidden.map(([group, override]) => (
+                <div key={group}>
+                  {group}: {fieldLabel} {override[field] ?? defaultValue}
+                </div>
+              ))}
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      )}
+    </span>
+  )
+}
+
 /**
  * Priority cell component with inline editing
  */
@@ -187,13 +263,25 @@ function PriorityCell({ channel }: { channel: Channel }) {
     return <TagPriorityCell channel={channel} />
   }
 
-  return (
+  const overrides = parseGroupPriority(channel.group_priority)
+  const fieldCell = (
     <ChannelFieldCell
       channelId={channel.id}
       value={channel.priority}
       field='priority'
       min={-999}
     />
+  )
+  if (Object.keys(overrides).length === 0) return fieldCell
+  return (
+    <span className='inline-flex items-center'>
+      {fieldCell}
+      <GroupOverrideTags
+        overrides={overrides}
+        field='priority'
+        defaultValue={channel.priority ?? 0}
+      />
+    </span>
   )
 }
 
@@ -276,13 +364,25 @@ function WeightCell({ channel }: { channel: Channel }) {
     return <TagWeightCell channel={channel} />
   }
 
-  return (
+  const overrides = parseGroupPriority(channel.group_priority)
+  const fieldCell = (
     <ChannelFieldCell
       channelId={channel.id}
       value={channel.weight}
       field='weight'
       min={0}
     />
+  )
+  if (Object.keys(overrides).length === 0) return fieldCell
+  return (
+    <span className='inline-flex items-center'>
+      {fieldCell}
+      <GroupOverrideTags
+        overrides={overrides}
+        field='weight'
+        defaultValue={channel.weight ?? 0}
+      />
+    </span>
   )
 }
 
