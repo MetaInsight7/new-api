@@ -589,6 +589,10 @@ func parseOpsAttribution(a *opsUserAgg) {
 		a.campaign = v
 	} else if v := str("utm_source"); v != "" {
 		a.campaign = v
+	} else if v := str("source"); v != "" {
+		a.campaign = v
+	} else if v := str("aff"); v != "" {
+		a.campaign = v
 	}
 	a.keyword = str("hsa_kw")
 	if a.keyword == "" {

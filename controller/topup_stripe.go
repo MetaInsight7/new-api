@@ -16,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 
+	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/gin-gonic/gin"
 	"github.com/shopspring/decimal"
 	"github.com/stripe/stripe-go/v81"
@@ -288,6 +289,20 @@ func fulfillOrder(ctx context.Context, event stripe.Event, referenceId string, c
 		"event_type":   string(event.Type),
 	}
 	if err := model.CompleteSubscriptionOrder(referenceId, common.GetJsonString(payload), model.PaymentProviderStripe, ""); err == nil {
+		if order := model.GetSubscriptionOrderByTradeNo(referenceId); order != nil {
+			paymentIntentID := strings.TrimSpace(event.GetObjectValue("payment_intent"))
+			userID := order.UserId
+			gopool.Go(func() {
+				country, countryErr := fetchCardCountry(paymentIntentID)
+				if countryErr != nil {
+					logger.LogWarn(ctx, fmt.Sprintf("Stripe payment country lookup failed trade_no=%s user_id=%d error=%q", referenceId, userID, countryErr.Error()))
+					return
+				}
+				if country != "" {
+					model.UpdateUserPayCountry(userID, country)
+				}
+			})
+		}
 		logger.LogInfo(ctx, fmt.Sprintf("Stripe 订阅订单处理成功 trade_no=%s event_type=%s client_ip=%s", referenceId, string(event.Type), callerIp))
 		return
 	} else if err != nil && !errors.Is(err, model.ErrSubscriptionOrderNotFound) {
@@ -299,6 +314,20 @@ func fulfillOrder(ctx context.Context, event stripe.Event, referenceId string, c
 	if err != nil {
 		logger.LogError(ctx, fmt.Sprintf("Stripe 充值处理失败 trade_no=%s event_type=%s client_ip=%s error=%q", referenceId, string(event.Type), callerIp, err.Error()))
 		return
+	}
+	if topUp := model.GetTopUpByTradeNo(referenceId); topUp != nil {
+		paymentIntentID := strings.TrimSpace(event.GetObjectValue("payment_intent"))
+		userID := topUp.UserId
+		gopool.Go(func() {
+			country, countryErr := fetchCardCountry(paymentIntentID)
+			if countryErr != nil {
+				logger.LogWarn(ctx, fmt.Sprintf("Stripe payment country lookup failed trade_no=%s user_id=%d error=%q", referenceId, userID, countryErr.Error()))
+				return
+			}
+			if country != "" {
+				model.UpdateUserPayCountry(userID, country)
+			}
+		})
 	}
 
 	total, _ := strconv.ParseFloat(event.GetObjectValue("amount_total"), 64)

@@ -108,8 +108,12 @@ type User struct {
 	Setting              string                     `json:"setting" gorm:"type:text;column:setting"`
 	Remark               string                     `json:"remark,omitempty" gorm:"type:varchar(255)" validate:"max=255"`
 	StripeCustomer       string                     `json:"stripe_customer" gorm:"type:varchar(64);column:stripe_customer;index"`
+	AdsAttribution       string                     `json:"ads_attribution,omitempty" gorm:"type:text;column:ads_attribution"`
 	CreatedAt            int64                      `json:"created_at" gorm:"autoCreateTime;column:created_at"`
 	LastLoginAt          int64                      `json:"last_login_at" gorm:"default:0;column:last_login_at"`
+	BrowserLang          string                     `json:"browser_lang" gorm:"type:varchar(32);default:'';column:browser_lang"`
+	LastLoginIp          string                     `json:"last_login_ip" gorm:"type:varchar(64);default:'';column:last_login_ip"`
+	PayCountry           string                     `json:"pay_country" gorm:"type:varchar(8);default:'';column:pay_country"`
 	AuthVersion          int64                      `json:"-" gorm:"type:bigint;not null;default:1;column:auth_version"`
 	AdminPermissions     map[string]map[string]bool `json:"admin_permissions,omitempty" gorm:"-:all"`
 }
@@ -1433,6 +1437,37 @@ func GetRootUser() (user *User) {
 func UpdateUserLastLoginAt(id int) {
 	if err := DB.Model(&User{}).Where("id = ?", id).Update("last_login_at", common.GetTimestamp()).Error; err != nil {
 		common.SysLog("failed to update user last_login_at: " + err.Error())
+	}
+}
+
+// UpdateUserLoginMetadata stores non-sensitive analytics metadata after a
+// successful login. It never participates in authentication or authorization;
+// failures are logged and do not change the login result.
+func UpdateUserLoginMetadata(id int, browserLang string, lastLoginIP string) {
+	updates := make(map[string]any, 2)
+	if browserLang != "" {
+		updates["browser_lang"] = browserLang
+	}
+	if lastLoginIP != "" {
+		updates["last_login_ip"] = lastLoginIP
+	}
+	if len(updates) == 0 {
+		return
+	}
+	if err := DB.Model(&User{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+		common.SysLog("failed to update user login metadata: " + err.Error())
+	}
+}
+
+// UpdateUserPayCountry stores the card issuing country reported by a
+// successful payment provider lookup. It is best-effort analytics data.
+func UpdateUserPayCountry(id int, country string) {
+	country = strings.ToUpper(strings.TrimSpace(country))
+	if len(country) != 2 {
+		return
+	}
+	if err := DB.Model(&User{}).Where("id = ?", id).Update("pay_country", country).Error; err != nil {
+		common.SysLog("failed to update user pay_country: " + err.Error())
 	}
 }
 

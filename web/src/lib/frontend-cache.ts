@@ -26,6 +26,7 @@ const PRESERVED_LOCAL_STORAGE_KEYS = new Set([
   'user',
   'uid',
   'aff',
+  'newapi:ads-attribution',
   'oauth:binding:result',
 ])
 

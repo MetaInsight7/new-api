@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import axios from 'axios'
 
+import { getAdsAttributionPayload } from '@/lib/analytics/attribution'
 import { api, refreshAuthentication, type RefreshOutcome } from '@/lib/api'
 import { AuthOperationError } from '@/lib/secure-verification'
 import { getServerErrorMessageKey } from '@/lib/server-error-message'
@@ -175,12 +176,14 @@ export async function createOAuthAuthorization(
   proofToken?: string
 ): Promise<{ state: string; authorizationUrl?: string }> {
   const aff = intent === 'login' ? getAffiliateCode() : ''
+  const adsAttribution = intent === 'login' ? getAdsAttributionPayload() : ''
   const res = await api.post(
     '/api/oauth/state',
     {
       provider,
       intent,
       aff: aff || undefined,
+      ads_attribution: adsAttribution || undefined,
       scope: operation?.scope,
       ...(operation?.context ? { context: operation.context } : {}),
     },
@@ -245,9 +248,17 @@ export async function telegramLogin(
 
 // User registration
 export async function register(payload: RegisterPayload): Promise<ApiResponse> {
-  const res = await api.post(`/api/user/register`, payload, {
-    params: { turnstile: payload.turnstile ?? '' },
-  })
+  const res = await api.post(
+    `/api/user/register`,
+    {
+      ...payload,
+      ads_attribution:
+        payload.ads_attribution || getAdsAttributionPayload() || undefined,
+    },
+    {
+      params: { turnstile: payload.turnstile ?? '' },
+    }
+  )
   return res.data
 }
 

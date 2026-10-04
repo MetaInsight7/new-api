@@ -33,6 +33,20 @@ type LoginRequest struct {
 	EncryptionKeyID   string `json:"encryption_key_id"`
 }
 
+// primaryAcceptLanguage returns the first language tag from the browser's
+// Accept-Language header. The value is analytics metadata only; it is never
+// used for authentication, authorization, or locale selection.
+func primaryAcceptLanguage(header string) string {
+	first := strings.TrimSpace(strings.SplitN(header, ",", 2)[0])
+	if separator := strings.IndexByte(first, ';'); separator >= 0 {
+		first = strings.TrimSpace(first[:separator])
+	}
+	if len(first) > 32 {
+		first = first[:32]
+	}
+	return first
+}
+
 func GetPasswordEncryptionKey(c *gin.Context) {
 	if !common.PasswordLoginEncryptionEnabled {
 		common.ApiSuccess(c, gin.H{"enabled": false})
@@ -198,6 +212,7 @@ func setupLoginAtAuthVersion(user *model.User, expectedAuthVersion int64, c *gin
 func writeLoginResponse(c *gin.Context, user *model.User, bundle *service.AuthBundle) {
 	c.Set("login_method", bundle.Session.LoginMethod)
 	model.UpdateUserLastLoginAt(user.Id)
+	model.UpdateUserLoginMetadata(user.Id, primaryAcceptLanguage(c.GetHeader("Accept-Language")), c.ClientIP())
 	service.WriteRefreshCookie(c, bundle.RefreshToken)
 	setAuthNoStore(c)
 	recordLoginAudit(user, c)
@@ -274,11 +289,12 @@ func Register(c *gin.Context) {
 	affCode := user.AffCode // this code is the inviter's code, not the user's own code
 	inviterId, _ := model.GetUserIdByAffCode(affCode)
 	cleanUser := model.User{
-		Username:    user.Username,
-		Password:    user.Password,
-		DisplayName: user.Username,
-		InviterId:   inviterId,
-		Role:        common.RoleCommonUser, // 明确设置角色为普通用户
+		Username:       user.Username,
+		Password:       user.Password,
+		DisplayName:    user.Username,
+		InviterId:      inviterId,
+		Role:           common.RoleCommonUser, // 明确设置角色为普通用户
+		AdsAttribution: sanitizeAdsAttribution(user.AdsAttribution),
 	}
 	if common.EmailVerificationEnabled {
 		cleanUser.Email = user.Email

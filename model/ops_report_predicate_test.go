@@ -23,9 +23,9 @@ func TestGetOpsUsersExcludesSoftDeletedAccounts(t *testing.T) {
 	truncateTables(t)
 
 	users := []*User{
-		{Id: 1001, Username: "ops-enabled", Password: "password", Role: common.RoleCommonUser},
-		{Id: 1002, Username: "ops-disabled", Password: "password", Role: common.RoleCommonUser, Status: common.UserStatusDisabled},
-		{Id: 1003, Username: "ops-deleted", Password: "password", Role: common.RoleCommonUser, DeletedAt: gorm.DeletedAt{Time: time.Now(), Valid: true}},
+		{Id: 1001, Username: "ops-enabled", Password: "password", Role: common.RoleCommonUser, AffCode: "ops1001"},
+		{Id: 1002, Username: "ops-disabled", Password: "password", Role: common.RoleCommonUser, Status: common.UserStatusDisabled, AffCode: "ops1002"},
+		{Id: 1003, Username: "ops-deleted", Password: "password", Role: common.RoleCommonUser, AffCode: "ops1003", DeletedAt: gorm.DeletedAt{Time: time.Now(), Valid: true}},
 	}
 	for _, user := range users {
 		if err := DB.Create(user).Error; err != nil {

@@ -23,15 +23,17 @@ import (
 const oauthAuthFlowTTL = 10 * time.Minute
 
 type oauthStateRequest struct {
-	Provider string          `json:"provider"`
-	Intent   string          `json:"intent"`
-	Aff      string          `json:"aff,omitempty"`
-	Scope    string          `json:"scope,omitempty"`
-	Context  json.RawMessage `json:"context,omitempty"`
+	Provider       string          `json:"provider"`
+	Intent         string          `json:"intent"`
+	Aff            string          `json:"aff,omitempty"`
+	AdsAttribution string          `json:"ads_attribution,omitempty"`
+	Scope          string          `json:"scope,omitempty"`
+	Context        json.RawMessage `json:"context,omitempty"`
 }
 
 type oauthFlowPayload struct {
 	AffiliateCode   string                         `json:"affiliate_code,omitempty"`
+	AdsAttribution  string                         `json:"ads_attribution,omitempty"`
 	Verification    *service.OAuthVerificationFlow `json:"verification,omitempty"`
 	Telegram        *oauth.TelegramOAuthFlow       `json:"telegram,omitempty"`
 	SessionIdentity *service.AuthIdentity          `json:"session_identity,omitempty"`
@@ -53,17 +55,22 @@ func GenerateOAuthCode(c *gin.Context) {
 	request.Provider = strings.TrimSpace(request.Provider)
 	request.Intent = strings.TrimSpace(request.Intent)
 	request.Aff = strings.TrimSpace(request.Aff)
+	request.AdsAttribution = sanitizeAdsAttribution(request.AdsAttribution)
 	if oauth.GetProvider(request.Provider) == nil ||
 		(request.Intent != model.AuthFlowIntentLogin && request.Intent != model.AuthFlowIntentBind && request.Intent != model.AuthFlowIntentVerify) ||
 		len(request.Aff) > 32 ||
 		(request.Intent != model.AuthFlowIntentLogin && request.Aff != "") ||
+		(request.Intent != model.AuthFlowIntentLogin && request.AdsAttribution != "") ||
 		(request.Intent != model.AuthFlowIntentVerify && (request.Scope != "" || len(request.Context) != 0)) {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
 	userID := 0
 	sessionID := ""
-	flowPayload := oauthFlowPayload{AffiliateCode: request.Aff}
+	flowPayload := oauthFlowPayload{
+		AffiliateCode:  request.Aff,
+		AdsAttribution: request.AdsAttribution,
+	}
 	bindingStarted := false
 	if request.Provider == "telegram" {
 		telegramFlow, err := oauth.NewTelegramOAuthFlow()
@@ -322,7 +329,7 @@ func handleOAuthLogin(c *gin.Context, provider oauth.Provider, oauthUser *oauth.
 		writeSecurityOperationError(c, err)
 		return
 	}
-	user, migration, err := findOrCreateOAuthUser(c, provider, oauthUser, token, payload.AffiliateCode)
+	user, migration, err := findOrCreateOAuthUser(c, provider, oauthUser, token, payload.AffiliateCode, payload.AdsAttribution)
 	if err != nil {
 		if errors.Is(err, model.ErrEmailAlreadyTaken) {
 			common.ApiErrorI18n(c, i18n.MsgUserEmailAlreadyTaken)
@@ -406,13 +413,15 @@ func handleOAuthBind(c *gin.Context, providerName string, provider oauth.Provide
 // findOrCreateOAuthUser finds the existing user or creates a new one. For a
 // legacy GitHub binding that still waits for the login verification, it also
 // returns the rewrite to carry into the challenge.
-func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *oauth.OAuthUser, token *oauth.OAuthToken, affiliateCode string) (*model.User, *service.LegacyGitHubMigration, error) {
+func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *oauth.OAuthUser, token *oauth.OAuthToken, affiliateCode string, adsAttribution string) (*model.User, *service.LegacyGitHubMigration, error) {
 	user := &model.User{}
+	adsAttribution = sanitizeAdsAttribution(adsAttribution)
 	if provider.ProviderUserIDColumn() == "telegram_id" {
 		err := provider.FillUserByProviderID(user, oauthUser.ProviderUserID)
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil, oauth.ErrTelegramAccountNotBound
 		}
+		updateUserAdsAttributionIfEmpty(user, adsAttribution)
 		return user, nil, err
 	}
 
@@ -426,6 +435,7 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 		if user.Id == 0 {
 			return nil, nil, &OAuthUserDeletedError{}
 		}
+		updateUserAdsAttributionIfEmpty(user, adsAttribution)
 		return user, nil, nil
 	}
 
@@ -445,6 +455,7 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 			if state.HasTwoFA || state.HasPasskey {
 				// The rewrite is written in the transaction that issues the session
 				// once the login verification completes.
+				updateUserAdsAttributionIfEmpty(user, adsAttribution)
 				return user, &service.LegacyGitHubMigration{GitHubID: oauthUser.ProviderUserID, LegacyID: legacyID}, nil
 			}
 			// Without a second factor, one of the addresses the provider has
@@ -473,6 +484,7 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 			if err != nil {
 				return nil, nil, err
 			}
+			updateUserAdsAttributionIfEmpty(user, adsAttribution)
 			if written {
 				user.GitHubId = oauthUser.ProviderUserID
 				notificationFailed := service.NotifyAccountSecurityChange(user.Email, "Login account linked: "+provider.GetName()) != nil
@@ -520,6 +532,7 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	}
 	user.Role = common.RoleCommonUser
 	user.Status = common.UserStatusEnabled
+	user.AdsAttribution = adsAttribution
 
 	// Handle affiliate code
 	inviterId := 0
@@ -586,6 +599,22 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	}
 
 	return user, nil, nil
+}
+
+func updateUserAdsAttributionIfEmpty(user *model.User, adsAttribution string) {
+	if user == nil || user.Id == 0 || adsAttribution == "" || user.AdsAttribution != "" {
+		return
+	}
+	result := model.DB.Model(&model.User{}).
+		Where("id = ? AND (ads_attribution IS NULL OR ads_attribution = '')", user.Id).
+		Update("ads_attribution", adsAttribution)
+	if result.Error != nil {
+		common.SysLog(fmt.Sprintf("failed to update OAuth ads attribution for user %d: %s", user.Id, result.Error.Error()))
+		return
+	}
+	if result.RowsAffected > 0 {
+		user.AdsAttribution = adsAttribution
+	}
 }
 
 // recordLegacyGitHubBindingAudit records the outcome of a legacy GitHub binding

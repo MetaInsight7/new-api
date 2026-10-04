@@ -111,9 +111,6 @@ type OpsTopUp struct {
 // GetOpsUsers returns ordinary customer accounts that back the daily report's
 // funnel metrics. Base uses Group for model routing and pricing, not as a
 // marketing cohort marker, so the report intentionally filters by role.
-// Base currently has no persisted ads attribution, browser-language, login-IP,
-// or payment-country columns; those response fields remain empty until a
-// separate tracking migration is approved.
 // When includeDisabled is false (the default reporting denominator),
 // disabled accounts — manually banned and honeypot-created — are excluded: they
 // are not real signups and would inflate registration/activation/paid counts.
@@ -121,9 +118,9 @@ func GetOpsUsers(includeDisabled bool) ([]*OpsUser, error) {
 	var users []*OpsUser
 	query := DB.Table("users").
 		Select(`id, username, display_name, email, created_at,
-			'' AS ads_attribution,
+			ads_attribution,
 			quota, used_quota, request_count, last_login_at,
-			'' AS browser_lang, '' AS last_login_ip, '' AS pay_country,
+			browser_lang, last_login_ip, pay_country,
 			CASE WHEN github_id IS NOT NULL AND github_id <> '' THEN 'github'
 			     WHEN discord_id IS NOT NULL AND discord_id <> '' THEN 'discord'
 			     WHEN oidc_id IS NOT NULL AND oidc_id <> '' THEN 'oidc'
