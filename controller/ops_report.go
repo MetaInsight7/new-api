@@ -70,8 +70,8 @@ type opsFunnelRow struct {
 }
 
 // opsDailyRow is a funnel row for the daily table, prefixed with the day's
-// paid-ads totals (flatkey-* campaigns only; the shared ads account's other
-// business lines are excluded at sync time) so spend/clicks line up with the
+// paid-ads totals for the configured campaign scope (the shared ads account's
+// other business lines are excluded at sync time) so spend/clicks line up with the
 // registrations they produced. Ads dates are the ads account timezone
 // (America/New_York), joined to the Pacific funnel days by date string —
 // a 3-hour edge skew day-level stats can tolerate.
@@ -152,21 +152,22 @@ type opsPaymentRow struct {
 }
 
 type opsReportData struct {
-	GeneratedAt     int64            `json:"generated_at"`
-	Days            int              `json:"days"`
-	DauScope        string           `json:"dau_scope"`
-	IncludeDisabled bool             `json:"include_disabled"`
-	PaidOnly        bool             `json:"paid_only"`
-	StripeConfigured bool            `json:"stripe_configured"`
-	Daily           []opsDailyRow    `json:"daily"`
-	WeeklyFunnel    []opsFunnelRow   `json:"weekly_funnel"`
-	CampaignFunnel  []opsCampaignRow `json:"campaign_funnel"`
-	KeywordFunnel   []opsKeywordRow  `json:"keyword_funnel"`
-	PaymentWeekly   []opsPaymentRow  `json:"payment_weekly"`
-	Dau             []opsDauRow      `json:"dau"`
-	TotalPaidUsers  int              `json:"total_paid_users"`
-	TotalPaidUSD    float64          `json:"total_paid_usd"`
-	TopPayers       []opsPayerRow    `json:"top_payers"`
+	GeneratedAt      int64            `json:"generated_at"`
+	Days             int              `json:"days"`
+	DauScope         string           `json:"dau_scope"`
+	IncludeDisabled  bool             `json:"include_disabled"`
+	PaidOnly         bool             `json:"paid_only"`
+	StripeConfigured bool             `json:"stripe_configured"`
+	AdsConfigured    bool             `json:"ads_daily_configured"`
+	Daily            []opsDailyRow    `json:"daily"`
+	WeeklyFunnel     []opsFunnelRow   `json:"weekly_funnel"`
+	CampaignFunnel   []opsCampaignRow `json:"campaign_funnel"`
+	KeywordFunnel    []opsKeywordRow  `json:"keyword_funnel"`
+	PaymentWeekly    []opsPaymentRow  `json:"payment_weekly"`
+	Dau              []opsDauRow      `json:"dau"`
+	TotalPaidUsers   int              `json:"total_paid_users"`
+	TotalPaidUSD     float64          `json:"total_paid_usd"`
+	TopPayers        []opsPayerRow    `json:"top_payers"`
 	// Most recent registrations in the report window, newest first (capped).
 	RegisteredUsers []opsRegisteredUserRow `json:"registered_users"`
 }
@@ -435,7 +436,16 @@ func buildOpsReport(days int, dauScope string, includeDisabled bool, paidOnly bo
 		}
 	}
 
-	report := &opsReportData{GeneratedAt: now, Days: days, DauScope: dauScope, IncludeDisabled: includeDisabled, PaidOnly: paidOnly, StripeConfigured: isStripeTopUpEnabled()}
+	_, adsConfigured := opsAdsCredsFromEnv()
+	report := &opsReportData{
+		GeneratedAt:      now,
+		Days:             days,
+		DauScope:         dauScope,
+		IncludeDisabled:  includeDisabled,
+		PaidOnly:         paidOnly,
+		StripeConfigured: isStripeTopUpEnabled(),
+		AdsConfigured:    adsConfigured,
+	}
 	keyDaily, err := model.GetOpsKeyDailyUsage(ids, dayStarts)
 	if err != nil {
 		return nil, time.Time{}, err
@@ -447,9 +457,17 @@ func buildOpsReport(days int, dauScope string, includeDisabled bool, paidOnly bo
 		}
 		return opsDay(a.user.CreatedAt)
 	}, true)
-	// Ads daily spend is a separate follow-up feature. Keep the daily funnel
-	// shape stable while leaving its optional fields at zero.
-	report.Daily = opsAttachAdsSpend(dailyRows)
+	var adsDaily []*model.AdsSpendDaily
+	if adsConfigured {
+		// The sync is a no-op when credentials are removed between the capability
+		// check and this build. A failed refresh keeps the last successful rows.
+		opsSyncAdsSpend()
+		adsDaily, err = model.GetOpsAdsSpendDaily(opsDay(startTs))
+		if err != nil {
+			return nil, time.Time{}, err
+		}
+	}
+	report.Daily = opsAttachAdsSpend(dailyRows, adsDaily)
 	report.WeeklyFunnel = opsRollupFunnel(windowAggs, func(a *opsUserAgg) string {
 		return opsWeek(a.user.CreatedAt)
 	}, true)
@@ -468,13 +486,37 @@ func opsHasPaidActivity(a *opsUserAgg) bool {
 	return len(a.paidOrders) > 0 || len(a.refundedOrders) > 0
 }
 
-// opsAttachAdsSpend preserves the daily response shape while the optional ads
-// board remains out of scope for this migration.
-func opsAttachAdsSpend(rows []opsFunnelRow) []opsDailyRow {
-	daily := make([]opsDailyRow, 0, len(rows))
-	for _, row := range rows {
-		daily = append(daily, opsDailyRow{opsFunnelRow: row})
+// opsAttachAdsSpend joins optional ad spend onto the daily funnel. When the
+// ad integration is not configured, ads is nil and the response keeps the
+// stable zero-valued fields without touching the external provider.
+func opsAttachAdsSpend(rows []opsFunnelRow, ads []*model.AdsSpendDaily) []opsDailyRow {
+	byDate := make(map[string]*model.AdsSpendDaily, len(ads))
+	for _, row := range ads {
+		byDate[row.Date] = row
 	}
+	daily := make([]opsDailyRow, 0, len(rows)+len(ads))
+	seen := make(map[string]bool, len(rows))
+	for _, row := range rows {
+		dailyRow := opsDailyRow{opsFunnelRow: row}
+		if spend, ok := byDate[row.Key]; ok {
+			dailyRow.AdsCostUSD = spend.CostUSD
+			dailyRow.AdsClicks = spend.Clicks
+		}
+		seen[row.Key] = true
+		daily = append(daily, dailyRow)
+	}
+	today := opsDay(time.Now().Unix())
+	for date, spend := range byDate {
+		if seen[date] || date > today || (spend.CostUSD == 0 && spend.Clicks == 0) {
+			continue
+		}
+		daily = append(daily, opsDailyRow{
+			opsFunnelRow: opsFunnelRow{Key: date},
+			AdsCostUSD:   spend.CostUSD,
+			AdsClicks:    spend.Clicks,
+		})
+	}
+	sort.Slice(daily, func(i, j int) bool { return daily[i].Key > daily[j].Key })
 	return daily
 }
 

@@ -38,7 +38,9 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useTheme } from '@/context/theme-provider'
 
+import { AdsDailyTab } from './ads-daily-tab'
 import {
+  getOpsAdsDailyReport,
   getOpsReport,
   getOpsStripeReport,
   opsReportQueryKeys,
@@ -60,6 +62,7 @@ const DAY_OPTIONS = [7, 30, 60, 90]
 const TAB_VALUES = [
   'registrations',
   'users',
+  'ads-daily',
   'funnel',
   'payment',
   'stripe',
@@ -376,12 +379,31 @@ function DailyFunnelTable({ rows }: { rows: OpsDailyRow[] }) {
   return (
     <div className='overflow-x-auto'>
       <Table className={TABLE_GRID}>
-        <FunnelHeader firstColumn={t('Date')} />
+        <TableHeader>
+          <TableRow>
+            <TableHead>{t('Date')}</TableHead>
+            <TableHead className='text-right'>{t('Registrations')}</TableHead>
+            <TableHead className='text-right'>{t('Activated')}</TableHead>
+            <TableHead className='text-right'>{t('Paid Users')}</TableHead>
+            <TableHead className='text-right'>{t('Paid Amount')}</TableHead>
+            <TableHead className='text-right'>{t('Real Browse')}</TableHead>
+            <TableHead className='text-right'>{t('Manual Keys')}</TableHead>
+            <TableHead className='text-right'>{t('Key Users')}</TableHead>
+            <TableHead className='text-right'>{t('Payment Intent')}</TableHead>
+            <TableHead className='text-right'>{t('Op Cost')}</TableHead>
+            <TableHead className='text-right'>{t('Ad Spend')}</TableHead>
+            <TableHead className='text-right'>{t('Ad Clicks')}</TableHead>
+          </TableRow>
+        </TableHeader>
         <TableBody>
           {rows.map((row) => (
             <TableRow key={row.key}>
               <TableCell className='whitespace-nowrap'>{row.key}</TableCell>
               <FunnelCells row={row} />
+              <TableCell className='text-right'>
+                {usd(row.ads_cost_usd)}
+              </TableCell>
+              <TableCell className='text-right'>{row.ads_clicks}</TableCell>
             </TableRow>
           ))}
         </TableBody>
@@ -1008,7 +1030,9 @@ export function OpsReport() {
   })
   const report = reportQuery.data?.data
   const activeTab: TabValue =
-    report && tab === 'stripe' && !report.stripe_configured
+    report &&
+    ((tab === 'stripe' && !report.stripe_configured) ||
+      (tab === 'ads-daily' && !report.ads_daily_configured))
       ? 'registrations'
       : tab
 
@@ -1020,12 +1044,31 @@ export function OpsReport() {
   })
   const stripeReport = stripeQuery.data?.data
 
+  const adsDailyQuery = useQuery({
+    queryKey: opsReportQueryKeys.adsDaily(days),
+    queryFn: () => getOpsAdsDailyReport(days),
+    enabled: activeTab === 'ads-daily' && report?.ads_daily_configured === true,
+    retry: false,
+  })
+  const adsDailyReport = adsDailyQuery.data?.data
   const responseFailed = Boolean(reportQuery.data && !reportQuery.data.success)
   const loadError = reportQuery.isError || responseFailed
   let loadErrorMessage =
     reportQuery.data?.message || t('The report data source returned an error.')
   if (reportQuery.isError && reportQuery.error instanceof Error) {
     loadErrorMessage = reportQuery.error.message
+  }
+  let adsDailyContent = <Skeleton className='h-40 w-full' />
+  if (!adsDailyQuery.isLoading && adsDailyReport) {
+    adsDailyContent = <AdsDailyTab report={adsDailyReport} />
+  } else if (!adsDailyQuery.isLoading) {
+    adsDailyContent = (
+      <Card>
+        <CardContent className='text-muted-foreground pt-6 text-sm'>
+          {t('Failed to load ads data.')}
+        </CardContent>
+      </Card>
+    )
   }
   let stripeContent = <Skeleton className='h-40 w-full' />
   if (!stripeQuery.isLoading && stripeReport) {
@@ -1123,6 +1166,9 @@ export function OpsReport() {
                   {t('Daily Registrations')}
                 </TabsTrigger>
                 <TabsTrigger value='users'>{t('Registered Users')}</TabsTrigger>
+                {report.ads_daily_configured && (
+                  <TabsTrigger value='ads-daily'>{t('Ads Daily')}</TabsTrigger>
+                )}
                 <TabsTrigger value='funnel'>
                   {t('Registration Funnel (Weekly)')}
                 </TabsTrigger>
@@ -1181,6 +1227,8 @@ export function OpsReport() {
                   </CardContent>
                 </Card>
               </TabsContent>
+
+              <TabsContent value='ads-daily'>{adsDailyContent}</TabsContent>
 
               <TabsContent value='users'>
                 <Card>
