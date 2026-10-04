@@ -355,6 +355,8 @@ func migrateDB() error {
 		&Midjourney{},
 		&TopUp{},
 		&QuotaData{},
+		&OpsUserLogStatsRow{},
+		&OpsUserLogStatsMeta{},
 		&Task{},
 		&TaskPlugin{},
 		&Model{},
@@ -409,7 +411,7 @@ func migrateLOGDB() error {
 	if common.UsingLogDatabase(common.DatabaseTypeClickHouse) {
 		return migrateClickHouseLogDB()
 	}
-	return LOG_DB.AutoMigrate(&Log{})
+	return LOG_DB.AutoMigrate(&Log{}, &OpsUserLogStatsRow{}, &OpsUserLogStatsMeta{})
 }
 
 func migrateClickHouseLogDB() error {

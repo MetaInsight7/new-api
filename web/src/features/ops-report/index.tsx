@@ -1,0 +1,1002 @@
+import { useQuery } from '@tanstack/react-query'
+import { VChart } from '@visactor/react-vchart'
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { SectionPageLayout } from '@/components/layout'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Switch } from '@/components/ui/switch'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useTheme } from '@/context/theme-provider'
+
+import { getOpsReport, opsReportQueryKeys } from './api'
+import type {
+  OpsDailyRow,
+  OpsDauRow,
+  OpsFunnelRow,
+  OpsPayerRow,
+  OpsRegisteredUserRow,
+  OpsPaymentRow,
+} from './types'
+
+const DAY_OPTIONS = [7, 30, 60, 90]
+
+// keep the active tab in the URL hash so a refresh stays on the same tab
+const TAB_VALUES = [
+  'registrations',
+  'users',
+  'funnel',
+  'payment',
+  'active',
+  'payers',
+] as const
+type TabValue = (typeof TAB_VALUES)[number]
+
+const initialTab = (): TabValue => {
+  const hash = window.location.hash.slice(1)
+  return (TAB_VALUES as readonly string[]).includes(hash)
+    ? (hash as TabValue)
+    : 'registrations'
+}
+
+// vertical + horizontal grid lines so wide tables stay scannable
+const TABLE_GRID =
+  '[&_th]:border [&_td]:border [&_th]:border-border/70 [&_td]:border-border/60 ' +
+  '[&_th]:bg-muted/50 [&_tbody_tr:nth-child(even)]:bg-muted/20'
+
+function chartColor(): string {
+  if (typeof document === 'undefined') return '#3b82f6'
+  const style = window.getComputedStyle(document.body)
+  return (
+    style.getPropertyValue('--chart-1').trim() ||
+    window
+      .getComputedStyle(document.documentElement)
+      .getPropertyValue('--chart-1')
+      .trim() ||
+    '#3b82f6'
+  )
+}
+
+function TrendBarChart({
+  data,
+  yLabel,
+}: {
+  data: { date: string; value: number }[]
+  yLabel: string
+}) {
+  const { resolvedTheme } = useTheme()
+  return (
+    <div className='h-56 w-full'>
+      <VChart
+        key={`trend-${yLabel}-${resolvedTheme}`}
+        spec={{
+          type: 'bar',
+          data: [{ id: 'trend', values: data }],
+          xField: 'date',
+          yField: 'value',
+          color: [chartColor()],
+          theme: resolvedTheme === 'dark' ? 'dark' : 'light',
+          background: 'transparent',
+          height: 224,
+          padding: { top: 8, bottom: 4, left: 4, right: 8 },
+          bar: { style: { cornerRadius: [4, 4, 0, 0] } },
+          axes: [
+            { orient: 'bottom', sampling: true, label: { autoHide: true } },
+            { orient: 'left', title: { visible: false } },
+          ],
+          tooltip: {
+            dimension: {
+              title: {
+                value: (datum: Record<string, unknown>) =>
+                  String(datum?.date ?? ''),
+              },
+              content: [
+                {
+                  key: () => yLabel,
+                  value: (datum: Record<string, unknown>) =>
+                    String(datum?.value ?? ''),
+                },
+              ],
+            },
+          },
+        }}
+      />
+    </div>
+  )
+}
+
+const pct = (part: number, total: number): string =>
+  total > 0 ? `${((part / total) * 100).toFixed(part === total ? 0 : 1)}%` : '-'
+
+const usd = (v: number): string => `$${v.toFixed(v >= 100 ? 0 : 2)}`
+
+interface FunnelCountDatum {
+  date: string
+  metric: string
+  value: number
+}
+
+interface FunnelUsdDatum {
+  date: string
+  metric: string
+  value: number
+}
+
+// FunnelComboChart draws the three count funnel metrics (registrations /
+// activated / paid) as grouped bars on the left axis and the dollar-valued
+// paid amount as a line on the right axis, in one shared coordinate system.
+function FunnelComboChart({
+  counts,
+  usdSeries,
+  usdLabel,
+}: {
+  counts: FunnelCountDatum[]
+  usdSeries: FunnelUsdDatum[]
+  usdLabel: string
+}) {
+  const { resolvedTheme } = useTheme()
+  return (
+    <div className='h-72 w-full'>
+      <VChart
+        key={`funnel-combo-${resolvedTheme}`}
+        spec={{
+          type: 'common',
+          series: [
+            {
+              type: 'bar',
+              id: 'counts',
+              data: { id: 'funnel-counts', values: counts },
+              xField: 'date',
+              yField: 'value',
+              seriesField: 'metric',
+              // Funnel stages are monotonic subsets (registrations >= activated
+              // >= paid), so keep the bars side-by-side instead of stacking
+              // them into one additive total.
+              stack: false,
+              bar: { style: { cornerRadius: [4, 4, 0, 0] } },
+            },
+            {
+              type: 'line',
+              id: 'usd',
+              data: { id: 'funnel-usd', values: usdSeries },
+              xField: 'date',
+              yField: 'value',
+              seriesField: 'metric',
+              point: { visible: true, style: { size: 4 } },
+              line: { style: { lineWidth: 2 } },
+            },
+          ],
+          axes: [
+            { orient: 'bottom', sampling: true, label: { autoHide: true } },
+            { orient: 'left', seriesId: ['counts'], title: { visible: false } },
+            {
+              orient: 'right',
+              seriesId: ['usd'],
+              title: { visible: false },
+              label: {
+                formatMethod: (val: number | string) => `$${val}`,
+              },
+            },
+          ],
+          legends: { visible: true },
+          theme: resolvedTheme === 'dark' ? 'dark' : 'light',
+          background: 'transparent',
+          height: 288,
+          padding: { top: 8, bottom: 4, left: 4, right: 8 },
+          tooltip: {
+            dimension: {
+              title: {
+                value: (datum: Record<string, unknown>) =>
+                  String(datum?.date ?? ''),
+              },
+              content: [
+                {
+                  key: (datum: Record<string, unknown>) =>
+                    String(datum?.metric ?? ''),
+                  value: (datum: Record<string, unknown>) => datum?.value ?? 0,
+                },
+              ],
+              updateContent: (
+                array: Array<{ key: string; value: string | number }>
+              ) =>
+                array.map((item) => ({
+                  key: item.key,
+                  value:
+                    item.key === usdLabel
+                      ? usd(Number(item.value))
+                      : String(item.value),
+                })),
+            },
+          },
+        }}
+      />
+    </div>
+  )
+}
+
+// All times in this report render in US Pacific Time to match the backend's
+// Pacific day bucketing.
+const REPORT_TZ = 'America/Los_Angeles'
+
+const formatTimestamp = (timestamp: number): string => {
+  if (!timestamp) return '-'
+  return new Date(timestamp * 1000).toLocaleString(undefined, {
+    timeZone: REPORT_TZ,
+    timeZoneName: 'short',
+  })
+}
+
+const shortTime = (timestamp: number): string => {
+  if (!timestamp) return '-'
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: REPORT_TZ,
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    hourCycle: 'h23',
+  }).formatToParts(new Date(timestamp * 1000))
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? ''
+  return `${get('month')}-${get('day')} ${get('hour')}:${get('minute')}`
+}
+
+const countryLabel = (country: string, _language?: string): string => country
+
+const SUBSCRIPTION_SOURCE_LABELS: Record<string, string> = {
+  cash: 'Cash',
+  wallet: 'Wallet',
+  gift: 'Gift',
+}
+
+function SubscriptionSourceBadge({ source }: { source?: string }) {
+  const { t } = useTranslation()
+  const normalized = source || '-'
+  if (!normalized || normalized === '-') {
+    return <span className='text-muted-foreground'>-</span>
+  }
+  return (
+    <Badge variant={normalized === 'gift' ? 'destructive' : 'secondary'}>
+      {t(SUBSCRIPTION_SOURCE_LABELS[normalized] ?? normalized)}
+    </Badge>
+  )
+}
+
+function FunnelCells({ row }: { row: OpsFunnelRow }) {
+  const n = row.registrations
+  const cell = (v: number) => (
+    <TableCell className='text-right whitespace-nowrap'>
+      {v} <span className='text-muted-foreground text-xs'>({pct(v, n)})</span>
+    </TableCell>
+  )
+  return (
+    <>
+      <TableCell className='text-right'>{n}</TableCell>
+      {cell(row.activated)}
+      {cell(row.paid)}
+      <TableCell className='text-right'>{usd(row.paid_usd)}</TableCell>
+      {cell(row.real_browse)}
+      {cell(row.manual_keys)}
+      {cell(row.key_users)}
+      {cell(row.pay_intent)}
+      <TableCell className='text-right'>{usd(row.cost_usd)}</TableCell>
+    </>
+  )
+}
+
+function FunnelHeader({ firstColumn }: { firstColumn: string }) {
+  const { t } = useTranslation()
+  return (
+    <TableHeader>
+      <TableRow>
+        <TableHead>{firstColumn}</TableHead>
+        <TableHead className='text-right'>{t('Registrations')}</TableHead>
+        <TableHead className='text-right'>{t('Activated')}</TableHead>
+        <TableHead className='text-right'>{t('Paid Users')}</TableHead>
+        <TableHead className='text-right'>{t('Paid Amount')}</TableHead>
+        <TableHead className='text-right'>{t('Real Browse')}</TableHead>
+        <TableHead className='text-right'>{t('Manual Keys')}</TableHead>
+        <TableHead className='text-right'>{t('Key Users')}</TableHead>
+        <TableHead className='text-right'>{t('Payment Intent')}</TableHead>
+        <TableHead className='text-right'>{t('Op Cost')}</TableHead>
+      </TableRow>
+    </TableHeader>
+  )
+}
+
+function FunnelTable({
+  rows,
+  firstColumn,
+}: {
+  rows: OpsFunnelRow[]
+  firstColumn: string
+}) {
+  return (
+    <div className='overflow-x-auto'>
+      <Table className={TABLE_GRID}>
+        <FunnelHeader firstColumn={firstColumn} />
+        <TableBody>
+          {rows.map((row) => (
+            <TableRow key={row.key}>
+              <TableCell className='whitespace-nowrap'>{row.key}</TableCell>
+              <FunnelCells row={row} />
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  )
+}
+
+function DailyFunnelTable({ rows }: { rows: OpsDailyRow[] }) {
+  const { t } = useTranslation()
+  return (
+    <div className='overflow-x-auto'>
+      <Table className={TABLE_GRID}>
+        <FunnelHeader firstColumn={t('Date')} />
+        <TableBody>
+          {rows.map((row) => (
+            <TableRow key={row.key}>
+              <TableCell className='whitespace-nowrap'>{row.key}</TableCell>
+              <FunnelCells row={row} />
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  )
+}
+
+function PaymentTable({ rows }: { rows: OpsPaymentRow[] }) {
+  const { t } = useTranslation()
+  return (
+    <div className='overflow-x-auto'>
+      <Table className={TABLE_GRID}>
+        <TableHeader>
+          <TableRow>
+            <TableHead>{t('Week')}</TableHead>
+            <TableHead className='text-right'>{t('Payment Intent')}</TableHead>
+            <TableHead className='text-right'>{t('Unpaid')}</TableHead>
+            <TableHead className='text-right'>{t('First Purchase')}</TableHead>
+            <TableHead className='text-right'>
+              {t('First Purchase Amount')}
+            </TableHead>
+            <TableHead className='text-right'>{t('Repeat Purchase')}</TableHead>
+            <TableHead className='text-right'>
+              {t('Repeat Purchase Amount')}
+            </TableHead>
+            <TableHead className='text-right'>
+              {t('Intent to Paid Rate')}
+            </TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map((row) => (
+            <TableRow key={row.key}>
+              <TableCell className='whitespace-nowrap'>{row.key}</TableCell>
+              <TableCell className='text-right'>{row.intent}</TableCell>
+              <TableCell className='text-right'>{row.unpaid}</TableCell>
+              <TableCell className='text-right'>{row.first}</TableCell>
+              <TableCell className='text-right'>{usd(row.first_usd)}</TableCell>
+              <TableCell className='text-right'>{row.repeat}</TableCell>
+              <TableCell className='text-right'>
+                {usd(row.repeat_usd)}
+              </TableCell>
+              <TableCell className='text-right'>
+                {pct(row.first, row.intent)}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  )
+}
+
+function DauTable({ rows }: { rows: OpsDauRow[] }) {
+  const { t } = useTranslation()
+  const shown = rows
+  return (
+    <div className='overflow-x-auto'>
+      <Table className={TABLE_GRID}>
+        <TableHeader>
+          <TableRow>
+            <TableHead>{t('Date')}</TableHead>
+            <TableHead className='text-right'>
+              {t('Active Users (Key Usage)')}
+            </TableHead>
+            <TableHead className='text-right'>{t('Requests')}</TableHead>
+            <TableHead className='text-right'>{t('Consumed')}</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {shown.map((row) => (
+            <TableRow key={row.date}>
+              <TableCell className='whitespace-nowrap'>{row.date}</TableCell>
+              <TableCell className='text-right'>{row.active_users}</TableCell>
+              <TableCell className='text-right'>{row.requests}</TableCell>
+              <TableCell className='text-right'>{usd(row.quota_usd)}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  )
+}
+
+function RegisteredUsersTable({ rows }: { rows: OpsRegisteredUserRow[] }) {
+  const { t, i18n } = useTranslation()
+  return (
+    <div className='overflow-x-auto'>
+      <Table
+        className={`${TABLE_GRID} text-xs [&_td]:px-2 [&_td]:py-1.5 [&_th]:px-2`}
+      >
+        <TableHeader>
+          <TableRow>
+            <TableHead>{t('Registered At')}</TableHead>
+            <TableHead>{t('User')}</TableHead>
+            <TableHead>{t('Signup Method')}</TableHead>
+            <TableHead>{t('IP / Language')}</TableHead>
+            <TableHead>{t('Campaign')}</TableHead>
+            <TableHead>{t('Landing Pages')}</TableHead>
+            <TableHead className='text-right'>{t('Paid Amount')}</TableHead>
+            <TableHead>{t('Plan Source')}</TableHead>
+            <TableHead className='text-right'>{t('Balance')}</TableHead>
+            <TableHead className='text-right'>{t('Usage')}</TableHead>
+            <TableHead>{t('Last Active')}</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map((row) => (
+            <TableRow key={row.user_id}>
+              <TableCell className='whitespace-nowrap'>
+                {shortTime(row.registered_at)}
+              </TableCell>
+              <TableCell className='whitespace-nowrap'>
+                <div>
+                  {row.email || row.username}{' '}
+                  <span className='text-muted-foreground text-xs'>
+                    #{row.user_id}
+                  </span>
+                </div>
+                <div className='text-muted-foreground text-xs'>
+                  {row.display_name || '-'}
+                </div>
+              </TableCell>
+              <TableCell>{row.signup_method || '-'}</TableCell>
+              <TableCell className='whitespace-nowrap'>
+                <div className='font-mono text-xs'>
+                  {row.last_ip ? (
+                    <a
+                      href={`https://ipinfo.io/${row.last_ip}`}
+                      target='_blank'
+                      rel='noreferrer'
+                      className='underline decoration-dotted'
+                    >
+                      {row.last_ip}
+                    </a>
+                  ) : (
+                    '-'
+                  )}
+                </div>
+                <div className='text-xs'>
+                  {countryLabel(row.ip_country, i18n.language) || '-'}
+                  {(row.browser_lang || row.lng) && (
+                    <Badge variant='secondary' className='ml-1'>
+                      {[row.browser_lang, row.lng]
+                        .filter(Boolean)
+                        .filter((v, i, arr) => arr.indexOf(v) === i)
+                        .join(' · ')}
+                    </Badge>
+                  )}
+                </div>
+              </TableCell>
+              <TableCell className='max-w-40'>
+                <div className='truncate'>{row.campaign || '-'}</div>
+                {row.keyword && (
+                  <div className='text-muted-foreground truncate text-xs'>
+                    {row.keyword}
+                  </div>
+                )}
+              </TableCell>
+              <TableCell className='max-w-40 truncate'>
+                {row.landing || '-'}
+              </TableCell>
+              <TableCell className='text-right whitespace-nowrap'>
+                {row.paid_usd > 0 ? (
+                  <div>
+                    <div>{usd(row.paid_usd)}</div>
+                    <div className='text-muted-foreground text-xs'>
+                      {row.topup_usd > 0
+                        ? `${t('Top-up')} ${usd(row.topup_usd)}`
+                        : ''}
+                      {row.topup_usd > 0 && row.subscription_usd > 0
+                        ? ' · '
+                        : ''}
+                      {row.subscription_usd > 0
+                        ? `${t('Subscription')} ${usd(row.subscription_usd)}`
+                        : ''}
+                    </div>
+                  </div>
+                ) : (
+                  '-'
+                )}
+              </TableCell>
+              <TableCell>
+                <SubscriptionSourceBadge source={row.subscription_source} />
+              </TableCell>
+              <TableCell className='text-right whitespace-nowrap'>
+                {usd(row.balance_usd)}
+              </TableCell>
+              <TableCell className='text-right whitespace-nowrap'>
+                <div>{row.requests} req</div>
+                <div className='text-muted-foreground text-xs'>
+                  {usd(row.consumed_usd)}
+                </div>
+              </TableCell>
+              <TableCell className='whitespace-nowrap'>
+                {shortTime(row.last_active_at)}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  )
+}
+
+function PayersTable({ rows }: { rows: OpsPayerRow[] }) {
+  const { t, i18n } = useTranslation()
+  return (
+    <div className='overflow-x-auto'>
+      <Table
+        className={`${TABLE_GRID} text-xs [&_td]:px-2 [&_td]:py-1.5 [&_th]:px-2`}
+      >
+        <TableHeader>
+          <TableRow>
+            <TableHead>{t('User')}</TableHead>
+            <TableHead>{t('Last Paid At')}</TableHead>
+            <TableHead className='text-right'>{t('Paid Amount')}</TableHead>
+            <TableHead className='text-right'>{t('Top-up')}</TableHead>
+            <TableHead className='text-right'>{t('Subscription')}</TableHead>
+            <TableHead>{t('Plan Source')}</TableHead>
+            <TableHead>{t('Campaign')}</TableHead>
+            <TableHead>{t('Region')}</TableHead>
+            <TableHead className='text-right'>
+              {t('Consumed')} / {t('Balance')}
+            </TableHead>
+            <TableHead>{t('Top Models')}</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map((row) => {
+            const langs =
+              [row.browser_lang, row.lng]
+                .filter(Boolean)
+                .filter((v, i, arr) => arr.indexOf(v) === i)
+                .join('/') || ''
+            return (
+              <TableRow key={row.user_id}>
+                <TableCell>
+                  <div className='whitespace-nowrap'>
+                    {row.display_name || row.username}{' '}
+                    <span className='text-muted-foreground text-xs'>
+                      #{row.user_id}
+                    </span>
+                  </div>
+                  <div className='text-muted-foreground max-w-52 truncate text-xs'>
+                    {row.email || '-'}
+                    {row.signup_method ? ` · ${row.signup_method}` : ''}
+                  </div>
+                </TableCell>
+                <TableCell className='whitespace-nowrap'>
+                  <div>{shortTime(row.last_paid_at)}</div>
+                  <div className='text-muted-foreground text-xs'>
+                    {t('First Paid')} {shortTime(row.first_paid_at)} ·{' '}
+                    {t('Reg.')} {shortTime(row.registered_at)}
+                  </div>
+                </TableCell>
+                <TableCell className='text-right whitespace-nowrap'>
+                  <div>
+                    {usd(row.paid_usd)}{' '}
+                    <span className='text-muted-foreground text-xs'>
+                      ×{row.orders}
+                    </span>
+                  </div>
+                  <div className='flex justify-end gap-1'>
+                    {(row.currencies ?? []).map((c) => (
+                      <Badge
+                        key={c}
+                        variant={c === 'USD' ? 'secondary' : 'default'}
+                      >
+                        {c}
+                      </Badge>
+                    ))}
+                  </div>
+                </TableCell>
+                <TableCell className='text-right whitespace-nowrap'>
+                  {row.topup_orders > 0 ? (
+                    <div>
+                      {usd(row.topup_usd)}{' '}
+                      <span className='text-muted-foreground text-xs'>
+                        ×{row.topup_orders}
+                      </span>
+                    </div>
+                  ) : (
+                    '-'
+                  )}
+                </TableCell>
+                <TableCell className='text-right whitespace-nowrap'>
+                  {row.subscription_orders > 0 ? (
+                    <div>
+                      {usd(row.subscription_usd)}{' '}
+                      <span className='text-muted-foreground text-xs'>
+                        ×{row.subscription_orders}
+                      </span>
+                    </div>
+                  ) : (
+                    '-'
+                  )}
+                </TableCell>
+                <TableCell>
+                  <SubscriptionSourceBadge source={row.subscription_source} />
+                </TableCell>
+                <TableCell>
+                  <div className='whitespace-nowrap'>{row.campaign || '-'}</div>
+                  <div className='text-muted-foreground max-w-52 truncate text-xs'>
+                    {[row.keyword, row.landing, langs]
+                      .filter(Boolean)
+                      .join(' · ') || '-'}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <div className='flex flex-wrap items-center gap-1 whitespace-nowrap'>
+                    {row.ip_country ? (
+                      <Badge
+                        variant='outline'
+                        className='border-blue-300 bg-blue-50 text-sm font-semibold text-blue-900 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-200'
+                      >
+                        {countryLabel(row.ip_country, i18n.language)}
+                      </Badge>
+                    ) : (
+                      '-'
+                    )}
+                    {row.pay_country && row.pay_country !== row.ip_country ? (
+                      <Badge
+                        variant='outline'
+                        className='text-muted-foreground text-xs'
+                      >
+                        💳 {countryLabel(row.pay_country, i18n.language)}
+                      </Badge>
+                    ) : null}
+                  </div>
+                  <div className='font-mono text-xs'>
+                    {row.last_ip ? (
+                      <a
+                        href={`https://ipinfo.io/${row.last_ip}`}
+                        target='_blank'
+                        rel='noreferrer'
+                        className='underline decoration-dotted'
+                      >
+                        {row.last_ip}
+                      </a>
+                    ) : (
+                      '-'
+                    )}
+                  </div>
+                </TableCell>
+                <TableCell className='text-right whitespace-nowrap'>
+                  <div>
+                    {usd(row.consumed_usd)}{' '}
+                    <span className='text-muted-foreground text-xs'>
+                      / {usd(row.balance_usd)}
+                    </span>
+                  </div>
+                  <div className='text-muted-foreground text-xs'>
+                    {row.requests} req · {shortTime(row.last_active_at)}
+                  </div>
+                </TableCell>
+                <TableCell className='max-w-44'>
+                  <div className='flex flex-wrap gap-1'>
+                    {(row.top_models ?? []).map((m) => (
+                      <Badge
+                        key={m}
+                        variant='secondary'
+                        className='max-w-40 truncate'
+                        title={m}
+                      >
+                        {m}
+                      </Badge>
+                    ))}
+                  </div>
+                </TableCell>
+              </TableRow>
+            )
+          })}
+        </TableBody>
+      </Table>
+    </div>
+  )
+}
+
+export function OpsReport() {
+  const { t } = useTranslation()
+  const [days, setDays] = useState(30)
+  const [tab, setTab] = useState<TabValue>(initialTab)
+  const [paidOnly, setPaidOnly] = useState(false)
+  // Default denominator excludes disabled (banned / honeypot) accounts so the
+  // funnel reflects valid signups; toggle to include them for troubleshooting.
+  const [includeDisabled, setIncludeDisabled] = useState(false)
+
+  const handleTabChange = (value: string) => {
+    setTab(value as TabValue)
+    window.history.replaceState(null, '', `#${value}`)
+  }
+
+  const reportQuery = useQuery({
+    queryKey: opsReportQueryKeys.report(days, includeDisabled, paidOnly),
+    queryFn: () => getOpsReport(days, includeDisabled, paidOnly),
+  })
+  const report = reportQuery.data?.data
+  const responseFailed = Boolean(reportQuery.data && !reportQuery.data.success)
+  const loadError = reportQuery.isError || responseFailed
+  let loadErrorMessage =
+    reportQuery.data?.message || t('The report data source returned an error.')
+  if (reportQuery.isError && reportQuery.error instanceof Error) {
+    loadErrorMessage = reportQuery.error.message
+  }
+
+  return (
+    <SectionPageLayout>
+      <SectionPageLayout.Title>{t('Ops Daily Report')}</SectionPageLayout.Title>
+      <SectionPageLayout.Actions>
+        <div className='flex items-center gap-1'>
+          {DAY_OPTIONS.map((option) => (
+            <Button
+              key={option}
+              size='sm'
+              variant={option === days ? 'default' : 'outline'}
+              onClick={() => setDays(option)}
+            >
+              {t('{{count}} days', { count: option })}
+            </Button>
+          ))}
+        </div>
+        <label className='ml-2 flex cursor-pointer items-center gap-2'>
+          <Switch
+            checked={includeDisabled}
+            onCheckedChange={setIncludeDisabled}
+            aria-label={t('Include disabled users')}
+          />
+          <span className='text-muted-foreground text-sm'>
+            {t('Include disabled users')}
+          </span>
+        </label>
+        <label className='ml-2 flex cursor-pointer items-center gap-2'>
+          <Switch
+            checked={paidOnly}
+            onCheckedChange={setPaidOnly}
+            aria-label={t('Paid only')}
+          />
+          <span className='text-muted-foreground text-sm'>
+            {t('Paid only')}
+          </span>
+        </label>
+      </SectionPageLayout.Actions>
+      <SectionPageLayout.Content>
+        {loadError && (
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('Unable to load operations report')}</CardTitle>
+            </CardHeader>
+            <CardContent className='text-destructive text-sm'>
+              {loadErrorMessage}
+              <div className='mt-3'>
+                <Button
+                  size='sm'
+                  variant='outline'
+                  onClick={() => void reportQuery.refetch()}
+                >
+                  {t('Retry')}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+        {!loadError && (reportQuery.isLoading || !report) && (
+          <div className='space-y-4'>
+            <Skeleton className='h-40 w-full' />
+            <Skeleton className='h-40 w-full' />
+          </div>
+        )}
+        {!loadError && !reportQuery.isLoading && report && (
+          <div className='space-y-4'>
+            <p className='text-muted-foreground text-sm'>
+              {t(
+                'Customer users only (administrator accounts excluded). All dates and times are US Pacific Time (PT). Real browse = playground chats excluding the auto-fired signup request; manual keys = API keys created 2+ minutes after signup; key users = any API key request including auto-provisioned keys; op cost = quota burned via auto-provisioned keys (created within 2 minutes of signup).'
+              )}{' '}
+              {t(
+                'Local payment attribution is incomplete for Pix / Alipay and similar flows, so some paid users may not be traceable back to the original ad source.'
+              )}{' '}
+              {t('Generated at')}: {formatTimestamp(report.generated_at)}
+            </p>
+
+            <Tabs value={tab} onValueChange={handleTabChange}>
+              <TabsList>
+                <TabsTrigger value='registrations'>
+                  {t('Daily Registrations')}
+                </TabsTrigger>
+                <TabsTrigger value='users'>{t('Registered Users')}</TabsTrigger>
+                <TabsTrigger value='funnel'>
+                  {t('Registration Funnel (Weekly)')}
+                </TabsTrigger>
+                <TabsTrigger value='payment'>
+                  {t('Payment Funnel (Weekly)')}
+                </TabsTrigger>
+                <TabsTrigger value='active'>
+                  {t('Active Users (Key Usage)')}
+                </TabsTrigger>
+                <TabsTrigger value='payers'>
+                  {t('Paying Customers')}
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value='registrations'>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>{t('Daily Registrations')}</CardTitle>
+                  </CardHeader>
+                  <CardContent className='space-y-4'>
+                    <FunnelComboChart
+                      counts={[...report.daily]
+                        .sort((a, b) => a.key.localeCompare(b.key))
+                        .flatMap((row) => [
+                          {
+                            date: row.key,
+                            metric: t('Registrations'),
+                            value: row.registrations,
+                          },
+                          {
+                            date: row.key,
+                            metric: t('Activated'),
+                            value: row.activated,
+                          },
+                          {
+                            date: row.key,
+                            metric: t('Paid Users'),
+                            value: row.paid,
+                          },
+                        ])}
+                      usdSeries={[...report.daily]
+                        .sort((a, b) => a.key.localeCompare(b.key))
+                        .map((row) => ({
+                          date: row.key,
+                          metric: t('Paid Amount'),
+                          value: row.paid_usd,
+                        }))}
+                      usdLabel={t('Paid Amount')}
+                    />
+                    <DailyFunnelTable rows={report.daily} />
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value='users'>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>
+                      {t('Registered Users')}{' '}
+                      <span className='text-muted-foreground text-sm font-normal'>
+                        {t('Newest {{count}} in the period', {
+                          count: (report.registered_users ?? []).length,
+                        })}
+                      </span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <RegisteredUsersTable
+                      rows={report.registered_users ?? []}
+                    />
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value='funnel'>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>{t('Registration Funnel (Weekly)')}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <FunnelTable
+                      rows={report.weekly_funnel}
+                      firstColumn={t('Week')}
+                    />
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value='payment'>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>{t('Payment Funnel (Weekly)')}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <PaymentTable rows={report.payment_weekly} />
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value='active'>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>{t('Active Users (Key Usage)')}</CardTitle>
+                  </CardHeader>
+                  <CardContent className='space-y-4'>
+                    <TrendBarChart
+                      data={[...report.dau]
+                        .sort((a, b) => a.date.localeCompare(b.date))
+                        .map((row) => ({
+                          date: row.date,
+                          value: row.active_users,
+                        }))}
+                      yLabel={t('Active Users (Key Usage)')}
+                    />
+                    <DauTable rows={report.dau} />
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value='payers'>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>
+                      {t('Paying Customers')}{' '}
+                      <span className='text-muted-foreground text-sm font-normal'>
+                        {t('{{count}} paying users, {{amount}} total', {
+                          count: report.total_paid_users,
+                          amount: usd(report.total_paid_usd),
+                        })}
+                      </span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <PayersTable rows={report.top_payers ?? []} />
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
+          </div>
+        )}
+      </SectionPageLayout.Content>
+    </SectionPageLayout>
+  )
+}

@@ -121,6 +121,9 @@ func main() {
 	// 数据看板
 	go model.UpdateQuotaData()
 
+	// 运营日报的用户日志预聚合（仅在 master 节点运行；ClickHouse 使用报表查询回退）
+	go model.StartOpsUserLogStatsSyncTask()
+
 	if os.Getenv("CHANNEL_UPDATE_FREQUENCY") != "" {
 		frequency, err := strconv.Atoi(os.Getenv("CHANNEL_UPDATE_FREQUENCY"))
 		if err != nil {

@@ -23,6 +23,7 @@ import {
   BriefcaseBusiness,
   ClipboardList,
   CreditCard,
+  CalendarRange,
   FileText,
   FlaskConical,
   HeartPulse,
@@ -161,6 +162,11 @@ export function useSidebarData(): SidebarData {
             title: t('Model Health'),
             url: '/model-health',
             icon: HeartPulse,
+          },
+          {
+            title: t('Ops Daily Report'),
+            url: '/ops-report',
+            icon: CalendarRange,
           },
           {
             title: t('Users'),
