@@ -4,10 +4,10 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** implemented
 
-- [ ] Available Models shows an accessible operation documentation action in the title actions area.
-- [ ] `VITE_OFFICIAL_DOCUMENTATION_URL` overrides the default TokenDazi documentation destination.
-- [ ] The link opens in a new browsing context with `noopener` and `noreferrer`.
-- [ ] The change follows Base's existing button, icon, translation, and layout conventions.
-- [ ] Targeted component coverage and type/lint/format checks pass.
+- [x] Available Models shows an accessible operation documentation action in the title actions area.
+- [x] `VITE_OFFICIAL_DOCUMENTATION_URL` overrides the default TokenDazi documentation destination.
+- [x] The link opens in a new browsing context with `noopener` and `noreferrer`.
+- [x] The change follows Base's existing button, icon, translation, and layout conventions.
+- [x] Targeted component coverage and type/lint/format checks pass.

@@ -10,16 +10,16 @@
 
 ## Acceptance criteria
 
-- [ ] API Key 创建和编辑使用 Dialog；宽屏显示表单与模型预览，窄屏仍能完成创建并查看模型预览。
-- [ ] Available Models 的分组创建入口生成 `open=create` 和可选 `group` 参数。
-- [ ] API Key 路由解析创建参数，等待模型访问数据后只打开一次 Dialog。
-- [ ] 有效且可见的分组自动预选；无效或不可见分组按 Base 默认分组规则回退。
-- [ ] 用户手动修改分组后，模型访问数据刷新不会覆盖选择；编辑已有 API Key 时不使用创建深链接默认值。
-- [ ] Dialog 预览使用当前分组的模型、价格、协议、供应商、状态和专属倍率数据。
-- [ ] 模型访问加载失败提供重试状态；空模型范围显示明确空状态。
-- [ ] Dialog 关闭后清理 `open`/`group` 参数，刷新页面不会重复打开。
-- [ ] 保留 Base 原有表单校验、API payload、创建/编辑成功处理和列表刷新。
-- [ ] 补齐路由、深链接状态、分组预选、Dialog 交互和 Available Models 入口测试，并通过受影响 lint、typecheck、Vitest 和 Playwright 验证。
+- [x] API Key 创建和编辑使用 Dialog；宽屏显示表单与模型预览，窄屏仍能完成创建并查看模型预览。
+- [x] Available Models 的分组创建入口生成 `open=create` 和可选 `group` 参数。
+- [x] API Key 路由解析创建参数，等待模型访问数据后只打开一次 Dialog。
+- [x] 有效且可见的分组自动预选；无效或不可见分组按 Base 默认分组规则回退。
+- [x] 用户手动修改分组后，模型访问数据刷新不会覆盖选择；编辑已有 API Key 时不使用创建深链接默认值。
+- [x] Dialog 预览使用当前分组的模型、价格、协议、供应商、状态和专属倍率数据。
+- [x] 模型访问加载失败提供重试状态；空模型范围显示明确空状态。
+- [x] Dialog 关闭后清理 `open`/`group` 参数，刷新页面不会重复打开。
+- [x] 保留 Base 原有表单校验、API payload、创建/编辑成功处理和列表刷新。
+- [x] 补齐路由、深链接状态、分组预选、Dialog 交互和 Available Models 入口测试，并通过受影响 lint、typecheck、Vitest 和 Playwright 验证。
 
 ## Blocked by
 
@@ -27,4 +27,4 @@
 
 ## Status
 
-ready-for-agent
+implemented

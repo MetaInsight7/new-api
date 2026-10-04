@@ -4,11 +4,11 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** implemented
 
-- [ ] Regular users do not see Overview in the root sidebar.
-- [ ] Regular users do not see Dashboard in the root sidebar.
-- [ ] Regular users continue to see Workspace and Available Models.
-- [ ] Administrators continue to see Overview and Dashboard.
-- [ ] Existing sidebar-module configuration and administrator-only filtering remain effective.
-- [ ] Role-focused behavior tests and type/lint/format checks pass.
+- [x] Regular users do not see Overview in the root sidebar.
+- [x] Regular users do not see Dashboard in the root sidebar.
+- [x] Regular users continue to see Workspace and Available Models.
+- [x] Administrators continue to see Overview and Dashboard.
+- [x] Existing sidebar-module configuration and administrator-only filtering remain effective.
+- [x] Role-focused behavior tests and type/lint/format checks pass.
