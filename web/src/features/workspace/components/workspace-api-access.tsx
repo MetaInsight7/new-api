@@ -110,11 +110,12 @@ export function WorkspaceApiAccess() {
   )
     ? selectedEndpointId
     : endpoints[0]?.id ?? ''
-  const activeKeyId = keys.some((key) => String(key.id) === selectedKeyId)
-    ? selectedKeyId
-    : keys[0]
-      ? String(keys[0].id)
-      : ''
+  let activeKeyId = ''
+  if (keys.some((key) => String(key.id) === selectedKeyId)) {
+    activeKeyId = selectedKeyId
+  } else if (keys[0]) {
+    activeKeyId = String(keys[0].id)
+  }
   const endpoint = endpoints.find((item) => item.id === activeEndpointId)
   const selectedKey = keys.find((key) => String(key.id) === activeKeyId)
   const selectedKeyLabel = selectedKey
@@ -127,6 +128,21 @@ export function WorkspaceApiAccess() {
   const isKeyRevealed = selectedKey
     ? revealedKeyIds.has(String(selectedKey.id))
     : false
+  let statusClass =
+    'bg-destructive/10 text-destructive inline-flex h-5 shrink-0 translate-y-1 items-center gap-1.5 rounded-full px-2 text-xs font-medium'
+  let statusDotClass = 'bg-destructive size-1.5 rounded-full'
+  let statusLabel = t('Not configured')
+  if (isConfigured) {
+    statusClass =
+      'bg-success/10 text-success inline-flex h-5 shrink-0 translate-y-1 items-center gap-1.5 rounded-full px-2 text-xs font-medium'
+    statusDotClass = 'bg-success size-1.5 rounded-full'
+    statusLabel = t('Ready')
+  } else if (keysLoading) {
+    statusClass =
+      'bg-muted text-muted-foreground inline-flex h-5 shrink-0 translate-y-1 items-center gap-1.5 rounded-full px-2 text-xs font-medium'
+    statusDotClass = 'bg-muted-foreground size-1.5 rounded-full'
+    statusLabel = t('Loading')
+  }
 
   const revealKey = async () => {
     if (!selectedKey) return
@@ -145,10 +161,11 @@ export function WorkspaceApiAccess() {
     }
     try {
       const response = await fetchTokenKey(selectedKey.id)
-      if (response.success && response.data?.key) {
+      const fetchedKey = response.data?.key
+      if (response.success && fetchedKey) {
         setResolvedKeys((current) => ({
           ...current,
-          [keyId]: normalizeKey(response.data!.key),
+          [keyId]: normalizeKey(fetchedKey),
         }))
         setRevealedKeyIds((current) => new Set(current).add(keyId))
       } else {
@@ -173,10 +190,11 @@ export function WorkspaceApiAccess() {
           toast.error(response.message || t('Failed to load API keys'))
           return
         }
-        keyToCopy = normalizeKey(response.data.key)
+        const fetchedKey = normalizeKey(response.data.key)
+        keyToCopy = fetchedKey
         setResolvedKeys((current) => ({
           ...current,
-          [String(selectedKey.id)]: keyToCopy!,
+          [String(selectedKey.id)]: fetchedKey,
         }))
       } catch {
         toast.error(t('Failed to load API keys'))
@@ -214,29 +232,10 @@ export function WorkspaceApiAccess() {
             {t('API Access')}
           </div>
           <span
-            className={
-              isConfigured
-                ? 'bg-success/10 text-success inline-flex h-5 shrink-0 translate-y-1 items-center gap-1.5 rounded-full px-2 text-xs font-medium'
-                : keysLoading
-                  ? 'bg-muted text-muted-foreground inline-flex h-5 shrink-0 translate-y-1 items-center gap-1.5 rounded-full px-2 text-xs font-medium'
-                  : 'bg-destructive/10 text-destructive inline-flex h-5 shrink-0 translate-y-1 items-center gap-1.5 rounded-full px-2 text-xs font-medium'
-            }
+            className={statusClass}
           >
-            <span
-              className={
-                isConfigured
-                  ? 'bg-success size-1.5 rounded-full'
-                  : keysLoading
-                    ? 'bg-muted-foreground size-1.5 rounded-full'
-                    : 'bg-destructive size-1.5 rounded-full'
-              }
-              aria-hidden='true'
-            />
-            {isConfigured
-              ? t('Ready')
-              : keysLoading
-                ? t('Loading')
-                : t('Not configured')}
+            <span className={statusDotClass} aria-hidden='true' />
+            {statusLabel}
           </span>
         </div>
         <div className='text-muted-foreground mt-1 text-xs leading-4'>

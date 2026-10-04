@@ -58,10 +58,10 @@ function getRangeDates(range: WorkspacePreset) {
   if (range.key === 'today') {
     return { start: getStartOfDay(now), end: now }
   }
-  return getRollingDateRange(
-    range.key === 'last_24h' ? 1 : range.key === 'last_7d' ? 7 : 30,
-    now
-  )
+  let days = 30
+  if (range.key === 'last_24h') days = 1
+  else if (range.key === 'last_7d') days = 7
+  return getRollingDateRange(days, now)
 }
 
 function getCustomGranularity(start: Date, end: Date): TimeGranularity {

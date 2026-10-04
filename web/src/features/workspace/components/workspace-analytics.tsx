@@ -98,7 +98,6 @@ export function WorkspaceAnalytics(props: WorkspaceChartData) {
       ),
     [
       chartRadius,
-      customization.preset,
       props.data,
       props.loading,
       props.timeGranularity,
