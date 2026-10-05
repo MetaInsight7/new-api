@@ -62,6 +62,9 @@ func main() {
 		common.FatalLog("failed to initialize resources: " + err.Error())
 		return
 	}
+	if err := service.ValidateCodexTempMediaConfiguration(); err != nil {
+		common.SysError("Codex temporary media storage disabled: " + err.Error())
+	}
 
 	common.SysLog("New API " + common.Version + " started")
 	if os.Getenv("GIN_MODE") != "debug" {

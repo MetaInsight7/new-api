@@ -215,6 +215,13 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 				}
 				imageRequest.Stream = common.GetPointer(stream)
 			}
+			if tempURLValue := strings.TrimSpace(formData.Get("temp_url")); tempURLValue != "" {
+				tempURL, err := strconv.ParseBool(tempURLValue)
+				if err != nil {
+					return nil, fmt.Errorf("invalid temp_url value: %w", err)
+				}
+				imageRequest.TempUrl = common.GetPointer(tempURL)
+			}
 			if imageValue := formData.Get("image"); imageValue != "" {
 				imageRequest.Image, _ = common.Marshal(imageValue)
 			}

@@ -28,6 +28,7 @@ type ImageRequest struct {
 	Size              string          `json:"size,omitempty"`
 	Quality           string          `json:"quality,omitempty"`
 	ResponseFormat    string          `json:"response_format,omitempty"`
+	TempUrl           *bool           `json:"temp_url,omitempty"`
 	Style             json.RawMessage `json:"style,omitempty"`
 	User              json.RawMessage `json:"user,omitempty"`
 	ExtraFields       json.RawMessage `json:"extra_fields,omitempty"`
@@ -195,4 +196,6 @@ type ImageData struct {
 	Url           string `json:"url"`
 	B64Json       string `json:"b64_json"`
 	RevisedPrompt string `json:"revised_prompt"`
+	ExpiresAt     int64  `json:"expires_at,omitempty"`
+	ExpiresIn     int64  `json:"expires_in,omitempty"`
 }

@@ -53,6 +53,9 @@ func resolveImageCarrierModel(info *relaycommon.RelayInfo) string {
 // 调用本函数。把校验放在 image.go 是为了让规则与 codex 图像的其余逻辑同处一文件、
 // 可独立测试；adaptor.go（由另一 agent 维护）只需 `if err := ValidateCodexImageRequest(request); err != nil { return nil, err }`。
 func ValidateCodexImageRequest(request dto.ImageRequest) error {
+	if request.TempUrl != nil && *request.TempUrl {
+		return nil
+	}
 	rf := strings.TrimSpace(request.ResponseFormat)
 	if rf != "" && rf != "b64_json" {
 		return fmt.Errorf("codex image: response_format %q not supported; codex image only supports b64_json", rf)
@@ -395,6 +398,9 @@ func RelayImageOverCodex(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	}
 	if created == 0 {
 		created = time.Now().Unix()
+	}
+	if err := convertCodexImageDataToTempURLs(c, info, data); err != nil {
+		return nil, err
 	}
 
 	out := dto.ImageResponse{Created: created, Data: data}
