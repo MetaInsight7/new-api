@@ -36,6 +36,26 @@
 
 针对某个模型和分组配置的倍率覆盖值。配置后它覆盖该分组的默认倍率，而不是与默认倍率相乘；未配置时不应伪装成已配置的专属倍率。
 
+## Codex Identity
+
+Relay 对上游 Codex 声明的客户端软件身份，包括 User-Agent、客户端版本、originator 和相关客户端 metadata。它描述“Relay 以哪个 Codex 客户端版本发起请求”，不等同于用户身份、OAuth 账号或渠道指纹。
+
+## Codex 指纹收敛
+
+按渠道稳定生成并注入 Codex installation、session、thread、turn 和 window 等客户端身份字段的机制。它支持 `off`、`device`、`session` 和 `full` 模式；指纹 seed 与渠道绑定，不能由普通管理员任意填写或跨渠道复用。
+
+## Codex 最终出口策略
+
+请求经过 Header Override、pass-through 和重试处理后，在真正发送到 Codex 上游前执行的最后一层身份校正与敏感字段清洗。它确保可信的 Authorization、账号、客户端版本和指纹字段最终生效，并删除客户端伪造的身份信息。
+
+## Codex 临时媒体
+
+Codex 图片生成或编辑产生的短期图片对象。对象存储在私有 R2 Bucket 中，通过有过期时间的预签名 URL 返回给客户端，不等同于永久资产或数据库附件。
+
+## R2 预签名 URL
+
+由 Cloudflare R2 S3 兼容接口生成、带有限有效期的对象访问 URL。它允许客户端在不获得 R2 密钥的情况下读取指定临时对象；URL 到期或对象生命周期清理后不可继续访问。
+
 ## 运营与用量报表
 
 ## 运营日报
