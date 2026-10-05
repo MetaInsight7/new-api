@@ -8,17 +8,28 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	appconstant "github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
 )
 
 type Adaptor struct {
+}
+
+func codexClientWantsStream(c *gin.Context, info *relaycommon.RelayInfo) bool {
+	if c != nil {
+		if _, ok := common.GetContextKey(c, appconstant.ContextKeyIsStream); ok {
+			return common.GetContextKeyBool(c, appconstant.ContextKeyIsStream)
+		}
+	}
+	return info != nil && info.IsStream
 }
 
 func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) (any, error) {
@@ -41,7 +52,13 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) (any, error) {
-	return nil, errors.New("codex channel: /v1/chat/completions endpoint not supported")
+	responsesRequest, err := service.ChatCompletionsRequestToResponsesRequest(request)
+	if err != nil {
+		return nil, err
+	}
+	stream := true
+	responsesRequest.Stream = &stream
+	return a.ConvertOpenAIResponsesRequest(c, info, *responsesRequest)
 }
 
 func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dto.RerankRequest) (any, error) {
@@ -104,6 +121,7 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 	// rm max_output_tokens
 	request.MaxOutputTokens = nil
 	request.Temperature = nil
+	request.TopP = nil
 	request.FrequencyPenalty = nil
 	request.PresencePenalty = nil
 	return request, nil
@@ -115,6 +133,11 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
 	switch info.RelayMode {
+	case relayconstant.RelayModeChatCompletions:
+		if codexClientWantsStream(c, info) {
+			return openai.OaiResponsesToChatStreamHandler(c, info, resp)
+		}
+		return openai.OaiResponsesToChatBufferedStreamHandler(c, info, resp)
 	case relayconstant.RelayModeAlphaSearch:
 		// Alpha search responses are handled by relay.AlphaSearchHelper.
 		return nil, types.NewError(errors.New("codex channel: alpha search response should be handled by AlphaSearchHelper"), types.ErrorCodeInvalidRequest)
@@ -141,6 +164,8 @@ func (a *Adaptor) GetChannelName() string {
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	var path string
 	switch info.RelayMode {
+	case relayconstant.RelayModeChatCompletions:
+		path = "/backend-api/codex/responses"
 	case relayconstant.RelayModeResponses:
 		path = "/backend-api/codex/responses"
 	case relayconstant.RelayModeResponsesCompact:
@@ -148,7 +173,7 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	case relayconstant.RelayModeAlphaSearch:
 		path = "/backend-api/codex/alpha/search"
 	default:
-		return "", errors.New("codex channel: only /v1/responses, /v1/responses/compact and /v1/alpha/search are supported")
+		return "", errors.New("codex channel: only /v1/chat/completions, /v1/responses, /v1/responses/compact and /v1/alpha/search are supported")
 	}
 	return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, path, info.ChannelType), nil
 }
@@ -190,7 +215,7 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 	// Clients may omit it or include parameters like `application/json; charset=utf-8`,
 	// which can be rejected by the upstream. Force the exact media type.
 	req.Set("Content-Type", "application/json")
-	if info.IsStream {
+	if info.IsStream || info.RelayMode == relayconstant.RelayModeChatCompletions {
 		req.Set("Accept", "text/event-stream")
 	} else if req.Get("Accept") == "" {
 		req.Set("Accept", "application/json")
