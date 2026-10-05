@@ -22,7 +22,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, type ReactNode } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { StatusBadge } from '@/components/status-badge'
@@ -53,24 +53,18 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { useBillingTime } from '@/features/pricing/hooks/use-billing-time'
+import type { PricingModel } from '@/features/pricing/types'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { getModelAvailabilityConfig } from '@/lib/model-availability'
 import { cn } from '@/lib/utils'
-import {
-  DEFAULT_TOKEN_UNIT,
-  QUOTA_TYPE_VALUES,
-} from '@/features/pricing/constants'
-import {
-  formatFixedPrice,
-  formatGroupPrice,
-} from '@/features/pricing/lib/price'
-import type { PricingModel } from '@/features/pricing/types'
 
 import {
   getModelEndpointLabel,
   normalizeModelAvailabilityStatus,
 } from '../lib/model-access-browser'
+import { getModelAccessPricing } from '../lib/model-access-pricing'
 import type { ModelAccessModel } from '../types'
 
 type ModelAccessListProps = {
@@ -89,6 +83,86 @@ type ModelAccessPaginationState = {
   models: ModelAccessModel[]
   scopeIsEmpty: boolean
   visibleCount: number
+}
+
+function ModelAccessPricingPanel({
+  pricing,
+  pricingLoading,
+}: {
+  pricing?: PricingModel
+  pricingLoading: boolean
+}) {
+  const { t } = useTranslation()
+  const billingTime = useBillingTime(pricing?.billing_expr)
+  const modelPricing = useMemo(
+    () =>
+      pricing
+        ? getModelAccessPricing(
+            pricing,
+            billingTime === undefined ? undefined : new Date(billingTime)
+          )
+        : null,
+    [billingTime, pricing]
+  )
+
+  if (pricingLoading && !pricing) {
+    return (
+      <div className='bg-muted/25 border-border flex grow basis-44 items-center border-t px-3 py-2.5 @min-[33rem]:border-t-0 @min-[33rem]:border-l'>
+        <div className='grid w-full grid-cols-2 gap-3'>
+          <Skeleton className='col-span-2 h-3 w-20' />
+          <Skeleton className='h-9 w-full' />
+          <Skeleton className='h-9 w-full' />
+        </div>
+      </div>
+    )
+  }
+
+  if (!modelPricing) return null
+
+  const { inputPrice, isTimePricing, outputPrice, requestPrice } = modelPricing
+  const hasRequestPrice = requestPrice !== null
+  const hasTokenPrice = inputPrice !== null || outputPrice !== null
+
+  if (!hasRequestPrice && !hasTokenPrice) return null
+
+  return (
+    <div className='bg-muted/25 border-border flex grow basis-44 items-center border-t px-3 py-2.5 @min-[33rem]:border-t-0 @min-[33rem]:border-l'>
+      {hasRequestPrice ? (
+        <div className='flex min-w-0 flex-col gap-1'>
+          <span className='text-muted-foreground text-xs'>
+            {t('Per Request')}
+            {isTimePricing && (
+              <span className='ml-1'>{`· ${t('Current period price')}`}</span>
+            )}
+          </span>
+          <span className='text-base font-semibold tabular-nums'>
+            {requestPrice}
+          </span>
+        </div>
+      ) : (
+        <div className='grid w-full grid-cols-2 gap-x-4 gap-y-1'>
+          <span className='text-muted-foreground col-span-2 text-xs'>
+            {t('Per 1M tokens')}
+            {isTimePricing && (
+              <span className='ml-1'>{`· ${t('Current period price')}`}</span>
+            )}
+          </span>
+          <div className='flex min-w-0 flex-col gap-0.5'>
+            <span className='text-muted-foreground text-xs'>{t('Input')}</span>
+            <span className='truncate text-sm font-semibold tabular-nums'>
+              {inputPrice ?? '—'}
+            </span>
+          </div>
+          <div className='border-border flex min-w-0 flex-col gap-0.5 border-l pl-4'>
+            <span className='text-muted-foreground text-xs'>{t('Output')}</span>
+            <span className='truncate text-sm font-semibold tabular-nums'>
+              {outputPrice ?? '—'}
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -203,88 +277,7 @@ export function ModelAccessList({
             const hasExclusiveRatio = Object.hasOwn(modelRatios, model.id)
             const exclusiveRatio = modelRatios[model.id]
             const pricing = pricingModels.get(model.id)
-            const requestPrice =
-              pricing?.quota_type === QUOTA_TYPE_VALUES.REQUEST
-                ? formatFixedPrice(pricing, '__official__', false, 1, 1, {
-                    __official__: 1,
-                  })
-                : null
-            const inputPrice =
-              pricing?.quota_type === QUOTA_TYPE_VALUES.TOKEN
-                ? formatGroupPrice(
-                    pricing,
-                    '__official__',
-                    'input',
-                    DEFAULT_TOKEN_UNIT,
-                    false,
-                    1,
-                    1,
-                    { __official__: 1 }
-                  )
-                : null
-            const outputPrice =
-              pricing?.quota_type === QUOTA_TYPE_VALUES.TOKEN
-                ? formatGroupPrice(
-                    pricing,
-                    '__official__',
-                    'output',
-                    DEFAULT_TOKEN_UNIT,
-                    false,
-                    1,
-                    1,
-                    { __official__: 1 }
-                  )
-                : null
-            const showPricingPanel =
-              pricingLoading ||
-              requestPrice !== null ||
-              inputPrice !== null ||
-              outputPrice !== null
-            let pricingPanelContent: ReactNode
-            if (pricingLoading && !pricing) {
-              pricingPanelContent = (
-                <div className='grid w-full grid-cols-2 gap-3'>
-                  <Skeleton className='col-span-2 h-3 w-20' />
-                  <Skeleton className='h-9 w-full' />
-                  <Skeleton className='h-9 w-full' />
-                </div>
-              )
-            } else if (requestPrice !== null) {
-              pricingPanelContent = (
-                <div className='flex min-w-0 flex-col gap-1'>
-                  <span className='text-muted-foreground text-xs'>
-                    {t('Per Request')}
-                  </span>
-                  <span className='text-base font-semibold tabular-nums'>
-                    {requestPrice}
-                  </span>
-                </div>
-              )
-            } else {
-              pricingPanelContent = (
-                <div className='grid w-full grid-cols-2 gap-x-4 gap-y-1'>
-                  <span className='text-muted-foreground col-span-2 text-xs'>
-                    {t('Per 1M tokens')}
-                  </span>
-                  <div className='flex min-w-0 flex-col gap-0.5'>
-                    <span className='text-muted-foreground text-xs'>
-                      {t('Input')}
-                    </span>
-                    <span className='truncate text-sm font-semibold tabular-nums'>
-                      {inputPrice}
-                    </span>
-                  </div>
-                  <div className='border-border flex min-w-0 flex-col gap-0.5 border-l pl-4'>
-                    <span className='text-muted-foreground text-xs'>
-                      {t('Output')}
-                    </span>
-                    <span className='truncate text-sm font-semibold tabular-nums'>
-                      {outputPrice}
-                    </span>
-                  </div>
-                </div>
-              )
-            }
+            const showPricingPanel = pricingLoading || pricing !== undefined
             const exclusiveRatioLabel = hasExclusiveRatio
               ? t('Exclusive ratio {{ratio}}×', { ratio: exclusiveRatio })
               : ''
@@ -426,11 +419,10 @@ export function ModelAccessList({
                     </div>
                   </ItemFooter>
                 </div>
-                {showPricingPanel && (
-                  <div className='bg-muted/25 border-border flex grow basis-44 items-center border-t px-3 py-2.5 @min-[33rem]:border-t-0 @min-[33rem]:border-l'>
-                    {pricingPanelContent}
-                  </div>
-                )}
+                <ModelAccessPricingPanel
+                  pricing={pricing}
+                  pricingLoading={pricingLoading}
+                />
               </Item>
             )
           })}
