@@ -71,6 +71,7 @@ const CONFIGURATION_BLOCKS = {
       'ollama_openai_chat',
       'system_prompt',
       'system_prompt_override',
+      'image_carrier_model',
     ],
   },
   fieldPassthrough: {

@@ -1,8 +1,10 @@
 package codex
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -45,7 +47,39 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 }
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
-	return nil, errors.New("codex channel: endpoint not supported")
+	if info == nil {
+		return nil, types.NewErrorWithStatusCode(errors.New("codex channel: relay info is required"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+	}
+	if !IsCodexImageModel(request.Model) {
+		return nil, types.NewErrorWithStatusCode(fmt.Errorf("codex channel: image endpoint requires a gpt-image-* model, got %q", request.Model), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+	}
+	if err := ValidateCodexImageRequest(request); err != nil {
+		return nil, types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+	}
+
+	action := "generate"
+	var inputImages []string
+	var mask string
+	if info.RelayMode == relayconstant.RelayModeImagesEdits {
+		action = "edit"
+		var err error
+		if isCodexJSONRequest(c) {
+			inputImages, mask, err = readCodexJSONEditImages(request)
+		} else {
+			inputImages, mask, err = readCodexEditImages(c)
+		}
+		if err != nil {
+			return nil, types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+		}
+	}
+
+	// Codex image generation only returns the image result through Responses SSE.
+	info.IsStream = true
+	return buildCodexImageBody(request, resolveImageCarrierModel(info), action, inputImages, mask), nil
+}
+
+func isCodexJSONRequest(c *gin.Context) bool {
+	return c == nil || c.Request == nil || strings.HasPrefix(strings.ToLower(c.Request.Header.Get("Content-Type")), "application/json")
 }
 
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
@@ -128,7 +162,37 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
-	return channel.DoApiRequest(a, c, info, requestBody)
+	resp, err := channel.DoApiRequest(a, c, info, requestBody)
+	if err != nil {
+		return resp, err
+	}
+	if resp != nil && (info.RelayMode == relayconstant.RelayModeImagesGenerations || info.RelayMode == relayconstant.RelayModeImagesEdits) && resp.StatusCode != http.StatusOK {
+		sanitizeCodexImageErrorResponse(resp)
+	}
+	return resp, nil
+}
+
+func sanitizeCodexImageErrorResponse(resp *http.Response) {
+	var upstreamBody []byte
+	if resp.Body != nil {
+		upstreamBody, _ = io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+	}
+	if len(upstreamBody) > 0 {
+		common.SysError(fmt.Sprintf("codex image: upstream returned HTTP %d, body: <redacted>", resp.StatusCode))
+	} else {
+		common.SysError(fmt.Sprintf("codex image: upstream returned HTTP %d with empty body", resp.StatusCode))
+	}
+
+	payload := []byte(`{"error":{"message":"codex image generation failed","type":"upstream_error"}}`)
+	resp.Body = io.NopCloser(bytes.NewReader(payload))
+	resp.ContentLength = int64(len(payload))
+	if resp.Header == nil {
+		resp.Header = http.Header{}
+	}
+	resp.Header.Set("Content-Type", "application/json")
+	resp.Header.Set("Content-Length", fmt.Sprintf("%d", len(payload)))
+	resp.Header.Del("Transfer-Encoding")
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
@@ -138,6 +202,8 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 			return openai.OaiResponsesToChatStreamHandler(c, info, resp)
 		}
 		return openai.OaiResponsesToChatBufferedStreamHandler(c, info, resp)
+	case relayconstant.RelayModeImagesGenerations, relayconstant.RelayModeImagesEdits:
+		return RelayImageOverCodex(c, info, resp)
 	case relayconstant.RelayModeAlphaSearch:
 		// Alpha search responses are handled by relay.AlphaSearchHelper.
 		return nil, types.NewError(errors.New("codex channel: alpha search response should be handled by AlphaSearchHelper"), types.ErrorCodeInvalidRequest)
@@ -172,8 +238,10 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		path = "/backend-api/codex/responses/compact"
 	case relayconstant.RelayModeAlphaSearch:
 		path = "/backend-api/codex/alpha/search"
+	case relayconstant.RelayModeImagesGenerations, relayconstant.RelayModeImagesEdits:
+		path = "/backend-api/codex/responses"
 	default:
-		return "", errors.New("codex channel: only /v1/chat/completions, /v1/responses, /v1/responses/compact and /v1/alpha/search are supported")
+		return "", errors.New("codex channel: only /v1/chat/completions, /v1/responses, /v1/responses/compact, /v1/alpha/search and /v1/images endpoints are supported")
 	}
 	return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, path, info.ChannelType), nil
 }

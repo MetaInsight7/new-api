@@ -144,6 +144,7 @@ import {
   ADD_MODE_OPTIONS,
   CLAUDE_FIELD_PASSTHROUGH_TYPES,
   CHANNEL_STATUS_LABELS,
+  CHANNEL_TYPE_CODEX,
   CHANNEL_TYPE_NEW_API,
   CHANNEL_TYPE_OLLAMA,
   CHANNEL_TYPE_OPTIONS,
@@ -1865,6 +1866,30 @@ export function ChannelMutateDrawer({
               onCheckedChange={field.onChange}
             />
           </FormControl>
+        </FormItem>
+      )}
+    />
+  )
+
+  const imageCarrierModelFields = currentType === CHANNEL_TYPE_CODEX && (
+    <FormField
+      control={form.control}
+      name='image_carrier_model'
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>{t('Image Carrier Model')}</FormLabel>
+          <FormControl>
+            <Input
+              placeholder={t('Leave blank to use the default image carrier')}
+              {...field}
+            />
+          </FormControl>
+          <FormDescription>
+            {t(
+              'Text model used to carry Codex image generation requests; leave blank to use the global or default model'
+            )}
+          </FormDescription>
+          <FormMessage />
         </FormItem>
       )}
     />
@@ -4696,6 +4721,7 @@ export function ChannelMutateDrawer({
                   passthroughFields}
                 {systemPromptFields}
                 {systemPromptOverrideFields}
+                {imageCarrierModelFields}
               </fieldset>
             </div>
             {fieldPassthroughFields}

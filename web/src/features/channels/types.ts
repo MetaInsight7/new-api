@@ -91,6 +91,7 @@ export interface ChannelSettings {
   responses_websocket_enabled?: boolean
   system_prompt?: string
   system_prompt_override?: boolean
+  image_carrier_model?: string
   http_protocol?: 'auto' | 'http1' | string
   http2_connection_shards?: number
 }

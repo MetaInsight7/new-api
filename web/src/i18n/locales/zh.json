@@ -7161,6 +7161,9 @@
     "Weighted observed success": "加权观测成功率",
     "Workspace": "工作区",
     "Workspace Range Tokens": "工作区区间 Token 数",
-    "Operation documentation": "操作文档"
+    "Operation documentation": "操作文档",
+    "Image Carrier Model": "图片承载模型",
+    "Leave blank to use the default image carrier": "留空以使用默认图片承载模型",
+    "Text model used to carry Codex image generation requests; leave blank to use the global or default model": "用于承载 Codex 图片生成请求的文本模型；留空以使用全局或默认模型"
   }
 }

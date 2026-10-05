@@ -1,5 +1,7 @@
 package codex
 
+import "strings"
+
 var ModelList = []string{
 	"gpt-5.6-sol",
 	"gpt-5.6-terra",
@@ -9,6 +11,13 @@ var ModelList = []string{
 	"gpt-5.4-mini",
 	"gpt-5.3-codex-spark",
 	"codex-auto-review",
+	"gpt-image-2",
 }
 
 const ChannelName = "codex"
+
+const defaultImageCarrierModel = "gpt-5.4"
+
+func IsCodexImageModel(model string) bool {
+	return strings.HasPrefix(model, "gpt-image-")
+}

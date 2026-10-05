@@ -7161,6 +7161,9 @@
     "Weighted observed success": "Weighted observed success",
     "Workspace": "Workspace",
     "Workspace Range Tokens": "Workspace Range Tokens",
-    "Operation documentation": "Operation documentation"
+    "Operation documentation": "Operation documentation",
+    "Image Carrier Model": "Image Carrier Model",
+    "Leave blank to use the default image carrier": "Leave blank to use the default image carrier",
+    "Text model used to carry Codex image generation requests; leave blank to use the global or default model": "Text model used to carry Codex image generation requests; leave blank to use the global or default model"
   }
 }
