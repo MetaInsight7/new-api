@@ -37,6 +37,7 @@ import {
 } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useTheme } from '@/context/theme-provider'
+import { countryLabel } from '@/lib/country'
 
 import { AdsDailyTab } from './ads-daily-tab'
 import {
@@ -279,8 +280,6 @@ const shortTime = (timestamp: number): string => {
   const get = (type: string) => parts.find((p) => p.type === type)?.value ?? ''
   return `${get('month')}-${get('day')} ${get('hour')}:${get('minute')}`
 }
-
-const countryLabel = (country: string, _language?: string): string => country
 
 const STRIPE_STATUS_LABELS: Record<string, string> = {
   paid: 'Paid OK',
