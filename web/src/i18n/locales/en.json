@@ -7164,6 +7164,16 @@
     "Operation documentation": "Operation documentation",
     "Image Carrier Model": "Image Carrier Model",
     "Leave blank to use the default image carrier": "Leave blank to use the default image carrier",
-    "Text model used to carry Codex image generation requests; leave blank to use the global or default model": "Text model used to carry Codex image generation requests; leave blank to use the global or default model"
+    "Text model used to carry Codex image generation requests; leave blank to use the global or default model": "Text model used to carry Codex image generation requests; leave blank to use the global or default model",
+    "Codex Fingerprint Mode": "Codex Fingerprint Mode",
+    "Off": "Off",
+    "Device": "Device",
+    "Full": "Full",
+    "Optional server-managed Codex device and session identity convergence. New and existing channels default to off.": "Optional server-managed Codex device and session identity convergence. New and existing channels default to off.",
+    "Set Codex fingerprint mode for selected channels": "Set Codex fingerprint mode for selected channels",
+    "Set Codex fingerprint mode": "Set Codex fingerprint mode",
+    "Only selected Codex channels are changed. Other channel types are ignored.": "Only selected Codex channels are changed. Other channel types are ignored.",
+    "Codex fingerprint mode updated": "Codex fingerprint mode updated",
+    "Failed to update Codex fingerprint mode": "Failed to update Codex fingerprint mode"
   }
 }

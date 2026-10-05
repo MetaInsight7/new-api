@@ -310,6 +310,7 @@ const SENSITIVE_FORM_FIELDS = [
   'responses_websocket_enabled',
   'system_prompt',
   'system_prompt_override',
+  'codex_fingerprint_mode',
   'allow_service_tier',
   'disable_store',
   'allow_safety_identifier',
@@ -1887,6 +1888,41 @@ export function ChannelMutateDrawer({
           <FormDescription>
             {t(
               'Text model used to carry Codex image generation requests; leave blank to use the global or default model'
+            )}
+          </FormDescription>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  )
+
+  const codexFingerprintFields = currentType === CHANNEL_TYPE_CODEX && (
+    <FormField
+      control={form.control}
+      name='codex_fingerprint_mode'
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>{t('Codex Fingerprint Mode')}</FormLabel>
+          <Select
+            value={field.value || 'off'}
+            onValueChange={field.onChange}
+            disabled={sensitiveLocked || isSubmitting}
+          >
+            <FormControl>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+            </FormControl>
+            <SelectContent>
+              <SelectItem value='off'>{t('Off')}</SelectItem>
+              <SelectItem value='device'>{t('Device')}</SelectItem>
+              <SelectItem value='session'>{t('Session')}</SelectItem>
+              <SelectItem value='full'>{t('Full')}</SelectItem>
+            </SelectContent>
+          </Select>
+          <FormDescription>
+            {t(
+              'Optional server-managed Codex device and session identity convergence. New and existing channels default to off.'
             )}
           </FormDescription>
           <FormMessage />
@@ -4722,6 +4758,7 @@ export function ChannelMutateDrawer({
                 {systemPromptFields}
                 {systemPromptOverrideFields}
                 {imageCarrierModelFields}
+                {codexFingerprintFields}
               </fieldset>
             </div>
             {fieldPassthroughFields}

@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	appconstant "github.com/QuantumNous/new-api/constant"
@@ -75,7 +76,17 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 
 	// Codex image generation only returns the image result through Responses SSE.
 	info.IsStream = true
-	return buildCodexImageBody(request, resolveImageCarrierModel(info), action, inputImages, mask), nil
+	body := buildCodexImageBody(request, resolveImageCarrierModel(info), action, inputImages, mask)
+	setFingerprintIDs(c, nil)
+	ids, err := resolveFingerprintIDsForRequest(info, clientSessionID(c), time.Now())
+	if err != nil {
+		return nil, err
+	}
+	setFingerprintIDs(c, ids)
+	if ids != nil && !applyFingerprintBody(body, ids) {
+		return nil, errors.New("codex channel: sanitize fingerprint metadata")
+	}
+	return body, nil
 }
 
 func isCodexJSONRequest(c *gin.Context) bool {
@@ -105,6 +116,7 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
 	isCompact := info != nil && info.RelayMode == relayconstant.RelayModeResponsesCompact
+	setFingerprintIDs(c, nil)
 
 	if info != nil && info.ChannelSetting.SystemPrompt != "" {
 		systemPrompt := info.ChannelSetting.SystemPrompt
@@ -146,6 +158,14 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 	if len(request.Instructions) == 0 {
 		request.Instructions = json.RawMessage(`""`)
 	}
+	ids, err := resolveFingerprintIDsForRequest(info, clientSessionID(c), time.Now())
+	if err != nil {
+		return nil, err
+	}
+	setFingerprintIDs(c, ids)
+	if err := applyFingerprintToResponsesRequest(&request, ids); err != nil {
+		return nil, err
+	}
 
 	if isCompact {
 		return request, nil
@@ -170,6 +190,33 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 		sanitizeCodexImageErrorResponse(resp)
 	}
 	return resp, nil
+}
+
+// RewritePassThroughBody applies the same attempt-scoped IDs used by the
+// Codex headers to a raw Responses body. The relay package discovers this
+// optional hook without coupling every adaptor to Codex internals.
+func (a *Adaptor) RewritePassThroughBody(c *gin.Context, info *relaycommon.RelayInfo, raw []byte) ([]byte, bool, error) {
+	setFingerprintIDs(c, nil)
+	ids, err := fingerprintIDsForRequest(c, info)
+	if err != nil {
+		return nil, false, err
+	}
+	if ids == nil {
+		return raw, false, nil
+	}
+	fingerprint := &CodexFingerprint{
+		InstallationID: ids.installationID,
+		SessionID:      ids.sessionID,
+		ThreadID:       ids.threadID,
+		TurnID:         ids.turnID,
+		WindowID:       ids.windowID,
+		StartedAtMS:    ids.startedAtMS,
+	}
+	rewritten, err := SanitizeCodexRequestBody(raw, fingerprint, ids.mode)
+	if err != nil {
+		return nil, false, err
+	}
+	return rewritten, !bytes.Equal(raw, rewritten), nil
 }
 
 func sanitizeCodexImageErrorResponse(resp *http.Response) {
@@ -278,6 +325,11 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 	if req.Get("originator") == "" {
 		req.Set("originator", "codex_cli_rs")
 	}
+	ids, err := fingerprintIDsForRequest(c, info)
+	if err != nil {
+		return err
+	}
+	applyFingerprintHeaders(*req, ids)
 
 	// chatgpt.com/backend-api/codex/responses is strict about Content-Type.
 	// Clients may omit it or include parameters like `application/json; charset=utf-8`,

@@ -6863,6 +6863,16 @@
     "Zhipu": "智譜",
     "Zhipu GLM": "智譜GLM",
     "Zhipu V4": "智譜 V4",
+    "Codex Fingerprint Mode": "Codex 指紋模式",
+    "Off": "關閉",
+    "Device": "裝置",
+    "Full": "完整",
+    "Optional server-managed Codex device and session identity convergence. New and existing channels default to off.": "可選的伺服器管理 Codex 裝置與工作階段身分收斂。新建和既有渠道預設關閉。",
+    "Set Codex fingerprint mode for selected channels": "設定所選渠道的 Codex 指紋模式",
+    "Set Codex fingerprint mode": "設定 Codex 指紋模式",
+    "Only selected Codex channels are changed. Other channel types are ignored.": "只會修改所選的 Codex 渠道，其他渠道類型會被忽略。",
+    "Codex fingerprint mode updated": "Codex 指紋模式已更新",
+    "Failed to update Codex fingerprint mode": "更新 Codex 指紋模式失敗",
     "Zoom": "縮放"
   }
 }

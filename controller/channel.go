@@ -1075,6 +1075,11 @@ type ChannelBatch struct {
 	Tag *string `json:"tag"`
 }
 
+type CodexFingerprintBatchRequest struct {
+	Ids  []int  `json:"ids"`
+	Mode string `json:"codex_fingerprint_mode"`
+}
+
 func DeleteChannelBatch(c *gin.Context) {
 	channelBatch := ChannelBatch{}
 	err := c.ShouldBindJSON(&channelBatch)
@@ -1104,6 +1109,35 @@ func DeleteChannelBatch(c *gin.Context) {
 		"data":    deletedCount,
 	})
 	return
+}
+
+func UpdateCodexFingerprintModeBatch(c *gin.Context) {
+	var request CodexFingerprintBatchRequest
+	if err := c.ShouldBindJSON(&request); err != nil || len(request.Ids) == 0 {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	mode := strings.ToLower(strings.TrimSpace(request.Mode))
+	switch mode {
+	case dto.CodexFingerprintModeOff, dto.CodexFingerprintModeDevice, dto.CodexFingerprintModeSession, dto.CodexFingerprintModeFull:
+	default:
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	updatedCount, err := model.UpdateCodexFingerprintModeByIds(request.Ids, mode)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	recordManageAudit(c, "channel.codex_fingerprint_batch_update", map[string]any{
+		"count": updatedCount,
+		"mode":  mode,
+	})
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    updatedCount,
+	})
 }
 
 type PatchChannel struct {

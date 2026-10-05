@@ -6863,6 +6863,16 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
+    "Codex Fingerprint Mode": "Chế độ dấu vân tay Codex",
+    "Off": "Tắt",
+    "Device": "Thiết bị",
+    "Full": "Đầy đủ",
+    "Optional server-managed Codex device and session identity convergence. New and existing channels default to off.": "Tùy chọn hợp nhất danh tính thiết bị và phiên Codex do máy chủ quản lý. Kênh mới và hiện có mặc định tắt.",
+    "Set Codex fingerprint mode for selected channels": "Đặt chế độ dấu vân tay Codex cho các kênh đã chọn",
+    "Set Codex fingerprint mode": "Đặt chế độ dấu vân tay Codex",
+    "Only selected Codex channels are changed. Other channel types are ignored.": "Chỉ các kênh Codex được chọn bị thay đổi. Các loại kênh khác sẽ bị bỏ qua.",
+    "Codex fingerprint mode updated": "Đã cập nhật chế độ dấu vân tay Codex",
+    "Failed to update Codex fingerprint mode": "Không thể cập nhật chế độ dấu vân tay Codex",
     "Zoom": "Zoom"
   }
 }

@@ -54,6 +54,25 @@ func PrepareResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, req *d
 		if err != nil {
 			return nil, nil, nil, types.NewError(err, types.ErrorCodeReadRequestBodyFailed, types.ErrOptionWithSkipRetry())
 		}
+		if rewriter, ok := adaptor.(interface {
+			RewritePassThroughBody(*gin.Context, *relaycommon.RelayInfo, []byte) ([]byte, bool, error)
+		}); ok {
+			raw, err := storage.Bytes()
+			if err != nil {
+				return nil, nil, nil, types.NewError(err, types.ErrorCodeReadRequestBodyFailed, types.ErrOptionWithSkipRetry())
+			}
+			rewritten, changed, err := rewriter.RewritePassThroughBody(c, info, raw)
+			if err != nil {
+				return nil, nil, nil, types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+			}
+			if changed {
+				body, closer, err := relaycommon.NewOutboundJSONBody(rewritten)
+				if err != nil {
+					return nil, nil, nil, types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+				}
+				return adaptor, body, closer, nil
+			}
+		}
 		body := common.NewReplayableBodyReader(storage)
 		return adaptor, body, io.NopCloser(body), nil
 	}

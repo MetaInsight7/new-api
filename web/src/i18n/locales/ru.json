@@ -6863,6 +6863,16 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
+    "Codex Fingerprint Mode": "Режим отпечатка Codex",
+    "Off": "Выключено",
+    "Device": "Устройство",
+    "Full": "Полный",
+    "Optional server-managed Codex device and session identity convergence. New and existing channels default to off.": "Необязательное объединение идентификаторов устройства и сеанса Codex под управлением сервера. Для новых и существующих каналов по умолчанию выключено.",
+    "Set Codex fingerprint mode for selected channels": "Задать режим отпечатка Codex для выбранных каналов",
+    "Set Codex fingerprint mode": "Задать режим отпечатка Codex",
+    "Only selected Codex channels are changed. Other channel types are ignored.": "Изменяются только выбранные каналы Codex. Каналы других типов игнорируются.",
+    "Codex fingerprint mode updated": "Режим отпечатка Codex обновлён",
+    "Failed to update Codex fingerprint mode": "Не удалось обновить режим отпечатка Codex",
     "Zoom": "Zoom"
   }
 }

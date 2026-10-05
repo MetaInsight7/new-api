@@ -389,6 +389,9 @@ func migrateDB() error {
 	if err != nil {
 		return err
 	}
+	if err := BackfillCodexFingerprintSeeds(); err != nil {
+		return fmt.Errorf("backfill Codex fingerprint seeds: %w", err)
+	}
 	if err := InitializeUserAuthVersions(); err != nil {
 		return err
 	}

@@ -21,6 +21,9 @@ type ChannelSettings struct {
 	SystemPrompt              string `json:"system_prompt,omitempty"`
 	SystemPromptOverride      bool   `json:"system_prompt_override,omitempty"`
 	ImageCarrierModel         string `json:"image_carrier_model,omitempty"`
+	// CodexFingerprintMode controls the optional, channel-scoped Codex client
+	// identity convergence. Empty values intentionally behave like off.
+	CodexFingerprintMode string `json:"codex_fingerprint_mode,omitempty"`
 	// TaskExtendPluginKeys lists the task plugins a New API channel (type 60)
 	// is extended with. The upstream gateway may host many plugins, so the
 	// channel serves every listed plugin's models while the request still pins
@@ -33,6 +36,38 @@ type ChannelSettings struct {
 	// HTTP2ConnectionShards spreads HTTP/2 traffic across N independent transports
 	// (1-8). Zero/unset means 1. Ignored when HTTPProtocol is "http1".
 	HTTP2ConnectionShards int `json:"http2_connection_shards,omitempty"`
+}
+
+const (
+	CodexFingerprintModeOff     = "off"
+	CodexFingerprintModeDevice  = "device"
+	CodexFingerprintModeSession = "session"
+	CodexFingerprintModeFull    = "full"
+)
+
+// NormalizedCodexFingerprintMode returns the safe default for values that are
+// absent or unknown. Fingerprint convergence is explicit opt-in.
+func (s ChannelSettings) NormalizedCodexFingerprintMode() string {
+	mode := strings.ToLower(strings.TrimSpace(s.CodexFingerprintMode))
+	switch mode {
+	case CodexFingerprintModeDevice, CodexFingerprintModeSession, CodexFingerprintModeFull:
+		return mode
+	default:
+		return CodexFingerprintModeOff
+	}
+}
+
+func (s ChannelSettings) ValidateCodexFingerprintMode() error {
+	mode := strings.ToLower(strings.TrimSpace(s.CodexFingerprintMode))
+	if mode == "" {
+		return nil
+	}
+	switch mode {
+	case CodexFingerprintModeOff, CodexFingerprintModeDevice, CodexFingerprintModeSession, CodexFingerprintModeFull:
+		return nil
+	default:
+		return fmt.Errorf("invalid codex_fingerprint_mode: %s", s.CodexFingerprintMode)
+	}
 }
 
 // BindsTaskPlugin reports whether the channel is bound to the task plugin,

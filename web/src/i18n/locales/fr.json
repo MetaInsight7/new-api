@@ -6863,6 +6863,16 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
+    "Codex Fingerprint Mode": "Mode d’empreinte Codex",
+    "Off": "Désactivé",
+    "Device": "Appareil",
+    "Full": "Complet",
+    "Optional server-managed Codex device and session identity convergence. New and existing channels default to off.": "Convergence facultative de l’identité Codex de l’appareil et de la session gérée par le serveur. Les nouveaux canaux et les canaux existants sont désactivés par défaut.",
+    "Set Codex fingerprint mode for selected channels": "Définir le mode d’empreinte Codex des canaux sélectionnés",
+    "Set Codex fingerprint mode": "Définir le mode d’empreinte Codex",
+    "Only selected Codex channels are changed. Other channel types are ignored.": "Seuls les canaux Codex sélectionnés sont modifiés. Les autres types de canaux sont ignorés.",
+    "Codex fingerprint mode updated": "Mode d’empreinte Codex mis à jour",
+    "Failed to update Codex fingerprint mode": "Échec de la mise à jour du mode d’empreinte Codex",
     "Zoom": "Zoom"
   }
 }

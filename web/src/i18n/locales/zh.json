@@ -7164,6 +7164,16 @@
     "Operation documentation": "操作文档",
     "Image Carrier Model": "图片承载模型",
     "Leave blank to use the default image carrier": "留空以使用默认图片承载模型",
-    "Text model used to carry Codex image generation requests; leave blank to use the global or default model": "用于承载 Codex 图片生成请求的文本模型；留空以使用全局或默认模型"
+    "Text model used to carry Codex image generation requests; leave blank to use the global or default model": "用于承载 Codex 图片生成请求的文本模型；留空以使用全局或默认模型",
+    "Codex Fingerprint Mode": "Codex 指纹模式",
+    "Off": "关闭",
+    "Device": "设备",
+    "Full": "完整",
+    "Optional server-managed Codex device and session identity convergence. New and existing channels default to off.": "可选的服务端 Codex 设备与会话身份收敛。新建和已有渠道默认关闭。",
+    "Set Codex fingerprint mode for selected channels": "设置所选渠道的 Codex 指纹模式",
+    "Set Codex fingerprint mode": "设置 Codex 指纹模式",
+    "Only selected Codex channels are changed. Other channel types are ignored.": "仅修改所选的 Codex 渠道，其他渠道类型会被忽略。",
+    "Codex fingerprint mode updated": "Codex 指纹模式已更新",
+    "Failed to update Codex fingerprint mode": "更新 Codex 指纹模式失败"
   }
 }

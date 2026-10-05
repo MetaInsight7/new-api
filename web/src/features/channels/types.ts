@@ -92,6 +92,7 @@ export interface ChannelSettings {
   system_prompt?: string
   system_prompt_override?: boolean
   image_carrier_model?: string
+  codex_fingerprint_mode?: 'off' | 'device' | 'session' | 'full'
   http_protocol?: 'auto' | 'http1' | string
   http2_connection_shards?: number
 }
@@ -336,6 +337,11 @@ export interface BatchDeleteParams {
 export interface BatchSetTagParams {
   ids: number[]
   tag: string | null
+}
+
+export interface BatchSetCodexFingerprintModeParams {
+  ids: number[]
+  codex_fingerprint_mode: 'off' | 'device' | 'session' | 'full'
 }
 
 export interface TagOperationParams {

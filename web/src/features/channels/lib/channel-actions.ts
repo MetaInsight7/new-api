@@ -31,6 +31,7 @@ import {
   batchUpdateChannelStatus,
   batchDeleteChannels,
   batchSetChannelTag,
+  batchSetCodexFingerprintMode,
   enableTagChannels,
   disableTagChannels,
   deleteDisabledChannels,
@@ -506,6 +507,37 @@ export async function handleBatchSetTag(
     }
   } catch (error) {
     handleServerError(error, i18next.t('Failed to set tag'))
+  }
+}
+
+export async function handleBatchSetCodexFingerprintMode(
+  ids: number[],
+  mode: 'off' | 'device' | 'session' | 'full',
+  queryClient?: QueryClient,
+  onSuccess?: () => void
+): Promise<void> {
+  if (ids.length === 0) {
+    toast.error(i18next.t('No channels selected'))
+    return
+  }
+
+  try {
+    const response = await batchSetCodexFingerprintMode({
+      ids,
+      codex_fingerprint_mode: mode,
+    })
+    if (response.success) {
+      toast.success(i18next.t('Codex fingerprint mode updated'))
+      queryClient?.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+      onSuccess?.()
+    } else {
+      handleServerError(response, i18next.t('Failed to update Codex fingerprint mode'))
+    }
+  } catch (error) {
+    handleServerError(
+      error,
+      i18next.t('Failed to update Codex fingerprint mode')
+    )
   }
 }
 

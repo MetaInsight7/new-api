@@ -6863,6 +6863,16 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V 4",
+    "Codex Fingerprint Mode": "Codex フィンガープリントモード",
+    "Off": "オフ",
+    "Device": "デバイス",
+    "Full": "完全",
+    "Optional server-managed Codex device and session identity convergence. New and existing channels default to off.": "サーバー管理の Codex デバイスおよびセッション ID を任意で統一します。新規・既存チャンネルの既定値はオフです。",
+    "Set Codex fingerprint mode for selected channels": "選択したチャンネルの Codex フィンガープリントモードを設定",
+    "Set Codex fingerprint mode": "Codex フィンガープリントモードを設定",
+    "Only selected Codex channels are changed. Other channel types are ignored.": "選択した Codex チャンネルのみ変更します。その他のチャンネル種別は無視されます。",
+    "Codex fingerprint mode updated": "Codex フィンガープリントモードを更新しました",
+    "Failed to update Codex fingerprint mode": "Codex フィンガープリントモードの更新に失敗しました",
     "Zoom": "ズーム"
   }
 }

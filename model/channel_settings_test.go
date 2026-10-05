@@ -50,6 +50,22 @@ func TestChannelValidateSettingsRejectsInvalidHTTPTransport(t *testing.T) {
 	}
 }
 
+func TestChannelValidateSettingsRejectsInvalidCodexFingerprintMode(t *testing.T) {
+	channel := &Channel{Type: constant.ChannelTypeCodex}
+	channel.SetSetting(dto.ChannelSettings{CodexFingerprintMode: "shared"})
+	err := channel.ValidateSettings()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "codex_fingerprint_mode")
+}
+
+func TestChannelValidateSettingsAcceptsCodexFingerprintModes(t *testing.T) {
+	for _, mode := range []string{"", "off", "device", "session", "full"} {
+		channel := &Channel{Type: constant.ChannelTypeCodex}
+		channel.SetSetting(dto.ChannelSettings{CodexFingerprintMode: mode})
+		require.NoError(t, channel.ValidateSettings(), mode)
+	}
+}
+
 func TestAdvancedCustomChannelRequiresModelListRouteOnlyWhenUpdateChecksEnabled(t *testing.T) {
 	inferenceRoute := dto.AdvancedCustomRoute{
 		IncomingPath: "/v1/chat/completions",

@@ -612,8 +612,23 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 	common.SetContextKey(c, constant.ContextKeyChannelName, channel.Name)
 	common.SetContextKey(c, constant.ContextKeyChannelType, channel.Type)
 	common.SetContextKey(c, constant.ContextKeyChannelCreateTime, channel.CreatedTime)
-	common.SetContextKey(c, constant.ContextKeyChannelSetting, channel.GetSetting())
+	channelSetting := channel.GetSetting()
+	common.SetContextKey(c, constant.ContextKeyChannelSetting, channelSetting)
 	common.SetContextKey(c, constant.ContextKeyChannelOtherSetting, channel.GetOtherSettings())
+	if channel.Type == constant.ChannelTypeCodex &&
+		channelSetting.NormalizedCodexFingerprintMode() != dto.CodexFingerprintModeOff {
+		seed, err := model.EnsureCodexFingerprintSeed(channel.Id)
+		if err != nil || seed == "" {
+			return types.NewError(
+				errors.New("codex fingerprint seed is unavailable"),
+				types.ErrorCodeGetChannelFailed,
+				types.ErrOptionWithSkipRetry(),
+			)
+		}
+		common.SetContextKey(c, constant.ContextKeyChannelCodexFingerprintSeed, seed)
+	} else {
+		common.SetContextKey(c, constant.ContextKeyChannelCodexFingerprintSeed, "")
+	}
 	switch channel.Type {
 	case constant.ChannelTypeTaskPlugin:
 		c.Set("task_plugin_key", channel.GetSetting().TaskPluginKey)

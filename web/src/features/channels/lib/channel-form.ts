@@ -280,6 +280,9 @@ export const channelFormSchema = z
     system_prompt: z.string().optional(),
     system_prompt_override: z.boolean().optional(),
     image_carrier_model: z.string().optional(),
+    codex_fingerprint_mode: z
+      .enum(['off', 'device', 'session', 'full'])
+      .optional(),
     // Type-specific settings (stored in settings JSON)
     is_enterprise_account: z.boolean().optional(), // OpenRouter specific
     vertex_key_type: z.enum(['json', 'api_key']).optional(), // Vertex AI specific
@@ -474,6 +477,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   system_prompt: '',
   system_prompt_override: false,
   image_carrier_model: '',
+  codex_fingerprint_mode: 'off',
   // Type-specific settings
   is_enterprise_account: false,
   vertex_key_type: 'json',
@@ -519,6 +523,7 @@ export function transformChannelToFormDefaults(
     system_prompt: '',
     system_prompt_override: false,
     image_carrier_model: '',
+    codex_fingerprint_mode: 'off' as const,
   }
 
   if (channel.setting) {
@@ -542,6 +547,12 @@ export function transformChannelToFormDefaults(
         system_prompt: parsed.system_prompt || '',
         system_prompt_override: parsed.system_prompt_override || false,
         image_carrier_model: parsed.image_carrier_model || '',
+        codex_fingerprint_mode:
+          parsed.codex_fingerprint_mode === 'device' ||
+          parsed.codex_fingerprint_mode === 'session' ||
+          parsed.codex_fingerprint_mode === 'full'
+            ? parsed.codex_fingerprint_mode
+            : 'off',
       }
     } catch (error) {
       // eslint-disable-next-line no-console
@@ -682,6 +693,14 @@ export function buildSettingJSON(formData: ChannelFormValues): string {
 
   if (formData.type === CHANNEL_TYPE_CODEX && formData.image_carrier_model?.trim()) {
     settingObj.image_carrier_model = formData.image_carrier_model.trim()
+  }
+
+  if (formData.type === CHANNEL_TYPE_CODEX) {
+    if (formData.codex_fingerprint_mode !== 'off') {
+      settingObj.codex_fingerprint_mode = formData.codex_fingerprint_mode
+    }
+  } else {
+    delete settingObj.codex_fingerprint_mode
   }
 
   const protocol = normalizeHttpProtocol(formData.http_protocol)

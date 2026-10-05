@@ -17,8 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQueryClient } from '@tanstack/react-query'
-import { type Table } from '@tanstack/react-table'
-import { Power, PowerOff, Tag, Trash2 } from 'lucide-react'
+import type { Table } from '@tanstack/react-table'
+import { KeyRound, Power, PowerOff, Tag, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -27,6 +27,13 @@ import { Dialog } from '@/components/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   Tooltip,
   TooltipContent,
@@ -45,6 +52,7 @@ import {
   handleBatchDisable,
   handleBatchEnable,
   handleBatchSetTag,
+  handleBatchSetCodexFingerprintMode,
 } from '../lib'
 import type { Channel } from '../types'
 
@@ -60,6 +68,11 @@ export function DataTableBulkActions<TData>({
   const [showTagDialog, setShowTagDialog] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [tagValue, setTagValue] = useState('')
+  const [showCodexFingerprintDialog, setShowCodexFingerprintDialog] =
+    useState(false)
+  const [codexFingerprintMode, setCodexFingerprintMode] = useState<
+    'off' | 'device' | 'session' | 'full'
+  >('off')
   const currentUser = useAuthStore((s) => s.auth.user)
   const canEditSensitive = hasPermission(
     currentUser,
@@ -106,6 +119,19 @@ export function DataTableBulkActions<TData>({
     })
   }
 
+  const handleSetCodexFingerprintMode = () => {
+    if (!canEditSensitive) return
+    handleBatchSetCodexFingerprintMode(
+      selectedIds,
+      codexFingerprintMode,
+      queryClient,
+      () => {
+        setShowCodexFingerprintDialog(false)
+        handleClearSelection()
+      }
+    )
+  }
+
   return (
     <>
       <BulkActionsToolbar table={table} entityName='channel'>
@@ -127,6 +153,40 @@ export function DataTableBulkActions<TData>({
           </TooltipTrigger>
           <TooltipContent>
             <p>{t('Enable selected channels')}</p>
+          </TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant='outline'
+                size='icon'
+                onClick={() => setShowCodexFingerprintDialog(true)}
+                disabled={!canEditSensitive}
+                className='size-8'
+                aria-label={t(
+                  'Set Codex fingerprint mode for selected channels'
+                )}
+                title={
+                  canEditSensitive
+                    ? t('Set Codex fingerprint mode for selected channels')
+                    : t('No permission to perform this action')
+                }
+              />
+            }
+          >
+            <KeyRound />
+            <span className='sr-only'>
+              {t('Set Codex fingerprint mode for selected channels')}
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>
+              {canEditSensitive
+                ? t('Set Codex fingerprint mode')
+                : t('No permission to perform this action')}
+            </p>
           </TooltipContent>
         </Tooltip>
 
@@ -250,6 +310,60 @@ export function DataTableBulkActions<TData>({
               onChange={(e) => setTagValue(e.target.value)}
             />
           </div>
+        </div>
+      </Dialog>
+
+      <Dialog
+        open={showCodexFingerprintDialog}
+        onOpenChange={setShowCodexFingerprintDialog}
+        title={t('Set Codex fingerprint mode')}
+        description={t(
+          'Only selected Codex channels are changed. Other channel types are ignored.'
+        )}
+        contentHeight='auto'
+        bodyClassName='space-y-4'
+        footer={
+          <>
+            <Button
+              variant='outline'
+              onClick={() => setShowCodexFingerprintDialog(false)}
+            >
+              {t('Cancel')}
+            </Button>
+            <Button
+              onClick={handleSetCodexFingerprintMode}
+              disabled={!canEditSensitive}
+            >
+              {t('Save')}
+            </Button>
+          </>
+        }
+      >
+        <div className='grid gap-2 py-4'>
+          <Label htmlFor='codex-fingerprint-mode'>{t('Mode')}</Label>
+          <Select
+            value={codexFingerprintMode}
+            onValueChange={(value) => {
+              if (
+                value === 'off' ||
+                value === 'device' ||
+                value === 'session' ||
+                value === 'full'
+              ) {
+                setCodexFingerprintMode(value)
+              }
+            }}
+          >
+            <SelectTrigger id='codex-fingerprint-mode'>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value='off'>{t('Off')}</SelectItem>
+              <SelectItem value='device'>{t('Device')}</SelectItem>
+              <SelectItem value='session'>{t('Session')}</SelectItem>
+              <SelectItem value='full'>{t('Full')}</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </Dialog>
 

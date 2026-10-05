@@ -25,6 +25,7 @@ import type {
   AddChannelRequest,
   BatchDeleteParams,
   BatchSetTagParams,
+  BatchSetCodexFingerprintModeParams,
   Channel,
   ChannelBalanceResponse,
   ChannelOpsResponse,
@@ -251,6 +252,13 @@ export async function batchSetChannelTag(
     data,
     channelActionConfig()
   )
+  return res.data
+}
+
+export async function batchSetCodexFingerprintMode(
+  data: BatchSetCodexFingerprintModeParams
+): Promise<{ success: boolean; message?: string; data?: number }> {
+  const res = await api.put('/api/channel/batch', data, channelActionConfig())
   return res.data
 }
 
