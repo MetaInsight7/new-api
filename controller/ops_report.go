@@ -218,19 +218,6 @@ var (
 	opsAggsMutex        sync.Mutex
 )
 
-func invalidateOpsReportCache() {
-	opsReportMutex.Lock()
-	opsReportCache = nil
-	opsReportAggsAt = time.Time{}
-	opsReportMutex.Unlock()
-
-	opsAggsMutex.Lock()
-	opsAggsCacheEnabled = nil
-	opsAggsCacheAll = nil
-	opsAggsCacheAt = time.Time{}
-	opsAggsMutex.Unlock()
-}
-
 // GetOpsReport handles GET /api/ops_report?days=N (admin only).
 func GetOpsReport(c *gin.Context) {
 	days, _ := strconv.Atoi(c.Query("days"))

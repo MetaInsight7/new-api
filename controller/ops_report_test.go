@@ -2,41 +2,10 @@ package controller
 
 import (
 	"testing"
-	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 )
-
-func TestInvalidateOpsReportCacheDropsReportAndCohortCaches(t *testing.T) {
-	previousReport := opsReportCache
-	previousReportAt := opsReportAggsAt
-	previousEnabled := opsAggsCacheEnabled
-	previousAll := opsAggsCacheAll
-	previousAggsAt := opsAggsCacheAt
-	t.Cleanup(func() {
-		opsReportCache = previousReport
-		opsReportAggsAt = previousReportAt
-		opsAggsCacheEnabled = previousEnabled
-		opsAggsCacheAll = previousAll
-		opsAggsCacheAt = previousAggsAt
-	})
-
-	opsReportCache = &opsReportData{}
-	opsReportAggsAt = time.Now()
-	opsAggsCacheEnabled = map[int]*opsUserAgg{1: {}}
-	opsAggsCacheAll = map[int]*opsUserAgg{2: {}}
-	opsAggsCacheAt = time.Now()
-
-	invalidateOpsReportCache()
-
-	if opsReportCache != nil || !opsReportAggsAt.IsZero() {
-		t.Fatalf("report cache was not invalidated: cache=%v at=%v", opsReportCache, opsReportAggsAt)
-	}
-	if opsAggsCacheEnabled != nil || opsAggsCacheAll != nil || !opsAggsCacheAt.IsZero() {
-		t.Fatalf("cohort caches were not invalidated: enabled=%v all=%v at=%v", opsAggsCacheEnabled, opsAggsCacheAll, opsAggsCacheAt)
-	}
-}
 
 func TestParseOpsAttributionPrefersFirstValidLanding(t *testing.T) {
 	agg := &opsUserAgg{user: &model.OpsUser{AdsAttribution: `{"utm_campaign":"spring","first_landing_path":"/spring","landing_path":"/oauth/google"}`}}
