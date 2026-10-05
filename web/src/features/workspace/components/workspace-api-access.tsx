@@ -88,7 +88,7 @@ export function WorkspaceApiAccess() {
     return [
       {
         id: 'default',
-        label: t('默认线路'),
+        label: t('Default route'),
         url: normalizeBaseUrl(serverAddress),
       },
     ]

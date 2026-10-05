@@ -119,13 +119,19 @@ function ChangeBadge(props: { change: string }) {
 }
 
 function StatusBadge(props: { status: string }) {
+  const { t } = useTranslation()
   if (!props.status) return null
+  const statusLabelKey: Record<string, string> = {
+    ENABLED: 'Enabled',
+    PAUSED: 'Paused',
+    REMOVED: 'Removed',
+  }
   return (
     <Badge
       variant={props.status === 'ENABLED' ? 'outline' : 'secondary'}
       className='text-xs'
     >
-      {props.status.toLowerCase()}
+      {t(statusLabelKey[props.status] ?? props.status.toLowerCase())}
     </Badge>
   )
 }
@@ -168,7 +174,7 @@ function CreativeCard(props: {
     >
       <div className='flex items-center justify-between gap-2'>
         <div className='text-muted-foreground truncate text-xs'>
-          <span className='text-foreground font-semibold'>Ad</span>
+          <span className='text-foreground font-semibold'>{t('Ad')}</span>
           {displayUrl && <> · {displayUrl}</>}
         </div>
         <div className='flex shrink-0 gap-1'>
@@ -269,7 +275,7 @@ function KeywordsTable(props: { rows: AdsDailyKeywordRow[] }) {
             <TableHead>{t('Status')}</TableHead>
             <TableHead className='text-right'>{t('Max CPC Bid')}</TableHead>
             <TableHead className='text-right'>{t('Clicks')}</TableHead>
-            <TableHead className='text-right'>CPC</TableHead>
+            <TableHead className='text-right'>{t('CPC')}</TableHead>
             <TableHead className='text-right'>{t('Ad Spend')}</TableHead>
             <TableHead className='text-right'>{t('Conversions')}</TableHead>
             <TableHead>{t('Change')}</TableHead>
@@ -337,7 +343,7 @@ function LandingsTable(props: { rows: AdsDailyLandingRow[] }) {
           <TableRow>
             <TableHead>{t('Landing Pages')}</TableHead>
             <TableHead className='text-right'>{t('Clicks')}</TableHead>
-            <TableHead className='text-right'>CPC</TableHead>
+            <TableHead className='text-right'>{t('CPC')}</TableHead>
             <TableHead className='text-right'>{t('Ad Spend')}</TableHead>
             <TableHead className='text-right'>{t('Conversions')}</TableHead>
             <TableHead>{t('Change')}</TableHead>
@@ -598,7 +604,7 @@ function DayRow(props: {
 }
 
 export function AdsDailyTab(props: { report: AdsDailyReport }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const days = props.report.days_list ?? []
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set())
   // latest known content per ad, used as a stand-in on pre-snapshot days
@@ -647,7 +653,9 @@ export function AdsDailyTab(props: { report: AdsDailyReport }) {
           {props.report.last_sync_at > 0 && (
             <>
               {t('Last synced')}:{' '}
-              {new Date(props.report.last_sync_at * 1000).toLocaleString()}
+              {new Date(props.report.last_sync_at * 1000).toLocaleString(
+                toIntlLocale(i18n.resolvedLanguage || i18n.language)
+              )}
             </>
           )}
         </p>
@@ -658,7 +666,7 @@ export function AdsDailyTab(props: { report: AdsDailyReport }) {
                 <TableHead>{t('Date')}</TableHead>
                 <TableHead className='text-right'>{t('Ad Spend')}</TableHead>
                 <TableHead className='text-right'>{t('Clicks')}</TableHead>
-                <TableHead className='text-right'>CPC</TableHead>
+                <TableHead className='text-right'>{t('CPC')}</TableHead>
                 <TableHead className='text-right'>{t('Conversions')}</TableHead>
                 <TableHead>{t('Keywords')}</TableHead>
                 <TableHead className='text-right'>{t('Creatives')}</TableHead>

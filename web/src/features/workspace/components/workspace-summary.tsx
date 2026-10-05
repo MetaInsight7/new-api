@@ -20,6 +20,7 @@ import { Activity, Coins, Layers, WalletCards, type LucideIcon } from 'lucide-re
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { formatQuota } from '@/lib/format'
+import { toIntlLocale } from '@/i18n/languages'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { WorkspaceChartData } from '../types'
 
@@ -32,10 +33,11 @@ interface SummaryItem {
 }
 
 function formatWorkspaceCompactNumber(
-  value: number | null | undefined
+  value: number | null | undefined,
+  locale?: string
 ): string {
   if (value == null || Number.isNaN(value)) return '-'
-  return Intl.NumberFormat('en-US', {
+  return Intl.NumberFormat(toIntlLocale(locale), {
     notation: 'compact',
     compactDisplay: 'short',
     maximumFractionDigits: 1,
@@ -71,8 +73,9 @@ function getBalanceStatus(quota: number, setting: string | undefined, t: (key: s
 }
 
 export function WorkspaceSummary(props: WorkspaceChartData) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const user = useAuthStore((state) => state.auth.user)
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const rangeLabel = getRangeLabel(props.rangeKey, t)
   const balance = Number(user?.quota ?? 0)
   const userSetting = typeof user?.setting === 'string' ? user.setting : undefined
@@ -98,16 +101,16 @@ export function WorkspaceSummary(props: WorkspaceChartData) {
       label: isCustomRange
         ? t('Custom Range Requested')
         : t('Range Requests', { range: rangeLabel }),
-      value: formatWorkspaceCompactNumber(props.totalCount),
-      description: `${t('Historical requests')} ${formatWorkspaceCompactNumber(Number(user?.request_count ?? 0))}`,
+      value: formatWorkspaceCompactNumber(props.totalCount, locale),
+      description: `${t('Historical requests')} ${formatWorkspaceCompactNumber(Number(user?.request_count ?? 0), locale)}`,
       icon: Activity,
     },
     {
       label: isCustomRange
         ? t('Custom Range Tokens')
         : t('Workspace Range Tokens', { range: rangeLabel }),
-      value: formatWorkspaceCompactNumber(props.totalTokens),
-      description: `${t('Last 30 days total')} ${formatWorkspaceCompactNumber(props.recentTokens)}`,
+      value: formatWorkspaceCompactNumber(props.totalTokens, locale),
+      description: `${t('Last 30 days total')} ${formatWorkspaceCompactNumber(props.recentTokens, locale)}`,
       icon: Layers,
     },
   ]
