@@ -168,12 +168,7 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		imageN = common.QuotaRound(count)
 	}
 
-	if usage.(*dto.Usage).TotalTokens == 0 {
-		usage.(*dto.Usage).TotalTokens = 1
-	}
-	if usage.(*dto.Usage).PromptTokens == 0 {
-		usage.(*dto.Usage).PromptTokens = 1
-	}
+	normalizeImageUsageForBilling(usage.(*dto.Usage), info.PriceData.UsePrice)
 
 	quality := request.Quality
 	if quality == "" {

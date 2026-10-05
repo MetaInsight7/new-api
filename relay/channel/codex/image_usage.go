@@ -7,7 +7,7 @@ import (
 )
 
 func buildCodexImageUsage(imageUsage gjson.Result, hasUsage bool) *dto.Usage {
-	usage := &dto.Usage{}
+	usage := &dto.Usage{UsageSource: dto.UsageSourceCodexImage}
 	if !hasUsage {
 		return usage
 	}
@@ -29,6 +29,8 @@ func buildCodexImageUsage(imageUsage gjson.Result, hasUsage bool) *dto.Usage {
 	if usage.CompletionTokenDetails.ImageTokens == 0 {
 		usage.CompletionTokenDetails.ImageTokens = nonNegativeInt(imageUsage.Get("image_tokens").Int())
 	}
+	usage.UsageSemantic = dto.BillingUsageSemanticOpenAI
+	usage.BillingUsage = dto.NewOpenAIResponsesBillingUsage(usage)
 	return usage
 }
 
