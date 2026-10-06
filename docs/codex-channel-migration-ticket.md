@@ -3,7 +3,7 @@
 > Parent spec：`docs/codex-channel-migration-spec.md`\
 > Target branch：`tokendazi_op`\
 > Source baseline：`dev-new-api` `solve/main`\
-> Status：Ready for implementation
+> Status：Implementation complete; targeted validation passed
 
 本清单把已确认的 Codex 迁移拆成可独立验证的功能。每个 ticket 完成后单独测试并提交；提交信息描述实际功能，不使用 ticket 编号作为 commit message。
 
@@ -185,6 +185,10 @@
 
 `feat: enforce Codex request identity at final egress`
 
+### Status
+
+已完成：最终出口策略、pass-through body 约束、敏感 Header 清理、重试隔离和对应测试已提交。
+
 ## Ticket 7：增加全局 Codex Identity 和版本同步
 
 ### Scope
@@ -243,6 +247,10 @@
 
 `fix: align Codex terminal failures with retry and billing rules`
 
+### Status
+
+已完成：terminal failure 的白标错误、首字节前重试、已输出后停止透明重试、authoritative usage 结算和对应测试已提交。
+
 ## 不纳入本批次
 
 - Codex 账号封禁/永久失效渠道状态：另立渠道生命周期 ticket；
@@ -263,3 +271,11 @@
 8. Ticket 8：terminal failure、重试和最终回归。
 
 每一步先阅读目标文件的最新 Base 实现，再实现对应 ticket；完成后运行针对性测试，前端发生变更时追加 Playwright 验证，确认通过后才进入下一步。
+
+## 当前验证记录
+
+- `go test ./relay/channel/codex -run 'TestFinalize|TestCodexFingerprint|TestPrepareRequestBody' -count=1`：通过。
+- `go test ./relay/channel/openai -run 'Responses|Billing' -count=1`：通过。
+- `go test ./service -run 'TestPostTextConsumeQuotaOnErrorSettlesAuthoritativeUsage|TestResponsesUsageAccumulator' -count=1`：通过。
+- `go vet ./relay/channel/codex ./relay/channel ./relay ./service`：通过。
+- 受影响包的完整测试中，依赖 `httptest`/`miniredis` 监听本地端口的既有测试受当前沙箱禁止监听端口影响，未作为业务失败判断。
