@@ -310,6 +310,14 @@ func applyHeaderOverrideToRequest(req *http.Request, headerOverride map[string]s
 	}
 }
 
+func finalizeRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, req *http.Request) error {
+	finalizer, ok := a.(RequestFinalizer)
+	if !ok {
+		return nil
+	}
+	return finalizer.FinalizeRequest(c, info, req)
+}
+
 func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody io.Reader) (*http.Response, error) {
 	fullRequestURL, err := a.GetRequestURL(info)
 	if err != nil {
@@ -333,6 +341,9 @@ func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 		return nil, err
 	}
 	applyHeaderOverrideToRequest(req, headerOverride)
+	if err := finalizeRequest(a, c, info, req); err != nil {
+		return nil, fmt.Errorf("finalize request failed: %w", err)
+	}
 	resp, err := doRequest(c, req, info)
 	if err != nil {
 		return nil, fmt.Errorf("do request failed: %w", err)
@@ -365,6 +376,9 @@ func DoFormRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBod
 		return nil, err
 	}
 	applyHeaderOverrideToRequest(req, headerOverride)
+	if err := finalizeRequest(a, c, info, req); err != nil {
+		return nil, fmt.Errorf("finalize request failed: %w", err)
+	}
 	resp, err := doRequest(c, req, info)
 	if err != nil {
 		return nil, fmt.Errorf("do request failed: %w", err)
@@ -397,6 +411,11 @@ func DoWssRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 		targetHeader.Set(key, value)
 	}
 	targetHeader.Set("Content-Type", c.Request.Header.Get("Content-Type"))
+	request := &http.Request{Header: targetHeader}
+	if err := finalizeRequest(a, c, info, request); err != nil {
+		return nil, fmt.Errorf("finalize request failed: %w", err)
+	}
+	targetHeader = request.Header
 	dialer := *websocket.DefaultDialer
 	if info.ChannelSetting.Proxy != "" {
 		proxyURL, _, proxyErr := common2.ParseProxyURLRuntime(info.ChannelSetting.Proxy)

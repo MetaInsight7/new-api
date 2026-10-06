@@ -40,6 +40,7 @@ type CodexFingerprint struct {
 
 type codexFingerprintIDs struct {
 	mode, installationID, sessionID, threadID, turnID, windowID string
+	scope                                                       string
 	startedAtMS                                                 int64
 }
 
@@ -136,13 +137,16 @@ func resolveFingerprintIDsForRequest(info *relaycommon.RelayInfo, clientSession 
 	if err != nil {
 		return nil, err
 	}
-	return codexFingerprintFromPublic(mode, fingerprint), nil
+	ids := codexFingerprintFromPublic(mode, fingerprint)
+	ids.scope = codexFingerprintScope(info)
+	return ids, nil
 }
 
 func fingerprintIDsForRequest(c *gin.Context, info *relaycommon.RelayInfo) (*codexFingerprintIDs, error) {
+	scope := codexFingerprintScope(info)
 	if c != nil {
 		if value, ok := c.Get(fingerprintContextKey); ok {
-			if ids, ok := value.(*codexFingerprintIDs); ok && ids != nil {
+			if ids, ok := value.(*codexFingerprintIDs); ok && ids != nil && ids.scope == scope {
 				return ids, nil
 			}
 		}
@@ -152,6 +156,13 @@ func fingerprintIDsForRequest(c *gin.Context, info *relaycommon.RelayInfo) (*cod
 		setFingerprintIDs(c, ids)
 	}
 	return ids, err
+}
+
+func codexFingerprintScope(info *relaycommon.RelayInfo) string {
+	if info == nil || info.ChannelMeta == nil {
+		return ""
+	}
+	return fmt.Sprintf("%d:%d:%s:%s", info.ChannelId, info.ChannelMultiKeyIndex, strings.TrimSpace(info.CodexFingerprintSeed), fingerprintMode(info))
 }
 
 func rewriteTurnMetadata(raw string, ids *codexFingerprintIDs) string {
@@ -316,6 +327,9 @@ func SanitizeCodexRequestBody(raw []byte, fingerprint *CodexFingerprint, mode st
 	if ids == nil {
 		return raw, nil
 	}
+	if err := validateCodexRequestBodyRaw(raw); err != nil {
+		return nil, err
+	}
 	if mode != dto.CodexFingerprintModeFull {
 		rewritten, _, err := applyFingerprintBodyRaw(raw, ids)
 		return rewritten, err
@@ -366,6 +380,72 @@ func validateFullFingerprintMetadataRaw(raw []byte) error {
 		return errors.New("codex channel: full fingerprint client_metadata is too deeply nested")
 	}
 	return rejectDuplicateJSONKeys(raw, maxCodexRequestJSONDepth)
+}
+
+func validateCodexRequestBodyRaw(raw []byte) error {
+	if len(raw) == 0 {
+		return errors.New("codex channel: request body is empty")
+	}
+	if err := rejectDuplicateJSONKeys(raw, maxCodexRequestJSONDepth); err != nil {
+		return err
+	}
+	metadata := gjson.GetBytes(raw, "client_metadata")
+	if !metadata.Exists() {
+		return nil
+	}
+	if !metadata.IsObject() {
+		return errors.New("codex channel: client_metadata must be an object")
+	}
+	if len(metadata.Raw) > maxCodexMetadataBytes {
+		return errors.New("codex channel: client_metadata is too large")
+	}
+	if exceedsJSONRawDepth([]byte(metadata.Raw), maxCodexMetadataDepth) {
+		return errors.New("codex channel: client_metadata is too deeply nested")
+	}
+	return nil
+}
+
+func stripCompactOriginalMetadataRaw(body []byte) ([]byte, bool, error) {
+	if len(body) == 0 {
+		return body, false, nil
+	}
+	root := gjson.ParseBytes(body)
+	if !gjson.ValidBytes(body) || !root.IsObject() {
+		return body, false, nil
+	}
+	rewritten := body
+	changed := false
+	for _, key := range []string{"client_metadata", "metadata"} {
+		if !gjson.GetBytes(rewritten, key).Exists() {
+			continue
+		}
+		var err error
+		rewritten, err = sjson.DeleteBytes(rewritten, key)
+		if err != nil {
+			return body, false, fmt.Errorf("codex channel: strip compact original metadata: %w", err)
+		}
+		changed = true
+	}
+	return rewritten, changed, nil
+}
+
+func validateCompactPassThroughFullBody(raw []byte) error {
+	if len(raw) == 0 {
+		return errors.New("codex channel: full fingerprint compact request body is empty")
+	}
+	if err := validateFullFingerprintMetadataRaw(raw); err != nil {
+		return err
+	}
+	var body map[string]any
+	if err := common.Unmarshal(raw, &body); err != nil || body == nil {
+		return errors.New("codex channel: invalid full fingerprint compact request json")
+	}
+	if metadata, ok := body["client_metadata"]; ok {
+		if _, ok := metadata.(map[string]any); !ok {
+			return errors.New("codex channel: full fingerprint compact client_metadata must be an object")
+		}
+	}
+	return nil
 }
 
 func rejectDuplicateJSONKeys(raw []byte, maxDepth int) error {

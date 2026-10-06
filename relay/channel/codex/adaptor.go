@@ -19,6 +19,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/model_setting"
 
 	"github.com/gin-gonic/gin"
 )
@@ -182,7 +183,17 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
-	resp, err := channel.DoApiRequest(a, c, info, requestBody)
+	if shouldResetCodexFingerprintForAttempt(info) {
+		setFingerprintIDs(c, nil)
+	}
+	preparedBody, closer, err := a.prepareRequestBody(c, info, requestBody)
+	if err != nil {
+		return nil, err
+	}
+	if closer != nil {
+		defer closer.Close()
+	}
+	resp, err := channel.DoApiRequest(a, c, info, preparedBody)
 	if err != nil {
 		return resp, err
 	}
@@ -192,9 +203,135 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 	return resp, nil
 }
 
-// RewritePassThroughBody applies the same attempt-scoped IDs used by the
-// Codex headers to a raw Responses body. The relay package discovers this
-// optional hook without coupling every adaptor to Codex internals.
+func shouldResetCodexFingerprintForAttempt(info *relaycommon.RelayInfo) bool {
+	if info == nil {
+		return false
+	}
+	if info.RelayMode == relayconstant.RelayModeAlphaSearch {
+		return true
+	}
+	return codexPassThroughBodyEnabled(info)
+}
+
+func codexPassThroughBodyEnabled(info *relaycommon.RelayInfo) bool {
+	if info == nil {
+		return false
+	}
+	if model_setting.GetGlobalSettings().PassThroughRequestEnabled {
+		return true
+	}
+	return info.ChannelMeta != nil && info.ChannelSetting.PassThroughBodyEnabled
+}
+
+func (a *Adaptor) prepareRequestBody(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (io.Reader, io.Closer, error) {
+	if requestBody == nil || !codexJSONBodyPolicyApplies(c, info) {
+		return requestBody, nil, nil
+	}
+
+	ids, err := fingerprintIDsForRequest(c, info)
+	if err != nil {
+		return nil, nil, codexRequestBodyError(err)
+	}
+
+	raw, err := readCodexRequestBody(requestBody)
+	if err != nil {
+		return nil, nil, codexRequestBodyError(err)
+	}
+	if ids == nil {
+		if err := validateCodexRequestBodyRaw(raw); err != nil {
+			return nil, nil, codexRequestBodyError(err)
+		}
+		return bytes.NewReader(raw), nil, nil
+	}
+	if info.RelayMode == relayconstant.RelayModeResponsesCompact {
+		if err := validateCodexRequestBodyRaw(raw); err != nil {
+			return nil, nil, codexRequestBodyError(err)
+		}
+		if ids.mode == dto.CodexFingerprintModeFull {
+			if err := validateCompactPassThroughFullBody(raw); err != nil {
+				return nil, nil, codexRequestBodyError(err)
+			}
+		}
+		rewritten, changed, err := stripCompactOriginalMetadataRaw(raw)
+		if err != nil {
+			return nil, nil, codexRequestBodyError(err)
+		}
+		if !changed {
+			return bytes.NewReader(raw), nil, nil
+		}
+		raw = rewritten
+	} else {
+		rewritten, err := SanitizeCodexRequestBody(raw, fingerprintFromIDs(ids), ids.mode)
+		if err != nil {
+			return nil, nil, codexRequestBodyError(err)
+		}
+		raw = rewritten
+	}
+
+	body, closer, err := relaycommon.NewOutboundJSONBody(raw)
+	if err != nil {
+		return nil, nil, codexRequestBodyError(fmt.Errorf("codex channel: store rewritten request body: %w", err))
+	}
+	return body, closer, nil
+}
+
+func codexRequestBodyError(err error) error {
+	return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+}
+
+func codexJSONBodyPolicyApplies(c *gin.Context, info *relaycommon.RelayInfo) bool {
+	if info == nil {
+		return false
+	}
+	switch info.RelayMode {
+	case relayconstant.RelayModeChatCompletions,
+		relayconstant.RelayModeResponses,
+		relayconstant.RelayModeResponsesCompact,
+		relayconstant.RelayModeImagesGenerations,
+		relayconstant.RelayModeImagesEdits:
+	default:
+		return false
+	}
+	if c == nil || c.Request == nil {
+		return true
+	}
+	contentType := strings.ToLower(strings.TrimSpace(c.Request.Header.Get("Content-Type")))
+	return contentType == "" || strings.HasPrefix(contentType, "application/json") || strings.HasSuffix(contentType, "+json")
+}
+
+func readCodexRequestBody(requestBody io.Reader) ([]byte, error) {
+	maxMB := appconstant.MaxRequestBodyMB
+	if maxMB <= 0 {
+		maxMB = 128
+	}
+	maxBytes := int64(maxMB) << 20
+	if replayable, ok := requestBody.(common.ReplayableBody); ok && replayable.Size() > maxBytes {
+		return nil, fmt.Errorf("codex channel: request body exceeds %d MB", maxMB)
+	}
+	raw, err := io.ReadAll(io.LimitReader(requestBody, maxBytes+1))
+	if err != nil {
+		return nil, fmt.Errorf("codex channel: read request body: %w", err)
+	}
+	if int64(len(raw)) > maxBytes {
+		return nil, fmt.Errorf("codex channel: request body exceeds %d MB", maxMB)
+	}
+	return raw, nil
+}
+
+func fingerprintFromIDs(ids *codexFingerprintIDs) *CodexFingerprint {
+	if ids == nil {
+		return nil
+	}
+	return &CodexFingerprint{
+		InstallationID: ids.installationID,
+		SessionID:      ids.sessionID,
+		ThreadID:       ids.threadID,
+		TurnID:         ids.turnID,
+		WindowID:       ids.windowID,
+		StartedAtMS:    ids.startedAtMS,
+	}
+}
+
 func (a *Adaptor) RewritePassThroughBody(c *gin.Context, info *relaycommon.RelayInfo, raw []byte) ([]byte, bool, error) {
 	setFingerprintIDs(c, nil)
 	ids, err := fingerprintIDsForRequest(c, info)
@@ -204,15 +341,7 @@ func (a *Adaptor) RewritePassThroughBody(c *gin.Context, info *relaycommon.Relay
 	if ids == nil {
 		return raw, false, nil
 	}
-	fingerprint := &CodexFingerprint{
-		InstallationID: ids.installationID,
-		SessionID:      ids.sessionID,
-		ThreadID:       ids.threadID,
-		TurnID:         ids.turnID,
-		WindowID:       ids.windowID,
-		StartedAtMS:    ids.startedAtMS,
-	}
-	rewritten, err := SanitizeCodexRequestBody(raw, fingerprint, ids.mode)
+	rewritten, err := SanitizeCodexRequestBody(raw, fingerprintFromIDs(ids), ids.mode)
 	if err != nil {
 		return nil, false, err
 	}
