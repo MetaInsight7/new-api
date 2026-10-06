@@ -405,6 +405,17 @@ func shouldZeroLocalUsage(ctx *gin.Context, info *relaycommon.RelayInfo, usage *
 }
 
 func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.Usage, extraContent []string) {
+	_ = postTextConsumeQuota(ctx, relayInfo, usage, extraContent, true)
+}
+
+// PostTextConsumeQuotaOnError settles reliable usage that was delivered before
+// a Codex terminal failure. The request remains a failed relay attempt, so it
+// does not emit a second successful performance sample.
+func PostTextConsumeQuotaOnError(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.Usage, extraContent []string) error {
+	return postTextConsumeQuota(ctx, relayInfo, usage, extraContent, false)
+}
+
+func postTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.Usage, extraContent []string, recordRelaySample bool) error {
 	originUsage := usage
 	billingUsage := effectiveBillingUsage(usage)
 	zeroLocalUsage := shouldZeroLocalUsage(ctx, relayInfo, billingUsage)
@@ -478,13 +489,33 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	if !summary.hasBillableUsage() {
 		extraContent = append(extraContent, "上游没有返回计费信息，无法扣费（可能是上游超时）")
 		logger.LogError(ctx, fmt.Sprintf("total tokens is 0, cannot consume quota, userId %d, channelId %d, tokenId %d, model %s， pre-consumed quota %d", relayInfo.UserId, relayInfo.ChannelId, relayInfo.TokenId, summary.ModelName, relayInfo.FinalPreConsumedQuota))
-	} else {
-		model.UpdateUserUsedQuotaAndRequestCount(relayInfo.UserId, summary.Quota)
-		model.UpdateChannelUsedQuota(relayInfo.ChannelId, summary.Quota)
 	}
 
-	if err := SettleBilling(ctx, relayInfo, summary.Quota); err != nil {
-		logger.LogError(ctx, "error settling billing: "+err.Error())
+	settleErr := SettleBilling(ctx, relayInfo, summary.Quota)
+	settlementApplied := settleErr == nil || recordRelaySample
+	if settleErr != nil {
+		logger.LogError(ctx, "error settling billing: "+settleErr.Error())
+		if !recordRelaySample && relayInfo.Billing != nil && !relayInfo.Billing.NeedsRefund() {
+			settlementApplied = true
+		}
+		if !recordRelaySample && !settlementApplied && relayInfo.Billing != nil && relayInfo.Billing.NeedsRefund() {
+			retainedQuota := relayInfo.Billing.GetPreConsumedQuota()
+			if retainErr := relayInfo.Billing.Settle(retainedQuota); retainErr != nil {
+				logger.LogError(ctx, "error retaining pre-consumed quota after failed terminal usage settlement: "+retainErr.Error())
+			} else {
+				settlementApplied = true
+				summary.Quota = retainedQuota
+				extraContent = append(extraContent, fmt.Sprintf("实际 usage 结算失败，暂按预扣额度 %s 保留", logger.FormatQuota(retainedQuota)))
+			}
+		}
+	}
+	if !recordRelaySample && !settlementApplied {
+		return settleErr
+	}
+
+	if summary.hasBillableUsage() {
+		model.UpdateUserUsedQuotaAndRequestCount(relayInfo.UserId, summary.Quota)
+		model.UpdateChannelUsedQuota(relayInfo.ChannelId, summary.Quota)
 	}
 
 	logModel := summary.ModelName
@@ -575,4 +606,5 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	})
 	perfmetrics.RecordChannelTokens(relayInfo, int64(summary.PromptTokens), int64(summary.CompletionTokens))
 	relayInfo.PerformanceOutputTokens = int64(summary.CompletionTokens)
+	return settleErr
 }

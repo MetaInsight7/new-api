@@ -29,6 +29,61 @@ import (
 	"gorm.io/gorm"
 )
 
+type terminalUsageBillingSettler struct {
+	preConsumed int
+	settled     []int
+	needsRefund bool
+}
+
+func (s *terminalUsageBillingSettler) Settle(actualQuota int) error {
+	s.settled = append(s.settled, actualQuota)
+	s.needsRefund = false
+	return nil
+}
+
+func (*terminalUsageBillingSettler) Refund(*gin.Context) {}
+
+func (s *terminalUsageBillingSettler) NeedsRefund() bool { return s.needsRefund }
+
+func (s *terminalUsageBillingSettler) GetPreConsumedQuota() int { return s.preConsumed }
+
+func (*terminalUsageBillingSettler) Reserve(int) error { return nil }
+
+func TestPostTextConsumeQuotaOnErrorSettlesAuthoritativeUsage(t *testing.T) {
+	previousBatchUpdateEnabled := common.BatchUpdateEnabled
+	previousLogConsumeEnabled := common.LogConsumeEnabled
+	common.BatchUpdateEnabled = true
+	common.LogConsumeEnabled = false
+	t.Cleanup(func() {
+		common.BatchUpdateEnabled = previousBatchUpdateEnabled
+		common.LogConsumeEnabled = previousLogConsumeEnabled
+	})
+
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest("POST", "/v1/responses", nil)
+	billing := &terminalUsageBillingSettler{preConsumed: 100}
+	info := &relaycommon.RelayInfo{
+		StartTime:       time.Now(),
+		OriginModelName: "gpt-5.1-codex",
+		IsStream:        true,
+		IsPlayground:    true,
+		Billing:         billing,
+		RelayFormat:     types.RelayFormatOpenAI,
+		ChannelMeta:     &relaycommon.ChannelMeta{ChannelType: constant.ChannelTypeCodex},
+		PriceData: hosttypes.PriceData{
+			ModelRatio:      1,
+			CompletionRatio: 1,
+			GroupRatioInfo:  hosttypes.GroupRatioInfo{GroupRatio: 1},
+		},
+	}
+	usage := &dto.Usage{PromptTokens: 20, CompletionTokens: 5, TotalTokens: 25}
+
+	require.NoError(t, PostTextConsumeQuotaOnError(ctx, info, usage, nil))
+	require.Len(t, billing.settled, 1)
+	assert.Greater(t, billing.settled[0], 0)
+	assert.False(t, billing.NeedsRefund())
+}
+
 // The configured DSNs must point at isolated test databases. Each dialect runs
 // the real reservation, settlement and log paths with the same billing cases.
 func TestFixedPriceBillingDatabaseMatrix(t *testing.T) {

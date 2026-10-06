@@ -1,9 +1,11 @@
 package service
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -336,6 +338,61 @@ func TestResponsesUsageAccumulatorMissingUsageEstimation(t *testing.T) {
 			assert.Equal(t, tc.wantPrompt, usage.PromptTokens)
 			assert.Equal(t, tc.wantCompletion, usage.CompletionTokens)
 			assert.Equal(t, tc.wantPrompt+tc.wantCompletion, usage.TotalTokens)
+		})
+	}
+}
+
+func TestResponsesUsageAccumulatorCodexTerminalWithoutUsageDoesNotEstimate(t *testing.T) {
+	for _, eventType := range []string{"response.failed", "response.incomplete"} {
+		t.Run(eventType, func(t *testing.T) {
+			info := &relaycommon.RelayInfo{
+				ChannelMeta:  &relaycommon.ChannelMeta{ChannelType: constant.ChannelTypeCodex, UpstreamModelName: "gpt-5.1-codex"},
+				StreamStatus: relaycommon.NewStreamStatus(),
+			}
+			info.SetEstimatePromptTokens(100)
+			accumulator := NewResponsesUsageAccumulator(info)
+			accumulator.Observe(&dto.ResponsesStreamResponse{Type: "response.output_text.delta", Delta: "partial output"})
+			accumulator.Observe(&dto.ResponsesStreamResponse{
+				Type: eventType,
+				Response: &dto.OpenAIResponsesResponse{
+					Status: []byte(`"` + strings.TrimPrefix(eventType, "response.") + `"`),
+				},
+			})
+
+			usage := accumulator.Finish()
+			assert.Zero(t, usage.PromptTokens)
+			assert.Zero(t, usage.CompletionTokens)
+			assert.Zero(t, usage.TotalTokens)
+		})
+	}
+}
+
+func TestResponsesUsageAccumulatorCodexTerminalKeepsAuthoritativeUsage(t *testing.T) {
+	for _, eventType := range []string{"response.failed", "response.incomplete"} {
+		t.Run(eventType, func(t *testing.T) {
+			info := &relaycommon.RelayInfo{
+				ChannelMeta:  &relaycommon.ChannelMeta{ChannelType: constant.ChannelTypeCodex, UpstreamModelName: "gpt-5.1-codex"},
+				StreamStatus: relaycommon.NewStreamStatus(),
+			}
+			info.SetEstimatePromptTokens(100)
+			upstream := &dto.Usage{InputTokens: 20, OutputTokens: 4, TotalTokens: 24}
+			upstream.BillingUsage = dto.NewOpenAIResponsesBillingUsage(upstream)
+			accumulator := NewResponsesUsageAccumulator(info)
+			accumulator.Observe(&dto.ResponsesStreamResponse{Type: "response.output_text.delta", Delta: "partial output"})
+			accumulator.Observe(&dto.ResponsesStreamResponse{
+				Type: eventType,
+				Response: &dto.OpenAIResponsesResponse{
+					Status: []byte(`"` + strings.TrimPrefix(eventType, "response.") + `"`),
+					Usage:  upstream,
+				},
+			})
+
+			usage := accumulator.Finish()
+			assert.Equal(t, 20, usage.PromptTokens)
+			assert.Equal(t, 4, usage.CompletionTokens)
+			assert.Equal(t, 24, usage.TotalTokens)
+			require.NotNil(t, usage.BillingUsage)
+			assert.False(t, usage.BillingUsage.Estimated)
 		})
 	}
 }

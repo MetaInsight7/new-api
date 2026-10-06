@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert"
@@ -21,6 +22,8 @@ type ResponsesUsageAccumulator struct {
 	imageCounter   relaycommon.ImageGenerationCallCounter
 	imageCommitted bool
 	started        bool
+	authoritative  bool
+	codexTerminal  bool
 	finished       bool
 }
 
@@ -37,11 +40,27 @@ func (a *ResponsesUsageAccumulator) Observe(event *dto.ResponsesStreamResponse) 
 	}
 	a.started = true
 	ObserveResponsesOutcome(a.info, event)
+	if a.info.GetChannelType() == constant.ChannelTypeCodex {
+		switch event.Type {
+		case "error", "response.error", "response.failed", "response.incomplete", "response.cancelled", "response.canceled":
+			a.codexTerminal = true
+		}
+		if event.Response != nil {
+			var responseStatus string
+			_ = common.Unmarshal(event.Response.Status, &responseStatus)
+			if responseStatus == "failed" || responseStatus == "incomplete" || responseStatus == "cancelled" || responseStatus == "canceled" {
+				a.codexTerminal = true
+			}
+		}
+	}
 	switch event.Type {
 	case "response.completed", "response.done", "response.failed", "response.incomplete", "response.cancelled", "response.canceled":
 		if event.Response != nil {
+			if event.Response.Usage != nil {
+				a.authoritative = true
+			}
 			ApplyResponsesUsage(a.usage, event.Response.Usage)
-			if a.outputText.Len() == 0 {
+			if a.outputText.Len() == 0 && !a.codexTerminal {
 				// Some upstreams carry the output only on the terminal event.
 				a.outputText.WriteString(relayconvert.ExtractOutputTextFromResponses(event.Response))
 			}
@@ -91,20 +110,27 @@ func (a *ResponsesUsageAccumulator) Finish() *dto.Usage {
 		a.imageCounter.Commit(a.info)
 		a.imageCommitted = true
 	}
-	if a.usage.CompletionTokens == 0 {
+	estimatedCompletion := false
+	if a.usage.CompletionTokens == 0 && !a.codexTerminal && !(a.info.GetChannelType() == constant.ChannelTypeCodex && a.authoritative) {
 		if output := a.outputText.String(); output != "" {
 			a.usage.CompletionTokens = CountTextToken(output, a.info.GetUpstreamModelName())
+			estimatedCompletion = true
 		}
 	}
 	// Upstream bills the prompt as soon as it starts generating, so a stream
 	// that produced any event but no usage still owes its input tokens unless
 	// upstream reported an explicit failure.
 	billsPrompt := a.usage.CompletionTokens != 0 || (a.started && !a.info.StreamStatus.ResponseFailed())
-	if a.usage.PromptTokens == 0 && billsPrompt {
+	if a.codexTerminal && !a.authoritative {
+		billsPrompt = false
+	}
+	if a.usage.PromptTokens == 0 && billsPrompt && !(a.info.GetChannelType() == constant.ChannelTypeCodex && a.authoritative) {
 		a.usage.PromptTokens = a.info.GetEstimatePromptTokens()
 	}
-	a.usage.TotalTokens = a.usage.PromptTokens + a.usage.CompletionTokens
-	if a.usage.BillingUsage != nil {
+	if a.info.GetChannelType() != constant.ChannelTypeCodex || !a.authoritative || a.usage.TotalTokens == 0 {
+		a.usage.TotalTokens = a.usage.PromptTokens + a.usage.CompletionTokens
+	}
+	if estimatedCompletion && a.usage.BillingUsage != nil {
 		a.usage.BillingUsage = dto.CloneBillingUsageWithEstimatedCompletion(a.usage.BillingUsage, a.usage.CompletionTokens)
 	}
 	return a.usage

@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -233,6 +234,145 @@ func runResponsesImageBillingStream(t *testing.T, events ...string) *relaycommon
 	require.NotNil(t, info.ResponsesUsageInfo)
 	require.Contains(t, info.ResponsesUsageInfo.BuiltInTools, dto.BuildInToolImageGeneration)
 	return info
+}
+
+func runCodexResponsesTerminalStream(t *testing.T, events ...string) (*dto.Usage, *types.NewAPIError, *httptest.ResponseRecorder, *relaycommon.RelayInfo) {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	oldTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 30
+	t.Cleanup(func() {
+		constant.StreamingTimeout = oldTimeout
+	})
+
+	var body strings.Builder
+	for _, event := range events {
+		body.WriteString("data: ")
+		body.WriteString(event)
+		body.WriteString("\n\n")
+	}
+	body.WriteString("data: [DONE]\n\n")
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	c.Set(common.RequestIdKey, "codex-terminal-test")
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "gpt-5.1-codex",
+		DisablePing:     true,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType:       constant.ChannelTypeCodex,
+			UpstreamModelName: "gpt-5.1-codex",
+		},
+		StreamStatus: relaycommon.NewStreamStatus(),
+	}
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(strings.NewReader(body.String())),
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+	}
+	usage, apiErr := OaiResponsesStreamHandler(c, info, resp)
+	return usage, apiErr, w, info
+}
+
+func TestOaiResponsesStreamHandlerRetriesCodexTerminalFailureBeforeFirstEvent(t *testing.T) {
+	usage, apiErr, recorder, info := runCodexResponsesTerminalStream(t,
+		`{"type":"response.failed","response":{"status":"failed","error":{"type":"server_error","code":"server_error","message":"secret upstream diagnostic"}}}`,
+	)
+
+	require.NotNil(t, apiErr)
+	assert.False(t, types.IsSkipRetryError(apiErr))
+	assert.Equal(t, http.StatusInternalServerError, apiErr.StatusCode)
+	assert.NotContains(t, apiErr.Error(), "secret upstream diagnostic")
+	assert.NotContains(t, apiErr.ToOpenAIError().Message, "secret upstream diagnostic")
+	assert.Empty(t, recorder.Body.String())
+	assert.Zero(t, usage.TotalTokens)
+	assert.Equal(t, relaycommon.ResponseOutcomeFailed, info.StreamStatus.OutcomeSnapshot().Response)
+}
+
+func TestOaiResponsesStreamHandlerRetriesCodexIncompleteBeforeFirstEvent(t *testing.T) {
+	usage, apiErr, recorder, info := runCodexResponsesTerminalStream(t,
+		`{"type":"response.incomplete","response":{"status":"incomplete","incomplete_details":{"reason":"max_output_tokens"}}}`,
+	)
+
+	require.NotNil(t, apiErr)
+	assert.False(t, types.IsSkipRetryError(apiErr))
+	assert.Empty(t, recorder.Body.String())
+	assert.Zero(t, usage.TotalTokens)
+	assert.Equal(t, relaycommon.ResponseOutcomeIncomplete, info.StreamStatus.OutcomeSnapshot().Response)
+}
+
+func TestOaiResponsesStreamHandlerDoesNotRetryCodexTerminalFailureAfterOutput(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		event string
+	}{
+		{
+			name:  "failed",
+			event: `{"type":"response.failed","response":{"status":"failed","error":{"type":"server_error","code":"server_error","message":"secret upstream diagnostic"}}}`,
+		},
+		{
+			name:  "incomplete",
+			event: `{"type":"response.incomplete","response":{"status":"incomplete","incomplete_details":{"reason":"max_output_tokens"}}}`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			usage, apiErr, recorder, _ := runCodexResponsesTerminalStream(t,
+				`{"type":"response.output_text.delta","delta":"partial output"}`,
+				tc.event,
+			)
+
+			require.NotNil(t, apiErr)
+			assert.True(t, types.IsSkipRetryError(apiErr))
+			assert.Contains(t, recorder.Body.String(), "partial output")
+			assert.Contains(t, recorder.Body.String(), "response."+tc.name)
+			assert.NotContains(t, recorder.Body.String(), "secret upstream diagnostic")
+			assert.Zero(t, usage.TotalTokens)
+		})
+	}
+}
+
+func TestOaiResponsesStreamHandlerKeepsCodexTerminalUsage(t *testing.T) {
+	usage, apiErr, recorder, _ := runCodexResponsesTerminalStream(t,
+		`{"type":"response.failed","response":{"status":"failed","usage":{"input_tokens":11,"output_tokens":3,"total_tokens":14},"error":{"type":"server_error","code":"server_error","message":"secret upstream diagnostic"}}}`,
+	)
+
+	require.NotNil(t, apiErr)
+	assert.True(t, types.IsSkipRetryError(apiErr))
+	assert.Empty(t, recorder.Body.String())
+	assert.Equal(t, 11, usage.PromptTokens)
+	assert.Equal(t, 3, usage.CompletionTokens)
+	assert.Equal(t, 14, usage.TotalTokens)
+}
+
+func TestOaiResponsesStreamHandlerLeavesNonCodexTerminalFailureUnchanged(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	oldTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 30
+	t.Cleanup(func() { constant.StreamingTimeout = oldTimeout })
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	info := &relaycommon.RelayInfo{
+		DisablePing: true,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType:       constant.ChannelTypeOpenAI,
+			UpstreamModelName: "gpt-test",
+		},
+	}
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Body: io.NopCloser(strings.NewReader(
+			"data: {\"type\":\"response.failed\",\"response\":{\"status\":\"failed\",\"error\":{\"message\":\"provider diagnostic\"}}}\n\n" +
+				"data: [DONE]\n\n",
+		)),
+		Header: http.Header{"Content-Type": []string{"text/event-stream"}},
+	}
+
+	_, apiErr := OaiResponsesStreamHandler(c, info, resp)
+	require.Nil(t, apiErr)
+	assert.Contains(t, w.Body.String(), "provider diagnostic")
 }
 
 func TestOaiResponsesStreamHandlerDeduplicatesCompletedImageOutput(t *testing.T) {

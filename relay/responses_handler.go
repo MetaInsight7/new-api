@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
@@ -73,6 +75,13 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 
 	usage, newAPIError := adaptor.DoResponse(c, httpResp, info)
 	if newAPIError != nil {
+		if info.GetChannelType() == constant.ChannelTypeCodex {
+			if usageDto, ok := usage.(*dto.Usage); ok && usageDto != nil && usageDto.TotalTokens > 0 {
+				if settleErr := service.PostTextConsumeQuotaOnError(c, info, usageDto, []string{"Codex terminal failure reported authoritative usage"}); settleErr != nil {
+					logger.LogError(c, "failed to settle Codex terminal usage: "+settleErr.Error())
+				}
+			}
+		}
 		// reset status code 重置状态码
 		service.ResetStatusCode(newAPIError, statusCodeMappingStr)
 		return newAPIError
