@@ -6873,6 +6873,20 @@
     "Only selected Codex channels are changed. Other channel types are ignored.": "Изменяются только выбранные каналы Codex. Каналы других типов игнорируются.",
     "Codex fingerprint mode updated": "Режим отпечатка Codex обновлён",
     "Failed to update Codex fingerprint mode": "Не удалось обновить режим отпечатка Codex",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Codex Identity": "Идентичность Codex",
+    "Codex User-Agent": "User-Agent Codex",
+    "Manual Codex client version": "Версия клиента Codex вручную",
+    "Synced Codex client version": "Синхронизированная версия клиента Codex",
+    "Last Codex version sync": "Последняя синхронизация версии Codex",
+    "Auto-sync Codex client version": "Автоматически синхронизировать версию клиента Codex",
+    "Enforce Codex client identity": "Принудительно использовать идентичность клиента Codex",
+    "Save Codex identity settings": "Сохранить настройки идентичности Codex",
+    "Optional canonical Codex CLI User-Agent. It must start with codex-cli/<version>; the version is rebuilt from the effective client version.": "Необязательный канонический User-Agent Codex CLI. Он должен начинаться с codex-cli/<version>; версия пересобирается из действующей версии клиента.",
+    "Manual version wins over synced releases. Versions below 0.144.0 or invalid values fall back to the built-in safe version.": "Ручная версия имеет приоритет над синхронизированными релизами. Версии ниже 0.144.0 или недействительные значения заменяются встроенной безопасной версией.",
+    "Read-only latest stable official release captured by the automatic sync.": "Последняя официальная стабильная версия, полученная автоматической синхронизацией (только для чтения).",
+    "Automatic release checks run every six hours.": "Официальные релизы автоматически проверяются каждые шесть часов.",
+    "Keep the synced version current from official stable releases.": "Поддерживать синхронизированную версию актуальной по официальным стабильным релизам.",
+    "Emergency kill switch. Disable only to roll back canonical outbound identity enforcement.": "Аварийный переключатель. Отключайте его только для отката принудительной канонической исходящей идентичности."
   }
 }

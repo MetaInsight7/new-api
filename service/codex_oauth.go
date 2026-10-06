@@ -61,6 +61,7 @@ func refreshCodexOAuthToken(
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept", "application/json")
+	ApplyCodexCredentialIdentity(req.Header, ResolveCodexClientIdentity())
 
 	resp, err := client.Do(req)
 	if err != nil {

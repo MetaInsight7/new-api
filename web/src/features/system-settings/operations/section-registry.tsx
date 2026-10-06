@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { SystemBehaviorSection } from '../general/system-behavior-section'
+import { CodexIdentitySettingsSection } from '../integrations/codex-identity-settings-section'
 import { EmailSettingsSection } from '../integrations/email-settings-section'
 import { MonitoringSettingsSection } from '../integrations/monitoring-settings-section'
 import { WorkerSettingsSection } from '../integrations/worker-settings-section'
@@ -36,6 +37,22 @@ const OPERATIONS_SECTIONS = [
           DefaultCollapseSidebar: settings.DefaultCollapseSidebar,
           DemoSiteEnabled: settings.DemoSiteEnabled,
           SelfUseModeEnabled: settings.SelfUseModeEnabled,
+        }}
+      />
+    ),
+  },
+  {
+    id: 'codex-identity',
+    titleKey: 'Codex Identity',
+    build: (settings: OperationsSettings) => (
+      <CodexIdentitySettingsSection
+        defaultValues={{
+          CodexClientUserAgent: settings.CodexClientUserAgent,
+          CodexClientVersion: settings.CodexClientVersion,
+          CodexSyncedClientVersion: settings.CodexSyncedClientVersion,
+          CodexSyncedClientVersionAt: settings.CodexSyncedClientVersionAt,
+          CodexAutoSyncClientVersion: settings.CodexAutoSyncClientVersion,
+          CodexEnforceClientIdentity: settings.CodexEnforceClientIdentity,
         }}
       />
     ),

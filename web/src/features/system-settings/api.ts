@@ -20,6 +20,7 @@ import { api } from '@/lib/api'
 
 import type {
   ConfirmPaymentComplianceResponse,
+  UpdateCodexIdentityOptionsRequest,
   FetchUpstreamRatiosRequest,
   LogCleanupTask,
   SystemOptionsResponse,
@@ -41,6 +42,16 @@ export async function getSystemOptions() {
 
 export async function updateSystemOption(request: UpdateOptionRequest) {
   const res = await api.put<UpdateOptionResponse>('/api/option/', request)
+  return res.data
+}
+
+export async function updateCodexIdentityOptions(
+  request: UpdateCodexIdentityOptionsRequest
+) {
+  const res = await api.put<UpdateOptionResponse>(
+    '/api/option/codex_identity',
+    request
+  )
   return res.data
 }
 

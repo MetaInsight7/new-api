@@ -136,6 +136,50 @@ type OptionUpdateRequest struct {
 	Value any    `json:"value"`
 }
 
+type CodexIdentityOptionUpdate struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+type CodexIdentityOptionsUpdateRequest struct {
+	Updates []CodexIdentityOptionUpdate `json:"updates"`
+}
+
+func UpdateCodexIdentityOptions(c *gin.Context) {
+	var request CodexIdentityOptionsUpdateRequest
+	if err := common.DecodeJson(c.Request.Body, &request); err != nil || len(request.Updates) == 0 {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+
+	values := make(map[string]string, len(request.Updates))
+	keys := make([]string, 0, len(request.Updates))
+	for _, update := range request.Updates {
+		if !service.IsCodexIdentityOptionKey(update.Key) || service.IsCodexIdentityReadOnlyOptionKey(update.Key) {
+			common.ApiErrorMsg(c, "Unknown or read-only Codex identity option: "+update.Key)
+			return
+		}
+		if _, exists := values[update.Key]; exists {
+			common.ApiErrorMsg(c, "Duplicate Codex identity option: "+update.Key)
+			return
+		}
+		if err := service.ValidateCodexIdentityOption(update.Key, update.Value); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		values[update.Key] = update.Value
+		keys = append(keys, update.Key)
+	}
+
+	if err := model.UpdateOptionsBulk(values); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	sort.Strings(keys)
+	recordManageAudit(c, "codex_identity.update", map[string]any{"keys": keys})
+	common.ApiSuccess(c, gin.H{"updated_keys": keys})
+}
+
 func UpdatePasskeyDomains(c *gin.Context) {
 	var request struct {
 		RPID                *string `json:"rp_id"`
@@ -209,6 +253,16 @@ func UpdateOption(c *gin.Context) {
 	default:
 		if isPaymentComplianceOptionKey(option.Key) {
 			common.ApiErrorMsg(c, "合规确认字段不允许通过通用设置接口修改")
+			return
+		}
+	}
+	if service.IsCodexIdentityReadOnlyOptionKey(option.Key) {
+		common.ApiErrorMsg(c, "Codex synchronized identity options are read-only")
+		return
+	}
+	if service.IsCodexIdentityOptionKey(option.Key) {
+		if err := service.ValidateCodexIdentityOption(option.Key, option.Value.(string)); err != nil {
+			common.ApiError(c, err)
 			return
 		}
 	}

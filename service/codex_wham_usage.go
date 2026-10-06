@@ -158,4 +158,5 @@ func setCodexWhamRequestHeaders(req *http.Request, accessToken string, accountID
 	if req.Header.Get("originator") == "" {
 		req.Header.Set("originator", "codex_cli_rs")
 	}
+	ApplyCodexInferenceIdentity(req.Header, ResolveCodexClientIdentity())
 }

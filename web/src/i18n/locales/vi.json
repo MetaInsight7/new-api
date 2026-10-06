@@ -6873,6 +6873,20 @@
     "Only selected Codex channels are changed. Other channel types are ignored.": "Chỉ các kênh Codex được chọn bị thay đổi. Các loại kênh khác sẽ bị bỏ qua.",
     "Codex fingerprint mode updated": "Đã cập nhật chế độ dấu vân tay Codex",
     "Failed to update Codex fingerprint mode": "Không thể cập nhật chế độ dấu vân tay Codex",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Codex Identity": "Danh tính Codex",
+    "Codex User-Agent": "User-Agent Codex",
+    "Manual Codex client version": "Phiên bản ứng dụng khách Codex thủ công",
+    "Synced Codex client version": "Phiên bản ứng dụng khách Codex đã đồng bộ",
+    "Last Codex version sync": "Lần đồng bộ phiên bản Codex gần nhất",
+    "Auto-sync Codex client version": "Tự động đồng bộ phiên bản ứng dụng khách Codex",
+    "Enforce Codex client identity": "Bắt buộc danh tính ứng dụng khách Codex",
+    "Save Codex identity settings": "Lưu cài đặt danh tính Codex",
+    "Optional canonical Codex CLI User-Agent. It must start with codex-cli/<version>; the version is rebuilt from the effective client version.": "User-Agent Codex CLI chuẩn không bắt buộc. Giá trị phải bắt đầu bằng codex-cli/<version>; phiên bản được tạo lại từ phiên bản ứng dụng khách đang dùng.",
+    "Manual version wins over synced releases. Versions below 0.144.0 or invalid values fall back to the built-in safe version.": "Phiên bản thủ công được ưu tiên hơn các bản phát hành đã đồng bộ. Phiên bản dưới 0.144.0 hoặc không hợp lệ sẽ dùng phiên bản an toàn tích hợp.",
+    "Read-only latest stable official release captured by the automatic sync.": "Phiên bản ổn định chính thức mới nhất do đồng bộ tự động ghi nhận, chỉ đọc.",
+    "Automatic release checks run every six hours.": "Tự động kiểm tra bản phát hành chính thức sau mỗi sáu giờ.",
+    "Keep the synced version current from official stable releases.": "Duy trì phiên bản đã đồng bộ theo các bản phát hành ổn định chính thức.",
+    "Emergency kill switch. Disable only to roll back canonical outbound identity enforcement.": "Công tắc khẩn cấp. Chỉ tắt khi cần hoàn tác việc bắt buộc danh tính gửi đi chuẩn hóa."
   }
 }

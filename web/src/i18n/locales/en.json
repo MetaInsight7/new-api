@@ -7174,6 +7174,20 @@
     "Set Codex fingerprint mode": "Set Codex fingerprint mode",
     "Only selected Codex channels are changed. Other channel types are ignored.": "Only selected Codex channels are changed. Other channel types are ignored.",
     "Codex fingerprint mode updated": "Codex fingerprint mode updated",
-    "Failed to update Codex fingerprint mode": "Failed to update Codex fingerprint mode"
+    "Failed to update Codex fingerprint mode": "Failed to update Codex fingerprint mode",
+    "Codex Identity": "Codex Identity",
+    "Codex User-Agent": "Codex User-Agent",
+    "Manual Codex client version": "Manual Codex client version",
+    "Synced Codex client version": "Synced Codex client version",
+    "Last Codex version sync": "Last Codex version sync",
+    "Auto-sync Codex client version": "Auto-sync Codex client version",
+    "Enforce Codex client identity": "Enforce Codex client identity",
+    "Save Codex identity settings": "Save Codex identity settings",
+    "Optional canonical Codex CLI User-Agent. It must start with codex-cli/<version>; the version is rebuilt from the effective client version.": "Optional canonical Codex CLI User-Agent. It must start with codex-cli/<version>; the version is rebuilt from the effective client version.",
+    "Manual version wins over synced releases. Versions below 0.144.0 or invalid values fall back to the built-in safe version.": "Manual version wins over synced releases. Versions below 0.144.0 or invalid values fall back to the built-in safe version.",
+    "Read-only latest stable official release captured by the automatic sync.": "Read-only latest stable official release captured by the automatic sync.",
+    "Automatic release checks run every six hours.": "Automatic release checks run every six hours.",
+    "Keep the synced version current from official stable releases.": "Keep the synced version current from official stable releases.",
+    "Emergency kill switch. Disable only to roll back canonical outbound identity enforcement.": "Emergency kill switch. Disable only to roll back canonical outbound identity enforcement."
   }
 }

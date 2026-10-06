@@ -325,6 +325,7 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 	if req.Get("originator") == "" {
 		req.Set("originator", "codex_cli_rs")
 	}
+	service.ApplyCodexInferenceIdentity(*req, service.ResolveCodexClientIdentity())
 	ids, err := fingerprintIDsForRequest(c, info)
 	if err != nil {
 		return err

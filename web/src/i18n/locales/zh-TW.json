@@ -6873,6 +6873,20 @@
     "Only selected Codex channels are changed. Other channel types are ignored.": "只會修改所選的 Codex 渠道，其他渠道類型會被忽略。",
     "Codex fingerprint mode updated": "Codex 指紋模式已更新",
     "Failed to update Codex fingerprint mode": "更新 Codex 指紋模式失敗",
-    "Zoom": "縮放"
+    "Zoom": "縮放",
+    "Codex Identity": "Codex 身分",
+    "Codex User-Agent": "Codex User-Agent",
+    "Manual Codex client version": "手動 Codex 用戶端版本",
+    "Synced Codex client version": "已同步的 Codex 用戶端版本",
+    "Last Codex version sync": "上次 Codex 版本同步",
+    "Auto-sync Codex client version": "自動同步 Codex 用戶端版本",
+    "Enforce Codex client identity": "強制統一 Codex 用戶端身分",
+    "Save Codex identity settings": "儲存 Codex 身分設定",
+    "Optional canonical Codex CLI User-Agent. It must start with codex-cli/<version>; the version is rebuilt from the effective client version.": "可選的標準 Codex CLI User-Agent，必須以 codex-cli/<version> 開頭；版本會根據實際生效的用戶端版本重建。",
+    "Manual version wins over synced releases. Versions below 0.144.0 or invalid values fall back to the built-in safe version.": "手動版本優先於同步版本。低於 0.144.0 或格式無效的版本會回退到內建安全版本。",
+    "Read-only latest stable official release captured by the automatic sync.": "唯讀的最新官方穩定版本，由自動同步任務記錄。",
+    "Automatic release checks run every six hours.": "官方版本每六小時自動檢查一次。",
+    "Keep the synced version current from official stable releases.": "從官方穩定版本持續更新同步版本。",
+    "Emergency kill switch. Disable only to roll back canonical outbound identity enforcement.": "緊急停用開關。僅在需要回滾標準化出站身分時關閉。"
   }
 }

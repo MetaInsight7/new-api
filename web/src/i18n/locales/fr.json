@@ -6873,6 +6873,20 @@
     "Only selected Codex channels are changed. Other channel types are ignored.": "Seuls les canaux Codex sélectionnés sont modifiés. Les autres types de canaux sont ignorés.",
     "Codex fingerprint mode updated": "Mode d’empreinte Codex mis à jour",
     "Failed to update Codex fingerprint mode": "Échec de la mise à jour du mode d’empreinte Codex",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Codex Identity": "Identité Codex",
+    "Codex User-Agent": "User-Agent Codex",
+    "Manual Codex client version": "Version client Codex manuelle",
+    "Synced Codex client version": "Version client Codex synchronisée",
+    "Last Codex version sync": "Dernière synchronisation de la version Codex",
+    "Auto-sync Codex client version": "Synchroniser automatiquement la version client Codex",
+    "Enforce Codex client identity": "Imposer l’identité du client Codex",
+    "Save Codex identity settings": "Enregistrer les paramètres d’identité Codex",
+    "Optional canonical Codex CLI User-Agent. It must start with codex-cli/<version>; the version is rebuilt from the effective client version.": "User-Agent canonique facultatif du CLI Codex. Il doit commencer par codex-cli/<version> ; la version est reconstruite depuis la version client effective.",
+    "Manual version wins over synced releases. Versions below 0.144.0 or invalid values fall back to the built-in safe version.": "La version manuelle est prioritaire sur les versions synchronisées. Les versions inférieures à 0.144.0 ou invalides utilisent la version sûre intégrée.",
+    "Read-only latest stable official release captured by the automatic sync.": "Dernière version officielle stable, en lecture seule, enregistrée par la synchronisation automatique.",
+    "Automatic release checks run every six hours.": "Les versions officielles sont vérifiées automatiquement toutes les six heures.",
+    "Keep the synced version current from official stable releases.": "Maintenir la version synchronisée à jour depuis les versions officielles stables.",
+    "Emergency kill switch. Disable only to roll back canonical outbound identity enforcement.": "Interrupteur d’urgence. Désactivez-le uniquement pour annuler l’imposition de l’identité canonique sortante."
   }
 }

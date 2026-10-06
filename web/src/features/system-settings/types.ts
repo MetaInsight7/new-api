@@ -39,6 +39,21 @@ export type UpdateOptionResponse = {
   message: string
 }
 
+export type CodexIdentityOptionKey =
+  | 'CodexClientUserAgent'
+  | 'CodexClientVersion'
+  | 'CodexAutoSyncClientVersion'
+  | 'CodexEnforceClientIdentity'
+
+export type CodexIdentityOptionUpdate = {
+  key: CodexIdentityOptionKey
+  value: string
+}
+
+export type UpdateCodexIdentityOptionsRequest = {
+  updates: CodexIdentityOptionUpdate[]
+}
+
 export interface PasskeyDomainChange {
   rp_id: string
   legacy_rp_ids: string
@@ -363,6 +378,12 @@ export type OperationsSettings = {
   DefaultCollapseSidebar: boolean
   DemoSiteEnabled: boolean
   SelfUseModeEnabled: boolean
+  CodexClientUserAgent: string
+  CodexClientVersion: string
+  CodexSyncedClientVersion: string
+  CodexSyncedClientVersionAt: string
+  CodexAutoSyncClientVersion: boolean
+  CodexEnforceClientIdentity: boolean
   QuotaRemindThreshold: string
   SMTPServer: string
   SMTPPort: string

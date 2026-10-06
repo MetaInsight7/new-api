@@ -6873,6 +6873,20 @@
     "Only selected Codex channels are changed. Other channel types are ignored.": "選択した Codex チャンネルのみ変更します。その他のチャンネル種別は無視されます。",
     "Codex fingerprint mode updated": "Codex フィンガープリントモードを更新しました",
     "Failed to update Codex fingerprint mode": "Codex フィンガープリントモードの更新に失敗しました",
-    "Zoom": "ズーム"
+    "Zoom": "ズーム",
+    "Codex Identity": "Codex アイデンティティ",
+    "Codex User-Agent": "Codex User-Agent",
+    "Manual Codex client version": "Codex クライアントバージョン（手動）",
+    "Synced Codex client version": "同期済み Codex クライアントバージョン",
+    "Last Codex version sync": "Codex バージョンの最終同期",
+    "Auto-sync Codex client version": "Codex クライアントバージョンを自動同期",
+    "Enforce Codex client identity": "Codex クライアントアイデンティティを強制",
+    "Save Codex identity settings": "Codex アイデンティティ設定を保存",
+    "Optional canonical Codex CLI User-Agent. It must start with codex-cli/<version>; the version is rebuilt from the effective client version.": "任意の標準 Codex CLI User-Agent。codex-cli/<version> で始まる必要があり、バージョンは有効なクライアントバージョンから再構成されます。",
+    "Manual version wins over synced releases. Versions below 0.144.0 or invalid values fall back to the built-in safe version.": "手動バージョンは同期済みリリースより優先されます。0.144.0 未満または無効な値は組み込みの安全なバージョンに戻ります。",
+    "Read-only latest stable official release captured by the automatic sync.": "自動同期で取得された最新の公式安定版（読み取り専用）。",
+    "Automatic release checks run every six hours.": "公式リリースを 6 時間ごとに自動確認します。",
+    "Keep the synced version current from official stable releases.": "公式安定版から同期済みバージョンを最新に保ちます。",
+    "Emergency kill switch. Disable only to roll back canonical outbound identity enforcement.": "緊急停止スイッチ。標準出力アイデンティティの強制を元に戻す場合のみ無効にしてください。"
   }
 }
