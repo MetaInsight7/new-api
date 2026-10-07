@@ -12,6 +12,9 @@
 | 03 | 管理员 Codex Limits 用量与额度报表 | 无 | `feat: add Codex account limits and usage dashboard` |
 | 04 | 完整 Codex Model Governance 探测与审核闭环 | 无 | `feat: add Codex model lifecycle governance` |
 | 05 | 单账号真实窗口展示与安全额度重置 | 03 的共用窗口契约 | `fix: align Codex account windows and reset credit handling` |
+| 07 | Codex 请求字段约束、显式 Fast 与 full 指纹校验 | 无 | `fix: align Codex request filtering and explicit Fast mode` |
+| 08 | Codex Chat 流式失败与截断保护 | 07 | `fix: preserve Codex Chat stream failures and billing facts` |
+| 09 | 模型发现边界与图片真实格式 | 无 | `fix: bound Codex discovery and preserve image output formats` |
 | 06 | 最终 Relay 差异校正与整套集成验收 | 01–05 | 根据实际遗漏功能命名；无业务缺口时仅记录验证，不伪造功能提交 |
 
 独立 tickets 保存在 `.scratch/codex-management-migration/issues/`，从无阻塞的 frontier 开始；并行工作必须使用不重叠的写入范围，所有 commit 由主线程审核和验证后执行。前端构建串行且限制资源，不同时开多个 Bun 构建。
