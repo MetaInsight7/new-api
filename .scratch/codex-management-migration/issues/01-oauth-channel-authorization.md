@@ -4,14 +4,17 @@
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** completed (2026-10-08)
 
-- [ ] 新建与已有 Codex 渠道授权、PKCE S256 和上游 Identity／代理行为完整。
-- [ ] 固定回调契约、十分钟有效期、绑定用户／会话／渠道和原子单次消费；过期、错配和重放拒绝。
-- [ ] 服务端敏感写权限、限流、禁止缓存、凭证审计脱敏和保存后缓存失效。
-- [ ] 授权链接复制、窗口被拦截、授权失败与关闭／重新打开弹窗均可恢复；关闭或切换渠道不把过时响应回填给别的表单。
-- [ ] 真实三数据库授权流程回归、相关前端单测、类型检查、lint 和 Playwright 已执行并记录。
+- [x] 新建与已有 Codex 渠道授权、PKCE S256 和上游 Identity／代理行为完整。
+- [x] 固定回调契约、十分钟有效期、绑定用户／会话／渠道和原子单次消费；过期、错配和重放拒绝。
+- [x] 服务端敏感写权限、限流、禁止缓存、凭证审计脱敏和保存后缓存失效。
+- [x] 授权链接复制、窗口被拦截、授权失败与关闭／重新打开弹窗均可恢复；关闭或切换渠道不把过时响应回填给别的表单。
+- [x] 真实三数据库授权流程回归、相关前端单测、类型检查、lint 和 Playwright 已执行并记录。
 
 ## Verification
 
-待实现。
+- 独立提交：`11147c84b`，`feat: add secure Codex OAuth authorization for channels`。
+- SQLite／MySQL／PostgreSQL 的绑定、过期、重放、凭证 CAS 和刷新回归通过，见 `/tmp/codex-auth-reset-{sqlite,mysql,postgres}.log`。
+- 前端相关完整测试、类型、变更文件 lint 和生产 Playwright 通过；浏览器验证真实授权发起、PKCE、回调拒绝、剪贴板及已有渠道重新授权。
+- 仅模拟上游授权完成，不声称已经登录真实 OpenAI 账号。详细结果见 `docs/codex-management-migration-verification.md`。
