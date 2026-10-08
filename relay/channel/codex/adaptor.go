@@ -164,22 +164,30 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 		return nil, err
 	}
 	setFingerprintIDs(c, ids)
-	if err := applyFingerprintToResponsesRequest(&request, ids); err != nil {
+	if isCompact {
+		if ids != nil && ids.mode == dto.CodexFingerprintModeFull {
+			if err := validateFullFingerprintClientMetadata(request.ClientMetadata); err != nil {
+				return nil, err
+			}
+		}
+	} else if err := applyFingerprintToResponsesRequest(&request, ids); err != nil {
 		return nil, err
 	}
 
-	if isCompact {
-		return request, nil
+	raw, err := common.Marshal(request)
+	if err != nil {
+		return nil, err
 	}
-	// codex: store must be false
-	request.Store = json.RawMessage("false")
-	// rm max_output_tokens
-	request.MaxOutputTokens = nil
-	request.Temperature = nil
-	request.TopP = nil
-	request.FrequencyPenalty = nil
-	request.PresencePenalty = nil
-	return request, nil
+	raw, err = ApplyCodexRequestConstraints(raw, isCompact)
+	if err != nil {
+		return nil, err
+	}
+	var constrained dto.OpenAIResponsesRequest
+	if err := common.Unmarshal(raw, &constrained); err != nil {
+		return nil, err
+	}
+	constrained.ReasoningConversion = request.ReasoningConversion
+	return constrained, nil
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
@@ -237,38 +245,22 @@ func (a *Adaptor) prepareRequestBody(c *gin.Context, info *relaycommon.RelayInfo
 	if err != nil {
 		return nil, nil, codexRequestBodyError(err)
 	}
-	if ids == nil {
-		if err := validateCodexRequestBodyRaw(raw); err != nil {
+	isCompact := info.RelayMode == relayconstant.RelayModeResponsesCompact
+	rewritten := raw
+	if ids != nil && !isCompact {
+		rewritten, err = SanitizeCodexRequestBody(raw, fingerprintFromIDs(ids), ids.mode)
+		if err != nil {
 			return nil, nil, codexRequestBodyError(err)
 		}
+	}
+	rewritten, err = ApplyCodexRequestConstraints(rewritten, isCompact)
+	if err != nil {
+		return nil, nil, codexRequestBodyError(err)
+	}
+	if bytes.Equal(raw, rewritten) {
 		return bytes.NewReader(raw), nil, nil
 	}
-	if info.RelayMode == relayconstant.RelayModeResponsesCompact {
-		if err := validateCodexRequestBodyRaw(raw); err != nil {
-			return nil, nil, codexRequestBodyError(err)
-		}
-		if ids.mode == dto.CodexFingerprintModeFull {
-			if err := validateCompactPassThroughFullBody(raw); err != nil {
-				return nil, nil, codexRequestBodyError(err)
-			}
-		}
-		rewritten, changed, err := stripCompactOriginalMetadataRaw(raw)
-		if err != nil {
-			return nil, nil, codexRequestBodyError(err)
-		}
-		if !changed {
-			return bytes.NewReader(raw), nil, nil
-		}
-		raw = rewritten
-	} else {
-		rewritten, err := SanitizeCodexRequestBody(raw, fingerprintFromIDs(ids), ids.mode)
-		if err != nil {
-			return nil, nil, codexRequestBodyError(err)
-		}
-		raw = rewritten
-	}
-
-	body, closer, err := relaycommon.NewOutboundJSONBody(raw)
+	body, closer, err := relaycommon.NewOutboundJSONBody(rewritten)
 	if err != nil {
 		return nil, nil, codexRequestBodyError(fmt.Errorf("codex channel: store rewritten request body: %w", err))
 	}
@@ -338,12 +330,19 @@ func (a *Adaptor) RewritePassThroughBody(c *gin.Context, info *relaycommon.Relay
 	if err != nil {
 		return nil, false, err
 	}
-	if ids == nil {
-		return raw, false, nil
+	isCompact := info != nil && info.RelayMode == relayconstant.RelayModeResponsesCompact
+	rewritten := raw
+	if ids != nil && !isCompact {
+		rewritten, err = SanitizeCodexRequestBody(raw, fingerprintFromIDs(ids), ids.mode)
+		if err != nil {
+			return nil, false, err
+		}
 	}
-	rewritten, err := SanitizeCodexRequestBody(raw, fingerprintFromIDs(ids), ids.mode)
-	if err != nil {
-		return nil, false, err
+	if codexJSONBodyPolicyApplies(c, info) {
+		rewritten, err = ApplyCodexRequestConstraints(rewritten, isCompact)
+		if err != nil {
+			return nil, false, err
+		}
 	}
 	return rewritten, !bytes.Equal(raw, rewritten), nil
 }

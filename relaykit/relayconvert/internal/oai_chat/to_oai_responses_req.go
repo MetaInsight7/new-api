@@ -390,6 +390,12 @@ func ChatCompletionsRequestToResponsesRequest(ctx context.Context, req *dto.Gene
 		}
 	}
 
+	var serviceTier string
+	if len(req.ServiceTier) > 0 {
+		if err := kitutil.Unmarshal(req.ServiceTier, &serviceTier); err != nil {
+			return nil, fmt.Errorf("service_tier must be a JSON string: %w", err)
+		}
+	}
 	out := &dto.OpenAIResponsesRequest{
 		Model:             req.Model,
 		Input:             inputRaw,
@@ -406,6 +412,7 @@ func ChatCompletionsRequestToResponsesRequest(ctx context.Context, req *dto.Gene
 		ParallelToolCalls: parallelToolCallsRaw,
 		Store:             req.Store,
 		Metadata:          req.Metadata,
+		ServiceTier:       serviceTier,
 		PromptCacheKey:    promptCacheKeyRaw,
 		EnableThinking:    req.EnableThinking,
 		ThinkingBudget:    req.ThinkingBudget,

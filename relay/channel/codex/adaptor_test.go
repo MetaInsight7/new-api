@@ -14,10 +14,12 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	relaytypes "github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 )
 
 func TestGetRequestURLAlphaSearch(t *testing.T) {
@@ -93,6 +95,117 @@ func TestConvertOpenAIRequestBuildsCodexResponsesRequest(t *testing.T) {
 	assert.Equal(t, "Hello", input[0]["content"])
 }
 
+func TestConvertResponsesAppliesCodexConstraints(t *testing.T) {
+	for _, testCase := range []struct {
+		name    string
+		mode    int
+		compact bool
+	}{
+		{name: "responses", mode: relayconstant.RelayModeResponses},
+		{name: "compact", mode: relayconstant.RelayModeResponsesCompact, compact: true},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			var request dto.OpenAIResponsesRequest
+			require.NoError(t, common.Unmarshal([]byte(`{
+				"model":"gpt-5.5","input":"hello","include":[],"conversation":"conv_1",
+				"context_management":[{"type":"compaction","compact_threshold":0}],
+				"truncation":"disabled","prompt":{"id":"prompt_1"},"text":{"format":{"type":"text"}},
+				"tools":[{"type":"web_search"}],"tool_choice":"auto","reasoning":{"effort":"high"},
+				"prompt_cache_key":"cache","service_tier":"fast","parallel_tool_calls":false,
+				"max_tool_calls":0,"top_logprobs":0,"stream":false,"store":true,
+				"frequency_penalty":0,"presence_penalty":0,"user":"user_1","metadata":{"tag":"private"},
+				"stream_options":{"include_usage":true},"prompt_cache_options":{},
+				"prompt_cache_retention":"24h","safety_identifier":"user_1",
+				"max_output_tokens":0,"temperature":0,"top_p":0,"client_metadata":{"session_id":"client"}
+			}`), &request))
+			request.ReasoningConversion = &dto.ReasoningConversionState{}
+			info := &relaycommon.RelayInfo{RelayMode: testCase.mode, ChannelMeta: &relaycommon.ChannelMeta{}}
+			converted, err := (&Adaptor{}).ConvertOpenAIResponsesRequest(nil, info, request)
+			require.NoError(t, err)
+			responsesRequest, ok := converted.(dto.OpenAIResponsesRequest)
+			require.True(t, ok)
+			assert.Same(t, request.ReasoningConversion, responsesRequest.ReasoningConversion)
+			wire, err := common.Marshal(converted)
+			require.NoError(t, err)
+			for _, field := range []string{
+				"frequency_penalty", "presence_penalty", "user", "metadata", "stream_options",
+				"prompt_cache_options", "prompt_cache_retention", "safety_identifier",
+				"max_output_tokens", "max_completion_tokens", "temperature", "top_p",
+			} {
+				assert.False(t, gjson.GetBytes(wire, field).Exists(), field)
+			}
+			for field, expected := range map[string]string{
+				"input": `"hello"`, "include": `[]`, "conversation": `"conv_1"`,
+				"context_management": `[{"type":"compaction","compact_threshold":0}]`,
+				"truncation":         `"disabled"`, "prompt": `{"id":"prompt_1"}`, "text": `{"format":{"type":"text"}}`,
+				"tools": `[{"type":"web_search"}]`, "tool_choice": `"auto"`, "reasoning": `{"effort":"high"}`,
+				"prompt_cache_key": `"cache"`, "service_tier": `"fast"`, "parallel_tool_calls": `false`,
+				"instructions": `""`,
+			} {
+				assert.JSONEq(t, expected, gjson.GetBytes(wire, field).Raw, field)
+			}
+			if testCase.compact {
+				for _, field := range []string{"store", "stream", "max_tool_calls", "top_logprobs", "client_metadata"} {
+					assert.False(t, gjson.GetBytes(wire, field).Exists(), field)
+				}
+			} else {
+				for _, field := range []string{"store", "stream"} {
+					assert.Equal(t, "false", gjson.GetBytes(wire, field).Raw, field)
+				}
+				for _, field := range []string{"max_tool_calls", "top_logprobs"} {
+					assert.Equal(t, "0", gjson.GetBytes(wire, field).Raw, field)
+				}
+				assert.JSONEq(t, `{"session_id":"client"}`, gjson.GetBytes(wire, "client_metadata").Raw)
+			}
+		})
+	}
+}
+
+func TestChatFastUsesExistingServiceTierGate(t *testing.T) {
+	settings := model_setting.GetGlobalSettings()
+	previous := settings.PassThroughRequestEnabled
+	settings.PassThroughRequestEnabled = false
+	t.Cleanup(func() { settings.PassThroughRequestEnabled = previous })
+	for _, modelName := range []string{"gpt-5.4", "gpt-5.5"} {
+		for _, testCase := range []struct {
+			name    string
+			tier    json.RawMessage
+			allowed bool
+			want    string
+		}{
+			{name: "explicit fast allowed", tier: json.RawMessage(`"fast"`), allowed: true, want: "fast"},
+			{name: "explicit fast disabled", tier: json.RawMessage(`"fast"`)},
+			{name: "absent is not injected", allowed: true},
+		} {
+			t.Run(modelName+"/"+testCase.name, func(t *testing.T) {
+				info := &relaycommon.RelayInfo{
+					RelayMode: relayconstant.RelayModeChatCompletions,
+					ChannelMeta: &relaycommon.ChannelMeta{
+						ChannelType:          constant.ChannelTypeCodex,
+						ChannelOtherSettings: dto.ChannelOtherSettings{AllowServiceTier: testCase.allowed},
+					},
+				}
+				converted, err := (&Adaptor{}).ConvertOpenAIRequest(nil, info, &dto.GeneralOpenAIRequest{
+					Model: modelName, ServiceTier: testCase.tier,
+					Messages: []dto.Message{{Role: "user", Content: "hello"}},
+				})
+				require.NoError(t, err)
+				raw, err := common.Marshal(converted)
+				require.NoError(t, err)
+				raw, err = relaycommon.RemoveDisabledFields(raw, info.ChannelOtherSettings, info.ChannelSetting.PassThroughBodyEnabled)
+				require.NoError(t, err)
+				raw, err = ApplyCodexRequestConstraints(raw, false)
+				require.NoError(t, err)
+				if testCase.want == "" {
+					assert.False(t, gjson.GetBytes(raw, "service_tier").Exists())
+				} else {
+					assert.Equal(t, testCase.want, gjson.GetBytes(raw, "service_tier").String())
+				}
+			})
+		}
+	}
+}
+
 func TestDoResponseChatAggregatesUpstreamSSEForNonStreamingClient(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	recorder := httptest.NewRecorder()
@@ -152,4 +265,5 @@ func TestConvertOpenAIResponsesRequestDropsPenalties(t *testing.T) {
 	assert.Nil(t, request.Temperature)
 	assert.Nil(t, request.FrequencyPenalty)
 	assert.Nil(t, request.PresencePenalty)
+	assert.Nil(t, request.Stream)
 }

@@ -271,6 +271,11 @@ func applyFingerprintToResponsesRequest(request *dto.OpenAIResponsesRequest, ids
 	if request == nil || ids == nil {
 		return nil
 	}
+	if ids.mode == dto.CodexFingerprintModeFull {
+		if err := validateFullFingerprintClientMetadata(request.ClientMetadata); err != nil {
+			return err
+		}
+	}
 	var metadata map[string]any
 	if len(request.ClientMetadata) > 0 {
 		if err := common.Unmarshal(request.ClientMetadata, &metadata); err != nil || metadata == nil {
@@ -296,6 +301,20 @@ func applyFingerprintToResponsesRequest(request *dto.OpenAIResponsesRequest, ids
 	}
 	request.ClientMetadata = encoded
 	return nil
+}
+
+func validateFullFingerprintClientMetadata(metadata []byte) error {
+	if len(metadata) == 0 {
+		return nil
+	}
+	if len(metadata) > maxCodexMetadataBytes {
+		return errors.New("codex channel: full fingerprint client_metadata is too large")
+	}
+	raw := make([]byte, 0, len(metadata)+len(`{"client_metadata":}`))
+	raw = append(raw, `{"client_metadata":`...)
+	raw = append(raw, metadata...)
+	raw = append(raw, '}')
+	return validateFullFingerprintMetadataRaw(raw)
 }
 
 func applyFingerprintHeaders(headers http.Header, ids *codexFingerprintIDs) {
@@ -340,29 +359,30 @@ func SanitizeCodexRequestBody(raw []byte, fingerprint *CodexFingerprint, mode st
 	if err := validateFullFingerprintMetadataRaw(raw); err != nil {
 		return nil, err
 	}
-	var body map[string]any
-	if err := common.Unmarshal(raw, &body); err != nil || body == nil {
+	if !gjson.ParseBytes(raw).IsObject() {
 		return nil, errors.New("codex channel: invalid full fingerprint request json")
 	}
 	originalSession := ""
-	if rawMetadata, ok := body["client_metadata"]; ok {
-		metadata, ok := rawMetadata.(map[string]any)
-		if !ok {
-			return nil, errors.New("codex channel: full fingerprint client_metadata must be an object")
-		}
-		if session, ok := metadata["session_id"].(string); ok {
-			originalSession = strings.TrimSpace(session)
+	if session := gjson.GetBytes(raw, "client_metadata.session_id"); session.Type == gjson.String {
+		originalSession = strings.TrimSpace(session.String())
+	}
+	rewritten := raw
+	if cacheKey := gjson.GetBytes(raw, "prompt_cache_key"); cacheKey.Type == gjson.String && originalSession != "" && cacheKey.String() == originalSession {
+		var err error
+		rewritten, err = sjson.SetBytes(rewritten, "prompt_cache_key", ids.sessionID)
+		if err != nil {
+			return nil, errors.New("codex channel: rewrite fingerprint prompt cache key")
 		}
 	}
-	if cacheKey, ok := body["prompt_cache_key"].(string); ok && originalSession != "" && cacheKey == originalSession {
-		body["prompt_cache_key"] = ids.sessionID
-	}
-	body["client_metadata"] = fullFingerprintMetadata(ids)
-	result, err := common.Marshal(body)
+	metadata, err := common.Marshal(fullFingerprintMetadata(ids))
 	if err != nil {
-		return nil, errors.New("codex channel: marshal full fingerprint request body")
+		return nil, errors.New("codex channel: marshal full fingerprint metadata")
 	}
-	return result, nil
+	rewritten, err = sjson.SetRawBytes(rewritten, "client_metadata", metadata)
+	if err != nil {
+		return nil, errors.New("codex channel: rebuild full fingerprint metadata")
+	}
+	return rewritten, nil
 }
 
 func validateFullFingerprintMetadataRaw(raw []byte) error {
@@ -401,49 +421,6 @@ func validateCodexRequestBodyRaw(raw []byte) error {
 	}
 	if exceedsJSONRawDepth([]byte(metadata.Raw), maxCodexMetadataDepth) {
 		return errors.New("codex channel: client_metadata is too deeply nested")
-	}
-	return nil
-}
-
-func stripCompactOriginalMetadataRaw(body []byte) ([]byte, bool, error) {
-	if len(body) == 0 {
-		return body, false, nil
-	}
-	root := gjson.ParseBytes(body)
-	if !gjson.ValidBytes(body) || !root.IsObject() {
-		return body, false, nil
-	}
-	rewritten := body
-	changed := false
-	for _, key := range []string{"client_metadata", "metadata"} {
-		if !gjson.GetBytes(rewritten, key).Exists() {
-			continue
-		}
-		var err error
-		rewritten, err = sjson.DeleteBytes(rewritten, key)
-		if err != nil {
-			return body, false, fmt.Errorf("codex channel: strip compact original metadata: %w", err)
-		}
-		changed = true
-	}
-	return rewritten, changed, nil
-}
-
-func validateCompactPassThroughFullBody(raw []byte) error {
-	if len(raw) == 0 {
-		return errors.New("codex channel: full fingerprint compact request body is empty")
-	}
-	if err := validateFullFingerprintMetadataRaw(raw); err != nil {
-		return err
-	}
-	var body map[string]any
-	if err := common.Unmarshal(raw, &body); err != nil || body == nil {
-		return errors.New("codex channel: invalid full fingerprint compact request json")
-	}
-	if metadata, ok := body["client_metadata"]; ok {
-		if _, ok := metadata.(map[string]any); !ok {
-			return errors.New("codex channel: full fingerprint compact client_metadata must be an object")
-		}
 	}
 	return nil
 }

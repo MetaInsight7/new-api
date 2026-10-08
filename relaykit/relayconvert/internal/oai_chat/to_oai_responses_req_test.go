@@ -72,6 +72,48 @@ func TestChatCompletionsRequestToResponsesRequestPreservesPromptCacheKey(t *test
 	})
 }
 
+func TestChatCompletionsRequestToResponsesRequestPreservesExplicitServiceTier(t *testing.T) {
+	for _, testCase := range []struct {
+		name string
+		tier json.RawMessage
+		want string
+	}{
+		{name: "explicit fast", tier: json.RawMessage(`"fast"`), want: "fast"},
+		{name: "explicit default", tier: json.RawMessage(`"default"`), want: "default"},
+		{name: "absent"},
+		{name: "null", tier: json.RawMessage(`null`)},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			converted, err := ChatCompletionsRequestToResponsesRequest(context.Background(), &dto.GeneralOpenAIRequest{
+				Model: "gpt-5.5", ServiceTier: testCase.tier,
+				Messages: []dto.Message{{Role: "user", Content: "hello"}},
+			})
+			require.NoError(t, err)
+			assert.Equal(t, testCase.want, converted.ServiceTier)
+			raw, err := kitutil.Marshal(converted)
+			require.NoError(t, err)
+			if testCase.want == "" {
+				assert.False(t, gjson.GetBytes(raw, "service_tier").Exists())
+			} else {
+				assert.Equal(t, testCase.want, gjson.GetBytes(raw, "service_tier").String())
+			}
+		})
+	}
+}
+
+func TestChatCompletionsRequestToResponsesRequestRejectsNonStringServiceTier(t *testing.T) {
+	for _, tier := range []string{`false`, `0`, `{}`, `[]`, `"unterminated`} {
+		t.Run(tier, func(t *testing.T) {
+			converted, err := ChatCompletionsRequestToResponsesRequest(context.Background(), &dto.GeneralOpenAIRequest{
+				Model: "gpt-test", ServiceTier: json.RawMessage(tier),
+				Messages: []dto.Message{{Role: "user", Content: "hello"}},
+			})
+			require.ErrorContains(t, err, "service_tier must be a JSON string")
+			assert.Nil(t, converted)
+		})
+	}
+}
+
 func TestChatCompletionsRequestToResponsesRequestPreservesQwenThinkingBudget(t *testing.T) {
 	tests := []struct {
 		name   string
