@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"io"
 	"net/http"
@@ -199,6 +201,12 @@ func TestPutCodexTempMediaObjectS3SignsAndSendsPrivateObject(t *testing.T) {
 		body, err := io.ReadAll(request.Body)
 		require.NoError(t, err)
 		assert.Equal(t, "image", string(body))
+		hash := sha256.Sum256(body)
+		if !assert.Equal(t, hex.EncodeToString(hash[:]), request.Header.Get("X-Amz-Content-Sha256")) {
+			writer.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		assert.Contains(t, request.Header.Get("Authorization"), "x-amz-content-sha256")
 		writer.WriteHeader(http.StatusOK)
 	}))
 	t.Cleanup(server.Close)

@@ -190,7 +190,40 @@ OAuth 和治理备注均复用 RHF、Zod 与 FormField。治理成功后的服�
 - Reset 继续使用 `channel:operate`；认证重试复用同一消费 ID，响应不确定时不能悄悄重复消费；前端权限不代替后端授权。
 - 治理证据截断／脱敏；仅 Codex 的 `IsChannelTest` 且显式注册私有 context observer 才提取原始错误，覆盖 `response.error`、顶层 `error.message` 和 flat message。分类后只持久化规则／规范化解释，不保存 raw token、账号或请求；公开流中的顶层与嵌套 error 同时脱敏。公告使用现有 SSRF、超时和体积限制；AI 和外部来源默认关闭。
 - Redis 通知只携带范围、实例 ID 和需关闭的渠道 ID，不传渠道 key 或 OAuth 凭证；无 Redis 保留 Base 周期同步兜底。
-- 没有执行真实 OpenAI OAuth 登录、真实 Reset Credit 消费或具备部署凭证的真实 R2 上传。上线前应由账号拥有者完成一次真实账号授权／请求／额度读取和私有 R2 URL 冒烟，不能把本记录当作已经替拥有者完成这些操作。
+- 真实 R2 上传／签名下载已在下述独立外部冒烟中完成。仍没有执行真实 OpenAI OAuth 登录、真实 Reset Credit 消费或真实 Codex 图片生成到 R2 的完整链路；上线前应由账号拥有者完成真实账号授权／请求／额度读取及图片生成链路验收，不能把存储冒烟当作这些操作已完成。
+
+## 真实 R2 外部冒烟（2026-10-08）
+
+在 `tokendazi_op` 分支、`fcfab0701` 后调用生产实现 `service.UploadCodexTempMedia`，使用用户提供的 R2 S3 凭据和 `tokendazi` Bucket；没有通过另一套上传客户端替代生产实现。仅上传自行编码的 77 字节 PNG，所有对象位于独立的 `codex-live-test/<本轮唯一标识>/` 前缀中，不列出、修改或删除已有对象。
+
+首次真实上传返回 HTTP 400／`InvalidRequest`：生产代码把 payload SHA-256 交给 AWS signer，却没有设置 R2 所需的 `X-Amz-Content-Sha256` 请求头。原有 mock 仅验证 Authorization、类型和内容，未约束这个请求头。先扩展既有上传回归，让 mock 拒绝缺失或不匹配的哈希头，观察到相同的 400 失败，再补齐并签名实际 payload hash，回归转绿；没有修改凭据、放宽权限、关闭 TLS 校验或改变存储契约。
+
+| 检查 | 实际结果 |
+|---|---|
+| 生产上传 | PUT 200，写入 77 字节 `image/png` |
+| 生产预签名 URL | TTL 300 秒，签名时间、`ExpiresAt`、`ExpiresIn`、类型和大小一致 |
+| 签名下载 | GET 200，Content-Type 正确，`Cache-Control: private, max-age=300`，逐字节及 SHA-256 校验一致 |
+| 无签名 S3 访问 | GET 400／`InvalidArgument`，拒绝下载；R2 的缺少认证错误不能硬编码为 403 |
+| 篡改签名 | GET 403／`SignatureDoesNotMatch` |
+| 已过期签名 | GET 403／`ExpiredRequest`；使用已过期的签名时间验证，不等待或伪称测试了 12 小时默认有效期 |
+| 对象清理 | 每次成功上传后签名 DELETE 204，随后认证 GET 404；本次创建的测试对象全部删除 |
+
+验收程序在仓库外 `/tmp/verify-codex-r2-live.go`，最终真实结果在 `/tmp/codex-r2-live-verification.log`；首次失败与红绿回归分别在 `/tmp/codex-r2-live-red.log`、`/tmp/codex-r2-regression-{red,green}.log`。记录不包含访问密钥、签名 URL、Authorization 或完整上游错误。
+
+测试配置仅保存在仓库外 `/root/newapi/r2-test.env`，权限 `600`，只传入独立测试进程；没有写入 Git，也没有自动给运行中的后台启用 R2。Cloudflare 管理 API Token 未保存或使用。
+
+修复后实际通过两包完整测试、受影响用例 race、两包 vet 和后端编译；没有前端变更，因此未触发 Bun 构建或 Playwright：
+
+```bash
+go test ./service ./relay/channel/codex
+go test -race ./service ./relay/channel/codex -run '(CodexTempMedia|NormalizeCodexTempMedia|RelayImageOverCodex.*(R2|TempURL|GeneratedOutputFormat)|CodexTempURL)'
+go vet ./service ./relay/channel/codex
+go build -o /tmp/new-api-r2-verified .
+```
+
+日志分别为 `/tmp/codex-r2-affected-packages.log`、`/tmp/codex-r2-focused-race.log`、`/tmp/codex-r2-affected-vet.log`、`/tmp/codex-r2-backend-build.log`。没有把前述整库已知竞态列为本轮通过结果，也没有顺带修复这些无关问题。
+
+边界：无签名 S3 接口拒绝下载，不能证明 Bucket 的 `r2.dev` 或公共自定义域名已关闭；本轮未读取公共域名设置，需要部署方在控制台确认。签名过期也不等于对象自动删除，生产 Bucket 的临时对象生命周期规则仍需单独配置。本轮没有调用 Codex 上游、生成真实订阅图片或消费 Reset Credit。
 
 ## 独立提交与最终复审
 
@@ -214,6 +247,6 @@ OAuth 和治理备注均复用 RHF、Zod 与 FormField。治理成功后的服�
 
 ### Spec
 
-复审无阻塞项。三种 SSE 错误 envelope 取证与公开脱敏，以及全局 Chat 转换／成功缺 usage 的最后遗漏均有回归闭环；普通 Relay 不新增治理触发器，其他 provider 不受 Codex 专属分支影响。真实 OpenAI 授权、实际 Reset Credit 消费和具备部署凭证的 R2 上传仍按前述边界由拥有者冒烟，不伪称已完成这些外部操作。
+复审无阻塞项。三种 SSE 错误 envelope 取证与公开脱敏，以及全局 Chat 转换／成功缺 usage 的最后遗漏均有回归闭环；普通 Relay 不新增治理触发器，其他 provider 不受 Codex 专属分支影响。真实 R2 存储已补充外部冒烟；真实 OpenAI 授权、实际 Reset Credit 消费和 Codex 图片完整链路仍按前述边界由拥有者验收，不伪称已完成这些外部操作。
 
 本轮九个 tickets 和验收记录随最终文档提交归档；未 push。开发服务 3000／5173 均已启动，业务与文档分别提交，不将工作树勾选代替实际验证。

@@ -283,8 +283,10 @@ func putCodexTempMediaObjectS3(ctx context.Context, config CodexTempMediaConfig,
 	request.Header.Set("Content-Type", contentType)
 	request.Header.Set("Cache-Control", fmt.Sprintf("private, max-age=%d", int64(config.SignedURLTTL/time.Second)))
 	hash := sha256.Sum256(body)
+	payloadHash := hex.EncodeToString(hash[:])
+	request.Header.Set("X-Amz-Content-Sha256", payloadHash)
 	credentials := aws.Credentials{AccessKeyID: config.AccessKey, SecretAccessKey: config.SecretKey}
-	if err := v4.NewSigner().SignHTTP(ctx, credentials, request, hex.EncodeToString(hash[:]), codexTempMediaSigningService, config.Region, codexTempMediaNow().UTC()); err != nil {
+	if err := v4.NewSigner().SignHTTP(ctx, credentials, request, payloadHash, codexTempMediaSigningService, config.Region, codexTempMediaNow().UTC()); err != nil {
 		return err
 	}
 	client := &http.Client{Timeout: codexTempMediaHTTPTimeout}
