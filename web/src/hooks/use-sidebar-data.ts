@@ -165,6 +165,11 @@ export function useSidebarData(): SidebarData {
             icon: HeartPulse,
           },
           {
+            title: t('Codex Model Governance'),
+            url: '/codex-model-governance',
+            icon: ShieldCheck,
+          },
+          {
             title: t('Ops Daily Report'),
             url: '/ops-report',
             icon: CalendarRange,

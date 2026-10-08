@@ -243,11 +243,27 @@ func identityFilterRequiresKey(filters []dto.ChannelFilter) bool {
 }
 
 func (channel *Channel) AddAbilities(tx *gorm.DB) error {
+	if tx == nil {
+		return DB.Transaction(func(tx *gorm.DB) error { return channel.AddAbilities(tx) })
+	}
+	var configured Channel
+	if err := lockForUpdate(tx).First(&configured, "id = ?", channel.Id).Error; err != nil {
+		return err
+	}
+	channel = &configured
 	models_ := strings.Split(channel.Models, ",")
 	groups_ := strings.Split(channel.Group, ",")
+	governance, err := channel.codexAbilityGovernanceByModel(tx, models_)
+	if err != nil {
+		return err
+	}
 	abilitySet := make(map[string]struct{})
 	abilities := make([]Ability, 0, len(models_))
 	for _, model := range models_ {
+		state := governance[strings.TrimSpace(model)]
+		if state.Removed {
+			continue
+		}
 		for _, group := range groups_ {
 			key := group + "|" + model
 			if _, exists := abilitySet[key]; exists {
@@ -258,7 +274,7 @@ func (channel *Channel) AddAbilities(tx *gorm.DB) error {
 				Group:     group,
 				Model:     model,
 				ChannelId: channel.Id,
-				Enabled:   channel.Status == common.ChannelStatusEnabled,
+				Enabled:   channel.Status == common.ChannelStatusEnabled && !state.Disabled,
 				Priority:  channel.Priority,
 				Weight:    uint(channel.GetWeight()),
 				Tag:       channel.Tag,
@@ -269,13 +285,8 @@ func (channel *Channel) AddAbilities(tx *gorm.DB) error {
 	if len(abilities) == 0 {
 		return nil
 	}
-	// choose DB or provided tx
-	useDB := DB
-	if tx != nil {
-		useDB = tx
-	}
 	for _, chunk := range lo.Chunk(abilities, 50) {
-		err := useDB.Clauses(clause.OnConflict{DoNothing: true}).Create(&chunk).Error
+		err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&chunk).Error
 		if err != nil {
 			return err
 		}
@@ -290,36 +301,35 @@ func (channel *Channel) DeleteAbilities() error {
 // UpdateAbilities updates abilities of this channel.
 // Make sure the channel is completed before calling this function.
 func (channel *Channel) UpdateAbilities(tx *gorm.DB) error {
-	isNewTx := false
-	// 如果没有传入事务，创建新的事务
 	if tx == nil {
-		tx = DB.Begin()
-		if tx.Error != nil {
-			return tx.Error
-		}
-		isNewTx = true
-		defer func() {
-			if r := recover(); r != nil {
-				tx.Rollback()
-			}
-		}()
+		return DB.Transaction(func(tx *gorm.DB) error { return channel.UpdateAbilities(tx) })
 	}
+	var configured Channel
+	if err := lockForUpdate(tx).First(&configured, "id = ?", channel.Id).Error; err != nil {
+		return err
+	}
+	channel = &configured
 
 	// First delete all abilities of this channel
 	err := tx.Where("channel_id = ?", channel.Id).Delete(&Ability{}).Error
 	if err != nil {
-		if isNewTx {
-			tx.Rollback()
-		}
 		return err
 	}
 
 	// Then add new abilities
 	models_ := channel.GetModels()
 	groups_ := strings.Split(channel.Group, ",")
+	governance, err := channel.codexAbilityGovernanceByModel(tx, models_)
+	if err != nil {
+		return err
+	}
 	abilitySet := make(map[string]struct{})
 	abilities := make([]Ability, 0, len(models_))
 	for _, model := range models_ {
+		state := governance[strings.TrimSpace(model)]
+		if state.Removed {
+			continue
+		}
 		for _, group := range groups_ {
 			key := group + "|" + model
 			if _, exists := abilitySet[key]; exists {
@@ -330,7 +340,7 @@ func (channel *Channel) UpdateAbilities(tx *gorm.DB) error {
 				Group:     group,
 				Model:     model,
 				ChannelId: channel.Id,
-				Enabled:   channel.Status == common.ChannelStatusEnabled,
+				Enabled:   channel.Status == common.ChannelStatusEnabled && !state.Disabled,
 				Priority:  channel.Priority,
 				Weight:    uint(channel.GetWeight()),
 				Tag:       channel.Tag,
@@ -343,28 +353,48 @@ func (channel *Channel) UpdateAbilities(tx *gorm.DB) error {
 		for _, chunk := range lo.Chunk(abilities, 50) {
 			err = tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&chunk).Error
 			if err != nil {
-				if isNewTx {
-					tx.Rollback()
-				}
 				return err
 			}
 		}
-	}
-
-	// 如果是新创建的事务，需要提交
-	if isNewTx {
-		return tx.Commit().Error
 	}
 
 	return nil
 }
 
 func UpdateAbilityStatus(channelId int, status bool) error {
-	return DB.Model(&Ability{}).Where("channel_id = ?", channelId).Select("enabled").Update("enabled", status).Error
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var channels []Channel
+		if err := lockForUpdate(tx).Where("id = ?", channelId).Find(&channels).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&Ability{}).Where("channel_id = ?", channelId).Select("enabled").Update("enabled", status).Error; err != nil {
+			return err
+		}
+		if status {
+			return ReapplyCodexModelGovernanceWithDB(tx, []int{channelId})
+		}
+		return nil
+	})
 }
 
 func UpdateAbilityStatusByTag(tag string, status bool) error {
-	return DB.Model(&Ability{}).Where("tag = ?", tag).Select("enabled").Update("enabled", status).Error
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var channels []Channel
+		if err := lockForUpdate(tx).Where("tag = ?", tag).Order("id").Find(&channels).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&Ability{}).Where("tag = ?", tag).Select("enabled").Update("enabled", status).Error; err != nil {
+			return err
+		}
+		if !status {
+			return nil
+		}
+		channelIDs := make([]int, 0, len(channels))
+		for _, channel := range channels {
+			channelIDs = append(channelIDs, channel.Id)
+		}
+		return ReapplyCodexModelGovernanceWithDB(tx, channelIDs)
+	})
 }
 
 func UpdateAbilityByTag(tag string, newTag *string, priority *int64, weight *uint) error {

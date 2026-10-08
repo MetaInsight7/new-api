@@ -368,6 +368,7 @@ func SetApiRouter(router *gin.Engine) {
 		dataRoute.GET("/usage_report", middleware.AdminAuth(), controller.GetUsageReport)
 		codexDataRoute := dataRoute.Group("/codex", middleware.AdminAuth(), middleware.DisableCache())
 		handlePermissionRoute(codexDataRoute, http.MethodGet, "/limits", authz.ChannelRead, controller.GetCodexLimitReport)
+		RegisterCodexModelGovernanceRoutes(apiRouter)
 
 		logRoute.Use(middleware.CORS(), middleware.CriticalRateLimit())
 		{

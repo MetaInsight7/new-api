@@ -12,6 +12,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	relaydto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -363,6 +364,164 @@ func TestChannelStatusNotificationsRealRedisProducer(test *testing.T) {
 			var storedAbility Ability
 			require.NoError(test, DB.Where("channel_id = ?", channel.Id).First(&storedAbility).Error)
 			assert.Equal(test, testCase.wantStatus == common.ChannelStatusEnabled, storedAbility.Enabled)
+		})
+	}
+}
+
+func TestChannelTagNotificationsRealRedisProducer(test *testing.T) {
+	ctx, observer, topic := setupChannelStatusRedisTest(test, 12)
+	for _, dialect := range []string{"sqlite", "mysql", "postgres"} {
+		test.Run(dialect, func(test *testing.T) {
+			database := newCodexGovernanceTestDatabase(test, dialect)
+			require.NoError(test, database.AutoMigrate(&Channel{}, &Ability{}))
+			common.MemoryCacheEnabled = true
+			for _, testCase := range []struct {
+				name      string
+				enable    bool
+				failTable string
+			}{
+				{name: "enable_banned_tag_publishes_cache_only", enable: true},
+				{name: "disable_tag_publishes_only_disabled_target_ids"},
+				{name: "enable_channel_error_does_not_publish", enable: true, failTable: "channels"},
+				{name: "enable_ability_error_rolls_back_without_publish", enable: true, failTable: "abilities"},
+				{name: "disable_channel_error_does_not_publish", failTable: "channels"},
+				{name: "disable_ability_error_rolls_back_without_publish", failTable: "abilities"},
+			} {
+				test.Run(testCase.name, func(test *testing.T) {
+					require.NoError(test, database.Exec("DELETE FROM abilities").Error)
+					require.NoError(test, database.Exec("DELETE FROM channels").Error)
+					tag := "notification-tag"
+					otherTag := "unrelated-tag"
+					firstStatus := common.ChannelStatusEnabled
+					if testCase.enable {
+						firstStatus = common.ChannelStatusBanned
+					}
+					channels := []Channel{
+						{
+							Name: "partial-key-target", Type: constant.ChannelTypeCodex, Tag: &tag,
+							Key: "tag-key-a\ntag-key-b", Status: firstStatus, Models: "tag-model", Group: "default",
+							ChannelInfo: ChannelInfo{IsMultiKey: true, MultiKeySize: 2, MultiKeyMode: constant.MultiKeyModePolling,
+								MultiKeyStatusList: map[int]int{0: common.ChannelStatusAutoDisabled}},
+						},
+						{
+							Name: "exhausted-target", Type: constant.ChannelTypeCodex, Tag: &tag,
+							Key: "exhausted-key", Status: common.ChannelStatusAutoDisabled, Models: "tag-model", Group: "default",
+							ChannelInfo: ChannelInfo{IsMultiKey: true, MultiKeySize: 1, MultiKeyMode: constant.MultiKeyModePolling,
+								MultiKeyStatusList: map[int]int{0: common.ChannelStatusAutoDisabled}},
+						},
+						{
+							Name: "unrelated-enabled", Type: constant.ChannelTypeOpenAI, Tag: &otherTag,
+							Key: "unrelated-key", Status: common.ChannelStatusEnabled, Models: "tag-model", Group: "default",
+						},
+					}
+					channels[0].SetSetting(relaydto.ChannelSettings{CodexFingerprintMode: relaydto.CodexFingerprintModeFull})
+					channels[1].SetSetting(relaydto.ChannelSettings{CodexFingerprintMode: relaydto.CodexFingerprintModeOff})
+					channels[1].SetOtherInfo(map[string]any{
+						"status_reason": ChannelStatusReasonAllKeysDisabled, "status_time": int64(1234),
+					})
+					for index := range channels {
+						require.NoError(test, database.Create(&channels[index]).Error)
+						ability := Ability{ChannelId: channels[index].Id, Model: "tag-model", Group: "default", Tag: channels[index].Tag,
+							Enabled: channels[index].Status == common.ChannelStatusEnabled}
+						require.NoError(test, database.Create(&ability).Error)
+					}
+					InitChannelCache()
+					subscription := observer.Subscribe(ctx, topic)
+					test.Cleanup(func() { require.NoError(test, subscription.Close()) })
+					confirmation, err := subscription.Receive(ctx)
+					require.NoError(test, err)
+					require.Equal(test, &redis.Subscription{Kind: "subscribe", Channel: topic, Count: 1}, confirmation)
+					forcedError := errors.New("forced tag write failure")
+					callbackTriggered := false
+					var callbackReadError error
+					if testCase.failTable != "" {
+						const callbackName = "test:channel_tag_notification_rollback"
+						require.NoError(test, database.Callback().Update().Before("gorm:update").Register(callbackName, func(transaction *gorm.DB) {
+							if transaction.Statement.Table == testCase.failTable {
+								if testCase.failTable == "abilities" && !testCase.enable {
+									var firstTarget Channel
+									callbackReadError = transaction.Session(&gorm.Session{NewDB: true}).First(&firstTarget, channels[0].Id).Error
+									if callbackReadError != nil {
+										transaction.AddError(callbackReadError)
+										return
+									}
+									if firstTarget.Status != common.ChannelStatusManuallyDisabled {
+										return
+									}
+								}
+								callbackTriggered = true
+								transaction.AddError(forcedError)
+							}
+						}))
+						test.Cleanup(func() { require.NoError(test, database.Callback().Update().Remove(callbackName)) })
+					}
+					if testCase.enable {
+						err = EnableChannelByTag(tag)
+					} else {
+						err = DisableChannelByTag(tag)
+					}
+					if testCase.failTable == "" {
+						require.NoError(test, err)
+					} else {
+						require.Error(test, err)
+						require.True(test, callbackTriggered)
+						require.NoError(test, callbackReadError)
+					}
+					payloads := receiveChannelStatusNotificationsThroughBarrier(test, ctx, observer, subscription, topic)
+					if testCase.failTable != "" {
+						assert.Empty(test, payloads, "failed tag operations must not emit an earlier per-channel event")
+					} else {
+						require.Len(test, payloads, 1, "one event after the whole tag operation commits")
+						var event struct {
+							Scope           string `json:"scope"`
+							Source          string `json:"source"`
+							CloseChannelIDs []int  `json:"close_channel_ids"`
+						}
+						require.NoError(test, common.UnmarshalJsonStr(payloads[0], &event))
+						assert.Equal(test, common.ConfigScopeChannels, event.Scope)
+						assert.Equal(test, common.GetReplicaID(), event.Source)
+						if testCase.enable {
+							assert.Empty(test, event.CloseChannelIDs)
+						} else {
+							assert.Equal(test, []int{channels[0].Id, channels[1].Id}, event.CloseChannelIDs)
+						}
+						assert.NotContains(test, payloads[0], "tag-key")
+						assert.NotContains(test, payloads[0], "exhausted-key")
+					}
+					for index := range channels {
+						stored, err := GetChannelById(channels[index].Id, true)
+						require.NoError(test, err)
+						wantStatus := channels[index].Status
+						if index < 2 && testCase.failTable == "" {
+							wantStatus = common.ChannelStatusManuallyDisabled
+							if testCase.enable {
+								wantStatus = common.ChannelStatusEnabled
+							}
+						}
+						assert.Equal(test, wantStatus, stored.Status)
+						assert.Equal(test, channels[index].ChannelInfo, stored.ChannelInfo)
+						cached, err := CacheGetChannel(channels[index].Id)
+						require.NoError(test, err)
+						assert.Equal(test, wantStatus, cached.Status, "cache follows successful tag commits")
+						if testCase.failTable != "" {
+							assert.Equal(test, channels[index].OtherInfo, stored.OtherInfo)
+							assert.Equal(test, channels[index].CodexFingerprintSeed, stored.CodexFingerprintSeed)
+						}
+						if index == 0 && testCase.enable && testCase.failTable == "" {
+							assert.NotEmpty(test, stored.CodexFingerprintSeed)
+						}
+						if index == 1 {
+							assert.Empty(test, stored.CodexFingerprintSeed, "off remains a fingerprint kill-switch")
+							if !testCase.enable && testCase.failTable == "" {
+								assert.Equal(test, "manual tag operation", stored.GetOtherInfo()["status_reason"])
+							}
+						}
+						var storedAbility Ability
+						require.NoError(test, database.Where("channel_id = ?", channels[index].Id).First(&storedAbility).Error)
+						assert.Equal(test, wantStatus == common.ChannelStatusEnabled, storedAbility.Enabled)
+					}
+				})
+			}
 		})
 	}
 }

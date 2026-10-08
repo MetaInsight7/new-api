@@ -1,6 +1,7 @@
 package openai
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -20,6 +21,12 @@ import (
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
+
+type codexModelProbeErrorEvidenceKey struct{}
+
+func WithCodexModelProbeErrorEvidence(ctx context.Context, capture func(string)) context.Context {
+	return context.WithValue(ctx, codexModelProbeErrorEvidenceKey{}, capture)
+}
 
 func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	defer service.CloseResponseBodyGracefully(resp)
@@ -104,6 +111,30 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		if isCodexResponsesTerminalFailure(info, streamResponse) {
 			responseWritten := c.Writer.Written()
 			accumulator.Observe(&streamResponse)
+			if info.IsChannelTest {
+				capture, _ := c.Request.Context().Value(codexModelProbeErrorEvidenceKey{}).(func(string))
+				if capture != nil {
+					var upstreamError *types.OpenAIError
+					if streamResponse.Response != nil {
+						upstreamError = streamResponse.Response.GetOpenAIError()
+					}
+					if upstreamError == nil {
+						var envelope struct {
+							Error *types.OpenAIError `json:"error"`
+						}
+						if err := common.UnmarshalJsonStr(data, &envelope); err == nil {
+							upstreamError = envelope.Error
+						}
+					}
+					message := streamResponse.Message
+					if upstreamError != nil {
+						message = upstreamError.Message
+					}
+					if message != "" {
+						capture(message)
+					}
+				}
+			}
 			terminalErr = NewCodexResponsesTerminalError(
 				streamResponse.Type,
 				streamResponse.Response,
@@ -167,13 +198,17 @@ func sanitizeCodexTerminalEvent(data, eventType string) string {
 		return data
 	}
 	payload["message"] = "Codex upstream response failed"
+	sanitizedError := map[string]any{
+		"type":    "server_error",
+		"message": "Codex upstream response failed",
+		"code":    "server_error",
+	}
+	if _, exists := payload["error"]; exists {
+		payload["error"] = sanitizedError
+	}
 	if response, ok := payload["response"].(map[string]any); ok {
 		if _, exists := response["error"]; exists {
-			response["error"] = map[string]any{
-				"type":    "server_error",
-				"message": "Codex upstream response failed",
-				"code":    "server_error",
-			}
+			response["error"] = sanitizedError
 		}
 	}
 	sanitized, err := common.Marshal(payload)

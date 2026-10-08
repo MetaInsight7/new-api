@@ -1096,6 +1096,11 @@ func updateChannelStatus(channelId int, usingKey string, status int, reason stri
 				Update("enabled", channel.Status == common.ChannelStatusEnabled).Error; err != nil {
 				return err
 			}
+			if channel.Status == common.ChannelStatusEnabled {
+				if err := ReapplyCodexModelGovernanceWithDB(tx, []int{channel.Id}); err != nil {
+					return err
+				}
+			}
 		}
 		changed = true
 		if channel.Status != common.ChannelStatusEnabled {
@@ -1125,7 +1130,9 @@ func EnableChannelByTag(tag string) error {
 		if err := tx.Model(&Channel{}).Where("tag = ?", tag).Update("status", common.ChannelStatusEnabled).Error; err != nil {
 			return err
 		}
+		channelIDs := make([]int, 0, len(channels))
 		for _, channel := range channels {
+			channelIDs = append(channelIDs, channel.Id)
 			if channel.Type == constant.ChannelTypeCodex && channel.GetSetting().NormalizedCodexFingerprintMode() != dto.CodexFingerprintModeOff {
 				if _, err := ensureCodexFingerprintSeedTx(tx, channel.Id); err != nil {
 					return err
@@ -1135,7 +1142,7 @@ func EnableChannelByTag(tag string) error {
 		if err := tx.Model(&Ability{}).Where("tag = ?", tag).Select("enabled").Update("enabled", true).Error; err != nil {
 			return err
 		}
-		return nil
+		return ReapplyCodexModelGovernanceWithDB(tx, channelIDs)
 	})
 	if err != nil {
 		return err

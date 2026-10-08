@@ -37,6 +37,7 @@ import { Route as authUserResetRouteImport } from './routes/(auth)/user/reset'
 import { Route as AuthenticatedAvailableModelsIndexRouteImport } from './routes/_authenticated/available-models/index'
 import { Route as AuthenticatedChannelsIndexRouteImport } from './routes/_authenticated/channels/index'
 import { Route as AuthenticatedChatChatIdRouteImport } from './routes/_authenticated/chat/$chatId'
+import { Route as AuthenticatedCodexModelGovernanceIndexRouteImport } from './routes/_authenticated/codex-model-governance/index'
 import { Route as AuthenticatedDashboardIndexRouteImport } from './routes/_authenticated/dashboard/index'
 import { Route as AuthenticatedDashboardSectionRouteImport } from './routes/_authenticated/dashboard/$section'
 import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenticated/errors/$error'
@@ -219,6 +220,12 @@ const AuthenticatedChatChatIdRoute = AuthenticatedChatChatIdRouteImport.update({
   path: '/chat/$chatId',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedCodexModelGovernanceIndexRoute =
+  AuthenticatedCodexModelGovernanceIndexRouteImport.update({
+    id: '/codex-model-governance/',
+    path: '/codex-model-governance/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedDashboardIndexRoute =
   AuthenticatedDashboardIndexRouteImport.update({
     id: '/dashboard/',
@@ -489,6 +496,7 @@ export interface FileRoutesByFullPath {
   '/usage-logs/audit': typeof AuthenticatedUsageLogsAuditRoute
   '/available-models/': typeof AuthenticatedAvailableModelsIndexRoute
   '/channels/': typeof AuthenticatedChannelsIndexRoute
+  '/codex-model-governance/': typeof AuthenticatedCodexModelGovernanceIndexRoute
   '/dashboard/': typeof AuthenticatedDashboardIndexRoute
   '/keys/': typeof AuthenticatedKeysIndexRoute
   '/model-health/': typeof AuthenticatedModelHealthIndexRoute
@@ -556,6 +564,7 @@ export interface FileRoutesByTo {
   '/usage-logs/audit': typeof AuthenticatedUsageLogsAuditRoute
   '/available-models': typeof AuthenticatedAvailableModelsIndexRoute
   '/channels': typeof AuthenticatedChannelsIndexRoute
+  '/codex-model-governance': typeof AuthenticatedCodexModelGovernanceIndexRoute
   '/dashboard': typeof AuthenticatedDashboardIndexRoute
   '/keys': typeof AuthenticatedKeysIndexRoute
   '/model-health': typeof AuthenticatedModelHealthIndexRoute
@@ -627,6 +636,7 @@ export interface FileRoutesById {
   '/_authenticated/usage-logs/audit': typeof AuthenticatedUsageLogsAuditRoute
   '/_authenticated/available-models/': typeof AuthenticatedAvailableModelsIndexRoute
   '/_authenticated/channels/': typeof AuthenticatedChannelsIndexRoute
+  '/_authenticated/codex-model-governance/': typeof AuthenticatedCodexModelGovernanceIndexRoute
   '/_authenticated/dashboard/': typeof AuthenticatedDashboardIndexRoute
   '/_authenticated/keys/': typeof AuthenticatedKeysIndexRoute
   '/_authenticated/model-health/': typeof AuthenticatedModelHealthIndexRoute
@@ -697,6 +707,7 @@ export interface FileRouteTypes {
     | '/usage-logs/audit'
     | '/available-models/'
     | '/channels/'
+    | '/codex-model-governance/'
     | '/dashboard/'
     | '/keys/'
     | '/model-health/'
@@ -764,6 +775,7 @@ export interface FileRouteTypes {
     | '/usage-logs/audit'
     | '/available-models'
     | '/channels'
+    | '/codex-model-governance'
     | '/dashboard'
     | '/keys'
     | '/model-health'
@@ -834,6 +846,7 @@ export interface FileRouteTypes {
     | '/_authenticated/usage-logs/audit'
     | '/_authenticated/available-models/'
     | '/_authenticated/channels/'
+    | '/_authenticated/codex-model-governance/'
     | '/_authenticated/dashboard/'
     | '/_authenticated/keys/'
     | '/_authenticated/model-health/'
@@ -1086,6 +1099,13 @@ declare module '@tanstack/react-router' {
       path: '/chat/$chatId'
       fullPath: '/chat/$chatId'
       preLoaderRoute: typeof AuthenticatedChatChatIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/codex-model-governance/': {
+      id: '/_authenticated/codex-model-governance/'
+      path: '/codex-model-governance'
+      fullPath: '/codex-model-governance/'
+      preLoaderRoute: typeof AuthenticatedCodexModelGovernanceIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/dashboard/': {
@@ -1471,6 +1491,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedUsageLogsAuditRoute: typeof AuthenticatedUsageLogsAuditRoute
   AuthenticatedAvailableModelsIndexRoute: typeof AuthenticatedAvailableModelsIndexRoute
   AuthenticatedChannelsIndexRoute: typeof AuthenticatedChannelsIndexRoute
+  AuthenticatedCodexModelGovernanceIndexRoute: typeof AuthenticatedCodexModelGovernanceIndexRoute
   AuthenticatedDashboardIndexRoute: typeof AuthenticatedDashboardIndexRoute
   AuthenticatedKeysIndexRoute: typeof AuthenticatedKeysIndexRoute
   AuthenticatedModelHealthIndexRoute: typeof AuthenticatedModelHealthIndexRoute
@@ -1503,6 +1524,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAvailableModelsIndexRoute:
     AuthenticatedAvailableModelsIndexRoute,
   AuthenticatedChannelsIndexRoute: AuthenticatedChannelsIndexRoute,
+  AuthenticatedCodexModelGovernanceIndexRoute:
+    AuthenticatedCodexModelGovernanceIndexRoute,
   AuthenticatedDashboardIndexRoute: AuthenticatedDashboardIndexRoute,
   AuthenticatedKeysIndexRoute: AuthenticatedKeysIndexRoute,
   AuthenticatedModelHealthIndexRoute: AuthenticatedModelHealthIndexRoute,

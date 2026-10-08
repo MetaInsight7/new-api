@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { SystemBehaviorSection } from '../general/system-behavior-section'
+import { CodexGovernanceSettingsSection } from '../integrations/codex-governance-settings-section'
 import { CodexIdentitySettingsSection } from '../integrations/codex-identity-settings-section'
 import { EmailSettingsSection } from '../integrations/email-settings-section'
 import { MonitoringSettingsSection } from '../integrations/monitoring-settings-section'
@@ -75,6 +76,11 @@ const OPERATIONS_SECTIONS = [
         }}
       />
     ),
+  },
+  {
+    id: 'codex-governance',
+    titleKey: 'Codex Model Governance',
+    build: () => <CodexGovernanceSettingsSection />,
   },
   {
     id: 'email',

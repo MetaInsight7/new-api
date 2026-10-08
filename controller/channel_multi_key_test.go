@@ -46,7 +46,7 @@ func channelStatusDatabase(t *testing.T, kind, dsn string) (*gorm.DB, int) {
 	database = model.DB
 	model.LOG_DB = database
 	common.SetLogDatabaseType(common.MainDatabaseType())
-	require.NoError(t, database.AutoMigrate(&model.Channel{}, &model.Ability{}, &model.User{}, &model.AuditLog{}))
+	require.NoError(t, database.AutoMigrate(&model.Channel{}, &model.Ability{}, &model.User{}, &model.AuditLog{}, &model.CodexModelGovernanceRecord{}))
 	query := "SELECT version()"
 	if kind == "sqlite" {
 		query = "SELECT sqlite_version()"

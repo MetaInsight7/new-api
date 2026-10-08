@@ -234,6 +234,14 @@ func UpdateOption(c *gin.Context) {
 		})
 		return
 	}
+	if strings.HasPrefix(option.Key, "codex_model_governance_setting.") {
+		normalized, validationErr := operation_setting.NormalizeCodexModelGovernanceOption(option.Key, option.Value)
+		if validationErr != nil {
+			common.ApiError(c, validationErr)
+			return
+		}
+		option.Value = normalized
+	}
 	switch option.Value.(type) {
 	case bool:
 		option.Value = common.Interface2String(option.Value.(bool))
