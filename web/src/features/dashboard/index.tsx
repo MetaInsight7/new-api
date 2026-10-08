@@ -46,6 +46,7 @@ import {
   getSavedGranularity,
   saveChartPreferences,
 } from './lib'
+import { isDashboardSectionAllowed } from './lib/section-access'
 import {
   type DashboardSectionId,
   DASHBOARD_DEFAULT_SECTION,
@@ -59,6 +60,12 @@ import type {
 } from './types'
 
 const route = getRouteApi('/_authenticated/dashboard/$section')
+
+const LazyCodexLimitReportPanel = lazy(() =>
+  import('./components/codex/codex-limit-report').then((module) => ({
+    default: module.CodexLimitReportPanel,
+  }))
+)
 
 const LOG_STAT_CARD_FALLBACK_KEYS = [
   'count',
@@ -189,6 +196,9 @@ const SECTION_META: Record<DashboardSectionId, { titleKey: string }> = {
   users: {
     titleKey: 'User Analytics',
   },
+  'codex-limits': {
+    titleKey: 'Codex Limits',
+  },
 }
 
 export function Dashboard() {
@@ -248,7 +258,8 @@ export function Dashboard() {
   const visibleSections = useMemo(
     () =>
       DASHBOARD_SECTION_IDS.filter(
-        (section) => section !== 'overview' && (section !== 'users' || isAdmin)
+        (section) =>
+          section !== 'overview' && isDashboardSectionAllowed(section, isAdmin)
       ),
     [isAdmin]
   )
@@ -408,6 +419,13 @@ export function Dashboard() {
                   filters={modelFilters}
                   sensitiveVisible={flowSensitiveVisible}
                 />
+              </Suspense>
+            </FadeIn>
+          )}
+          {activeSection === 'codex-limits' && isAdmin && (
+            <FadeIn>
+              <Suspense fallback={<ModelChartsFallback />}>
+                <LazyCodexLimitReportPanel />
               </Suspense>
             </FadeIn>
           )}

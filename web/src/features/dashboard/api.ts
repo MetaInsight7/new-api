@@ -19,10 +19,27 @@ For commercial licensing, please contact support@quantumnous.com
 import { api } from '@/lib/api'
 
 import type {
+  CodexLimitReportResponse,
+  CodexLimitReportTimeRange,
   FlowQuotaDataItem,
   QuotaDataItem,
   UptimeGroupResult,
 } from './types'
+
+export async function getCodexLimitReport(
+  params: CodexLimitReportTimeRange,
+  signal?: AbortSignal
+): Promise<CodexLimitReportResponse> {
+  const response = await api.get<CodexLimitReportResponse>(
+    '/api/data/codex/limits',
+    {
+      params,
+      signal,
+      disableDuplicate: true,
+    }
+  )
+  return response.data
+}
 
 // ============================================================================
 // Dashboard APIs

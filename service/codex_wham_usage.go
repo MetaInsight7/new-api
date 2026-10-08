@@ -47,9 +47,12 @@ func FetchCodexWhamUsage(
 	}
 	defer resp.Body.Close()
 
-	body, err = io.ReadAll(resp.Body)
+	body, err = io.ReadAll(io.LimitReader(resp.Body, (1<<20)+1))
 	if err != nil {
 		return resp.StatusCode, nil, err
+	}
+	if len(body) > 1<<20 {
+		return resp.StatusCode, nil, fmt.Errorf("codex usage response exceeds limit")
 	}
 	return resp.StatusCode, body, nil
 }
@@ -89,9 +92,12 @@ func FetchCodexWhamRateLimitResetCredits(
 	}
 	defer resp.Body.Close()
 
-	body, err = io.ReadAll(resp.Body)
+	body, err = io.ReadAll(io.LimitReader(resp.Body, (1<<20)+1))
 	if err != nil {
 		return resp.StatusCode, nil, err
+	}
+	if len(body) > 1<<20 {
+		return resp.StatusCode, nil, fmt.Errorf("codex reset credits response exceeds limit")
 	}
 	return resp.StatusCode, body, nil
 }
@@ -144,9 +150,12 @@ func ConsumeCodexWhamRateLimitResetCredit(
 	}
 	defer resp.Body.Close()
 
-	body, err = io.ReadAll(resp.Body)
+	body, err = io.ReadAll(io.LimitReader(resp.Body, (1<<20)+1))
 	if err != nil {
 		return resp.StatusCode, nil, err
+	}
+	if len(body) > 1<<20 {
+		return resp.StatusCode, nil, fmt.Errorf("codex reset response exceeds limit")
 	}
 	return resp.StatusCode, body, nil
 }

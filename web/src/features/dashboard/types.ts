@@ -1,3 +1,4 @@
+import type { CodexRateLimitWindow } from '@/features/channels/lib/codex-usage-windows'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -17,6 +18,60 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { TimeGranularity } from '@/lib/time'
+
+export type CodexLimitWindow = CodexRateLimitWindow
+
+export interface CodexAdditionalLimit {
+  name: string
+  metered_feature?: string
+  five_hour_window?: CodexLimitWindow
+  weekly_window?: CodexLimitWindow
+  unknown_windows?: CodexLimitWindow[]
+}
+
+export interface CodexLimitReportRow {
+  channel_id: number
+  channel_name: string
+  channel_status: number
+  range_token_used: number
+  range_quota: number
+  success: boolean
+  message?: string
+  upstream_status?: number
+  plan_type?: string
+  email?: string
+  account_id?: string
+  user_id?: string
+  allowed?: boolean
+  limit_reached?: boolean
+  base_five_hour_window?: CodexLimitWindow
+  base_weekly_window?: CodexLimitWindow
+  unknown_windows?: CodexLimitWindow[]
+  additional_limits?: CodexAdditionalLimit[]
+}
+
+export interface CodexLimitReport {
+  generated_at: number
+  start_timestamp: number
+  end_timestamp: number
+  total_channels: number
+  success_count: number
+  failure_count: number
+  total_token_used: number
+  total_quota: number
+  rows: CodexLimitReportRow[]
+}
+
+export interface CodexLimitReportTimeRange {
+  start_timestamp: number
+  end_timestamp: number
+}
+
+export interface CodexLimitReportResponse {
+  success: boolean
+  message?: string
+  data?: CodexLimitReport
+}
 
 // ============================================================================
 // Quota & Usage Data Types

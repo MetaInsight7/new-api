@@ -20,6 +20,8 @@ import type { TFunction } from 'i18next'
 
 import { createSectionRegistry } from '@/features/system-settings/utils/section-registry'
 
+import { isDashboardSectionAllowed } from './lib/section-access'
+
 /**
  * Dashboard page section definitions
  */
@@ -45,11 +47,16 @@ const DASHBOARD_SECTIONS = [
     adminOnly: true,
     build: () => null,
   },
+  {
+    id: 'codex-limits',
+    titleKey: 'Codex Limits',
+    descriptionKey: 'View upstream quota limits for Codex channels',
+    adminOnly: true,
+    build: () => null,
+  },
 ] as const
 
 export type DashboardSectionId = (typeof DASHBOARD_SECTIONS)[number]['id']
-
-const ADMIN_ONLY_SECTIONS = new Set<string>(['users'])
 
 const dashboardRegistry = createSectionRegistry<
   DashboardSectionId,
@@ -71,7 +78,7 @@ export function getDashboardSectionNavItems(
 ) {
   const all = dashboardRegistry.getSectionNavItems(t)
   if (options?.isAdmin) return all
-  return all.filter(
-    (_, idx) => !ADMIN_ONLY_SECTIONS.has(DASHBOARD_SECTIONS[idx].id)
+  return all.filter((_, idx) =>
+    isDashboardSectionAllowed(DASHBOARD_SECTIONS[idx].id)
   )
 }

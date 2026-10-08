@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/controller"
+	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/service/authz"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -49,6 +50,16 @@ func TestChannelStatusRoutesRegisterWithoutConflict(t *testing.T) {
 	require.NotPanics(t, func() {
 		registerChannelRoutes(api)
 	})
+}
+
+func TestCodexLimitsAuthenticatesBeforeCheckingChannelPermission(test *testing.T) {
+	engine := newAccessTokenScopeTestEngine(test)
+	rule, declared := middleware.AccessTokenRouteRule("GET /api/data/codex/limits")
+	require.True(test, declared)
+	assert.Equal(test, "channel:read", rule.Scope())
+	recorder := httptest.NewRecorder()
+	engine.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/data/codex/limits", nil))
+	assert.Equal(test, http.StatusUnauthorized, recorder.Code)
 }
 
 func assertChannelRoutePermission(t *testing.T, method string, path string, permission authz.Permission, handler any) {

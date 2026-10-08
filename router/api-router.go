@@ -366,6 +366,8 @@ func SetApiRouter(router *gin.Engine) {
 		dataRoute.GET("/ops_report_ads_daily", middleware.AdminAuth(), controller.GetOpsAdsDailyReport)
 		dataRoute.GET("/ops_report_landing_thumb", middleware.AdminAuth(), controller.GetOpsAdsLandingThumb)
 		dataRoute.GET("/usage_report", middleware.AdminAuth(), controller.GetUsageReport)
+		codexDataRoute := dataRoute.Group("/codex", middleware.AdminAuth(), middleware.DisableCache())
+		handlePermissionRoute(codexDataRoute, http.MethodGet, "/limits", authz.ChannelRead, controller.GetCodexLimitReport)
 
 		logRoute.Use(middleware.CORS(), middleware.CriticalRateLimit())
 		{
