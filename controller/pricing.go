@@ -2,6 +2,7 @@ package controller
 
 import (
 	"maps"
+	"slices"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -64,11 +65,30 @@ func GetPricing(c *gin.Context) {
 		}
 	}
 
+	groupModelRatio := make(map[string]map[string]float64)
+	for _, item := range pricing {
+		allGroupsEnabled := slices.Contains(item.EnableGroup, "all")
+		for groupName := range usableGroup {
+			if !allGroupsEnabled && !slices.Contains(item.EnableGroup, groupName) {
+				continue
+			}
+			ratio, configured, _ := ratio_setting.GetGroupModelRatio(groupName, item.ModelName)
+			if !configured {
+				continue
+			}
+			if groupModelRatio[groupName] == nil {
+				groupModelRatio[groupName] = make(map[string]float64)
+			}
+			groupModelRatio[groupName][item.ModelName] = ratio
+		}
+	}
+
 	c.JSON(200, gin.H{
 		"success":            true,
 		"data":               pricing,
 		"vendors":            model.GetVendors(),
 		"group_ratio":        groupRatio,
+		"group_model_ratio":  groupModelRatio,
 		"usable_group":       usableGroup,
 		"supported_endpoint": model.GetSupportedEndpointMap(),
 		"auto_groups":        service.GetUserAutoGroup(group),
