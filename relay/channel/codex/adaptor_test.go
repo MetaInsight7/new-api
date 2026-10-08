@@ -226,7 +226,7 @@ func TestDoResponseChatAggregatesUpstreamSSEForNonStreamingClient(t *testing.T) 
 			`data: {"type":"response.output_text.delta","delta":"hello"}`,
 			`data: {"type":"response.completed","response":{"status":"completed","usage":{"input_tokens":2,"output_tokens":3,"total_tokens":5}}}`,
 			"",
-		}, "\n"))),
+		}, "\n\n"))),
 	}
 
 	usage, apiErr := (&Adaptor{}).DoResponse(c, response, info)

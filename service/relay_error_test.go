@@ -57,6 +57,27 @@ func TestShouldRetryRelayErrorHonorsChannelPinOnChannelError(t *testing.T) {
 	}
 }
 
+func TestDecideRelayRetryStopsAfterResponseCommitEvenForChannelErrors(t *testing.T) {
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	apiErr := types.NewError(errors.New("channel failed"), types.ErrorCodeChannelNoAvailableKey)
+	assert.Equal(t, "retry", DecideRelayRetry(ctx, apiErr, 1).Action)
+	_, err := ctx.Writer.WriteString("data: partial output\n\n")
+	require.NoError(t, err)
+	decision := DecideRelayRetry(ctx, apiErr, 1)
+	assert.Equal(t, "stop", decision.Action)
+	assert.Equal(t, "response_already_written", decision.Reason)
+}
+
+func TestDecideRelayRetryPreservesUpgradedWebSocketRetryPolicy(t *testing.T) {
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Set(RelayWebSocketUpgradedContextKey, true)
+	ctx.Writer.WriteHeaderNow()
+	apiErr := types.NewError(errors.New("upstream connection failed"), types.ErrorCodeChannelNoAvailableKey)
+	assert.Equal(t, "retry", DecideRelayRetry(ctx, apiErr, 1).Action)
+	apiErr = types.NewError(errors.New("non-retryable websocket failure"), types.ErrorCodeBadResponse, types.ErrOptionWithSkipRetry())
+	assert.Equal(t, "stop", DecideRelayRetry(ctx, apiErr, 1).Action)
+}
+
 func TestProcessChannelErrorMasksDisableReasonAndNotification(t *testing.T) {
 	previousDB, previousType := model.DB, common.MainDatabaseType()
 	previousCache, previousRedis := common.MemoryCacheEnabled, common.RedisEnabled

@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/relay/channel"
+	codexchannel "github.com/QuantumNous/new-api/relay/channel/codex"
 	openaichannel "github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
@@ -121,6 +122,14 @@ func relayResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, adaptor 
 
 	info.RelayMode = relayconstant.RelayModeResponses
 	info.RequestURLPath = "/v1/responses"
+	codexChat := info.ChannelType == constant.ChannelTypeCodex && info.RelayFormat == types.RelayFormatOpenAI && savedRelayMode == relayconstant.RelayModeChatCompletions
+	if codexChat {
+		upstreamStream := true
+		responsesReq.Stream = &upstreamStream
+		if _, exists := common.GetContextKey(c, constant.ContextKeyIsStream); exists {
+			info.IsStream = common.GetContextKeyBool(c, constant.ContextKeyIsStream)
+		}
+	}
 
 	convertedRequest, err := adaptor.ConvertOpenAIResponsesRequest(c, info, *responsesReq)
 	if err != nil {
@@ -167,10 +176,20 @@ func relayResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, adaptor 
 	clientStream := info.IsStream
 	upstreamStream := isResponsesEventStreamContentType(httpResp.Header.Get("Content-Type"))
 	info.IsStream = clientStream || upstreamStream
+	if codexChat {
+		info.IsStream = clientStream
+	}
 	if httpResp.StatusCode != http.StatusOK {
 		newApiErr := service.RelayErrorHandler(c.Request.Context(), httpResp, false)
 		service.ResetStatusCode(newApiErr, statusCodeMappingStr)
 		return nil, newApiErr
+	}
+	if codexChat {
+		usage, newApiErr := codexchannel.RelayChatOverCodex(c, info, httpResp)
+		if newApiErr != nil {
+			service.ResetStatusCode(newApiErr, statusCodeMappingStr)
+		}
+		return usage, newApiErr
 	}
 
 	if upstreamStream && clientStream {

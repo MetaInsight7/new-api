@@ -2,6 +2,7 @@ package codex
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -16,7 +17,9 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 )
 
 func TestFinalizeRequestRestoresTrustedCodexHeaders(t *testing.T) {
@@ -154,4 +157,130 @@ func TestPrepareRequestBodySanitizesCompactMetadataAtEgress(t *testing.T) {
 	require.NotContains(t, string(rewritten), "attacker")
 	require.NotContains(t, string(rewritten), "client_metadata")
 	require.NotContains(t, string(rewritten), "\"metadata\"")
+}
+
+func TestCodexFinalOutboundConstraints(t *testing.T) {
+	t.Setenv("CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE", "outbound-constraints-test")
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		raw, err := io.ReadAll(request.Body)
+		if err != nil {
+			http.Error(writer, "read request", http.StatusBadRequest)
+			return
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write(raw)
+	}))
+	t.Cleanup(server.Close)
+	for _, mode := range []int{relayconstant.RelayModeChatCompletions, relayconstant.RelayModeResponses, relayconstant.RelayModeResponsesCompact} {
+		for _, fingerprintMode := range []string{dto.CodexFingerprintModeOff, dto.CodexFingerprintModeFull} {
+			t.Run(fmt.Sprintf("mode=%d/fingerprint=%s", mode, fingerprintMode), func(t *testing.T) {
+				info := fingerprintTestInfo(fingerprintMode)
+				info.RelayMode = mode
+				info.ChannelType = constant.ChannelTypeCodex
+				info.ChannelBaseUrl = server.URL
+				info.ApiKey = `{"access_token":"test-access","account_id":"test-account"}`
+				info.ChannelSetting.PassThroughBodyEnabled = true
+				info.ParamOverride = map[string]any{
+					"temperature": 0, "max_completion_tokens": 32, "metadata": map[string]any{"tag": "private"},
+					"store": true, "stream": false, "max_tool_calls": 0, "top_logprobs": 0,
+					"client_metadata": map[string]any{"session_id": "client"},
+				}
+				raw := []byte(`{"model":"gpt-5.5","input":"hello","service_tier":"fast","parallel_tool_calls":false,"provider_extension":{"number":9007199254740993,"zero":0,"flag":false}}`)
+				raw, err := relaycommon.ApplyParamOverrideWithRelayInfo(raw, info)
+				require.NoError(t, err)
+				context, _ := gin.CreateTestContext(httptest.NewRecorder())
+				context.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+				context.Request.Header.Set("Content-Type", "application/json")
+				result, err := (&Adaptor{}).DoRequest(context, info, bytes.NewReader(raw))
+				require.NoError(t, err)
+				response, ok := result.(*http.Response)
+				require.True(t, ok)
+				defer response.Body.Close()
+				wire, err := io.ReadAll(response.Body)
+				require.NoError(t, err)
+				for _, field := range []string{"temperature", "max_completion_tokens", "metadata"} {
+					assert.False(t, gjson.GetBytes(wire, field).Exists(), field)
+				}
+				assert.Equal(t, "fast", gjson.GetBytes(wire, "service_tier").String())
+				assert.Equal(t, "false", gjson.GetBytes(wire, "parallel_tool_calls").Raw)
+				assert.Equal(t, "9007199254740993", gjson.GetBytes(wire, "provider_extension.number").Raw, "wire=%s", wire)
+				assert.Equal(t, "0", gjson.GetBytes(wire, "provider_extension.zero").Raw)
+				assert.Equal(t, "false", gjson.GetBytes(wire, "provider_extension.flag").Raw)
+				assert.Equal(t, `""`, gjson.GetBytes(wire, "instructions").Raw)
+				if mode == relayconstant.RelayModeResponsesCompact {
+					for _, field := range []string{"store", "stream", "max_tool_calls", "top_logprobs", "client_metadata"} {
+						assert.False(t, gjson.GetBytes(wire, field).Exists(), field)
+					}
+				} else {
+					for _, field := range []string{"store", "stream"} {
+						assert.Equal(t, "false", gjson.GetBytes(wire, field).Raw, field)
+					}
+					for _, field := range []string{"max_tool_calls", "top_logprobs"} {
+						assert.Equal(t, "0", gjson.GetBytes(wire, field).Raw, field)
+					}
+				}
+			})
+		}
+	}
+}
+
+func TestCodexPassThroughBodyAppliesConstraints(t *testing.T) {
+	t.Setenv("CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE", "passthrough-constraints-test")
+	for _, mode := range []int{relayconstant.RelayModeResponses, relayconstant.RelayModeResponsesCompact} {
+		for _, fingerprintMode := range []string{dto.CodexFingerprintModeOff, dto.CodexFingerprintModeFull} {
+			t.Run(fmt.Sprintf("mode=%d/fingerprint=%s", mode, fingerprintMode), func(t *testing.T) {
+				info := fingerprintTestInfo(fingerprintMode)
+				info.RelayMode = mode
+				info.ChannelSetting.PassThroughBodyEnabled = true
+				context, _ := gin.CreateTestContext(httptest.NewRecorder())
+				context.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+				raw := []byte(`{"model":"gpt-5.5","input":"hello","service_tier":"fast","client_metadata":{"session_id":"client"},"prompt_cache_key":"client","max_completion_tokens":1,"metadata":{"tag":"private"},"stream":false,"store":true}`)
+				wire, changed, err := (&Adaptor{}).RewritePassThroughBody(context, info, raw)
+				require.NoError(t, err)
+				assert.True(t, changed)
+				for _, field := range []string{"max_completion_tokens", "metadata"} {
+					assert.False(t, gjson.GetBytes(wire, field).Exists(), field)
+				}
+				assert.Equal(t, "fast", gjson.GetBytes(wire, "service_tier").String())
+				if mode == relayconstant.RelayModeResponsesCompact {
+					for _, field := range []string{"client_metadata", "stream", "store"} {
+						assert.False(t, gjson.GetBytes(wire, field).Exists(), field)
+					}
+					assert.Equal(t, "client", gjson.GetBytes(wire, "prompt_cache_key").String())
+				} else {
+					assert.Equal(t, "false", gjson.GetBytes(wire, "stream").Raw)
+					assert.Equal(t, "false", gjson.GetBytes(wire, "store").Raw)
+				}
+				constrainedAgain, err := ApplyCodexRequestConstraints(wire, mode == relayconstant.RelayModeResponsesCompact)
+				require.NoError(t, err)
+				assert.Equal(t, string(wire), string(constrainedAgain))
+			})
+		}
+	}
+}
+
+func TestCodexConstraintsRejectInvalidOriginalBody(t *testing.T) {
+	for _, compact := range []bool{false, true} {
+		for _, testCase := range []struct {
+			name string
+			raw  string
+		}{
+			{name: "empty"},
+			{name: "malformed", raw: `{"metadata":`},
+			{name: "root null", raw: `null`},
+			{name: "root array", raw: `[]`},
+			{name: "root string", raw: `"hello"`},
+			{name: "duplicate filtered field", raw: `{"metadata":{},"metadata":{}}`},
+			{name: "client metadata null", raw: `{"client_metadata":null}`},
+			{name: "client metadata array", raw: `{"client_metadata":[]}`},
+			{name: "client metadata oversized", raw: `{"client_metadata":{"tag":"` + strings.Repeat("x", 64*1024) + `"}}`},
+			{name: "client metadata overdepth", raw: `{"client_metadata":` + strings.Repeat(`{"nested":`, 11) + `false` + strings.Repeat(`}`, 11) + `}`},
+		} {
+			t.Run(fmt.Sprintf("compact=%t/%s", compact, testCase.name), func(t *testing.T) {
+				wire, err := ApplyCodexRequestConstraints([]byte(testCase.raw), compact)
+				require.Error(t, err)
+				assert.Nil(t, wire)
+			})
+		}
+	}
 }

@@ -104,7 +104,7 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		if isCodexResponsesTerminalFailure(info, streamResponse) {
 			responseWritten := c.Writer.Written()
 			accumulator.Observe(&streamResponse)
-			terminalErr = newCodexResponsesTerminalError(
+			terminalErr = NewCodexResponsesTerminalError(
 				streamResponse.Type,
 				streamResponse.Response,
 				responseWritten || codexResponsesUsageIsAuthoritative(streamResponse.Response),
@@ -216,7 +216,7 @@ func logCodexResponsesTerminalFailure(c *gin.Context, eventType string, response
 	logger.LogWarn(c, "codex Responses terminal failure event=%s upstream_type=%s upstream_code=%s", eventType, upstreamType, upstreamCode)
 }
 
-func newCodexResponsesTerminalError(eventType string, response *dto.OpenAIResponsesResponse, skipRetry bool) *types.NewAPIError {
+func NewCodexResponsesTerminalError(eventType string, response *dto.OpenAIResponsesResponse, skipRetry bool) *types.NewAPIError {
 	options := make([]types.NewAPIErrorOptions, 0, 1)
 	if skipRetry {
 		options = append(options, types.ErrOptionWithSkipRetry())
@@ -271,7 +271,7 @@ func codexResponsesFailedIdentifierStatus(identifier string) int {
 		return http.StatusForbidden
 	case "authentication_error", "invalid_api_key":
 		return http.StatusUnauthorized
-	case "invalid_request_error", "invalid_request", "bad_request", "invalid_prompt", "content_policy_violation", "data_residency_mismatch", "bio_policy", "invalid_image", "invalid_image_format", "invalid_base64_image", "invalid_image_url", "image_too_large", "image_too_small", "image_parse_error", "image_content_policy_violation", "invalid_image_mode", "image_file_too_large", "unsupported_image_media_type", "empty_image_file", "failed_to_download_image", "image_file_not_found":
+	case "invalid_request_error", "invalid_request", "context_length_exceeded", "bad_request", "invalid_prompt", "content_policy_violation", "data_residency_mismatch", "bio_policy", "invalid_image", "invalid_image_format", "invalid_base64_image", "invalid_image_url", "image_too_large", "image_too_small", "image_parse_error", "image_content_policy_violation", "invalid_image_mode", "image_file_too_large", "unsupported_image_media_type", "empty_image_file", "failed_to_download_image", "image_file_not_found":
 		return http.StatusBadRequest
 	case "overloaded_error", "overloaded", "service_unavailable":
 		return http.StatusServiceUnavailable

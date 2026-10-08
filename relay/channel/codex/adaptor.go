@@ -373,10 +373,7 @@ func sanitizeCodexImageErrorResponse(resp *http.Response) {
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
 	switch info.RelayMode {
 	case relayconstant.RelayModeChatCompletions:
-		if codexClientWantsStream(c, info) {
-			return openai.OaiResponsesToChatStreamHandler(c, info, resp)
-		}
-		return openai.OaiResponsesToChatBufferedStreamHandler(c, info, resp)
+		return RelayChatOverCodex(c, info, resp)
 	case relayconstant.RelayModeImagesGenerations, relayconstant.RelayModeImagesEdits:
 		return RelayImageOverCodex(c, info, resp)
 	case relayconstant.RelayModeAlphaSearch:

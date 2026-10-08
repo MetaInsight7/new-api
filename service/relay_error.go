@@ -19,11 +19,16 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const RelayWebSocketUpgradedContextKey = "relay_websocket_upgraded"
+
 // DecideRelayRetry is the single retry decision for relay attempts. The reason
 // is recorded in the request policy decision events of the log details.
 func DecideRelayRetry(c *gin.Context, err *types.NewAPIError, retryTimes int) PolicyDecision {
 	if err == nil {
 		return PolicyDecision{Action: "stop", Reason: "request_completed", Source: "system"}
+	}
+	if c != nil && c.Writer != nil && c.Writer.Written() && !c.GetBool(RelayWebSocketUpgradedContextKey) {
+		return PolicyDecision{Action: "stop", Reason: "response_already_written", Source: "system"}
 	}
 	if ShouldSkipRetryAfterChannelAffinityFailure(c) {
 		source := RequestPolicy(c).SessionModeSource
