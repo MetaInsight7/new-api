@@ -95,6 +95,7 @@ type GroupRatioVisualEditorProps = {
   section: GroupSettingsSection
   onSectionChange: (section: GroupSettingsSection) => void
   defaultUseAutoGroupField: ReactNode
+  groupModelRatioEditor?: ReactNode
   groupRatio: string
   topupGroupRatio: string
   userUsableGroups: string
@@ -270,6 +271,7 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
   section,
   onSectionChange,
   defaultUseAutoGroupField,
+  groupModelRatioEditor,
   groupRatio,
   topupGroupRatio,
   userUsableGroups,
@@ -365,7 +367,7 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
           </TabsTrigger>
         </TabsList>
       </div>
-      <TabsContent value='pricing' keepMounted>
+      <TabsContent value='pricing' className='space-y-5' keepMounted>
         <GroupPricingTable
           groupRatio={groupRatio}
           userUsableGroups={userUsableGroups}
@@ -373,6 +375,7 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
           onChange={onChange}
           onShowDetail={setDetailGroup}
         />
+        {groupModelRatioEditor}
       </TabsContent>
       <TabsContent value='overrides' keepMounted>
         <GroupOverrideRules

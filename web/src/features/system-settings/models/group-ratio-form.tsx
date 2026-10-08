@@ -60,10 +60,12 @@ import {
 } from '../components/settings-form-layout'
 import { SettingsPageActionsPortal } from '../components/settings-page-context'
 import { safeNumberFieldProps } from '../utils/numeric-field'
+import { GroupModelRatioEditor } from './group-model-ratio-editor'
 import {
   GroupRatioVisualEditor,
   type GroupSettingsSection,
 } from './group-ratio-visual-editor'
+import { parseGroupModelRatios } from './lib/group-model-ratio'
 
 type GroupFormValues = {
   GroupRatio: string
@@ -93,6 +95,7 @@ export const GroupRatioForm = memo(function GroupRatioForm({
   const [editMode, setEditMode] = useState<'visual' | 'json'>('visual')
   const [guideOpen, setGuideOpen] = useState(false)
   const [section, setSection] = useState<GroupSettingsSection>('pricing')
+  const [modelRatiosValid, setModelRatiosValid] = useState(true)
 
   const handleFieldChange = useCallback(
     (field: keyof GroupFormValues, value: string) => {
@@ -129,7 +132,16 @@ export const GroupRatioForm = memo(function GroupRatioForm({
             <HelpCircle className='mr-2 h-4 w-4' />
             {t('Usage guide')}
           </Button>
-          <Button variant='outline' size='sm' onClick={toggleEditMode}>
+          <Button
+            variant='outline'
+            size='sm'
+            onClick={toggleEditMode}
+            disabled={
+              editMode === 'visual' &&
+              !modelRatiosValid &&
+              parseGroupModelRatios(values.GroupModelRatio ?? '') !== null
+            }
+          >
             {editMode === 'visual' ? (
               <>
                 <Code2 className='mr-2 h-4 w-4' />
@@ -159,7 +171,7 @@ export const GroupRatioForm = memo(function GroupRatioForm({
                 requestAnimationFrame(() => form.setFocus('MaxTokenAutoGroups'))
               }
             })}
-            disabled={isSaving}
+            disabled={isSaving || (editMode === 'visual' && !modelRatiosValid)}
           >
             {isSaving ? t('Saving...') : t('Save group settings')}
           </Button>
@@ -169,6 +181,16 @@ export const GroupRatioForm = memo(function GroupRatioForm({
             section={section}
             onSectionChange={setSection}
             groupRatio={values.GroupRatio ?? ''}
+            groupModelRatioEditor={
+              <GroupModelRatioEditor
+                value={values.GroupModelRatio ?? ''}
+                groupRatio={values.GroupRatio ?? ''}
+                onChange={(value) =>
+                  handleFieldChange('GroupModelRatio', value)
+                }
+                onValidityChange={setModelRatiosValid}
+              />
+            }
             topupGroupRatio={values.TopupGroupRatio ?? ''}
             userUsableGroups={values.UserUsableGroups ?? ''}
             groupGroupRatio={values.GroupGroupRatio ?? ''}

@@ -939,4 +939,5 @@ export const STATIC_I18N_KEYS = [
   'Paused',
   'Removed',
   'Default route',
+  'Model-specific ratios must be a JSON map of group → model → non-negative finite number.',
 ] as const
