@@ -43,7 +43,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type ReactNode, useCallback, useMemo, useState } from 'react'
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ConfirmDialog } from '@/components/confirm-dialog'
@@ -74,16 +81,22 @@ import { Progress } from '@/components/ui/progress'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
+import { hasPermission } from '@/lib/admin-permissions'
 import dayjs from '@/lib/dayjs'
 import { formatDateTimeStr, formatTimestampToDate } from '@/lib/format'
 import { createServerError } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
+import { useAuthStore } from '@/stores/auth-store'
 
 import {
   getCodexResetCredits,
   resetCodexUsage,
   type CodexResetCreditsResponse,
 } from '../../api'
+import {
+  getVisibleCodexLimitWindows,
+  resolveCodexLimitWindows as resolveRateLimitWindows,
+} from '../../lib/codex-usage-windows'
 
 type CodexRateLimitWindow = {
   used_percent?: number
@@ -130,6 +143,7 @@ type CodexResetCreditsPayload = {
 }
 
 type CodexUsagePayload = {
+  account_id?: string
   plan_type?: string
   user_id?: string
   email?: string
@@ -161,7 +175,7 @@ type CodexUsageDialogProps = {
   channelDisplayName?: string
   channelDisplayId?: string
   response: CodexUsageDialogData | null
-  onRefresh?: () => void | Promise<void>
+  onRefresh?: () => void | boolean | Promise<void | boolean>
   isRefreshing?: boolean
 }
 
@@ -281,64 +295,11 @@ function sortResetCredits(credits: CodexResetCredit[]): CodexResetCredit[] {
   })
 }
 
-function classifyWindowByDuration(
-  windowData?: CodexRateLimitWindow | null
-): 'weekly' | 'fiveHour' | null {
-  const seconds = Number(windowData?.limit_window_seconds)
-  if (!Number.isFinite(seconds) || seconds <= 0) {
-    return null
-  }
-  return seconds >= 24 * 60 * 60 ? 'weekly' : 'fiveHour'
-}
-
 type RateLimitSource = {
   plan_type?: string
   rate_limit?: CodexRateLimit
-}
-
-function resolveRateLimitWindows(data: RateLimitSource | null): {
-  fiveHourWindow: CodexRateLimitWindow | null
-  weeklyWindow: CodexRateLimitWindow | null
-} {
-  const rateLimit = data?.rate_limit ?? {}
-  const primary = rateLimit?.primary_window ?? null
-  const secondary = rateLimit?.secondary_window ?? null
-  const windows = [primary, secondary].filter(Boolean) as CodexRateLimitWindow[]
-  const planType = normalizePlanType(data?.plan_type ?? rateLimit?.plan_type)
-
-  let fiveHourWindow: CodexRateLimitWindow | null = null
-  let weeklyWindow: CodexRateLimitWindow | null = null
-
-  for (const w of windows) {
-    const bucket = classifyWindowByDuration(w)
-    if (bucket === 'fiveHour' && !fiveHourWindow) {
-      fiveHourWindow = w
-      continue
-    }
-    if (bucket === 'weekly' && !weeklyWindow) {
-      weeklyWindow = w
-    }
-  }
-
-  if (planType === 'free') {
-    if (!weeklyWindow) {
-      weeklyWindow = primary ?? secondary ?? null
-    }
-    return { fiveHourWindow: null, weeklyWindow }
-  }
-
-  if (!fiveHourWindow && !weeklyWindow) {
-    return { fiveHourWindow: primary, weeklyWindow: secondary }
-  }
-
-  if (!fiveHourWindow) {
-    fiveHourWindow = windows.find((w) => w !== weeklyWindow) ?? null
-  }
-  if (!weeklyWindow) {
-    weeklyWindow = windows.find((w) => w !== fiveHourWindow) ?? null
-  }
-
-  return { fiveHourWindow, weeklyWindow }
+  primary_window?: CodexRateLimitWindow
+  secondary_window?: CodexRateLimitWindow
 }
 
 const PLAN_TYPE_BADGE: Record<
@@ -527,16 +488,47 @@ function RateLimitWindow(props: RateLimitWindowProps) {
 function RateLimitWindowGrid(props: {
   fiveHourWindow?: CodexRateLimitWindow | null
   weeklyWindow?: CodexRateLimitWindow | null
+  unknownWindows?: CodexRateLimitWindow[]
 }) {
   const { t } = useTranslation()
+  const windows = getVisibleCodexLimitWindows(
+    props.fiveHourWindow,
+    props.weeklyWindow,
+    props.unknownWindows
+  )
+  if (windows.length === 0) {
+    return (
+      <p className='text-muted-foreground text-sm'>
+        {t('No quota window data')}
+      </p>
+    )
+  }
+  const windowOccurrences = new Map<string, number>()
 
   return (
     <div className='grid grid-cols-1 gap-3 md:grid-cols-2'>
-      <RateLimitWindow
-        title={t('5-Hour Window')}
-        window={props.fiveHourWindow}
-      />
-      <RateLimitWindow title={t('Weekly Window')} window={props.weeklyWindow} />
+      {windows.map(({ kind, window }) => {
+        const identity = `${kind}:${window.limit_window_seconds ?? 'unknown'}`
+        const occurrence = windowOccurrences.get(identity) ?? 0
+        windowOccurrences.set(identity, occurrence + 1)
+        let title = t('Quota window')
+        if (kind === 'fiveHour') {
+          title = t('5-Hour Window')
+        } else if (kind === 'weekly') {
+          title = t('Weekly Window')
+        } else if (window.limit_window_seconds) {
+          title = t('Quota window ({{duration}})', {
+            duration: formatDurationSeconds(window.limit_window_seconds, t),
+          })
+        }
+        return (
+          <RateLimitWindow
+            key={`${identity}:${occurrence}`}
+            title={title}
+            window={window}
+          />
+        )
+      })}
     </div>
   )
 }
@@ -574,7 +566,8 @@ type RateLimitGroupSectionProps = {
 
 function RateLimitGroupSection(props: RateLimitGroupSectionProps) {
   const { t } = useTranslation()
-  const { fiveHourWindow, weeklyWindow } = resolveRateLimitWindows(props.source)
+  const { fiveHourWindow, weeklyWindow, unknownWindows } =
+    resolveRateLimitWindows(props.source)
   const statusBadge = getUsageStatusBadge(props.source?.rate_limit, t)
 
   return (
@@ -595,6 +588,7 @@ function RateLimitGroupSection(props: RateLimitGroupSectionProps) {
       <RateLimitWindowGrid
         fiveHourWindow={fiveHourWindow}
         weeklyWindow={weeklyWindow}
+        unknownWindows={unknownWindows}
       />
     </section>
   )
@@ -742,6 +736,7 @@ function ResetCreditsPanel(props: {
   usageAvailableCount: string
   isLoading: boolean
   isResetting: boolean
+  canOperate: boolean
   errorMessage: string
   resetErrorMessage: string
   resetSuccessMessage: string
@@ -857,17 +852,19 @@ function ResetCreditsPanel(props: {
             )}
           </div>
         </div>
-        <Button
-          type='button'
-          variant={canReset ? 'destructive' : 'outline'}
-          size='sm'
-          onClick={props.onRequestReset}
-          disabled={!canReset || props.isLoading || props.isResetting}
-          className='shrink-0'
-        >
-          <RotateCcw data-icon='inline-start' />
-          {props.isResetting ? t('Resetting...') : t('Apply reset')}
-        </Button>
+        {props.canOperate && (
+          <Button
+            type='button'
+            variant={canReset ? 'destructive' : 'outline'}
+            size='sm'
+            onClick={props.onRequestReset}
+            disabled={!canReset || props.isLoading || props.isResetting}
+            className='shrink-0'
+          >
+            <RotateCcw data-icon='inline-start' />
+            {props.isResetting ? t('Resetting...') : t('Apply reset')}
+          </Button>
+        )}
       </div>
 
       {!canReset ? (
@@ -913,6 +910,8 @@ export function CodexUsageDialog({
   isRefreshing,
 }: CodexUsageDialogProps) {
   const { t } = useTranslation()
+  const user = useAuthStore((state) => state.auth.user)
+  const canOperate = hasPermission(user, 'channel', 'operate')
   const { copiedText, copyToClipboard } = useCopyToClipboard({ notify: false })
   const [showRawJson, setShowRawJson] = useState(false)
   const [showResetCredits, setShowResetCredits] = useState(false)
@@ -924,6 +923,21 @@ export function CodexUsageDialog({
   const [isResetting, setIsResetting] = useState(false)
   const [resetActionError, setResetActionError] = useState('')
   const [resetActionMessage, setResetActionMessage] = useState('')
+  const resetBusyRef = useRef(false)
+  const revisionRef = useRef(0)
+  useEffect(() => {
+    const revision = ++revisionRef.current
+    setResetCreditsResponse(null)
+    setResetCreditsError('')
+    setIsLoadingResetCredits(false)
+    setResetConfirmOpen(false)
+    setResetActionError('')
+    setResetActionMessage('')
+    setIsResetting(resetBusyRef.current)
+    return () => {
+      revisionRef.current = revision + 1
+    }
+  }, [open, channelId])
 
   const payload: CodexUsagePayload | null = useMemo(() => {
     const raw = response?.data
@@ -944,16 +958,18 @@ export function CodexUsageDialog({
   const rateLimit = payload?.rate_limit
   const accountType = payload?.plan_type ?? rateLimit?.plan_type
   const accountBadge = getAccountTypeBadge(accountType, t)
-  const additionalRateLimits = (payload?.additional_rate_limits ?? []).filter(
-    (item) => item && Object.keys(item).length > 0
-  )
+  const additionalRateLimits = (
+    Array.isArray(payload?.additional_rate_limits)
+      ? payload.additional_rate_limits
+      : []
+  ).filter((item) => item && Object.keys(item).length > 0)
   const resetCredits =
     resetCreditsPayload?.available_count ??
     payload?.rate_limit_reset_credits?.available_count
   const resetCreditsText = Number.isFinite(Number(resetCredits))
     ? String(resetCredits)
     : '-'
-  const canResetCodexUsage = Number(resetCredits) > 0
+  const canResetCodexUsage = canOperate && Number(resetCredits) > 0
   const channelLabelName = channelDisplayName ?? channelName ?? '-'
   let channelLabelId = ''
   if (channelDisplayId != null) {
@@ -962,7 +978,8 @@ export function CodexUsageDialog({
     channelLabelId = ` (#${channelId})`
   }
   const channelLabel = `${channelLabelName}${channelLabelId}`
-  const { fiveHourWindow, weeklyWindow } = resolveRateLimitWindows(payload)
+  const { fiveHourWindow, weeklyWindow, unknownWindows } =
+    resolveRateLimitWindows(payload)
 
   const errorMessage =
     response?.success === false
@@ -973,12 +990,14 @@ export function CodexUsageDialog({
     async (force = false) => {
       if (!channelId) {
         setResetCreditsError(t('Channel ID is required'))
-        return
+        return false
       }
-      if (isLoadingResetCredits || (!force && resetCreditsResponse)) {
-        return
+      if (isLoadingResetCredits) {
+        return false
       }
+      if (!force && resetCreditsResponse) return true
 
+      const revision = revisionRef.current
       setIsLoadingResetCredits(true)
       setResetCreditsError('')
       try {
@@ -989,15 +1008,19 @@ export function CodexUsageDialog({
             t('Failed to fetch reset credit details')
           )
         }
+        if (revisionRef.current !== revision) return false
         setResetCreditsResponse(res)
+        return true
       } catch (error) {
+        if (revisionRef.current !== revision) return false
         setResetCreditsError(
           error instanceof Error
             ? error.message
             : t('Failed to fetch reset credit details')
         )
+        return false
       } finally {
-        setIsLoadingResetCredits(false)
+        if (revisionRef.current === revision) setIsLoadingResetCredits(false)
       }
     },
     [channelId, isLoadingResetCredits, resetCreditsResponse, t]
@@ -1026,15 +1049,18 @@ export function CodexUsageDialog({
   }
 
   const handleConfirmReset = async () => {
-    if (!channelId || isResetting || !canResetCodexUsage) {
+    if (!channelId || resetBusyRef.current || !canResetCodexUsage) {
       return
     }
 
+    resetBusyRef.current = true
+    const revision = revisionRef.current
     setIsResetting(true)
     setResetActionError('')
     setResetActionMessage('')
     try {
       const res = await resetCodexUsage(channelId)
+      if (revisionRef.current !== revision) return
       if (!res.success) {
         throw createServerError(res, t('Failed to reset usage'))
       }
@@ -1043,21 +1069,32 @@ export function CodexUsageDialog({
         | { windows_reset?: number; code?: string }
         | undefined
       const windowsReset = Number(resetPayload?.windows_reset)
+      if (!Number.isInteger(windowsReset) || windowsReset <= 0) {
+        throw new Error(t('Upstream did not confirm any reset windows.'))
+      }
       setResetActionMessage(
-        Number.isFinite(windowsReset)
-          ? `${t('Reset completed. Latest usage has been refreshed.')} ${t(
-              'Affected windows:'
-            )} ${windowsReset}`
-          : t('Reset completed. Latest usage has been refreshed.')
+        `${t('Reset completed')} ${t('Affected windows:')} ${windowsReset}`
       )
       setResetConfirmOpen(false)
-      await Promise.resolve(onRefresh?.())
-      await loadResetCredits(true)
+      let refreshed = false
+      try {
+        const usageRefreshed = (await Promise.resolve(onRefresh?.())) === true
+        const creditsRefreshed = await loadResetCredits(true)
+        refreshed = usageRefreshed && creditsRefreshed
+      } catch {
+        refreshed = false
+      }
+      if (revisionRef.current !== revision) return
+      setResetActionMessage(
+        `${t(refreshed ? 'Reset completed. Latest usage has been refreshed.' : 'Reset succeeded, but refreshing details failed. Refresh usage and credits manually before another reset.')} ${t('Affected windows:')} ${windowsReset}`
+      )
     } catch (error) {
+      if (revisionRef.current !== revision) return
       setResetActionError(
         error instanceof Error ? error.message : t('Failed to reset usage')
       )
     } finally {
+      resetBusyRef.current = false
       setIsResetting(false)
     }
   }
@@ -1164,12 +1201,18 @@ export function CodexUsageDialog({
             <div className='mt-4 grid grid-cols-1 gap-3 md:grid-cols-2'>
               <InfoField label={t('Email')} value={payload?.email} copyable />
               <InfoField
+                label={t('Account ID')}
+                value={payload?.account_id}
+                mono
+                copyable
+              />
+              <InfoField
                 label={t('Channel')}
                 value={channelLabel}
                 copyable={false}
               />
               <InfoField
-                label='User ID'
+                label={t('User ID')}
                 value={payload?.user_id}
                 mono
                 className='md:col-span-2'
@@ -1220,6 +1263,7 @@ export function CodexUsageDialog({
               usageAvailableCount={resetCreditsText}
               isLoading={isLoadingResetCredits}
               isResetting={isResetting}
+              canOperate={canOperate}
               errorMessage={resetCreditsError}
               resetErrorMessage={resetActionError}
               resetSuccessMessage={resetActionMessage}
@@ -1243,6 +1287,7 @@ export function CodexUsageDialog({
           <RateLimitWindowGrid
             fiveHourWindow={fiveHourWindow}
             weeklyWindow={weeklyWindow}
+            unknownWindows={unknownWindows}
           />
         </div>
 

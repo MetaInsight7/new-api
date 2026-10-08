@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 func GetCodexChannelUsage(c *gin.Context) {
@@ -23,6 +24,7 @@ func GetCodexChannelUsage(c *gin.Context) {
 		service.FetchCodexWhamUsage,
 		"failed to fetch codex usage",
 		"获取用量信息失败，请稍后重试",
+		false,
 	)
 }
 
@@ -32,15 +34,20 @@ func GetCodexChannelRateLimitResetCredits(c *gin.Context) {
 		service.FetchCodexWhamRateLimitResetCredits,
 		"failed to fetch codex reset credits",
 		"获取重置次数详情失败，请稍后重试",
+		false,
 	)
 }
 
 func ResetCodexChannelUsage(c *gin.Context) {
+	requestID := uuid.NewString()
 	fetchCodexChannelWhamData(
 		c,
-		service.ConsumeCodexWhamRateLimitResetCredit,
+		func(ctx context.Context, client *http.Client, baseURL, accessToken, accountID string) (int, []byte, error) {
+			return service.ConsumeCodexWhamRateLimitResetCreditWithRequestID(ctx, client, baseURL, accessToken, accountID, requestID)
+		},
 		"failed to reset codex usage",
-		"重置用量失败，请稍后重试",
+		"无法确认上游是否已消费重置次数，请先刷新用量和重置次数，不要立即重复重置",
+		true,
 	)
 }
 
@@ -57,6 +64,7 @@ func fetchCodexChannelWhamData(
 	fetch codexWhamFetchFunc,
 	logPrefix string,
 	userMessage string,
+	consume bool,
 ) {
 	channelId, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -110,48 +118,51 @@ func fetchCodexChannelWhamData(
 
 	statusCode, body, err := fetch(ctx, client, ch.GetBaseURL(), accessToken, accountID)
 	if err != nil {
-		common.SysError(logPrefix + ": " + err.Error())
+		common.SysError(logPrefix + ": upstream request failed")
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": userMessage})
 		return
 	}
 
 	if (statusCode == http.StatusUnauthorized || statusCode == http.StatusForbidden) && strings.TrimSpace(oauthKey.RefreshToken) != "" {
-		refreshCtx, refreshCancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
-		defer refreshCancel()
-
-		res, refreshErr := service.RefreshCodexOAuthTokenWithProxy(refreshCtx, oauthKey.RefreshToken, ch.GetSetting().Proxy)
-		if refreshErr == nil {
-			oauthKey.AccessToken = res.AccessToken
-			oauthKey.RefreshToken = res.RefreshToken
-			oauthKey.LastRefresh = time.Now().Format(time.RFC3339)
-			oauthKey.Expired = res.ExpiresAt.Format(time.RFC3339)
-			if strings.TrimSpace(oauthKey.Type) == "" {
-				oauthKey.Type = "codex"
-			}
-
-			encoded, encErr := common.Marshal(oauthKey)
-			if encErr == nil {
-				_ = model.DB.Model(&model.Channel{}).Where("id = ?", ch.Id).Update("key", string(encoded)).Error
-				model.InitChannelCache()
-			}
-
-			ctx2, cancel2 := context.WithTimeout(c.Request.Context(), 15*time.Second)
-			defer cancel2()
-			statusCode, body, err = fetch(ctx2, client, ch.GetBaseURL(), oauthKey.AccessToken, accountID)
-			if err != nil {
-				common.SysError(logPrefix + " after refresh: " + err.Error())
-				c.JSON(http.StatusOK, gin.H{"success": false, "message": userMessage})
-				return
-			}
+		refreshed, refreshedChannel, refreshErr := service.RefreshCodexChannelCredential(c.Request.Context(), ch.Id, service.CodexCredentialRefreshOptions{ResetCaches: true, ExpectedKey: ch.Key})
+		if refreshErr != nil {
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": "Codex credential refresh or persistence failed", "upstream_status": statusCode})
+			return
+		}
+		accessToken, accountID = refreshed.AccessToken, refreshed.AccountID
+		client, err = service.GetHttpClientWithProxy(refreshedChannel.GetSetting().Proxy)
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": "Invalid Codex proxy configuration"})
+			return
+		}
+		ctx2, cancel2 := context.WithTimeout(c.Request.Context(), 15*time.Second)
+		defer cancel2()
+		statusCode, body, err = fetch(ctx2, client, refreshedChannel.GetBaseURL(), accessToken, accountID)
+		if err != nil {
+			common.SysError(logPrefix + " after refresh: upstream request failed")
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": userMessage})
+			return
 		}
 	}
 
-	var payload any
-	if common.Unmarshal(body, &payload) != nil {
-		payload = string(body)
-	}
-
 	ok := statusCode >= 200 && statusCode < 300
+	var payload map[string]any
+	if ok && common.Unmarshal(body, &payload) != nil {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": userMessage, "upstream_status": statusCode})
+		return
+	}
+	if ok && consume {
+		var outcome struct {
+			WindowsReset *int `json:"windows_reset"`
+		}
+		if common.Unmarshal(body, &outcome) != nil || outcome.WindowsReset == nil || *outcome.WindowsReset <= 0 {
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": "Upstream did not confirm any reset windows; refresh usage before trying again", "upstream_status": statusCode})
+			return
+		}
+	}
+	if ok && !consume && payload != nil {
+		payload["account_id"] = accountID
+	}
 	resp := gin.H{
 		"success":         ok,
 		"message":         "",

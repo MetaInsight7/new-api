@@ -68,7 +68,7 @@ export function BalanceQueryDialog(props: BalanceQueryDialogProps) {
 
   const handleQueryCodexUsage = async () => {
     const row = currentRow
-    if (!row) return
+    if (!row || isQuerying) return false
     setIsQuerying(true)
     try {
       const res = await getCodexUsage(row.id)
@@ -76,8 +76,10 @@ export function BalanceQueryDialog(props: BalanceQueryDialogProps) {
         throw createServerError(res, t('Failed to fetch usage'))
       }
       setCodexUsageResponse(res)
+      return true
     } catch (error: unknown) {
       handleServerError(error, t('Failed to fetch usage'))
+      return false
     } finally {
       setIsQuerying(false)
     }

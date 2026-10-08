@@ -60,6 +60,7 @@ func registerChannelRoutes(apiRouter *gin.RouterGroup) {
 	} {
 		handlePermissionRoute(channelRoute, route.method, route.path, route.permission, middleware.SessionCookieOriginGuard(), middleware.CriticalRateLimit(), middleware.DisableCache(), route.handler)
 	}
+	handlePermissionRoute(channelRoute, http.MethodPost, "/:id/codex/usage/reset", authz.ChannelOperate, middleware.SessionCookieOriginGuard(), middleware.CriticalRateLimit(), middleware.DisableCache(), controller.ResetCodexChannelUsage)
 }
 
 var channelPermissionRoutes = []permissionRoute{
@@ -93,7 +94,6 @@ var channelPermissionRoutes = []permissionRoute{
 	{method: http.MethodPost, path: "/:id/codex/refresh", permission: authz.ChannelSensitiveWrite, handler: controller.RefreshCodexChannelCredential},
 	{method: http.MethodGet, path: "/:id/codex/usage", permission: authz.ChannelRead, handler: controller.GetCodexChannelUsage},
 	{method: http.MethodGet, path: "/:id/codex/usage/reset-credits", permission: authz.ChannelRead, handler: controller.GetCodexChannelRateLimitResetCredits},
-	{method: http.MethodPost, path: "/:id/codex/usage/reset", permission: authz.ChannelOperate, handler: controller.ResetCodexChannelUsage},
 	{method: http.MethodPost, path: "/ollama/pull", permission: authz.ChannelSensitiveWrite, handler: controller.OllamaPullModel},
 	{method: http.MethodPost, path: "/ollama/pull/stream", permission: authz.ChannelSensitiveWrite, handler: controller.OllamaPullModelStream},
 	{method: http.MethodDelete, path: "/ollama/delete", permission: authz.ChannelSensitiveWrite, handler: controller.OllamaDeleteModel},

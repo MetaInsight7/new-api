@@ -680,7 +680,7 @@ export function BalanceCell({ channel }: { channel: Channel }) {
         response={codexUsageResponse}
         onRefresh={async () => {
           if (isUpdating) {
-            return
+            return false
           }
           setIsUpdating(true)
           try {
@@ -689,8 +689,10 @@ export function BalanceCell({ channel }: { channel: Channel }) {
               throw createServerError(res, t('Failed to fetch usage'))
             }
             setCodexUsageResponse(res)
+            return true
           } catch (error) {
             handleServerError(error, t('Failed to fetch usage'))
+            return false
           } finally {
             setIsUpdating(false)
           }
