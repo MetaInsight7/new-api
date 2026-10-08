@@ -218,6 +218,7 @@ import { ChannelQuickOptions } from '../channel-quick-options'
 import { ChannelTypeLogo } from '../channel-type-badge'
 import { useChannels } from '../channels-provider'
 import { AdvancedCustomEditorDialog } from '../dialogs/advanced-custom-editor-dialog'
+import { CodexOAuthDialog } from '../dialogs/codex-oauth-dialog'
 import { ConfigureModelsDialog } from '../dialogs/configure-models-dialog'
 import {
   MissingModelsConfirmationDialog,
@@ -434,6 +435,7 @@ export function ChannelMutateDrawer({
   const canRevealChannelKey = currentUser?.role === ROLE.SUPER_ADMIN
   const [isCodexCredentialRefreshing, setIsCodexCredentialRefreshing] =
     useState(false)
+  const [codexOAuthOpen, setCodexOAuthOpen] = useState(false)
   const initialModelsRef = useRef<string[]>([])
   const initialModelMappingRef = useRef<string>('')
   const initialStatusCodeMappingRef = useRef<string>('')
@@ -611,6 +613,9 @@ export function ChannelMutateDrawer({
   const currentAdvancedCustom = formValues.advanced_custom
   const currentHeaderOverride = formValues.header_override
   const currentProxy = formValues.proxy
+  useEffect(() => {
+    setCodexOAuthOpen(false)
+  }, [open, channelId, currentType])
   const currentHttpProtocol = formValues.http_protocol
   const {
     unlocked: doubaoApiEditUnlocked,
@@ -4524,6 +4529,20 @@ export function ChannelMutateDrawer({
                       )}
                     </div>
                     <div className='flex flex-wrap items-center gap-2'>
+                      <Button
+                        type='button'
+                        variant='outline'
+                        size='sm'
+                        disabled={
+                          !canEditSensitive ||
+                          isMultiKeyChannel ||
+                          isBatchMode ||
+                          isCodexCredentialRefreshing
+                        }
+                        onClick={() => setCodexOAuthOpen(true)}
+                      >
+                        {t('Authorize Codex account')}
+                      </Button>
                       {isEditing && channelId && (
                         <Button
                           type='button'
@@ -5099,6 +5118,28 @@ export function ChannelMutateDrawer({
             if (!nextOpen) setBatchMapping(null)
           }}
           onApply={handleBatchMappingApply}
+        />
+      )}
+
+      {open && codexOAuthOpen && currentType === 57 && canEditSensitive && (
+        <CodexOAuthDialog
+          key={channelId ?? 'new'}
+          open
+          channelId={channelId ?? undefined}
+          proxy={currentProxy}
+          onOpenChange={setCodexOAuthOpen}
+          onAuthorized={(result) => {
+            form.setValue('key', result.key ?? '', {
+              shouldDirty: true,
+              shouldValidate: true,
+            })
+            if (channelId) {
+              void queryClient.invalidateQueries({
+                queryKey: channelsQueryKeys.detail(channelId),
+              })
+            }
+            toast.success(t('Codex account authorized'))
+          }}
         />
       )}
 

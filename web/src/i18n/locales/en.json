@@ -7188,6 +7188,20 @@
     "Read-only latest stable official release captured by the automatic sync.": "Read-only latest stable official release captured by the automatic sync.",
     "Automatic release checks run every six hours.": "Automatic release checks run every six hours.",
     "Keep the synced version current from official stable releases.": "Keep the synced version current from official stable releases.",
-    "Emergency kill switch. Disable only to roll back canonical outbound identity enforcement.": "Emergency kill switch. Disable only to roll back canonical outbound identity enforcement."
+    "Emergency kill switch. Disable only to roll back canonical outbound identity enforcement.": "Emergency kill switch. Disable only to roll back canonical outbound identity enforcement.",
+    "Authorization callback": "Authorization callback",
+    "Authorization link": "Authorization link",
+    "Authorize Codex account": "Authorize Codex account",
+    "Authorizing...": "Authorizing...",
+    "Codex account authorized": "Codex account authorized",
+    "Codex authorization failed": "Codex authorization failed",
+    "Copy authorization link": "Copy authorization link",
+    "Creating authorization link...": "Creating authorization link...",
+    "Failed to start Codex authorization": "Failed to start Codex authorization",
+    "Generate credential": "Generate credential",
+    "Open authorization page": "Open authorization page",
+    "Open the authorization page, sign in to your upstream account, then paste the complete callback URL. The localhost page may not load; copy its address anyway. Authorization expires in ten minutes.": "Open the authorization page, sign in to your upstream account, then paste the complete callback URL. The localhost page may not load; copy its address anyway. Authorization expires in ten minutes.",
+    "Restart authorization": "Restart authorization",
+    "Save authorized credential": "Save authorized credential"
   }
 }

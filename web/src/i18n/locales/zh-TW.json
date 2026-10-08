@@ -6887,6 +6887,20 @@
     "Read-only latest stable official release captured by the automatic sync.": "唯讀的最新官方穩定版本，由自動同步任務記錄。",
     "Automatic release checks run every six hours.": "官方版本每六小時自動檢查一次。",
     "Keep the synced version current from official stable releases.": "從官方穩定版本持續更新同步版本。",
-    "Emergency kill switch. Disable only to roll back canonical outbound identity enforcement.": "緊急停用開關。僅在需要回滾標準化出站身分時關閉。"
+    "Emergency kill switch. Disable only to roll back canonical outbound identity enforcement.": "緊急停用開關。僅在需要回滾標準化出站身分時關閉。",
+    "Authorization callback": "授權回呼",
+    "Authorization link": "授權連結",
+    "Authorize Codex account": "授權 Codex 帳號",
+    "Authorizing...": "正在授權……",
+    "Codex account authorized": "Codex 帳號已授權",
+    "Codex authorization failed": "Codex 授權失敗",
+    "Copy authorization link": "複製授權連結",
+    "Creating authorization link...": "正在建立授權連結……",
+    "Failed to start Codex authorization": "無法開始 Codex 授權",
+    "Generate credential": "產生憑證",
+    "Open authorization page": "開啟授權頁面",
+    "Open the authorization page, sign in to your upstream account, then paste the complete callback URL. The localhost page may not load; copy its address anyway. Authorization expires in ten minutes.": "開啟授權頁面並登入上游帳號，然後貼上完整回呼網址。localhost 頁面可能無法開啟，直接複製其網址即可。授權有效期為十分鐘。",
+    "Restart authorization": "重新授權",
+    "Save authorized credential": "儲存授權憑證"
   }
 }

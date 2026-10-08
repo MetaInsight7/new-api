@@ -6887,6 +6887,20 @@
     "Read-only latest stable official release captured by the automatic sync.": "Последняя официальная стабильная версия, полученная автоматической синхронизацией (только для чтения).",
     "Automatic release checks run every six hours.": "Официальные релизы автоматически проверяются каждые шесть часов.",
     "Keep the synced version current from official stable releases.": "Поддерживать синхронизированную версию актуальной по официальным стабильным релизам.",
-    "Emergency kill switch. Disable only to roll back canonical outbound identity enforcement.": "Аварийный переключатель. Отключайте его только для отката принудительной канонической исходящей идентичности."
+    "Emergency kill switch. Disable only to roll back canonical outbound identity enforcement.": "Аварийный переключатель. Отключайте его только для отката принудительной канонической исходящей идентичности.",
+    "Authorization callback": "Обратный вызов авторизации",
+    "Authorization link": "Ссылка авторизации",
+    "Authorize Codex account": "Авторизовать аккаунт Codex",
+    "Authorizing...": "Авторизация...",
+    "Codex account authorized": "Аккаунт Codex авторизован",
+    "Codex authorization failed": "Ошибка авторизации Codex",
+    "Copy authorization link": "Копировать ссылку авторизации",
+    "Creating authorization link...": "Создание ссылки авторизации...",
+    "Failed to start Codex authorization": "Не удалось начать авторизацию Codex",
+    "Generate credential": "Создать учётные данные",
+    "Open authorization page": "Открыть страницу авторизации",
+    "Open the authorization page, sign in to your upstream account, then paste the complete callback URL. The localhost page may not load; copy its address anyway. Authorization expires in ten minutes.": "Откройте страницу авторизации, войдите в аккаунт провайдера и вставьте полный URL обратного вызова. Страница localhost может не загрузиться — всё равно скопируйте её адрес. Авторизация действует десять минут.",
+    "Restart authorization": "Начать авторизацию заново",
+    "Save authorized credential": "Сохранить полученные учётные данные"
   }
 }

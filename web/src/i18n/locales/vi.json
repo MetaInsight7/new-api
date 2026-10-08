@@ -6887,6 +6887,20 @@
     "Read-only latest stable official release captured by the automatic sync.": "Phiên bản ổn định chính thức mới nhất do đồng bộ tự động ghi nhận, chỉ đọc.",
     "Automatic release checks run every six hours.": "Tự động kiểm tra bản phát hành chính thức sau mỗi sáu giờ.",
     "Keep the synced version current from official stable releases.": "Duy trì phiên bản đã đồng bộ theo các bản phát hành ổn định chính thức.",
-    "Emergency kill switch. Disable only to roll back canonical outbound identity enforcement.": "Công tắc khẩn cấp. Chỉ tắt khi cần hoàn tác việc bắt buộc danh tính gửi đi chuẩn hóa."
+    "Emergency kill switch. Disable only to roll back canonical outbound identity enforcement.": "Công tắc khẩn cấp. Chỉ tắt khi cần hoàn tác việc bắt buộc danh tính gửi đi chuẩn hóa.",
+    "Authorization callback": "Gọi lại ủy quyền",
+    "Authorization link": "Liên kết ủy quyền",
+    "Authorize Codex account": "Ủy quyền tài khoản Codex",
+    "Authorizing...": "Đang ủy quyền...",
+    "Codex account authorized": "Tài khoản Codex đã được ủy quyền",
+    "Codex authorization failed": "Ủy quyền Codex thất bại",
+    "Copy authorization link": "Sao chép liên kết ủy quyền",
+    "Creating authorization link...": "Đang tạo liên kết ủy quyền...",
+    "Failed to start Codex authorization": "Không thể bắt đầu ủy quyền Codex",
+    "Generate credential": "Tạo thông tin xác thực",
+    "Open authorization page": "Mở trang ủy quyền",
+    "Open the authorization page, sign in to your upstream account, then paste the complete callback URL. The localhost page may not load; copy its address anyway. Authorization expires in ten minutes.": "Mở trang ủy quyền, đăng nhập tài khoản thượng nguồn, rồi dán URL gọi lại đầy đủ. Trang localhost có thể không tải được; hãy sao chép địa chỉ đó. Ủy quyền hết hạn sau mười phút.",
+    "Restart authorization": "Bắt đầu lại ủy quyền",
+    "Save authorized credential": "Lưu thông tin xác thực đã ủy quyền"
   }
 }

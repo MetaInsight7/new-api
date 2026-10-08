@@ -110,6 +110,52 @@ export type CodexCredentialRefreshResponse = {
   }
 }
 
+export type CodexAuthorizationResult = {
+  key?: string
+  account_id?: string
+  email?: string
+  expires_at?: string
+  channel_id?: number
+}
+
+export async function startCodexAuthorization(
+  channelId?: number,
+  proxy?: string,
+  signal?: AbortSignal
+): Promise<{ authorize_url: string; expires_at: number }> {
+  const prefix = channelId ? `/api/channel/${channelId}` : '/api/channel'
+  const response = await api.post<{
+    success: boolean
+    data: { authorize_url: string; expires_at: number }
+  }>(
+    `${prefix}/codex/oauth/start`,
+    { proxy },
+    channelActionConfig({ signal, disableDuplicate: true })
+  )
+  return requireServerSuccess(response.data).data
+}
+
+export async function completeCodexAuthorization(
+  input: string,
+  channelId?: number,
+  signal?: AbortSignal
+): Promise<CodexAuthorizationResult> {
+  const prefix = channelId ? `/api/channel/${channelId}` : '/api/channel'
+  const response = await api.post<{
+    success: boolean
+    data: CodexAuthorizationResult
+  }>(
+    `${prefix}/codex/oauth/complete`,
+    { input },
+    channelActionConfig({
+      signal,
+      disableDuplicate: true,
+      singleUseAuthorization: true,
+    })
+  )
+  return requireServerSuccess(response.data).data
+}
+
 // ============================================================================
 // Base Channel CRUD Operations
 // ============================================================================
