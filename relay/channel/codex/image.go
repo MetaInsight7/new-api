@@ -331,12 +331,13 @@ func RelayImageOverCodex(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	const sentinel = codexImageStreamReadLimit + 1
 	reader := bufio.NewReader(io.LimitReader(resp.Body, sentinel))
 	var (
-		data      []dto.ImageData
-		created   int64
-		imgUsage  gjson.Result
-		hasUsage  bool
-		bytesRead int64
-		limitHit  bool
+		data          []dto.ImageData
+		outputFormats []string
+		created       int64
+		imgUsage      gjson.Result
+		hasUsage      bool
+		bytesRead     int64
+		limitHit      bool
 	)
 
 	for {
@@ -362,6 +363,7 @@ func RelayImageOverCodex(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 								entry := dto.ImageData{RevisedPrompt: item.Get("revised_prompt").String()}
 								entry.B64Json = result
 								data = append(data, entry)
+								outputFormats = append(outputFormats, item.Get("output_format").String())
 							}
 						}
 					case "response.completed":
@@ -399,7 +401,7 @@ func RelayImageOverCodex(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	if created == 0 {
 		created = time.Now().Unix()
 	}
-	if err := convertCodexImageDataToTempURLs(c, info, data); err != nil {
+	if err := convertCodexImageDataToTempURLs(c, info, data, outputFormats...); err != nil {
 		return nil, err
 	}
 

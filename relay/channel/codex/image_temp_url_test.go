@@ -84,6 +84,34 @@ func TestRelayImageOverCodexReturnsR2TemporaryURL(t *testing.T) {
 	assert.Greater(t, response.Data[0].ExpiresAt, int64(1700000000))
 }
 
+func TestRelayImageOverCodexUsesEachGeneratedOutputFormat(t *testing.T) {
+	contentTypes := make(chan string, 2)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		contentTypes <- request.Header.Get("Content-Type")
+		_, _ = io.Copy(io.Discard, request.Body)
+		writer.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(server.Close)
+	setCodexTempURLTestEnv(t, server.URL)
+	tempURL := true
+	info := &relaycommon.RelayInfo{Request: &dto.ImageRequest{TempUrl: &tempURL, OutputFormat: json.RawMessage(`"png"`)}, UserId: 42}
+	sse := strings.Join([]string{
+		`data: {"type":"response.output_item.done","item":{"type":"image_generation_call","result":"QUJD","output_format":"jpeg"}}`,
+		`data: {"type":"response.output_item.done","item":{"type":"image_generation_call","result":"QUJD","output_format":"webp"}}`,
+		`data: {"type":"response.completed","response":{"created_at":1700000000}}`, "",
+	}, "\n\n")
+	response := httptest.NewRecorder()
+	context, _ := gin.CreateTestContext(response)
+	_, apiErr := RelayImageOverCodex(context, info, &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(sse))})
+	require.Nil(t, apiErr)
+	require.Equal(t, []string{"image/jpeg", "image/webp"}, []string{<-contentTypes, <-contentTypes})
+	var images dto.ImageResponse
+	require.NoError(t, common.Unmarshal(response.Body.Bytes(), &images))
+	require.Len(t, images.Data, 2)
+	require.Contains(t, images.Data[0].Url, ".jpg")
+	require.Contains(t, images.Data[1].Url, ".webp")
+}
+
 func TestRelayImageOverCodexTempURLFailsClosedWhenR2IsUnavailable(t *testing.T) {
 	setCodexTempURLTestEnv(t, "")
 	t.Setenv("CODEX_TEMP_MEDIA_ENABLED", "false")

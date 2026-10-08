@@ -3,11 +3,11 @@ package codex
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
 
+	"github.com/QuantumNous/new-api/common"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
@@ -16,7 +16,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func convertCodexImageDataToTempURLs(c *gin.Context, info *relaycommon.RelayInfo, data []dto.ImageData) *types.NewAPIError {
+func convertCodexImageDataToTempURLs(c *gin.Context, info *relaycommon.RelayInfo, data []dto.ImageData, outputFormats ...string) *types.NewAPIError {
 	if !codexImageTempURLRequested(info) {
 		return nil
 	}
@@ -35,6 +35,12 @@ func convertCodexImageDataToTempURLs(c *gin.Context, info *relaycommon.RelayInfo
 	}
 	for index := range data {
 		uploadContentType := contentType
+		if index < len(outputFormats) && strings.TrimSpace(outputFormats[index]) != "" {
+			uploadContentType = codexImageFormatContentType(outputFormats[index])
+			if uploadContentType == "" {
+				return codexTempURLAPIError(service.ErrCodexTempMediaUnsupported)
+			}
+		}
 		imageBytes, detectedType, err := decodeCodexImageResult(data[index].B64Json)
 		if err != nil {
 			return types.NewErrorWithStatusCode(errors.New("codex image response contains invalid image data"), types.ErrorCodeBadResponseBody, http.StatusBadGateway, types.ErrOptionWithSkipRetry())
@@ -95,9 +101,16 @@ func codexImageOutputContentType(request *dto.ImageRequest) string {
 		return "image/png"
 	}
 	var format string
-	if err := json.Unmarshal(request.OutputFormat, &format); err != nil {
+	if err := common.Unmarshal(request.OutputFormat, &format); err != nil {
 		return "image/png"
 	}
+	if contentType := codexImageFormatContentType(format); contentType != "" {
+		return contentType
+	}
+	return "image/png"
+}
+
+func codexImageFormatContentType(format string) string {
 	switch strings.ToLower(strings.TrimSpace(format)) {
 	case "jpg", "jpeg":
 		return "image/jpeg"
@@ -106,7 +119,7 @@ func codexImageOutputContentType(request *dto.ImageRequest) string {
 	case "png":
 		return "image/png"
 	default:
-		return "image/png"
+		return ""
 	}
 }
 

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,17 +12,23 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"golang.org/x/sync/singleflight"
 )
 
 const (
-	codexLatestReleaseURL      = "https://api.github.com/repos/openai/codex/releases/latest"
-	codexClientVersionCacheTTL = time.Hour
+	codexLatestReleaseURL        = "https://api.github.com/repos/openai/codex/releases/latest"
+	codexClientVersionCacheTTL   = time.Hour
+	codexClientVersionFailureTTL = 30 * time.Second
+	codexModelsResponseMaxBytes  = 4 << 20
 )
 
 type codexClientVersionCache struct {
 	sync.Mutex
-	version   string
-	expiresAt time.Time
+	fetchGroup singleflight.Group
+	version    string
+	expiresAt  time.Time
+	lastError  error
+	retryAt    time.Time
 }
 
 var latestCodexClientVersion codexClientVersionCache
@@ -32,24 +39,59 @@ func GetLatestCodexClientVersion(ctx context.Context, client *http.Client) (stri
 
 func (cache *codexClientVersionCache) get(ctx context.Context, client *http.Client, releaseURL string, now time.Time) (string, error) {
 	cache.Lock()
-	defer cache.Unlock()
-
 	if cache.version != "" && now.Before(cache.expiresAt) {
-		return cache.version, nil
+		version := cache.version
+		cache.Unlock()
+		return version, nil
 	}
-
-	version, err := fetchLatestCodexClientVersion(ctx, client, releaseURL)
-	if err != nil {
-		if cache.version != "" {
-			cache.expiresAt = now.Add(codexClientVersionCacheTTL)
-			return cache.version, nil
-		}
+	if cache.version == "" && cache.lastError != nil && now.Before(cache.retryAt) {
+		err := cache.lastError
+		cache.Unlock()
 		return "", err
 	}
+	cache.Unlock()
+	completion := cache.fetchGroup.DoChan(releaseURL, func() (any, error) {
+		cache.Lock()
+		if cache.version != "" && now.Before(cache.expiresAt) {
+			version := cache.version
+			cache.Unlock()
+			return version, nil
+		}
+		if cache.version == "" && cache.lastError != nil && now.Before(cache.retryAt) {
+			err := cache.lastError
+			cache.Unlock()
+			return "", err
+		}
+		cache.Unlock()
 
-	cache.version = version
-	cache.expiresAt = now.Add(codexClientVersionCacheTTL)
-	return version, nil
+		version, err := fetchLatestCodexClientVersion(ctx, client, releaseURL)
+		cache.Lock()
+		defer cache.Unlock()
+		if err != nil {
+			if cache.version != "" {
+				cache.expiresAt = now.Add(codexClientVersionCacheTTL)
+				return cache.version, nil
+			}
+			cache.lastError = err
+			cache.retryAt = now.Add(codexClientVersionFailureTTL)
+			return "", err
+		}
+
+		cache.version = version
+		cache.expiresAt = now.Add(codexClientVersionCacheTTL)
+		cache.lastError = nil
+		cache.retryAt = time.Time{}
+		return version, nil
+	})
+	select {
+	case <-ctx.Done():
+		return "", ctx.Err()
+	case result := <-completion:
+		if result.Err != nil {
+			return "", result.Err
+		}
+		return result.Val.(string), nil
+	}
 }
 
 func fetchLatestCodexClientVersion(ctx context.Context, client *http.Client, releaseURL string) (string, error) {
@@ -80,7 +122,11 @@ func fetchLatestCodexClientVersion(ctx context.Context, client *http.Client, rel
 		Draft      bool   `json:"draft"`
 		Prerelease bool   `json:"prerelease"`
 	}
-	if err := common.DecodeJson(resp.Body, &release); err != nil {
+	body, err := io.ReadAll(io.LimitReader(resp.Body, (1<<20)+1))
+	if err != nil || len(body) > 1<<20 {
+		return "", errors.New("invalid codex release response")
+	}
+	if err := common.Unmarshal(body, &release); err != nil {
 		return "", err
 	}
 	version, err := parseStableOfficialCodexReleaseVersion(
@@ -157,12 +203,15 @@ func FetchCodexModels(
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return resp.StatusCode, nil, err
-	}
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		return resp.StatusCode, nil, nil
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, codexModelsResponseMaxBytes+1))
+	if err != nil {
+		return resp.StatusCode, nil, errors.New("codex models response could not be read")
+	}
+	if len(body) > codexModelsResponseMaxBytes {
+		return resp.StatusCode, nil, errors.New("codex models response exceeds size limit")
 	}
 
 	var result struct {
