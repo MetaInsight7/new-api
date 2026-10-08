@@ -1,10 +1,18 @@
 package model
 
 import (
+	"context"
+	"errors"
+	"fmt"
+	"net"
+	"os"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -49,6 +57,71 @@ func TestUpdateChannelStatusPersistsMultiKeyState(t *testing.T) {
 	assert.Equal(t, "provider rejected key", stored.ChannelInfo.MultiKeyDisabledReason[0])
 	assert.NotZero(t, stored.ChannelInfo.MultiKeyDisabledTime[0])
 	assert.Equal(t, 1, stored.ChannelInfo.MultiKeyPollingIndex)
+}
+
+func TestAutomaticChannelStatusPreservesPermanentUnavailability(t *testing.T) {
+	for _, cacheEnabled := range []bool{false, true} {
+		for _, multiKey := range []bool{false, true} {
+			t.Run(fmt.Sprintf("cache=%t/multi_key=%t", cacheEnabled, multiKey), func(t *testing.T) {
+				setupChannelStatusTest(t)
+				common.MemoryCacheEnabled = cacheEnabled
+				channel := Channel{
+					Name: "permanently-unavailable", Type: constant.ChannelTypeOpenAI,
+					Key: "key-a\nkey-b", Status: 4, Models: "guard-model", Group: "default",
+					ChannelInfo: ChannelInfo{IsMultiKey: multiKey, MultiKeySize: 2,
+						MultiKeyMode: constant.MultiKeyModePolling, MultiKeyPollingIndex: 1,
+						MultiKeyStatusList:     map[int]int{0: common.ChannelStatusAutoDisabled},
+						MultiKeyDisabledReason: map[int]string{0: "existing key failure"},
+						MultiKeyDisabledTime:   map[int]int64{0: 1234}},
+				}
+				channel.SetOtherInfo(map[string]any{"status_reason": "manual ban", "status_time": int64(1000)})
+				require.NoError(t, DB.Create(&channel).Error)
+				InitChannelCache()
+				if cacheEnabled {
+					CacheUpdateChannelStatus(channel.Id, common.ChannelStatusEnabled)
+				}
+				for _, status := range []int{1, 2, 3, 4} {
+					assert.False(t, UpdateChannelStatus(channel.Id, "key-b", status, "automatic task"))
+				}
+				stored, err := GetChannelById(channel.Id, true)
+				require.NoError(t, err)
+				assert.Equal(t, 4, stored.Status)
+				assert.Equal(t, channel.ChannelInfo, stored.ChannelInfo)
+				assert.Equal(t, channel.OtherInfo, stored.OtherInfo)
+			})
+		}
+	}
+}
+
+func TestAutomaticChannelStatusCannotCreatePermanentUnavailability(t *testing.T) {
+	setupChannelStatusTest(t)
+	channel := Channel{Name: "automatic-ban-rejected", Key: "key-a", Status: common.ChannelStatusEnabled}
+	require.NoError(t, DB.Create(&channel).Error)
+	assert.False(t, UpdateChannelStatus(channel.Id, "key-a", 4, "automatic task"))
+	stored, err := GetChannelById(channel.Id, true)
+	require.NoError(t, err)
+	assert.Equal(t, common.ChannelStatusEnabled, stored.Status)
+}
+
+func TestStaleChannelUpdateCannotClearPermanentUnavailability(t *testing.T) {
+	setupChannelStatusTest(t)
+	channel := Channel{Name: "stale-task-update", Key: "key-a", Status: common.ChannelStatusEnabled, Models: "original-model", Group: "default"}
+	channel.SetOtherInfo(map[string]any{"provider_note": "keep"})
+	require.NoError(t, channel.Insert())
+	stale, err := GetChannelById(channel.Id, true)
+	require.NoError(t, err)
+	require.True(t, UpdateChannelStatusManually(channel.Id, 4, "manual ban"))
+	stale.Models = "updated-model"
+	require.NoError(t, stale.Update())
+	stored, err := GetChannelById(channel.Id, true)
+	require.NoError(t, err)
+	assert.Equal(t, 4, stored.Status)
+	assert.Equal(t, "updated-model", stored.Models)
+	assert.Equal(t, "manual ban", stored.GetOtherInfo()["status_reason"])
+	assert.Equal(t, "keep", stored.GetOtherInfo()["provider_note"])
+	candidates, err := GetSatisfiedChannelCandidates("default", "updated-model", 0, nil)
+	require.NoError(t, err)
+	assert.Empty(t, candidates)
 }
 
 func TestSaveStatusStateFromSingleKeySnapshotPreservesUnownedColumns(t *testing.T) {
@@ -99,4 +172,197 @@ func TestSaveStatusStateFromSingleKeySnapshotPreservesUnownedColumns(t *testing.
 	otherInfo := stored.GetOtherInfo()
 	assert.Equal(t, "manual operation", otherInfo["status_reason"])
 	assert.Equal(t, float64(1234), otherInfo["status_time"])
+}
+
+func setupChannelStatusRedisTest(test *testing.T, database int) (context.Context, *redis.Client, string) {
+	test.Helper()
+	address := os.Getenv("TEST_REDIS_ADDR")
+	if address == "" {
+		test.Skip("TEST_REDIS_ADDR is required for real Redis verification")
+	}
+	host, _, err := net.SplitHostPort(address)
+	require.NoError(test, err)
+	require.True(test, net.ParseIP(host).IsLoopback(), "Redis tests require a loopback instance")
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	test.Cleanup(cancel)
+	publisher := redis.NewClient(&redis.Options{Addr: address, DB: database})
+	observer := redis.NewClient(&redis.Options{Addr: address, DB: database})
+	test.Cleanup(func() {
+		require.NoError(test, observer.Close())
+		require.NoError(test, publisher.Close())
+	})
+	require.NoError(test, publisher.Ping(ctx).Err())
+	require.NoError(test, observer.Ping(ctx).Err())
+	version, err := observer.Info(ctx, "server").Result()
+	require.NoError(test, err)
+	for line := range strings.SplitSeq(version, "\n") {
+		if version, found := strings.CutPrefix(line, "redis_version:"); found {
+			test.Logf("Redis version=%s; two loopback clients; private DB/topic=%d", strings.TrimSpace(version), database)
+		}
+	}
+	previousRedisEnabled, previousClient := common.RedisEnabled, common.RDB
+	common.RedisEnabled, common.RDB = true, publisher
+	test.Cleanup(func() {
+		common.RedisEnabled, common.RDB = previousRedisEnabled, previousClient
+	})
+	return ctx, observer, fmt.Sprintf("new-api:config-changed:db:%d", database)
+}
+
+func receiveChannelStatusNotificationsThroughBarrier(test *testing.T, ctx context.Context, observer *redis.Client, subscription *redis.PubSub, topic string) []string {
+	test.Helper()
+	barrier := "channel-status-producer-barrier:" + test.Name()
+	recipients, err := observer.Publish(ctx, topic, barrier).Result()
+	require.NoError(test, err)
+	require.Positive(test, recipients, "the confirmed subscriber must still be registered")
+	var payloads []string
+	for {
+		message, err := subscription.ReceiveMessage(ctx)
+		require.NoError(test, err)
+		require.Equal(test, topic, message.Channel)
+		if message.Payload == barrier {
+			return payloads
+		}
+		payloads = append(payloads, message.Payload)
+	}
+}
+
+func TestChannelStatusNotificationsRealRedisProducer(test *testing.T) {
+	ctx, observer, topic := setupChannelStatusRedisTest(test, 13)
+	var sqliteVersion string
+	require.NoError(test, DB.Raw("SELECT sqlite_version()").Scan(&sqliteVersion).Error)
+	test.Logf("SQLite version=%s; existing in-memory fixture", sqliteVersion)
+
+	for _, testCase := range []struct {
+		name              string
+		initialStatus     int
+		targetStatus      int
+		manual            bool
+		multiKey          bool
+		failAbilityUpdate bool
+		wantChanged       bool
+		wantStatus        int
+		wantClose         bool
+	}{
+		{
+			name:          "automatic_permanent_ban_creation_rejected",
+			initialStatus: common.ChannelStatusEnabled, targetStatus: common.ChannelStatusBanned,
+			wantStatus: common.ChannelStatusEnabled,
+		},
+		{
+			name:          "automatic_permanent_ban_overwrite_rejected",
+			initialStatus: common.ChannelStatusBanned, targetStatus: common.ChannelStatusEnabled,
+			wantStatus: common.ChannelStatusBanned,
+		},
+		{
+			name:          "multi_key_disable_keeps_channel_enabled_without_close",
+			initialStatus: common.ChannelStatusEnabled, targetStatus: common.ChannelStatusAutoDisabled,
+			multiKey: true, wantChanged: true, wantStatus: common.ChannelStatusEnabled,
+		},
+		{
+			name:          "manual_permanent_ban_publishes_channel_close",
+			initialStatus: common.ChannelStatusEnabled, targetStatus: common.ChannelStatusBanned,
+			manual: true, wantChanged: true, wantStatus: common.ChannelStatusBanned, wantClose: true,
+		},
+		{
+			name:          "manual_enable_publishes_cache_only",
+			initialStatus: common.ChannelStatusBanned, targetStatus: common.ChannelStatusEnabled,
+			manual: true, wantChanged: true, wantStatus: common.ChannelStatusEnabled,
+		},
+		{
+			name:          "transaction_rollback_does_not_publish",
+			initialStatus: common.ChannelStatusEnabled, targetStatus: common.ChannelStatusBanned,
+			manual: true, failAbilityUpdate: true, wantStatus: common.ChannelStatusEnabled,
+		},
+	} {
+		test.Run(testCase.name, func(test *testing.T) {
+			setupChannelStatusTest(test)
+			channel := Channel{
+				Name: testCase.name, Type: constant.ChannelTypeOpenAI,
+				Key: "producer-key-a\nproducer-key-b", Status: testCase.initialStatus,
+				Models: "producer-model", Group: "default",
+			}
+			if testCase.multiKey {
+				channel.ChannelInfo = ChannelInfo{
+					IsMultiKey: true, MultiKeySize: 2, MultiKeyMode: constant.MultiKeyModePolling,
+				}
+			}
+			channel.SetOtherInfo(map[string]any{"status_reason": "original reason", "status_time": int64(1234)})
+			require.NoError(test, DB.Create(&channel).Error)
+			ability := Ability{
+				ChannelId: channel.Id, Model: "producer-model", Group: "default",
+				Enabled: testCase.initialStatus == common.ChannelStatusEnabled,
+			}
+			require.NoError(test, DB.Create(&ability).Error)
+			subscription := observer.Subscribe(ctx, topic)
+			test.Cleanup(func() { require.NoError(test, subscription.Close()) })
+			confirmation, err := subscription.Receive(ctx)
+			require.NoError(test, err)
+			require.Equal(test, &redis.Subscription{Kind: "subscribe", Channel: topic, Count: 1}, confirmation)
+
+			callbackTriggered := false
+			var uncommittedChannel Channel
+			var uncommittedReadError error
+			if testCase.failAbilityUpdate {
+				const callbackName = "test:channel_status_notification_rollback"
+				forcedError := errors.New("forced ability update failure")
+				require.NoError(test, DB.Callback().Update().Before("gorm:update").Register(callbackName, func(transaction *gorm.DB) {
+					if transaction.Statement.Table == "abilities" {
+						callbackTriggered = true
+						uncommittedReadError = transaction.Session(&gorm.Session{NewDB: true}).First(&uncommittedChannel, channel.Id).Error
+						transaction.AddError(forcedError)
+					}
+				}))
+				test.Cleanup(func() { require.NoError(test, DB.Callback().Update().Remove(callbackName)) })
+			}
+			const reason = "producer reason must not enter Redis"
+			var changed bool
+			if testCase.manual {
+				changed = UpdateChannelStatusManually(channel.Id, testCase.targetStatus, reason)
+			} else {
+				changed = UpdateChannelStatus(channel.Id, "producer-key-a", testCase.targetStatus, reason)
+			}
+			assert.Equal(test, testCase.wantChanged, changed)
+			if testCase.failAbilityUpdate {
+				require.True(test, callbackTriggered)
+				require.NoError(test, uncommittedReadError)
+				assert.Equal(test, common.ChannelStatusBanned, uncommittedChannel.Status, "failure follows the uncommitted channel write")
+			}
+
+			payloads := receiveChannelStatusNotificationsThroughBarrier(test, ctx, observer, subscription, topic)
+			if testCase.wantChanged {
+				require.Len(test, payloads, 1)
+				var event struct {
+					Scope           string `json:"scope"`
+					Source          string `json:"source"`
+					CloseChannelIDs []int  `json:"close_channel_ids"`
+				}
+				require.NoError(test, common.UnmarshalJsonStr(payloads[0], &event))
+				assert.Equal(test, common.ConfigScopeChannels, event.Scope)
+				assert.Equal(test, common.GetReplicaID(), event.Source)
+				if testCase.wantClose {
+					assert.Equal(test, []int{channel.Id}, event.CloseChannelIDs)
+				} else {
+					assert.Empty(test, event.CloseChannelIDs, "an enabled channel must not close all of its sessions")
+				}
+				assert.NotContains(test, payloads[0], "producer-key")
+				assert.NotContains(test, payloads[0], reason)
+			} else {
+				assert.Empty(test, payloads, "rejected or rolled-back writes must not publish before the broker barrier")
+			}
+			stored, err := GetChannelById(channel.Id, true)
+			require.NoError(test, err)
+			assert.Equal(test, testCase.wantStatus, stored.Status)
+			if !testCase.wantChanged {
+				assert.Equal(test, channel.OtherInfo, stored.OtherInfo)
+				assert.Equal(test, channel.ChannelInfo, stored.ChannelInfo)
+			}
+			if testCase.multiKey {
+				assert.Equal(test, common.ChannelStatusAutoDisabled, stored.ChannelInfo.MultiKeyStatusList[0])
+				assert.NotContains(test, stored.ChannelInfo.MultiKeyStatusList, 1)
+			}
+			var storedAbility Ability
+			require.NoError(test, DB.Where("channel_id = ?", channel.Id).First(&storedAbility).Error)
+			assert.Equal(test, testCase.wantStatus == common.ChannelStatusEnabled, storedAbility.Enabled)
+		})
+	}
 }

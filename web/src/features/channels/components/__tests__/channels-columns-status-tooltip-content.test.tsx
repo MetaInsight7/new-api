@@ -20,6 +20,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
   flexRender,
   getCoreRowModel,
+  getFilteredRowModel,
   useReactTable,
 } from '@tanstack/react-table'
 import { render, screen } from '@testing-library/react'
@@ -30,11 +31,20 @@ import { channelSchema, type Channel } from '../../types'
 import { useChannelsColumns } from '../channels-columns'
 import { ChannelsProvider } from '../channels-provider'
 
-function ExampleAutoDisabledStatusCell(props: { channel: Channel }) {
+function ExampleAutoDisabledStatusCell(props: {
+  channel: Channel
+  filter?: string
+}) {
   const table = useReactTable({
     data: [props.channel],
     columns: useChannelsColumns({ enableSelection: false }),
     getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    state: {
+      columnFilters: props.filter
+        ? [{ id: 'status', value: [props.filter] }]
+        : [],
+    },
   })
   const cell = table
     .getRowModel()
@@ -74,4 +84,28 @@ test('keeps the long string inside the status tooltip is wrapped when show', asy
   expect(await screen.findByText(reason, { exact: false })).toHaveClass(
     'wrap-anywhere'
   )
+})
+
+test('shows a banned status badge when the banned column filter is selected', () => {
+  const channelItem = channelSchema.parse({
+    id: 1,
+    type: 1,
+    key: '',
+    name: 'Permanent channel',
+    status: 4,
+    created_time: 0,
+    test_time: 0,
+    response_time: 0,
+    balance_updated_time: 0,
+  })
+  const queryClient = new QueryClient()
+  render(
+    <QueryClientProvider client={queryClient}>
+      <ChannelsProvider>
+        <ExampleAutoDisabledStatusCell channel={channelItem} filter='banned' />
+      </ChannelsProvider>
+    </QueryClientProvider>
+  )
+  expect(screen.getByText('Banned')).toBeVisible()
+  queryClient.clear()
 })

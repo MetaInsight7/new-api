@@ -6888,19 +6888,27 @@
     "Automatic release checks run every six hours.": "Les versions officielles sont vérifiées automatiquement toutes les six heures.",
     "Keep the synced version current from official stable releases.": "Maintenir la version synchronisée à jour depuis les versions officielles stables.",
     "Emergency kill switch. Disable only to roll back canonical outbound identity enforcement.": "Interrupteur d’urgence. Désactivez-le uniquement pour annuler l’imposition de l’identité canonique sortante.",
+    "Are you sure you want to unban channel \"{{name}}\" and enable it?": "Voulez-vous débannir le canal « {{name}} » et l’activer ?",
     "Authorization callback": "Rappel d’autorisation",
     "Authorization link": "Lien d’autorisation",
     "Authorize Codex account": "Autoriser le compte Codex",
     "Authorizing...": "Autorisation en cours...",
+    "Banned": "Banni",
+    "Channel banned": "Canal banni",
+    "Channel not found": "Canal introuvable",
+    "Channel unbanned": "Canal débanni",
     "Codex account authorized": "Compte Codex autorisé",
     "Codex authorization failed": "Échec de l’autorisation Codex",
     "Copy authorization link": "Copier le lien d’autorisation",
     "Creating authorization link...": "Création du lien d’autorisation...",
     "Failed to start Codex authorization": "Impossible de démarrer l’autorisation Codex",
     "Generate credential": "Générer les identifiants",
+    "Mark as Banned": "Marquer comme banni",
+    "Mark channel \"{{name}}\" as permanently unavailable? Automatic recovery will not enable it.": "Marquer le canal « {{name}} » comme définitivement indisponible ? La récupération automatique ne l’activera pas.",
     "Open authorization page": "Ouvrir la page d’autorisation",
     "Open the authorization page, sign in to your upstream account, then paste the complete callback URL. The localhost page may not load; copy its address anyway. Authorization expires in ten minutes.": "Ouvrez la page d’autorisation, connectez-vous au compte amont, puis collez l’URL de rappel complète. La page localhost peut ne pas se charger : copiez tout de même son adresse. L’autorisation expire après dix minutes.",
     "Restart authorization": "Recommencer l’autorisation",
-    "Save authorized credential": "Enregistrer les identifiants autorisés"
+    "Save authorized credential": "Enregistrer les identifiants autorisés",
+    "Unban": "Débannir"
   }
 }

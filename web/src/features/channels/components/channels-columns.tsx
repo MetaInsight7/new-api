@@ -1160,6 +1160,9 @@ export function useChannelsColumns(
           if (value.includes('disabled')) {
             return status !== 1
           }
+          if (value.includes('banned')) {
+            return status === 4
+          }
           return false
         },
         size: 120,

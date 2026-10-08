@@ -7189,19 +7189,27 @@
     "Automatic release checks run every six hours.": "Automatic release checks run every six hours.",
     "Keep the synced version current from official stable releases.": "Keep the synced version current from official stable releases.",
     "Emergency kill switch. Disable only to roll back canonical outbound identity enforcement.": "Emergency kill switch. Disable only to roll back canonical outbound identity enforcement.",
+    "Are you sure you want to unban channel \"{{name}}\" and enable it?": "Are you sure you want to unban channel \"{{name}}\" and enable it?",
     "Authorization callback": "Authorization callback",
     "Authorization link": "Authorization link",
     "Authorize Codex account": "Authorize Codex account",
     "Authorizing...": "Authorizing...",
+    "Banned": "Banned",
+    "Channel banned": "Channel banned",
+    "Channel not found": "Channel not found",
+    "Channel unbanned": "Channel unbanned",
     "Codex account authorized": "Codex account authorized",
     "Codex authorization failed": "Codex authorization failed",
     "Copy authorization link": "Copy authorization link",
     "Creating authorization link...": "Creating authorization link...",
     "Failed to start Codex authorization": "Failed to start Codex authorization",
     "Generate credential": "Generate credential",
+    "Mark as Banned": "Mark as Banned",
+    "Mark channel \"{{name}}\" as permanently unavailable? Automatic recovery will not enable it.": "Mark channel \"{{name}}\" as permanently unavailable? Automatic recovery will not enable it.",
     "Open authorization page": "Open authorization page",
     "Open the authorization page, sign in to your upstream account, then paste the complete callback URL. The localhost page may not load; copy its address anyway. Authorization expires in ten minutes.": "Open the authorization page, sign in to your upstream account, then paste the complete callback URL. The localhost page may not load; copy its address anyway. Authorization expires in ten minutes.",
     "Restart authorization": "Restart authorization",
-    "Save authorized credential": "Save authorized credential"
+    "Save authorized credential": "Save authorized credential",
+    "Unban": "Unban"
   }
 }

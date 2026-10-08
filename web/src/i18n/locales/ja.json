@@ -6888,19 +6888,27 @@
     "Automatic release checks run every six hours.": "公式リリースを 6 時間ごとに自動確認します。",
     "Keep the synced version current from official stable releases.": "公式安定版から同期済みバージョンを最新に保ちます。",
     "Emergency kill switch. Disable only to roll back canonical outbound identity enforcement.": "緊急停止スイッチ。標準出力アイデンティティの強制を元に戻す場合のみ無効にしてください。",
+    "Are you sure you want to unban channel \"{{name}}\" and enable it?": "チャンネル「{{name}}」の使用禁止を解除して有効にしますか？",
     "Authorization callback": "認可コールバック",
     "Authorization link": "認可リンク",
     "Authorize Codex account": "Codex アカウントを認可",
     "Authorizing...": "認可中...",
+    "Banned": "使用禁止",
+    "Channel banned": "チャンネルを使用禁止にしました",
+    "Channel not found": "チャンネルが見つかりません",
+    "Channel unbanned": "チャンネルの使用禁止を解除しました",
     "Codex account authorized": "Codex アカウントを認可しました",
     "Codex authorization failed": "Codex 認可に失敗しました",
     "Copy authorization link": "認可リンクをコピー",
     "Creating authorization link...": "認可リンクを作成中...",
     "Failed to start Codex authorization": "Codex 認可を開始できませんでした",
     "Generate credential": "認証情報を生成",
+    "Mark as Banned": "使用禁止に設定",
+    "Mark channel \"{{name}}\" as permanently unavailable? Automatic recovery will not enable it.": "チャンネル「{{name}}」を恒久的に利用不可にしますか？自動復旧では有効になりません。",
     "Open authorization page": "認可ページを開く",
     "Open the authorization page, sign in to your upstream account, then paste the complete callback URL. The localhost page may not load; copy its address anyway. Authorization expires in ten minutes.": "認可ページを開き、上流アカウントにログインしてから、完全なコールバック URL を貼り付けてください。localhost ページが開かなくても、そのアドレスをコピーしてください。認可は10分で期限切れになります。",
     "Restart authorization": "認可を再開",
-    "Save authorized credential": "認可済み認証情報を保存"
+    "Save authorized credential": "認可済み認証情報を保存",
+    "Unban": "使用禁止を解除"
   }
 }

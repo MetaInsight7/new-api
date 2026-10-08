@@ -60,6 +60,8 @@ func parseStatusFilter(statusParam string) int {
 	switch strings.ToLower(statusParam) {
 	case "enabled", "1":
 		return common.ChannelStatusEnabled
+	case "banned", "4":
+		return common.ChannelStatusBanned
 	case "disabled", "0":
 		return 0
 	default:
@@ -139,6 +141,9 @@ func restoreMultiKeyChannelIfAvailable(channel *model.Channel) {
 func applyChannelStatusFilter(query *gorm.DB, statusFilter int) *gorm.DB {
 	if statusFilter == common.ChannelStatusEnabled {
 		return query.Where("status = ?", common.ChannelStatusEnabled)
+	}
+	if statusFilter == common.ChannelStatusBanned {
+		return query.Where("status = ?", common.ChannelStatusBanned)
 	}
 	if statusFilter == 0 {
 		return query.Where("status != ?", common.ChannelStatusEnabled)
@@ -411,10 +416,13 @@ func SearchChannels(c *gin.Context) {
 		channelData = channels
 	}
 
-	if statusFilter == common.ChannelStatusEnabled || statusFilter == 0 {
+	if statusFilter == common.ChannelStatusEnabled || statusFilter == common.ChannelStatusBanned || statusFilter == 0 {
 		filtered := make([]*model.Channel, 0, len(channelData))
 		for _, ch := range channelData {
 			if statusFilter == common.ChannelStatusEnabled && ch.Status != common.ChannelStatusEnabled {
+				continue
+			}
+			if statusFilter == common.ChannelStatusBanned && ch.Status != common.ChannelStatusBanned {
 				continue
 			}
 			if statusFilter == 0 && ch.Status == common.ChannelStatusEnabled {
@@ -1379,7 +1387,7 @@ func UpdateChannelStatus(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
-	changed := model.UpdateChannelStatus(id, "", req.Status, "manual operation")
+	changed := model.UpdateChannelStatusManually(id, req.Status, "manual operation")
 	if changed {
 		model.InitChannelCache()
 		if req.Status != common.ChannelStatusEnabled {
@@ -1407,7 +1415,7 @@ func BatchUpdateChannelStatus(c *gin.Context) {
 	changedCount := 0
 	var disabledIDs []int
 	for _, id := range req.Ids {
-		if model.UpdateChannelStatus(id, "", req.Status, "manual batch operation") {
+		if model.UpdateChannelStatusManually(id, req.Status, "manual batch operation") {
 			changedCount++
 			if req.Status != common.ChannelStatusEnabled {
 				disabledIDs = append(disabledIDs, id)
@@ -1433,7 +1441,7 @@ func BatchUpdateChannelStatus(c *gin.Context) {
 }
 
 func isManageableChannelStatus(status int) bool {
-	return status == common.ChannelStatusEnabled || status == common.ChannelStatusManuallyDisabled
+	return status == common.ChannelStatusEnabled || status == common.ChannelStatusManuallyDisabled || status == common.ChannelStatusBanned
 }
 
 // equalStringPtr 比较两个 *string 是否相等（均为 nil 视为相等）。

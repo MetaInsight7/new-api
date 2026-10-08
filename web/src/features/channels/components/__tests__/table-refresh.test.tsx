@@ -44,12 +44,12 @@ await i18n.init({
 })
 const clients: QueryClient[] = []
 
-function channel(name: string): Channel {
+function channel(name: string, status = 1): Channel {
   return {
     id: 3,
     type: 1,
     key: '',
-    status: 1,
+    status,
     name,
     created_time: 0,
     test_time: 0,
@@ -86,14 +86,21 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-async function renderChannelsPage(searchGate: () => Promise<void>) {
+async function renderChannelsPage(
+  searchGate: () => Promise<void>,
+  options: { status?: number; initialEntry?: string } = {}
+) {
   const get = vi.spyOn(api, 'get').mockImplementation(async (url) => {
     if (url === '/api/channel/search') {
       await searchGate()
       return {
         data: {
           success: true,
-          data: { items: [channel('prod')], total: 1, type_counts: {} },
+          data: {
+            items: [channel('prod', options.status)],
+            total: 1,
+            type_counts: {},
+          },
         },
       }
     }
@@ -115,6 +122,7 @@ async function renderChannelsPage(searchGate: () => Promise<void>) {
     ),
   })
   const initialEntry =
+    options.initialEntry ??
     '/channels/?filter=prod&group=%5B%22vip%22%5D&status=%5B%22enabled%22%5D&model=gpt-4o'
   const router = createRouter({
     routeTree: root.addChildren([auth.addChildren([channelsRoute])]),
@@ -152,4 +160,17 @@ it('refetches the channel list with the current filters and marks Refresh busy w
   expect(refresh).toHaveAttribute('aria-busy', 'true')
   release()
   await waitFor(() => expect(refresh).toHaveAttribute('aria-busy', 'false'))
+})
+
+it('restores the saved banned filter and sends it to channel search', async () => {
+  localStorage.setItem('channel-status-filter', 'banned')
+  const get = await renderChannelsPage(() => Promise.resolve(), {
+    status: 4,
+    initialEntry: '/channels/?filter=prod',
+  })
+  const search = get.mock.calls.find(([url]) => url === '/api/channel/search')
+  expect(search?.[1]?.params?.status).toBe('banned')
+  expect(screen.getByRole('button', { name: /^Status/ })).toHaveTextContent(
+    'Banned'
+  )
 })

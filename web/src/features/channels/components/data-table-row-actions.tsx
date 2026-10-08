@@ -33,9 +33,11 @@ import {
   Trash2,
   RefreshCw,
   Loader2,
+  Ban,
 } from 'lucide-react'
 import { useContext, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { Button } from '@/components/ui/button'
@@ -57,9 +59,11 @@ import {
   ADMIN_PERMISSION_RESOURCES,
   hasPermission,
 } from '@/lib/admin-permissions'
+import { handleServerError } from '@/lib/handle-server-error'
 import { useAuthStore } from '@/stores/auth-store'
 
-import { MODEL_FETCHABLE_TYPES } from '../constants'
+import { updateChannelStatus } from '../api'
+import { CHANNEL_STATUS, MODEL_FETCHABLE_TYPES } from '../constants'
 import {
   channelsQueryKeys,
   handleDeleteChannel,
@@ -84,11 +88,18 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   const queryClient = useQueryClient()
   const currentUser = useAuthStore((s) => s.auth.user)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [statusConfirmOpen, setStatusConfirmOpen] = useState(false)
   const [isTesting, setIsTesting] = useState(false)
   const [isTogglingStatus, setIsTogglingStatus] = useState(false)
 
   const isEnabled = isChannelEnabled(channel)
+  const isBanned = channel.status === CHANNEL_STATUS.BANNED
   const isMultiKey = isMultiKeyChannel(channel)
+  const canOperate = hasPermission(
+    currentUser,
+    ADMIN_PERMISSION_RESOURCES.CHANNEL,
+    ADMIN_PERMISSION_ACTIONS.OPERATE
+  )
   const canEditSensitive = hasPermission(
     currentUser,
     ADMIN_PERMISSION_RESOURCES.CHANNEL,
@@ -146,9 +157,34 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
     e?: React.MouseEvent<HTMLButtonElement>
   ) => {
     e?.stopPropagation()
+    if (!canOperate || isBanned || isTogglingStatus) return
     setIsTogglingStatus(true)
     try {
       await handleToggleChannelStatus(channel.id, channel.status, queryClient)
+    } finally {
+      setIsTogglingStatus(false)
+    }
+  }
+
+  const handlePermanentStatus = async () => {
+    if (!canOperate || isTogglingStatus) return
+    setIsTogglingStatus(true)
+    try {
+      const response = await updateChannelStatus(
+        channel.id,
+        isBanned ? CHANNEL_STATUS.ENABLED : CHANNEL_STATUS.BANNED
+      )
+      if (!response.success) {
+        handleServerError(response, t('Operation failed'))
+        return
+      }
+      await queryClient.invalidateQueries({
+        queryKey: channelsQueryKeys.lists(),
+      })
+      toast.success(isBanned ? t('Channel unbanned') : t('Channel banned'))
+      setStatusConfirmOpen(false)
+    } catch (error) {
+      handleServerError(error, t('Operation failed'))
     } finally {
       setIsTogglingStatus(false)
     }
@@ -233,7 +269,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
               variant='ghost'
               size='icon-sm'
               onClick={handleToggleStatus}
-              disabled={isTogglingStatus}
+              disabled={isTogglingStatus || isBanned || !canOperate}
               aria-label={isEnabled ? t('Disable') : t('Enable')}
               className={
                 isEnabled
@@ -348,6 +384,21 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
 
           <DropdownMenuSeparator />
 
+          <DropdownMenuItem
+            disabled={!canOperate || isTogglingStatus}
+            onClick={() => setStatusConfirmOpen(true)}
+            className={
+              isBanned ? undefined : 'text-destructive focus:text-destructive'
+            }
+          >
+            {isBanned ? t('Unban') : t('Mark as Banned')}
+            <DropdownMenuShortcut>
+              {isBanned ? <Power size={16} /> : <Ban size={16} />}
+            </DropdownMenuShortcut>
+          </DropdownMenuItem>
+
+          <DropdownMenuSeparator />
+
           {/* Delete */}
           <DropdownMenuItem
             disabled={!canEditSensitive}
@@ -365,6 +416,28 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <ConfirmDialog
+        open={statusConfirmOpen}
+        onOpenChange={setStatusConfirmOpen}
+        title={isBanned ? t('Unban') : t('Mark as Banned')}
+        desc={
+          isBanned
+            ? t(
+                'Are you sure you want to unban channel "{{name}}" and enable it?',
+                { name: channel.name }
+              )
+            : t(
+                'Mark channel "{{name}}" as permanently unavailable? Automatic recovery will not enable it.',
+                { name: channel.name }
+              )
+        }
+        confirmText={isBanned ? t('Unban') : t('Mark as Banned')}
+        destructive={!isBanned}
+        disabled={!canOperate}
+        isLoading={isTogglingStatus}
+        handleConfirm={handlePermanentStatus}
+      />
 
       <ConfirmDialog
         open={deleteConfirmOpen}

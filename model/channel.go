@@ -1,6 +1,7 @@
 package model
 
 import (
+	"context"
 	"database/sql/driver"
 	"encoding/json"
 	"errors"
@@ -364,6 +365,10 @@ func (channel *Channel) Save() error {
 // Keeping this allowlist here prevents a stale channel snapshot from
 // overwriting credentials, accounting counters, or channel configuration.
 func (channel *Channel) saveStatusState() error {
+	return channel.saveStatusStateWithDB(DB)
+}
+
+func (channel *Channel) saveStatusStateWithDB(database *gorm.DB) error {
 	if channel.Id == 0 {
 		return errors.New("channel ID is 0")
 	}
@@ -374,7 +379,7 @@ func (channel *Channel) saveStatusState() error {
 	if channel.ChannelInfo.IsMultiKey {
 		updates["channel_info"] = channel.ChannelInfo
 	}
-	return DB.Model(&Channel{}).Where("id = ?", channel.Id).Updates(updates).Error
+	return database.Model(&Channel{}).Where("id = ?", channel.Id).Updates(updates).Error
 }
 
 func GetAllChannels(startIdx int, num int, selectAll bool, idSort bool, sortOptions ...ChannelSortOptions) ([]*Channel, error) {
@@ -832,6 +837,26 @@ func (channel *Channel) Update() error {
 		}
 	}
 	return DB.Transaction(func(tx *gorm.DB) error {
+		var current Channel
+		if err := lockForUpdate(tx).Select("id", "status", "other_info").First(&current, "id = ?", channel.Id).Error; err != nil {
+			return err
+		}
+		if current.Status == common.ChannelStatusBanned {
+			channel.Status = common.ChannelStatusBanned
+			storedInfo := current.GetOtherInfo()
+			info := storedInfo
+			if channel.OtherInfo != "" {
+				info = channel.GetOtherInfo()
+			}
+			for _, field := range []string{"status_reason", "status_time"} {
+				if value, present := storedInfo[field]; present {
+					info[field] = value
+				} else {
+					delete(info, field)
+				}
+			}
+			channel.SetOtherInfo(info)
+		}
 		if channel.Type == constant.ChannelTypeCodex {
 			if existing.Type != constant.ChannelTypeCodex {
 				if channel.Status == common.ChannelStatusEnabled {
@@ -935,6 +960,9 @@ func CleanupChannelPollingLocks() {
 }
 
 func handlerMultiKeyUpdate(channel *Channel, usingKey string, status int, reason string) {
+	if status == common.ChannelStatusBanned || channel.Status == common.ChannelStatusBanned {
+		return
+	}
 	keys := channel.GetKeys()
 	if len(keys) == 0 {
 		channel.Status = status
@@ -1000,6 +1028,20 @@ func hasEnabledMultiKey(keys []string, statusList map[int]int) bool {
 }
 
 func UpdateChannelStatus(channelId int, usingKey string, status int, reason string) bool {
+	return updateChannelStatus(channelId, usingKey, status, reason, false)
+}
+
+func UpdateChannelStatusManually(channelId int, status int, reason string) bool {
+	if status != common.ChannelStatusEnabled && status != common.ChannelStatusManuallyDisabled && status != common.ChannelStatusBanned {
+		return false
+	}
+	return updateChannelStatus(channelId, "", status, reason, true)
+}
+
+func updateChannelStatus(channelId int, usingKey string, status int, reason string, manual bool) bool {
+	if !manual && status == common.ChannelStatusBanned {
+		return false
+	}
 	if common.MemoryCacheEnabled {
 		channelStatusLock.Lock()
 		defer channelStatusLock.Unlock()
@@ -1012,111 +1054,136 @@ func UpdateChannelStatus(channelId int, usingKey string, status int, reason stri
 	pollingLock.Lock()
 	defer pollingLock.Unlock()
 
-	if common.MemoryCacheEnabled {
-		channelCache, _ := CacheGetChannel(channelId)
-		if channelCache == nil {
-			return false
+	changed := false
+	var closeChannelIDs []int
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		channel := &Channel{}
+		if err := lockForUpdate(tx).First(channel, "id = ?", channelId).Error; err != nil {
+			return err
 		}
-		if channelCache.ChannelInfo.IsMultiKey {
-			beforeStatus := channelCache.Status
-			// 如果是多Key模式，更新缓存中的状态
-			handlerMultiKeyUpdate(channelCache, usingKey, status, reason)
-			if beforeStatus != channelCache.Status {
-				CacheUpdateChannelStatus(channelId, channelCache.Status)
-			}
-			//CacheUpdateChannel(channelCache)
-			//return true
-		} else {
-			// 如果缓存渠道存在，且状态已是目标状态，直接返回
-			if channelCache.Status == status {
-				return false
-			}
-			CacheUpdateChannelStatus(channelId, status)
+		if !manual && channel.Status == common.ChannelStatusBanned {
+			return nil
 		}
-	}
-
-	shouldUpdateAbilities := false
-	defer func() {
-		if shouldUpdateAbilities {
-			err := UpdateAbilityStatus(channelId, status == common.ChannelStatusEnabled)
-			if err != nil {
-				common.SysLog(fmt.Sprintf("failed to update ability status: channel_id=%d, error=%v", channelId, err))
-			}
-		}
-	}()
-	channel, err := GetChannelById(channelId, true)
-	if err != nil {
-		return false
-	} else {
 		// A manual channel operation must replace the exhaustion reason even
 		// when the status value is already manually disabled.
 		overridesKeyExhaustion := channel.ChannelInfo.IsMultiKey && usingKey == "" &&
 			status == common.ChannelStatusManuallyDisabled && reason != ChannelStatusReasonAllKeysDisabled &&
 			channel.GetOtherInfo()["status_reason"] == ChannelStatusReasonAllKeysDisabled
 		if channel.Status == status && !overridesKeyExhaustion {
-			return false
+			return nil
 		}
 
-		if channel.ChannelInfo.IsMultiKey {
-			beforeStatus := channel.Status
+		beforeStatus := channel.Status
+		if channel.ChannelInfo.IsMultiKey && !manual {
 			handlerMultiKeyUpdate(channel, usingKey, status, reason)
-			if beforeStatus != channel.Status {
-				shouldUpdateAbilities = true
-			}
 		} else {
 			info := channel.GetOtherInfo()
 			info["status_reason"] = reason
 			info["status_time"] = common.GetTimestamp()
 			channel.SetOtherInfo(info)
 			channel.Status = status
-			shouldUpdateAbilities = true
 		}
-		err = channel.saveStatusState()
-		if err != nil {
-			common.SysLog(fmt.Sprintf("failed to update channel status: channel_id=%d, status=%d, error=%v", channel.Id, status, err))
-			return false
+		if err := channel.saveStatusStateWithDB(tx); err != nil {
+			return err
 		}
 		if channel.Type == constant.ChannelTypeCodex && channel.Status == common.ChannelStatusEnabled {
-			if _, seedErr := EnsureCodexFingerprintSeed(channel.Id); seedErr != nil {
-				common.SysLog(fmt.Sprintf("failed to ensure Codex fingerprint seed: channel_id=%d, error=%v", channel.Id, seedErr))
+			if _, err := ensureCodexFingerprintSeedTx(tx, channel.Id); err != nil {
+				return err
 			}
 		}
+		if beforeStatus != channel.Status {
+			if err := tx.Model(&Ability{}).Where("channel_id = ?", channelId).
+				Update("enabled", channel.Status == common.ChannelStatusEnabled).Error; err != nil {
+				return err
+			}
+		}
+		changed = true
+		if channel.Status != common.ChannelStatusEnabled {
+			closeChannelIDs = []int{channel.Id}
+		}
+		return nil
+	})
+	if err != nil {
+		common.SysLog(fmt.Sprintf("failed to update channel status: channel_id=%d, status=%d, error=%v", channelId, status, err))
+		return false
 	}
-	return true
+	if changed {
+		InitChannelCache()
+		if err := common.PublishConfigChanged(context.Background(), common.ConfigScopeChannels, closeChannelIDs...); err != nil {
+			common.SysError("failed to publish channel-cache change; periodic cache sync remains available: " + err.Error())
+		}
+	}
+	return changed
 }
 
 func EnableChannelByTag(tag string) error {
-	err := DB.Model(&Channel{}).Where("tag = ?", tag).Update("status", common.ChannelStatusEnabled).Error
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var channels []Channel
+		if err := lockForUpdate(tx).Where("tag = ?", tag).Order("id").Find(&channels).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&Channel{}).Where("tag = ?", tag).Update("status", common.ChannelStatusEnabled).Error; err != nil {
+			return err
+		}
+		for _, channel := range channels {
+			if channel.Type == constant.ChannelTypeCodex && channel.GetSetting().NormalizedCodexFingerprintMode() != dto.CodexFingerprintModeOff {
+				if _, err := ensureCodexFingerprintSeedTx(tx, channel.Id); err != nil {
+					return err
+				}
+			}
+		}
+		if err := tx.Model(&Ability{}).Where("tag = ?", tag).Select("enabled").Update("enabled", true).Error; err != nil {
+			return err
+		}
+		return nil
+	})
 	if err != nil {
 		return err
 	}
-	err = UpdateAbilityStatusByTag(tag, true)
-	if err == nil {
-		err = BackfillCodexFingerprintSeeds()
+	InitChannelCache()
+	if err := common.PublishConfigChanged(context.Background(), common.ConfigScopeChannels); err != nil {
+		common.SysError("failed to publish tag channel-cache change; periodic cache sync remains available: " + err.Error())
 	}
-	return err
+	return nil
 }
 
 func DisableChannelByTag(tag string) error {
 	// Explicit tag-level disable also cancels automatic restoration for
 	// channels that were already disabled because all keys were unavailable.
-	var channels []Channel
-	if err := DB.Where("tag = ?", tag).Find(&channels).Error; err != nil {
-		return err
-	}
-	for _, channel := range channels {
-		if channel.ChannelInfo.IsMultiKey && channel.GetOtherInfo()["status_reason"] == ChannelStatusReasonAllKeysDisabled {
-			if !UpdateChannelStatus(channel.Id, "", common.ChannelStatusManuallyDisabled, "manual tag operation") {
-				return fmt.Errorf("failed to disable channel #%d by tag", channel.Id)
+	var closeChannelIDs []int
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var channels []Channel
+		if err := lockForUpdate(tx).Where("tag = ?", tag).Order("id").Find(&channels).Error; err != nil {
+			return err
+		}
+		for _, channel := range channels {
+			if channel.ChannelInfo.IsMultiKey && channel.GetOtherInfo()["status_reason"] == ChannelStatusReasonAllKeysDisabled {
+				info := channel.GetOtherInfo()
+				info["status_reason"] = "manual tag operation"
+				info["status_time"] = common.GetTimestamp()
+				channel.SetOtherInfo(info)
+				if err := tx.Model(&Channel{}).Where("id = ?", channel.Id).Update("other_info", channel.OtherInfo).Error; err != nil {
+					return err
+				}
 			}
 		}
-	}
-	err := DB.Model(&Channel{}).Where("tag = ?", tag).Update("status", common.ChannelStatusManuallyDisabled).Error
+		if err := tx.Model(&Channel{}).Where("tag = ?", tag).Update("status", common.ChannelStatusManuallyDisabled).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&Ability{}).Where("tag = ?", tag).Select("enabled").Update("enabled", false).Error; err != nil {
+			return err
+		}
+		return tx.Model(&Channel{}).Where("tag = ? AND status = ?", tag, common.ChannelStatusManuallyDisabled).
+			Order("id").Pluck("id", &closeChannelIDs).Error
+	})
 	if err != nil {
 		return err
 	}
-	err = UpdateAbilityStatusByTag(tag, false)
-	return err
+	InitChannelCache()
+	if err := common.PublishConfigChanged(context.Background(), common.ConfigScopeChannels, closeChannelIDs...); err != nil {
+		common.SysError("failed to publish tag channel-cache change; periodic cache sync remains available: " + err.Error())
+	}
+	return nil
 }
 
 func EditChannelByTag(tag string, newTag *string, modelMapping *string, models *string, group *string, priority *int64, weight *uint, paramOverride *string, headerOverride *string) error {
