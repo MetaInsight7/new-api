@@ -14,7 +14,29 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 */
-const DEFAULT_OFFICIAL_DOCUMENTATION_URL = 'https://docs.flatkey.ai/'
+const DEFAULT_OFFICIAL_DOCUMENTATION_URL = 'https://docs.tokendazi.com/'
+
+export function normalizeOrigin(origin: string | undefined): string {
+  return origin?.trim().replace(/\/+$/, '') ?? ''
+}
+
+export function resolveOfficialWebsiteOrigin(
+  configuredOrigin: string | undefined
+): string {
+  return normalizeOrigin(configuredOrigin) || 'https://tokendazi.com'
+}
+
+export const OFFICIAL_WEBSITE_ORIGIN = resolveOfficialWebsiteOrigin(
+  import.meta.env.VITE_OFFICIAL_WEBSITE_ORIGIN as string | undefined
+)
+
+export function officialWebsiteUrl(
+  path: string,
+  origin = OFFICIAL_WEBSITE_ORIGIN
+): string {
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`
+  return origin ? `${normalizeOrigin(origin)}${normalizedPath}` : normalizedPath
+}
 
 export function resolveOfficialDocumentationUrl(
   configuredUrl: string | undefined

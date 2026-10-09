@@ -33,7 +33,7 @@ describe('OperationDocumentationLink', () => {
     })
     expect(documentationButton).toHaveAttribute(
       'href',
-      'https://docs.flatkey.ai/'
+      'https://docs.tokendazi.com/'
     )
     expect(documentationButton).toHaveAttribute('target', '_blank')
     expect(documentationButton).toHaveAttribute('rel', 'noreferrer noopener')
@@ -44,7 +44,7 @@ describe('OperationDocumentationLink', () => {
       'https://docs.example.test/'
     )
     expect(resolveOfficialDocumentationUrl('  ')).toBe(
-      'https://docs.flatkey.ai/'
+      'https://docs.tokendazi.com/'
     )
   })
 })

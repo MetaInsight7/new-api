@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { Radio as RadioPrimitive } from '@base-ui/react/radio'
 import { RadioGroup as Radio } from '@base-ui/react/radio-group'
 import { CircleCheck, Palette, RotateCcw } from 'lucide-react'
-import type { SVGProps } from 'react'
+import type { RefObject, SVGProps } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { IconDir } from '@/assets/custom/icon-dir'
@@ -66,7 +66,14 @@ import { useSidebar } from './ui/sidebar'
 
 const Item = RadioPrimitive.Root
 
-export function ConfigDrawer() {
+type ConfigDrawerProps = {
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  hideTrigger?: boolean
+  finalFocus?: RefObject<HTMLElement | null>
+}
+
+export function ConfigDrawer(props: ConfigDrawerProps = {}) {
   const { t } = useTranslation()
   const { setOpen } = useSidebar()
   const { resetDir } = useDirection()
@@ -83,21 +90,26 @@ export function ConfigDrawer() {
   }
 
   return (
-    <Sheet>
-      <SheetTrigger
-        render={
-          <Button
-            size='icon'
-            variant='ghost'
-            aria-label={t('Open theme settings')}
-            aria-describedby='config-drawer-description'
-            className='max-md:hidden'
-          />
-        }
+    <Sheet open={props.open} onOpenChange={props.onOpenChange}>
+      {!props.hideTrigger && (
+        <SheetTrigger
+          render={
+            <Button
+              size='icon'
+              variant='ghost'
+              aria-label={t('Open theme settings')}
+              aria-describedby='config-drawer-description'
+              className='max-md:hidden'
+            />
+          }
+        >
+          <Palette className='size-[1.2rem]' aria-hidden='true' />
+        </SheetTrigger>
+      )}
+      <SheetContent
+        className={sideDrawerContentClassName('sm:max-w-md')}
+        finalFocus={props.finalFocus}
       >
-        <Palette className='size-[1.2rem]' aria-hidden='true' />
-      </SheetTrigger>
-      <SheetContent className={sideDrawerContentClassName('sm:max-w-md')}>
         <SheetHeader className={sideDrawerHeaderClassName()}>
           <SheetTitle>{t('Theme Settings')}</SheetTitle>
           <SheetDescription id='config-drawer-description'>

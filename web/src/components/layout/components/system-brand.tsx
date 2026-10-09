@@ -16,9 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 
+import { TokenDaziBrandLogo } from '@/components/brand/token-dazi-brand-logo'
 import {
   SidebarMenu,
   SidebarMenuButton,
@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/sidebar'
 import { useStatus } from '@/hooks/use-status'
 import { useSystemConfig } from '@/hooks/use-system-config'
+import { officialWebsiteUrl } from '@/lib/origins'
 import { cn } from '@/lib/utils'
 
 type SystemBrandProps = {
@@ -42,7 +43,7 @@ type SystemBrandProps = {
 /**
  * System brand component
  * Displays current system logo + name.
- * - inline: compact pill in the top app bar; clicking navigates to home (/)
+ * - inline: compact pill in the top app bar; clicking opens the official website
  * - sidebar: stacked card in the sidebar header (display only)
  */
 export function SystemBrand(props: SystemBrandProps) {
@@ -57,23 +58,22 @@ export function SystemBrand(props: SystemBrandProps) {
 
   if (variant === 'inline') {
     return (
-      <Link
-        to='/'
+      <a
+        href={officialWebsiteUrl('/')}
+        target='_blank'
+        rel='noopener noreferrer'
         aria-label={t('Go to home')}
         className={cn(
-          'text-foreground inline-flex h-7 min-w-0 items-center gap-1.5 rounded-md px-1.5 text-sm font-medium transition-colors outline-none select-none',
+          'text-foreground inline-flex h-11 shrink-0 items-center rounded-md px-1 text-sm font-medium transition-colors outline-none select-none',
           'hover:bg-accent focus-visible:ring-ring/40 focus-visible:ring-2'
         )}
       >
-        <div className='flex size-5 shrink-0 items-center justify-center overflow-hidden rounded-md'>
-          <img
-            src={logo}
-            alt={t('Logo')}
-            className='size-full rounded-md object-cover'
-          />
-        </div>
-        <span className='max-w-[12rem] truncate'>{name}</span>
-      </Link>
+        <TokenDaziBrandLogo
+          alt={t('Logo')}
+          wordmarkClassName='max-[420px]:hidden'
+        />
+        <span className='sr-only'>{name}</span>
+      </a>
     )
   }
 

@@ -21,7 +21,6 @@ import { LanguageSwitcher } from '@/components/language-switcher'
 import { NotificationPopover } from '@/components/notification-popover'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { Search } from '@/components/search'
-import { SystemUpdateAction } from '@/features/system-update/system-update-action'
 import { useNotifications } from '@/hooks/use-notifications'
 import { useTopNavLinks } from '@/hooks/use-top-nav-links'
 
@@ -70,7 +69,7 @@ type AppHeaderProps = {
   leftContent?: React.ReactNode
   /**
    * Whether to show search box
-   * @default true
+   * @default false
    */
   showSearch?: boolean
   /**
@@ -98,7 +97,7 @@ export function AppHeader({
   navLinks = defaultTopNavLinks,
   showTopNav = true,
   leftContent,
-  showSearch = true,
+  showSearch = false,
   rightContent,
   showNotifications = true,
   showConfigDrawer = true,
@@ -115,7 +114,6 @@ export function AppHeader({
     <Header>
       <div className='@container/system-brand flex min-w-0 flex-1 items-center gap-1'>
         <SystemBrand variant='inline' />
-        <SystemUpdateAction presentation='version' />
       </div>
 
       {leftContent ? (
@@ -125,7 +123,7 @@ export function AppHeader({
       {rightContent ?? (
         <div className='ms-auto flex shrink-0 items-center gap-1 sm:gap-2'>
           {showTopNav && (
-            <div className='me-1 hidden lg:block'>
+            <div className='me-1'>
               <TopNav links={links} />
             </div>
           )}
@@ -145,8 +143,10 @@ export function AppHeader({
             />
           )}
           <LanguageSwitcher />
-          {showConfigDrawer && <ConfigDrawer />}
-          {showProfileDropdown && <ProfileDropdown />}
+          {showConfigDrawer && !showProfileDropdown && <ConfigDrawer />}
+          {showProfileDropdown && (
+            <ProfileDropdown showThemeSettings={showConfigDrawer} />
+          )}
         </div>
       )}
     </Header>

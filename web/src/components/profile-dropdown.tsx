@@ -17,10 +17,18 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useNavigate } from '@tanstack/react-router'
-import { User, Wallet, LogOut, Settings, ShieldCheck } from 'lucide-react'
-import { useMemo } from 'react'
+import {
+  User,
+  Wallet,
+  LogOut,
+  Settings,
+  ShieldCheck,
+  Palette,
+} from 'lucide-react'
+import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { ConfigDrawer } from '@/components/config-drawer'
 import { SignOutDialog } from '@/components/sign-out-dialog'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -40,10 +48,16 @@ import { useAuthStore } from '@/stores/auth-store'
 
 const avatarFallbackClassName = 'font-semibold text-white'
 
-export function ProfileDropdown() {
+type ProfileDropdownProps = {
+  showThemeSettings?: boolean
+}
+
+export function ProfileDropdown(props: ProfileDropdownProps = {}) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [open, setOpen] = useDialogState()
+  const [themeSettingsOpen, setThemeSettingsOpen] = useState(false)
+  const profileTriggerRef = useRef<HTMLButtonElement>(null)
   const user = useAuthStore((state) => state.auth.user)
   const { displayName, roleLabel } = useUserDisplay(user)
   const isSuperAdmin = user?.role === ROLE.SUPER_ADMIN
@@ -60,7 +74,14 @@ export function ProfileDropdown() {
     <>
       <DropdownMenu modal={false}>
         <DropdownMenuTrigger
-          render={<Button variant='ghost' className='relative size-6 p-0' />}
+          ref={profileTriggerRef}
+          render={
+            <Button
+              variant='ghost'
+              className='relative size-6 p-0'
+              aria-label={t('Profile')}
+            />
+          }
         >
           <Avatar className='size-6'>
             <AvatarFallback
@@ -102,6 +123,13 @@ export function ProfileDropdown() {
           </div>
 
           <DropdownMenuSeparator />
+
+          {props.showThemeSettings && (
+            <DropdownMenuItem onClick={() => setThemeSettingsOpen(true)}>
+              <Palette className='size-4' />
+              {t('Theme Settings')}
+            </DropdownMenuItem>
+          )}
 
           <DropdownMenuItem onClick={() => navigate({ to: '/profile' })}>
             <User className='size-4' />
@@ -146,6 +174,14 @@ export function ProfileDropdown() {
       </DropdownMenu>
 
       <SignOutDialog open={!!open} onOpenChange={setOpen} />
+      {props.showThemeSettings && (
+        <ConfigDrawer
+          open={themeSettingsOpen}
+          onOpenChange={setThemeSettingsOpen}
+          hideTrigger
+          finalFocus={profileTriggerRef}
+        />
+      )}
     </>
   )
 }
