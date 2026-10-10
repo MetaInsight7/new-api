@@ -350,6 +350,9 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 	service.RequestPolicy(c).BeginAttempt(channel, selectGroup)
 	newAPIError := middleware.SetupContextForSelectedChannel(c, channel, info.OriginModelName)
 	if newAPIError != nil {
+		if releaseErr := service.ReleaseChannelConcurrencyForContext(c); releaseErr != nil {
+			logger.LogError(c, fmt.Sprintf("release channel concurrency lease after setup failure failed: %s", releaseErr.Error()))
+		}
 		return nil, newAPIError
 	}
 	return channel, nil

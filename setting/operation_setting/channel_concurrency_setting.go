@@ -11,16 +11,20 @@ import (
 )
 
 const (
-	defaultChannelConcurrencySlotTTLMinutes = 30
-	defaultChannelConcurrencyWaitTimeoutMS  = 5000
-	defaultChannelConcurrencyWaitIntervalMS = 100
-	defaultChannelConcurrencyCooldownSecs   = 30
+	defaultChannelConcurrencySlotTTLMinutes     = 30
+	defaultChannelConcurrencyWaitTimeoutMS      = 5000
+	defaultChannelConcurrencyWaitIntervalMS     = 100
+	defaultChannelConcurrencyCooldownSecs       = 30
+	defaultChannelConcurrencyLoadCacheTTLMS     = 200
+	defaultChannelConcurrencyMaxAcquireAttempts = 8
 
 	maxChannelConcurrencySlotTTLMinutes       = 24 * 60
 	maxChannelConcurrencyWaitTimeoutMS        = 60 * 1000
 	maxChannelConcurrencyWaitIntervalMS       = 5 * 1000
 	maxChannelConcurrencyCooldownSeconds      = 60 * 60
 	maxChannelConcurrencyMaxWaitingPerChannel = 10000
+	maxChannelConcurrencyLoadCacheTTLMS       = 5000
+	maxChannelConcurrencyMaxAcquireAttempts   = 100
 )
 
 type ChannelConcurrencySetting struct {
@@ -33,6 +37,9 @@ type ChannelConcurrencySetting struct {
 	CooldownSeconds        int  `json:"cooldown_seconds"`
 	CooldownOnStatus429    bool `json:"cooldown_on_status_429"`
 	CooldownOnMessageMatch bool `json:"cooldown_on_message_match"`
+	LoadCacheEnabled       bool `json:"load_cache_enabled"`
+	LoadCacheTTLMS         int  `json:"load_cache_ttl_ms"`
+	MaxAcquireAttempts     int  `json:"max_acquire_attempts"`
 }
 
 var channelConcurrencySetting = ChannelConcurrencySetting{
@@ -45,6 +52,9 @@ var channelConcurrencySetting = ChannelConcurrencySetting{
 	CooldownSeconds:        defaultChannelConcurrencyCooldownSecs,
 	CooldownOnStatus429:    true,
 	CooldownOnMessageMatch: false,
+	LoadCacheEnabled:       true,
+	LoadCacheTTLMS:         defaultChannelConcurrencyLoadCacheTTLMS,
+	MaxAcquireAttempts:     defaultChannelConcurrencyMaxAcquireAttempts,
 }
 
 type ChannelConcurrencyCooldownPolicy struct {
@@ -89,13 +99,30 @@ func ValidateChannelConcurrencyOption(key string, value string) error {
 }
 
 func validateChannelConcurrencyConfigUpdate(values map[string]string) error {
-	if value, ok := values["cooldown_seconds"]; ok {
-		seconds, err := strconv.Atoi(value)
-		if err != nil || seconds <= 0 || seconds > maxChannelConcurrencyCooldownSeconds {
-			return fmt.Errorf("channel concurrency cooldown seconds must be an integer between 1 and %d", maxChannelConcurrencyCooldownSeconds)
+	integerSettings := []struct {
+		key string
+		min int
+		max int
+	}{
+		{key: "slot_ttl_minutes", min: 1, max: maxChannelConcurrencySlotTTLMinutes},
+		{key: "wait_timeout_ms", min: 1, max: maxChannelConcurrencyWaitTimeoutMS},
+		{key: "wait_interval_ms", min: 1, max: maxChannelConcurrencyWaitIntervalMS},
+		{key: "max_waiting_per_channel", min: 0, max: maxChannelConcurrencyMaxWaitingPerChannel},
+		{key: "cooldown_seconds", min: 1, max: maxChannelConcurrencyCooldownSeconds},
+		{key: "load_cache_ttl_ms", min: 1, max: maxChannelConcurrencyLoadCacheTTLMS},
+		{key: "max_acquire_attempts", min: 1, max: maxChannelConcurrencyMaxAcquireAttempts},
+	}
+	for _, integerSetting := range integerSettings {
+		value, ok := values[integerSetting.key]
+		if !ok {
+			continue
+		}
+		parsed, err := strconv.Atoi(value)
+		if err != nil || parsed < integerSetting.min || parsed > integerSetting.max {
+			return fmt.Errorf("channel concurrency setting %s must be an integer between %d and %d", integerSetting.key, integerSetting.min, integerSetting.max)
 		}
 	}
-	for _, key := range []string{"cooldown_enabled", "cooldown_on_status_429", "cooldown_on_message_match"} {
+	for _, key := range []string{"wait_enabled", "cooldown_enabled", "cooldown_on_status_429", "cooldown_on_message_match", "load_cache_enabled"} {
 		if value, ok := values[key]; ok {
 			if _, err := strconv.ParseBool(value); err != nil {
 				return fmt.Errorf("channel concurrency setting %s must be a boolean", key)
@@ -198,4 +225,25 @@ func GetChannelConcurrencyCooldownPolicy() ChannelConcurrencyCooldownPolicy {
 		OnStatus429:    channelConcurrencySetting.CooldownOnStatus429,
 		OnMessageMatch: channelConcurrencySetting.CooldownOnMessageMatch,
 	}
+}
+
+func GetChannelConcurrencyLoadCacheTTL() time.Duration {
+	channelConcurrencySettingMu.RLock()
+	defer channelConcurrencySettingMu.RUnlock()
+	if !channelConcurrencySetting.LoadCacheEnabled {
+		return 0
+	}
+	if channelConcurrencySetting.LoadCacheTTLMS <= 0 || channelConcurrencySetting.LoadCacheTTLMS > maxChannelConcurrencyLoadCacheTTLMS {
+		return time.Duration(defaultChannelConcurrencyLoadCacheTTLMS) * time.Millisecond
+	}
+	return time.Duration(channelConcurrencySetting.LoadCacheTTLMS) * time.Millisecond
+}
+
+func GetChannelConcurrencyMaxAcquireAttempts() int {
+	channelConcurrencySettingMu.RLock()
+	defer channelConcurrencySettingMu.RUnlock()
+	if channelConcurrencySetting.MaxAcquireAttempts <= 0 || channelConcurrencySetting.MaxAcquireAttempts > maxChannelConcurrencyMaxAcquireAttempts {
+		return defaultChannelConcurrencyMaxAcquireAttempts
+	}
+	return channelConcurrencySetting.MaxAcquireAttempts
 }

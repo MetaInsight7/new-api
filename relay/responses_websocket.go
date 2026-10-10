@@ -17,6 +17,7 @@ import (
 	appconstant "github.com/QuantumNous/new-api/constant"
 	appdto "github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/i18n"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/middleware"
 	appmodel "github.com/QuantumNous/new-api/model"
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
@@ -231,6 +232,9 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 	var info *relaycommon.RelayInfo
 	billingPrepared := false
 	defer func() {
+		if releaseErr := service.ReleaseChannelConcurrencyForContext(c); releaseErr != nil {
+			logger.LogError(c, fmt.Sprintf("release responses websocket channel concurrency lease failed: %s", releaseErr.Error()))
+		}
 		if recovered := recover(); recovered != nil {
 			apiErr = types.NewError(fmt.Errorf("responses websocket call panic: %v", recovered), types.ErrorCodeBadResponse, types.ErrOptionWithSkipRetry())
 			state.closeAfter = true
@@ -262,6 +266,21 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 	if s.lockedChannelID != 0 {
 		if apiErr = s.restoreConnectionContext(c, modelName); apiErr != nil {
 			return apiErr
+		}
+		lockedChannel, channelErr := appmodel.CacheGetChannel(s.lockedChannelID)
+		if channelErr != nil {
+			return types.NewErrorWithStatusCode(channelErr, types.ErrorCodeGetChannelFailed, http.StatusServiceUnavailable)
+		}
+		acquired, acquireErr := service.EnsureChannelConcurrencyWithWaitForContext(c, lockedChannel)
+		if acquireErr != nil {
+			statusCode := http.StatusServiceUnavailable
+			if errors.Is(acquireErr, service.ErrChannelConcurrencyLimit) {
+				statusCode = http.StatusTooManyRequests
+			}
+			return types.NewErrorWithStatusCode(acquireErr, types.ErrorCodeGetChannelFailed, statusCode, types.ErrOptionWithSkipRetry())
+		}
+		if !acquired {
+			return types.NewErrorWithStatusCode(service.ErrChannelConcurrencyLimit, types.ErrorCodeGetChannelFailed, http.StatusTooManyRequests, types.ErrOptionWithSkipRetry())
 		}
 		info = relaycommon.GenRelayInfoResponses(c, &create.Request)
 		info.IsStream = true

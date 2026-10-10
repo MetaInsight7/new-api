@@ -34,6 +34,129 @@ func TestChannelConcurrencyCooldownPolicyDefaults(t *testing.T) {
 	require.False(t, policy.OnMessageMatch)
 }
 
+func TestChannelConcurrencyLoadObservationDefaults(t *testing.T) {
+	setting := GetChannelConcurrencySetting()
+
+	require.True(t, setting.LoadCacheEnabled)
+	require.Equal(t, defaultChannelConcurrencyLoadCacheTTLMS, setting.LoadCacheTTLMS)
+	require.Equal(t, defaultChannelConcurrencyMaxAcquireAttempts, setting.MaxAcquireAttempts)
+	require.Equal(t, 200*time.Millisecond, GetChannelConcurrencyLoadCacheTTL())
+	require.Equal(t, 8, GetChannelConcurrencyMaxAcquireAttempts())
+}
+
+func TestChannelConcurrencySettingExportsTwelveConfirmedDefaults(t *testing.T) {
+	exported, err := config.ConfigToMap(config.GlobalConfig.Get("channel_concurrency_setting"))
+	require.NoError(t, err)
+	require.Equal(t, map[string]string{
+		"slot_ttl_minutes":          "30",
+		"wait_enabled":              "true",
+		"wait_timeout_ms":           "5000",
+		"wait_interval_ms":          "100",
+		"max_waiting_per_channel":   "0",
+		"cooldown_enabled":          "true",
+		"cooldown_seconds":          "30",
+		"cooldown_on_status_429":    "true",
+		"cooldown_on_message_match": "false",
+		"load_cache_enabled":        "true",
+		"load_cache_ttl_ms":         "200",
+		"max_acquire_attempts":      "8",
+	}, exported)
+}
+
+func TestChannelConcurrencyOptionsRejectInvalidValues(t *testing.T) {
+	testCases := []struct {
+		key   string
+		value string
+	}{
+		{key: "slot_ttl_minutes", value: "0"},
+		{key: "slot_ttl_minutes", value: "1441"},
+		{key: "wait_enabled", value: "enabled"},
+		{key: "wait_timeout_ms", value: "0"},
+		{key: "wait_timeout_ms", value: "60001"},
+		{key: "wait_interval_ms", value: "0"},
+		{key: "wait_interval_ms", value: "5001"},
+		{key: "max_waiting_per_channel", value: "-1"},
+		{key: "max_waiting_per_channel", value: "10001"},
+		{key: "cooldown_enabled", value: "enabled"},
+		{key: "cooldown_seconds", value: "0"},
+		{key: "cooldown_seconds", value: "3601"},
+		{key: "cooldown_on_status_429", value: "enabled"},
+		{key: "cooldown_on_message_match", value: "enabled"},
+		{key: "load_cache_enabled", value: "enabled"},
+		{key: "load_cache_ttl_ms", value: "0"},
+		{key: "load_cache_ttl_ms", value: "5001"},
+		{key: "max_acquire_attempts", value: "0"},
+		{key: "max_acquire_attempts", value: "101"},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.key+"="+testCase.value, func(t *testing.T) {
+			err := ValidateChannelConcurrencyOption("channel_concurrency_setting."+testCase.key, testCase.value)
+			require.Error(t, err)
+		})
+	}
+}
+
+func TestChannelConcurrencyOptionsAcceptSupportedBoundaries(t *testing.T) {
+	testCases := []struct {
+		key   string
+		value string
+	}{
+		{key: "slot_ttl_minutes", value: "1440"},
+		{key: "wait_enabled", value: "false"},
+		{key: "wait_timeout_ms", value: "60000"},
+		{key: "wait_interval_ms", value: "5000"},
+		{key: "max_waiting_per_channel", value: "0"},
+		{key: "cooldown_enabled", value: "false"},
+		{key: "cooldown_seconds", value: "3600"},
+		{key: "cooldown_on_status_429", value: "false"},
+		{key: "cooldown_on_message_match", value: "true"},
+		{key: "load_cache_enabled", value: "false"},
+		{key: "load_cache_ttl_ms", value: "5000"},
+		{key: "max_acquire_attempts", value: "100"},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.key+"="+testCase.value, func(t *testing.T) {
+			require.NoError(t, ValidateChannelConcurrencyOption("channel_concurrency_setting."+testCase.key, testCase.value))
+		})
+	}
+}
+
+func TestChannelConcurrencyLoadObservationHotUpdateTakesEffect(t *testing.T) {
+	original := GetChannelConcurrencySetting()
+	t.Cleanup(func() {
+		SetChannelConcurrencySettingForTest(original)
+	})
+	configValue := config.GlobalConfig.Get("channel_concurrency_setting")
+
+	require.NoError(t, config.UpdateConfigFromMap(configValue, map[string]string{
+		"load_cache_enabled":   "true",
+		"load_cache_ttl_ms":    "1750",
+		"max_acquire_attempts": "13",
+	}))
+	require.Equal(t, 1750*time.Millisecond, GetChannelConcurrencyLoadCacheTTL())
+	require.Equal(t, 13, GetChannelConcurrencyMaxAcquireAttempts())
+
+	require.NoError(t, config.UpdateConfigFromMap(configValue, map[string]string{"load_cache_enabled": "false"}))
+	require.Zero(t, GetChannelConcurrencyLoadCacheTTL())
+}
+
+func TestChannelConcurrencyLoadObservationInvalidRuntimeValuesUseDefaults(t *testing.T) {
+	original := GetChannelConcurrencySetting()
+	t.Cleanup(func() {
+		SetChannelConcurrencySettingForTest(original)
+	})
+	setting := original
+	setting.LoadCacheEnabled = true
+	setting.LoadCacheTTLMS = maxChannelConcurrencyLoadCacheTTLMS + 1
+	setting.MaxAcquireAttempts = maxChannelConcurrencyMaxAcquireAttempts + 1
+	SetChannelConcurrencySettingForTest(setting)
+
+	require.Equal(t, time.Duration(defaultChannelConcurrencyLoadCacheTTLMS)*time.Millisecond, GetChannelConcurrencyLoadCacheTTL())
+	require.Equal(t, defaultChannelConcurrencyMaxAcquireAttempts, GetChannelConcurrencyMaxAcquireAttempts())
+}
+
 func TestChannelConcurrencyCooldownPolicyInvalidDurationUsesRuntimeDefault(t *testing.T) {
 	original := GetChannelConcurrencySetting()
 	t.Cleanup(func() {
