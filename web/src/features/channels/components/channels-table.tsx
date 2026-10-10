@@ -53,6 +53,7 @@ import {
   CHANNEL_STATUS,
   CHANNEL_STATUS_OPTIONS,
 } from '../constants'
+import { useChannelConcurrencySnapshots } from '../hooks/use-channel-concurrency-snapshots'
 import {
   channelsQueryKeys,
   aggregateChannelsByTag,
@@ -312,9 +313,14 @@ export function ChannelsTable() {
 
   const totalCount = data?.data?.total || 0
   const typeCounts = data?.data?.type_counts
+  const { statusById: concurrencyStatusById } =
+    useChannelConcurrencySnapshots(channels)
 
   // Columns configuration
-  const columns = useChannelsColumns({ enableSelection: batchMode })
+  const columns = useChannelsColumns({
+    enableSelection: batchMode,
+    concurrencyStatusById,
+  })
 
   // React Table instance
   const { table } = useDataTable({
@@ -428,11 +434,26 @@ export function ChannelsTable() {
       skeletonKeyPrefix='channel-skeleton'
       enableCardView
       viewModeStorageKey={CHANNELS_VIEW_MODE_STORAGE_KEY}
-      renderCard={(row, { isSelected }) => (
-        <ChannelCard row={row} isSelected={isSelected} />
-      )}
+      renderCard={(row, { isSelected }) => {
+        const channel = row.original
+        const concurrencyStatus =
+          !isTagAggregateRow(channel) && channel.max_concurrency > 0
+            ? concurrencyStatusById.get(channel.id)
+            : undefined
+        return (
+          <ChannelCard
+            row={row}
+            isSelected={isSelected}
+            concurrencyStatus={concurrencyStatus}
+            showConcurrency={!isMobile}
+          />
+        )
+      }}
       cardGridClassName='grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-3'
       applyHeaderSize
+      getColumnClassName={(columnId) =>
+        isMobile && columnId === 'max_concurrency' ? 'hidden' : undefined
+      }
       toolbarProps={{
         collapsibleOnMobile: true,
         searchPlaceholder: t('Filter by name, ID, or key...'),

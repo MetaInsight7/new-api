@@ -51,6 +51,33 @@ const channelActionConfig = (
   skipErrorHandler: true,
 })
 
+export type ChannelConcurrencyStatus = {
+  channel_id: number
+  max_concurrency: number
+  active: number
+  waiting: number
+  cooling_down: boolean
+}
+
+export async function getChannelConcurrencyStatus(
+  channelIds: readonly number[],
+  signal?: AbortSignal
+): Promise<ChannelConcurrencyStatus[]> {
+  const response = await api.get<{
+    success: boolean
+    message?: string
+    data: ChannelConcurrencyStatus[]
+  }>(
+    '/api/channel/concurrency',
+    channelActionConfig({
+      params: { ids: channelIds.join(',') },
+      signal,
+      disableDuplicate: true,
+    })
+  )
+  return requireServerSuccess(response.data).data
+}
+
 export async function getInferenceStatus(
   channelId: number,
   provider: 'vllm' | 'sglang',

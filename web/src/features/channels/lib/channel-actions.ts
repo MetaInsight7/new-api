@@ -54,6 +54,8 @@ export const channelsQueryKeys = {
   lists: () => [...channelsQueryKeys.all, 'list'] as const,
   list: (params: Record<string, unknown>) =>
     [...channelsQueryKeys.lists(), params] as const,
+  concurrency: (channelIds: readonly number[]) =>
+    [...channelsQueryKeys.all, 'concurrency', channelIds] as const,
   details: () => [...channelsQueryKeys.all, 'detail'] as const,
   detail: (id: number) => [...channelsQueryKeys.details(), id] as const,
 }
@@ -531,7 +533,10 @@ export async function handleBatchSetCodexFingerprintMode(
       queryClient?.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
       onSuccess?.()
     } else {
-      handleServerError(response, i18next.t('Failed to update Codex fingerprint mode'))
+      handleServerError(
+        response,
+        i18next.t('Failed to update Codex fingerprint mode')
+      )
     }
   } catch (error) {
     handleServerError(

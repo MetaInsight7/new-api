@@ -1,5 +1,10 @@
 {
   "translation": {
+    "Concurrency": "Concurrence",
+    "Channel concurrency unavailable": "Instantané de concurrence du canal indisponible",
+    "Channel concurrency: {{active}} of {{max}} active": "Concurrence du canal : {{active}} actifs sur {{max}}",
+    "{{count}} waiting": "{{count}} en attente",
+    "Cooling": "Refroidissement",
     "Channel Concurrency Limits": "Limites de concurrence des canaux",
     "Configure waiting, cooldown, and load observation for channels with a concurrency limit.": "Configurez l’attente, le refroidissement et l’observation de charge des canaux soumis à une limite de concurrence.",
     "Common policies": "Stratégies courantes",

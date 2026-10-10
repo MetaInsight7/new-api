@@ -19,6 +19,12 @@ For commercial licensing, please contact support@quantumnous.com
 // Static translation keys that don't get picked up by the t('...') regex.
 // These cover dynamic labels (e.g. constants, configs) that are passed into t at runtime.
 export const STATIC_I18N_KEYS = [
+  // Channel concurrency snapshot
+  'Concurrency',
+  'Channel concurrency unavailable',
+  'Channel concurrency: {{active}} of {{max}} active',
+  '{{count}} waiting',
+  'Cooling',
   // Channel concurrency operations settings
   'Channel Concurrency Limits',
   'Configure waiting, cooldown, and load observation for channels with a concurrency limit.',

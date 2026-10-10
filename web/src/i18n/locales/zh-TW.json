@@ -1,5 +1,10 @@
 {
   "translation": {
+    "Concurrency": "並發狀態",
+    "Channel concurrency unavailable": "渠道並發快照不可用",
+    "Channel concurrency: {{active}} of {{max}} active": "渠道並發：活躍 {{active}} / 上限 {{max}}",
+    "{{count}} waiting": "{{count}} 個請求等待中",
+    "Cooling": "冷卻中",
     "Channel Concurrency Limits": "渠道並發限制",
     "Configure waiting, cooldown, and load observation for channels with a concurrency limit.": "設定具有並發上限之渠道的等待、冷卻與負載觀測策略。",
     "Common policies": "常用策略",

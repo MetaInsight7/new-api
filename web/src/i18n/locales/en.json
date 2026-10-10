@@ -1,5 +1,10 @@
 {
   "translation": {
+    "Concurrency": "Concurrency",
+    "Channel concurrency unavailable": "Channel concurrency unavailable",
+    "Channel concurrency: {{active}} of {{max}} active": "Channel concurrency: {{active}} of {{max}} active",
+    "{{count}} waiting": "{{count}} waiting",
+    "Cooling": "Cooling",
     "Channel Concurrency Limits": "Channel Concurrency Limits",
     "Configure waiting, cooldown, and load observation for channels with a concurrency limit.": "Configure waiting, cooldown, and load observation for channels with a concurrency limit.",
     "Common policies": "Common policies",

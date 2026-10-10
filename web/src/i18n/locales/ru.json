@@ -1,5 +1,10 @@
 {
   "translation": {
+    "Concurrency": "Параллельность",
+    "Channel concurrency unavailable": "Снимок параллельности канала недоступен",
+    "Channel concurrency: {{active}} of {{max}} active": "Параллельность канала: активно {{active}} из {{max}}",
+    "{{count}} waiting": "Ожидают: {{count}}",
+    "Cooling": "Охлаждение",
     "Channel Concurrency Limits": "Ограничения параллелизма каналов",
     "Configure waiting, cooldown, and load observation for channels with a concurrency limit.": "Настройте ожидание, охлаждение и наблюдение за нагрузкой для каналов с ограничением параллелизма.",
     "Common policies": "Основные политики",

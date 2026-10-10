@@ -23,9 +23,11 @@ import { useTranslation } from 'react-i18next'
 import { GroupBadge } from '@/components/group-badge'
 import { StatusBadgeTypeContext } from '@/components/status-badge'
 
+import type { ChannelConcurrencyStatus } from '../api'
 import { CHANNEL_STATUS } from '../constants'
 import { isTagAggregateRow, parseGroupsList } from '../lib'
 import type { Channel } from '../types'
+import { ChannelConcurrencyStatusDisplay } from './channel-concurrency-status'
 import { ChannelRowActionsLayoutContext } from './channel-row-actions-context'
 import { useChannels } from './channels-provider'
 
@@ -42,9 +44,13 @@ const SENSITIVE_MASK = '••••'
 function ChannelCardComponent({
   row,
   isSelected,
+  concurrencyStatus,
+  showConcurrency,
 }: {
   row: Row<Channel>
   isSelected: boolean
+  concurrencyStatus?: ChannelConcurrencyStatus
+  showConcurrency: boolean
 }) {
   const { t } = useTranslation()
   const { sensitiveVisible } = useChannels()
@@ -148,6 +154,13 @@ function ChannelCardComponent({
             </dl>
           </div>
         </StatusBadgeTypeContext.Provider>
+
+        {showConcurrency && (
+          <div className='flex min-w-0 items-center justify-between gap-3'>
+            <span className={labelClass}>{t('Concurrency')}</span>
+            <ChannelConcurrencyStatusDisplay status={concurrencyStatus} />
+          </div>
+        )}
 
         {/* Groups retain their compact, full-width footer. */}
         <div className='min-w-0'>

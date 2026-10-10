@@ -1,5 +1,10 @@
 {
   "translation": {
+    "Concurrency": "Trạng thái đồng thời",
+    "Channel concurrency unavailable": "Không có ảnh chụp nhanh đồng thời của kênh",
+    "Channel concurrency: {{active}} of {{max}} active": "Kênh đang hoạt động {{active}} / {{max}}",
+    "{{count}} waiting": "{{count}} yêu cầu đang chờ",
+    "Cooling": "Đang tạm nghỉ",
     "Channel Concurrency Limits": "Giới hạn đồng thời của kênh",
     "Configure waiting, cooldown, and load observation for channels with a concurrency limit.": "Cấu hình chờ, thời gian hạ nhiệt và quan sát tải cho các kênh có giới hạn đồng thời.",
     "Common policies": "Chính sách thường dùng",

@@ -57,7 +57,11 @@ import { handleServerError } from '@/lib/handle-server-error'
 import { createServerError } from '@/lib/server-error-message'
 import { truncateText } from '@/lib/utils'
 
-import { getCodexUsage, updateChannelBalance } from '../api'
+import {
+  getCodexUsage,
+  updateChannelBalance,
+  type ChannelConcurrencyStatus,
+} from '../api'
 import {
   CHANNEL_STATUS_CONFIG,
   CHANNEL_TYPE_TASK_PLUGIN,
@@ -86,6 +90,7 @@ import {
 } from '../lib'
 import { parseUpstreamUpdateMeta } from '../lib/upstream-update-utils'
 import type { Channel } from '../types'
+import { ChannelConcurrencyStatusDisplay } from './channel-concurrency-status'
 import { ChannelRowActionsLayoutContext } from './channel-row-actions-context'
 import { TaskPluginChannelBadge } from './channel-type-badge'
 import { useChannels } from './channels-provider'
@@ -720,6 +725,7 @@ export function BalanceCell({ channel }: { channel: Channel }) {
 export function useChannelsColumns(
   options: {
     enableSelection?: boolean
+    concurrencyStatusById?: ReadonlyMap<number, ChannelConcurrencyStatus>
   } = {}
 ): ColumnDef<Channel>[] {
   const { t, i18n } = useTranslation()
@@ -1171,6 +1177,22 @@ export function useChannelsColumns(
         enableSorting: false,
       },
 
+      {
+        accessorKey: 'max_concurrency',
+        header: t('Concurrency'),
+        meta: { mobileHidden: true },
+        cell: ({ row }) => {
+          const channel = row.original
+          const status =
+            !isTagAggregateRow(channel) && channel.max_concurrency > 0
+              ? options.concurrencyStatusById?.get(channel.id)
+              : undefined
+          return <ChannelConcurrencyStatusDisplay status={status} />
+        },
+        size: 180,
+        enableSorting: false,
+      },
+
       // Models column
       {
         accessorKey: 'models',
@@ -1369,6 +1391,12 @@ export function useChannelsColumns(
         meta: { pinned: 'right' as const },
       },
     ],
-    [enableSelection, t, locale, sensitiveVisible]
+    [
+      enableSelection,
+      t,
+      locale,
+      sensitiveVisible,
+      options.concurrencyStatusById,
+    ]
   )
 }
