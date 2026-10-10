@@ -16,11 +16,27 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useQueryClient } from '@tanstack/react-query'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 import { StatusBadge, type StatusVariant } from '@/components/status-badge'
+import {
+  ADMIN_PERMISSION_ACTIONS,
+  ADMIN_PERMISSION_RESOURCES,
+  hasPermission,
+} from '@/lib/admin-permissions'
+import { useAuthStore } from '@/stores/auth-store'
 
 import type { ChannelConcurrencyStatus } from '../api'
+import {
+  createChannelFieldUpdateScheduler,
+  handleUpdateChannelMaxConcurrency,
+  isTagAggregateRow,
+} from '../lib'
+import type { Channel } from '../types'
+import { NumericSpinnerInput } from './numeric-spinner-input'
 
 type ConcurrencyState = 'idle' | 'busy' | 'saturated'
 
@@ -98,6 +114,89 @@ export function ChannelConcurrencyStatusDisplay({
           aria-hidden='true'
         />
       )}
+    </span>
+  )
+}
+
+export function ChannelConcurrencyCell({
+  channel,
+  status,
+}: {
+  channel: Channel
+  status?: ChannelConcurrencyStatus
+}) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const currentUser = useAuthStore((state) => state.auth.user)
+  const isTagRow = isTagAggregateRow(channel)
+  const canEdit =
+    !isTagRow &&
+    hasPermission(
+      currentUser,
+      ADMIN_PERMISSION_RESOURCES.CHANNEL,
+      ADMIN_PERMISSION_ACTIONS.WRITE
+    )
+  const visibleStatus =
+    !isTagRow && channel.max_concurrency > 0 ? status : undefined
+  const [draftValue, setDraftValue] = useState(channel.max_concurrency)
+  const [isSaving, setIsSaving] = useState(false)
+
+  const saveValue = useCallback(
+    async (nextValue: number) => {
+      if (nextValue === channel.max_concurrency) return
+      setIsSaving(true)
+      const saved = await handleUpdateChannelMaxConcurrency(
+        channel.id,
+        nextValue,
+        queryClient
+      )
+      if (!saved) {
+        setDraftValue(channel.max_concurrency)
+      }
+      setIsSaving(false)
+    },
+    [channel.id, channel.max_concurrency, queryClient]
+  )
+  const updateScheduler = useMemo(
+    () =>
+      createChannelFieldUpdateScheduler((nextValue) => {
+        void saveValue(nextValue)
+      }),
+    [saveValue]
+  )
+
+  useEffect(() => {
+    setDraftValue(channel.max_concurrency)
+  }, [channel.max_concurrency])
+
+  useEffect(() => () => updateScheduler.flush(), [updateScheduler])
+
+  if (!canEdit) {
+    return <ChannelConcurrencyStatusDisplay status={visibleStatus} />
+  }
+
+  return (
+    <span className='flex min-w-0 flex-wrap items-center gap-2'>
+      <ChannelConcurrencyStatusDisplay status={visibleStatus} />
+      <span role='group' aria-label={t('Maximum Concurrency')}>
+        <NumericSpinnerInput
+          value={draftValue}
+          onChange={(nextValue) => {
+            setDraftValue(nextValue)
+            updateScheduler.schedule(nextValue)
+          }}
+          onCommit={updateScheduler.flush}
+          min={0}
+          step={1}
+          disabled={isSaving}
+          rejectInvalid
+          onInvalid={() =>
+            toast.error(
+              t('Maximum concurrency must be a non-negative integer.')
+            )
+          }
+        />
+      </span>
     </span>
   )
 }

@@ -174,6 +174,7 @@ import {
   CHANNEL_TYPE_ADVANCED_CUSTOM,
   channelFormSchema,
   channelsQueryKeys,
+  invalidateChannelMaxConcurrencyQueries,
   getAdvancedCustomStats,
   transformChannelToFormDefaults,
   type ChannelFormValues,
@@ -421,6 +422,11 @@ export function ChannelMutateDrawer({
     currentUser,
     ADMIN_PERMISSION_RESOURCES.CHANNEL,
     ADMIN_PERMISSION_ACTIONS.SENSITIVE_WRITE
+  )
+  const canEditChannel = hasPermission(
+    currentUser,
+    ADMIN_PERMISSION_RESOURCES.CHANNEL,
+    ADMIN_PERMISSION_ACTIONS.WRITE
   )
   const canOperateChannel = hasPermission(
     currentUser,
@@ -1513,11 +1519,15 @@ export function ChannelMutateDrawer({
   )
 
   // Handle successful submission
-  const handleSuccess = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+  const handleSuccess = useCallback(async () => {
     if (channelId) {
-      queryClient.invalidateQueries({
-        queryKey: channelsQueryKeys.detail(channelId),
+      await invalidateChannelMaxConcurrencyQueries(queryClient, channelId, true)
+    } else {
+      await queryClient.invalidateQueries({
+        queryKey: channelsQueryKeys.lists(),
+      })
+      await queryClient.invalidateQueries({
+        queryKey: channelsQueryKeys.concurrencyAll(),
       })
     }
     onOpenChange(false)
@@ -1616,7 +1626,7 @@ export function ChannelMutateDrawer({
   // Submit handler
   const onSubmit = useCallback(
     async (data: ChannelFormValues) => {
-      if (isEditing && !channelData?.data) return
+      if (isEditing && (!channelData?.data || !canEditChannel)) return
       if (!isEditing && (!providerTarget || !canEditSensitive)) return
       // Validate key is required when creating
       if (!isEditing && !data.key?.trim()) {
@@ -1739,6 +1749,7 @@ export function ChannelMutateDrawer({
     [
       isEditing,
       providerTarget,
+      canEditChannel,
       canEditSensitive,
       sensitiveLocked,
       channelData,
@@ -2300,9 +2311,8 @@ export function ChannelMutateDrawer({
               <FormControl>
                 <Input
                   type='number'
-                  min={0}
-                  step={1}
                   placeholder='0'
+                  disabled={isSubmitting || (isEditing && !canEditChannel)}
                   {...field}
                   onChange={(e) => field.onChange(Number(e.target.value))}
                 />
@@ -5050,7 +5060,7 @@ export function ChannelMutateDrawer({
                 disabled={
                   isSubmitting ||
                   (!isEditing && !canEditSensitive) ||
-                  (isEditing && !channelData?.data)
+                  (isEditing && (!channelData?.data || !canEditChannel))
                 }
               >
                 {isSubmitting && (

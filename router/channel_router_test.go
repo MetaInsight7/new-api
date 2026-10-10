@@ -1,9 +1,11 @@
 package router
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -130,6 +132,7 @@ func newChannelConcurrencyAuthorizationEngine(t *testing.T) (*gin.Engine, *model
 	previousLogDatabaseType := common.LogDatabaseType()
 	previousRedisEnabled := common.RedisEnabled
 	previousMasterNode := common.IsMasterNode
+	previousMemoryCacheEnabled := common.MemoryCacheEnabled
 
 	database, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
@@ -137,6 +140,8 @@ func newChannelConcurrencyAuthorizationEngine(t *testing.T) (*gin.Engine, *model
 	require.NoError(t, err)
 	sqlDatabase.SetMaxOpenConns(1)
 	require.NoError(t, database.AutoMigrate(
+		&model.Channel{},
+		&model.Ability{},
 		&model.User{},
 		&model.UserAccessToken{},
 		&model.AuditLog{},
@@ -148,6 +153,7 @@ func newChannelConcurrencyAuthorizationEngine(t *testing.T) (*gin.Engine, *model
 	common.SetDatabaseTypes(common.DatabaseTypeSQLite, common.DatabaseTypeSQLite)
 	common.RedisEnabled = false
 	common.IsMasterNode = true
+	common.MemoryCacheEnabled = false
 	require.NoError(t, authz.Init(database))
 	t.Cleanup(func() {
 		model.DB = previousDB
@@ -155,6 +161,7 @@ func newChannelConcurrencyAuthorizationEngine(t *testing.T) (*gin.Engine, *model
 		common.SetDatabaseTypes(previousDatabaseType, previousLogDatabaseType)
 		common.RedisEnabled = previousRedisEnabled
 		common.IsMasterNode = previousMasterNode
+		common.MemoryCacheEnabled = previousMemoryCacheEnabled
 		require.NoError(t, sqlDatabase.Close())
 	})
 
@@ -177,6 +184,43 @@ func newChannelConcurrencyAuthorizationEngine(t *testing.T) (*gin.Engine, *model
 	return engine, admin, channelReadToken, profileReadToken
 }
 
+func TestChannelMaxConcurrencyUpdateRequiresWriteScopeAndPermission(t *testing.T) {
+	engine, admin, channelReadToken, _ := newChannelConcurrencyAuthorizationEngine(t)
+	channelWriteToken := createChannelConcurrencyScopedToken(t, model.DB, admin.Id, "channel:write")
+	channel := &model.Channel{
+		Type:           1,
+		Key:            "sk-test",
+		Status:         common.ChannelStatusEnabled,
+		Name:           "write-protected",
+		Models:         "gpt-test",
+		Group:          "default",
+		MaxConcurrency: 2,
+	}
+	require.NoError(t, model.DB.Create(channel).Error)
+
+	authorized := channelMaxConcurrencyBearerRequest(engine, channelWriteToken, channel.Id, 4)
+	require.Equal(t, http.StatusOK, authorized.Code, authorized.Body.String())
+	assert.Contains(t, authorized.Body.String(), `"success":true`)
+	var persisted model.Channel
+	require.NoError(t, model.DB.First(&persisted, "id = ?", channel.Id).Error)
+	assert.Equal(t, 4, persisted.MaxConcurrency)
+
+	wrongScope := channelMaxConcurrencyBearerRequest(engine, channelReadToken, channel.Id, 6)
+	require.Equal(t, http.StatusForbidden, wrongScope.Code, wrongScope.Body.String())
+	assert.Contains(t, wrongScope.Body.String(), `"code":"ACCESS_TOKEN_SCOPE_DENIED"`)
+	require.NoError(t, model.DB.First(&persisted, "id = ?", channel.Id).Error)
+	assert.Equal(t, 4, persisted.MaxConcurrency)
+
+	require.NoError(t, authz.SetUserPermissions(admin.Id, authz.PermissionsMap{
+		authz.ResourceChannel: {authz.ActionWrite: false},
+	}))
+	missingPermission := channelMaxConcurrencyBearerRequest(engine, channelWriteToken, channel.Id, 8)
+	require.Equal(t, http.StatusForbidden, missingPermission.Code, missingPermission.Body.String())
+	assert.NotContains(t, missingPermission.Body.String(), "ACCESS_TOKEN_SCOPE_DENIED")
+	require.NoError(t, model.DB.First(&persisted, "id = ?", channel.Id).Error)
+	assert.Equal(t, 4, persisted.MaxConcurrency)
+}
+
 func createChannelConcurrencyScopedToken(t *testing.T, database *gorm.DB, userID int, scope string) string {
 	t.Helper()
 	suffix, err := common.GenerateRandomCharsKey(43)
@@ -196,6 +240,16 @@ func createChannelConcurrencyScopedToken(t *testing.T, database *gorm.DB, userID
 func channelConcurrencyBearerRequest(engine *gin.Engine, token string) *httptest.ResponseRecorder {
 	request := httptest.NewRequest(http.MethodGet, "/api/channel/concurrency", nil)
 	request.Header.Set("Authorization", "Bearer "+token)
+	recorder := httptest.NewRecorder()
+	engine.ServeHTTP(recorder, request)
+	return recorder
+}
+
+func channelMaxConcurrencyBearerRequest(engine *gin.Engine, token string, channelID, maxConcurrency int) *httptest.ResponseRecorder {
+	body := fmt.Sprintf(`{"id":%d,"max_concurrency":%d}`, channelID, maxConcurrency)
+	request := httptest.NewRequest(http.MethodPut, "/api/channel/", strings.NewReader(body))
+	request.Header.Set("Authorization", "Bearer "+token)
+	request.Header.Set("Content-Type", "application/json")
 	recorder := httptest.NewRecorder()
 	engine.ServeHTTP(recorder, request)
 	return recorder

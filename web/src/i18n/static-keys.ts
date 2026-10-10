@@ -25,6 +25,12 @@ export const STATIC_I18N_KEYS = [
   'Channel concurrency: {{active}} of {{max}} active',
   '{{count}} waiting',
   'Cooling',
+  // Channel concurrency limit editing
+  'Maximum Concurrency',
+  'Maximum simultaneous upstream requests for this channel; 0 means unlimited.',
+  'Maximum concurrency must be a non-negative integer.',
+  'Maximum concurrency saved',
+  'Failed to save maximum concurrency. Try again.',
   // Channel concurrency operations settings
   'Channel Concurrency Limits',
   'Configure waiting, cooldown, and load observation for channels with a concurrency limit.',

@@ -34,6 +34,7 @@ import {
 } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
 import { api } from '@/lib/api'
@@ -47,6 +48,7 @@ import {
   CHANNEL_TYPE_SGLANG,
   CHANNEL_TYPE_VLLM,
 } from '../../constants'
+import { channelsQueryKeys } from '../../lib'
 import { channelSchema, type Channel } from '../../types'
 import { ChannelPluginExtensions } from '../channel-plugin-extensions'
 import { ChannelsProvider } from '../channels-provider'
@@ -255,6 +257,140 @@ test('changing built-in providers updates server-provided URL placeholders witho
   expect(screen.getByRole('textbox', { name: 'Base URL' })).toHaveAttribute(
     'placeholder',
     'Leave empty to use default'
+  )
+})
+
+test('editing maximum concurrency preserves an explicit zero in the drawer payload', async () => {
+  editingChannel = { ...editingChannel, max_concurrency: 5 }
+  client.setQueryData(channelsQueryKeys.concurrency([42]), [
+    { channel_id: 42, max_concurrency: 5, active: 1, waiting: 0 },
+  ])
+  const put = vi
+    .spyOn(api, 'put')
+    .mockResolvedValue({ data: { success: true, data: editingChannel } })
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+
+  await user.click(
+    await screen.findByRole('tab', { name: /Routing & Mapping/ })
+  )
+  const input = await screen.findByRole('spinbutton', {
+    name: 'Maximum Concurrency',
+  })
+  await user.clear(input)
+  await user.type(input, '0')
+  await user.click(screen.getByRole('button', { name: 'Update Channel' }))
+
+  await waitFor(() =>
+    expect(put).toHaveBeenCalledWith(
+      '/api/channel/',
+      expect.objectContaining({ id: 42, max_concurrency: 0 }),
+      expect.anything()
+    )
+  )
+  await waitFor(() =>
+    expect(
+      client.getQueryState(channelsQueryKeys.concurrency([42]))?.isInvalidated
+    ).toBe(true)
+  )
+})
+
+test('keeps the maximum concurrency drawer control read-only without ChannelWrite', async () => {
+  editingChannel = { ...editingChannel, max_concurrency: 5 }
+  useAuthStore.getState().auth.setUser({
+    id: 2,
+    username: 'reader',
+    role: ROLE.ADMIN,
+    permissions: {
+      admin_permissions: { channel: { read: true, write: false } },
+    },
+  })
+  const put = vi.spyOn(api, 'put')
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+
+  await user.click(
+    await screen.findByRole('tab', { name: /Routing & Mapping/ })
+  )
+  expect(
+    await screen.findByRole('spinbutton', { name: 'Maximum Concurrency' })
+  ).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Update Channel' })).toBeDisabled()
+  expect(put).not.toHaveBeenCalled()
+})
+
+test.each(['-1', '1.5'])(
+  'rejects invalid drawer maximum concurrency %s before sending',
+  async (invalidValue) => {
+    editingChannel = { ...editingChannel, max_concurrency: 5 }
+    const put = vi.spyOn(api, 'put')
+    const user = userEvent.setup()
+    render(<ConfigurationHarness currentRow={editingChannel} />)
+
+    await user.click(
+      await screen.findByRole('tab', { name: /Routing & Mapping/ })
+    )
+    const input = await screen.findByRole('spinbutton', {
+      name: 'Maximum Concurrency',
+    })
+    fireEvent.change(input, { target: { value: invalidValue } })
+    await user.click(screen.getByRole('button', { name: 'Update Channel' }))
+
+    expect(
+      await screen.findByText(
+        'Maximum concurrency must be a non-negative integer.'
+      )
+    ).toBeVisible()
+    expect(put).not.toHaveBeenCalled()
+  }
+)
+
+test('keeps the drawer draft and snapshots unchanged after a rejected limit update', async () => {
+  editingChannel = { ...editingChannel, max_concurrency: 5 }
+  client.setQueryData(channelsQueryKeys.concurrency([42]), [
+    { channel_id: 42, max_concurrency: 5, active: 1, waiting: 0 },
+  ])
+  const put = vi.spyOn(api, 'put').mockResolvedValue({
+    data: { success: false, message: 'write rejected' },
+  })
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+
+  await user.click(
+    await screen.findByRole('tab', { name: /Routing & Mapping/ })
+  )
+  const input = await screen.findByRole('spinbutton', {
+    name: 'Maximum Concurrency',
+  })
+  fireEvent.change(input, { target: { value: '7' } })
+  await user.click(screen.getByRole('button', { name: 'Update Channel' }))
+
+  await waitFor(() => expect(put).toHaveBeenCalledTimes(1))
+  expect(screen.getByRole('dialog')).toBeVisible()
+  expect(input).toHaveValue(7)
+  expect(screen.getByRole('button', { name: 'Update Channel' })).toBeEnabled()
+  expect(
+    client.getQueryState(channelsQueryKeys.concurrency([42]))?.isInvalidated
+  ).toBe(false)
+})
+
+test('reports an update fallback when the drawer request fails without a message', async () => {
+  const errorToast = vi.spyOn(toast, 'error')
+  vi.spyOn(api, 'put').mockRejectedValue({})
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+
+  await user.click(
+    await screen.findByRole('tab', { name: /Routing & Mapping/ })
+  )
+  fireEvent.change(
+    await screen.findByRole('spinbutton', { name: 'Maximum Concurrency' }),
+    { target: { value: '7' } }
+  )
+  await user.click(screen.getByRole('button', { name: 'Update Channel' }))
+
+  await waitFor(() =>
+    expect(errorToast).toHaveBeenCalledWith('Failed to update channel')
   )
 })
 

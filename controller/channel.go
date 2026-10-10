@@ -1179,6 +1179,8 @@ func UpdateChannel(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	maxConcurrencyValue, maxConcurrencyProvided := requestData["max_concurrency"]
+	forceMaxConcurrency := maxConcurrencyProvided && maxConcurrencyValue != nil
 	if _, ok := requestData["status"]; ok {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
@@ -1328,7 +1330,11 @@ func UpdateChannel(c *gin.Context) {
 			// 覆盖模式：直接使用新密钥（默认行为，不需要特殊处理）
 		}
 	}
-	err = channel.Update()
+	if forceMaxConcurrency {
+		err = channel.UpdateWithMaxConcurrency()
+	} else {
+		err = channel.Update()
+	}
 	if err != nil {
 		common.ApiError(c, err)
 		return

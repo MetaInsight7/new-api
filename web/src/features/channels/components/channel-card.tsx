@@ -27,7 +27,6 @@ import type { ChannelConcurrencyStatus } from '../api'
 import { CHANNEL_STATUS } from '../constants'
 import { isTagAggregateRow, parseGroupsList } from '../lib'
 import type { Channel } from '../types'
-import { ChannelConcurrencyStatusDisplay } from './channel-concurrency-status'
 import { ChannelRowActionsLayoutContext } from './channel-row-actions-context'
 import { useChannels } from './channels-provider'
 
@@ -44,7 +43,6 @@ const SENSITIVE_MASK = '••••'
 function ChannelCardComponent({
   row,
   isSelected,
-  concurrencyStatus,
   showConcurrency,
 }: {
   row: Row<Channel>
@@ -77,6 +75,7 @@ function ChannelCardComponent({
   const balanceCell = renderCell('balance')
   const responseCell = renderCell('response_time')
   const testCell = renderCell('test_time')
+  const concurrencyCell = renderCell('max_concurrency')
 
   const labelClass = 'text-muted-foreground text-[11px] font-medium select-none'
 
@@ -158,7 +157,7 @@ function ChannelCardComponent({
         {showConcurrency && (
           <div className='flex min-w-0 items-center justify-between gap-3'>
             <span className={labelClass}>{t('Concurrency')}</span>
-            <ChannelConcurrencyStatusDisplay status={concurrencyStatus} />
+            {concurrencyCell}
           </div>
         )}
 

@@ -4,7 +4,7 @@
 
 **Blocked by:** 05
 
-**Status:** ready-for-agent
+**Status:** implemented
 
 - [ ] 只有拥有 `ChannelWrite` 权限的管理员能在桌面渠道列表的真实单渠道行看到并操作行内渠道并发上限控件；只有 `ChannelRead` 权限的管理员仍可查看 Ticket 05 的状态但看不到可执行编辑控件。
 - [ ] 行内控件只接受非负整数；正整数提交后持久化为该渠道的新渠道并发上限，并使后续请求受到新上限约束。

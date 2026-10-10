@@ -56,6 +56,7 @@ export const channelsQueryKeys = {
     [...channelsQueryKeys.lists(), params] as const,
   concurrency: (channelIds: readonly number[]) =>
     [...channelsQueryKeys.all, 'concurrency', channelIds] as const,
+  concurrencyAll: () => [...channelsQueryKeys.all, 'concurrency'] as const,
   details: () => [...channelsQueryKeys.all, 'detail'] as const,
   detail: (id: number) => [...channelsQueryKeys.details(), id] as const,
 }
@@ -232,6 +233,55 @@ export async function handleUpdateChannelField(
     }
   } catch (error) {
     handleServerError(error, i18next.t(ERROR_MESSAGES.UPDATE_FAILED))
+  }
+}
+
+export async function invalidateChannelMaxConcurrencyQueries(
+  queryClient: QueryClient,
+  channelId: number,
+  includeDetail = false
+): Promise<void> {
+  await queryClient
+    .invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+    .catch(() => undefined)
+  if (includeDetail) {
+    await queryClient
+      .invalidateQueries({
+        queryKey: channelsQueryKeys.detail(channelId),
+      })
+      .catch(() => undefined)
+  }
+  await queryClient
+    .invalidateQueries({
+      queryKey: channelsQueryKeys.concurrencyAll(),
+    })
+    .catch(() => undefined)
+}
+
+export async function handleUpdateChannelMaxConcurrency(
+  id: number,
+  value: number,
+  queryClient: QueryClient
+): Promise<boolean> {
+  try {
+    const response = await updateChannel(id, { max_concurrency: value })
+    if (!response.success) {
+      handleServerError(
+        response,
+        i18next.t('Failed to save maximum concurrency. Try again.')
+      )
+      return false
+    }
+
+    toast.success(i18next.t('Maximum concurrency saved'))
+    await invalidateChannelMaxConcurrencyQueries(queryClient, id, true)
+    return true
+  } catch (error) {
+    handleServerError(
+      error,
+      i18next.t('Failed to save maximum concurrency. Try again.')
+    )
+    return false
   }
 }
 

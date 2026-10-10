@@ -32,6 +32,8 @@ interface NumericSpinnerInputProps {
   disabled?: boolean
   className?: string
   label?: string
+  rejectInvalid?: boolean
+  onInvalid?: () => void
 }
 
 export function NumericSpinnerInput({
@@ -44,6 +46,8 @@ export function NumericSpinnerInput({
   disabled = false,
   className,
   label,
+  rejectInvalid = false,
+  onInvalid,
 }: NumericSpinnerInputProps) {
   const [localValue, setLocalValue] = useState(String(value ?? 0))
   const [editing, setEditing] = useState(false)
@@ -91,15 +95,26 @@ export function NumericSpinnerInput({
       setLocalValue(raw)
       return
     }
-    if (!/^-?\d+$/.test(raw)) return
+    const validDraft = rejectInvalid
+      ? /^-?\d*(?:\.\d*)?$/.test(raw)
+      : /^-?\d+$/.test(raw)
+    if (!validDraft) return
     setLocalValue(raw)
   }
 
   const commitValue = () => {
     setEditing(false)
     const num = Number(localValue)
-    if (Number.isNaN(num) || localValue === '' || localValue === '-') {
+    const invalidNumber =
+      !Number.isFinite(num) || localValue === '' || localValue === '-'
+    const outsideRange =
+      (min !== undefined && num < min) || (max !== undefined && num > max)
+    if (
+      invalidNumber ||
+      (rejectInvalid && (!Number.isInteger(num) || outsideRange))
+    ) {
       setLocalValue(String(value ?? 0))
+      onInvalid?.()
       return
     }
     const clamped = clamp(num)

@@ -787,6 +787,14 @@ func (channel *Channel) Insert() error {
 }
 
 func (channel *Channel) Update() error {
+	return channel.update(false)
+}
+
+func (channel *Channel) UpdateWithMaxConcurrency() error {
+	return channel.update(true)
+}
+
+func (channel *Channel) update(forceMaxConcurrency bool) error {
 	if channel.Id <= 0 {
 		return errors.New("channel id is required for update")
 	}
@@ -880,6 +888,13 @@ func (channel *Channel) Update() error {
 		}
 		if err := tx.Model(channel).Updates(channel).Error; err != nil {
 			return err
+		}
+		if forceMaxConcurrency {
+			if err := tx.Model(&Channel{}).
+				Where("id = ?", channel.Id).
+				Update("max_concurrency", channel.MaxConcurrency).Error; err != nil {
+				return err
+			}
 		}
 		if err := tx.Model(&Channel{}).
 			Where("id = ?", channel.Id).

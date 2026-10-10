@@ -15,13 +15,18 @@ const requiredKeys = [
   'Channel concurrency: {{active}} of {{max}} active',
   '{{count}} waiting',
   'Cooling',
+  'Maximum Concurrency',
+  'Maximum simultaneous upstream requests for this channel; 0 means unlimited.',
+  'Maximum concurrency must be a non-negative integer.',
+  'Maximum concurrency saved',
+  'Failed to save maximum concurrency. Try again.',
 ] as const
 
 const locales = { en, zh, 'zh-TW': zhTW, fr, ru, ja, vi }
 
-describe('channel concurrency snapshot translations', () => {
+describe('channel concurrency translations', () => {
   it.each(Object.entries(locales))(
-    'defines every snapshot key in %s without fallback',
+    'defines every key in %s without fallback',
     (locale, resources) => {
       for (const key of requiredKeys) {
         expect(resources.translation).toHaveProperty(key)
@@ -34,7 +39,7 @@ describe('channel concurrency snapshot translations', () => {
     }
   )
 
-  it('keeps every snapshot key in the static extraction list', () => {
+  it('keeps every key in the static extraction list', () => {
     for (const key of requiredKeys) {
       expect(STATIC_I18N_KEYS).toContain(key)
     }

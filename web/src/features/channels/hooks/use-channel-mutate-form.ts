@@ -42,7 +42,7 @@ type UseChannelMutateFormParams = {
   currentRow?: Channel | null
   isEditing: boolean
   isMultiKeyChannel: boolean
-  onSuccess: () => void
+  onSuccess: () => void | Promise<void>
 }
 
 const SENSITIVE_UPDATE_FIELDS = [
@@ -65,10 +65,20 @@ export function useChannelMutateForm(props: UseChannelMutateFormParams) {
     ADMIN_PERMISSION_RESOURCES.CHANNEL,
     ADMIN_PERMISSION_ACTIONS.SENSITIVE_WRITE
   )
+  const canEditChannel = hasPermission(
+    currentUser,
+    ADMIN_PERMISSION_RESOURCES.CHANNEL,
+    ADMIN_PERMISSION_ACTIONS.WRITE
+  )
 
   return useMutation({
     mutationFn: async (data: ChannelFormValues): Promise<string> => {
       if (props.isEditing && props.currentRow) {
+        if (!canEditChannel) {
+          throw new Error(
+            t('You do not have permission to perform this action.')
+          )
+        }
         const payload = transformFormDataToUpdatePayload(
           data,
           props.currentRow.id
@@ -111,12 +121,19 @@ export function useChannelMutateForm(props: UseChannelMutateFormParams) {
       }
       return SUCCESS_MESSAGES.CREATED
     },
-    onSuccess: (messageKey) => {
+    onSuccess: async (messageKey) => {
       toast.success(t(messageKey))
-      props.onSuccess()
+      await props.onSuccess()
     },
     onError: (error: unknown) => {
-      handleServerError(error, t(ERROR_MESSAGES.CREATE_FAILED))
+      handleServerError(
+        error,
+        t(
+          props.isEditing
+            ? ERROR_MESSAGES.UPDATE_FAILED
+            : ERROR_MESSAGES.CREATE_FAILED
+        )
+      )
     },
   })
 }

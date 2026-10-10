@@ -223,7 +223,11 @@ export const channelFormSchema = z
       ),
     priority: z.number().optional(),
     weight: z.number().optional(),
-    max_concurrency: z.number().int().min(0).optional(),
+    max_concurrency: z
+      .number()
+      .int(ERROR_MESSAGES.INVALID_MAX_CONCURRENCY)
+      .min(0, ERROR_MESSAGES.INVALID_MAX_CONCURRENCY)
+      .optional(),
     test_model: z.string().optional(),
     auto_ban: z.number().optional(),
     status: z.number(),
@@ -691,7 +695,10 @@ export function buildSettingJSON(formData: ChannelFormValues): string {
     system_prompt_override: formData.system_prompt_override || false,
   }
 
-  if (formData.type === CHANNEL_TYPE_CODEX && formData.image_carrier_model?.trim()) {
+  if (
+    formData.type === CHANNEL_TYPE_CODEX &&
+    formData.image_carrier_model?.trim()
+  ) {
     settingObj.image_carrier_model = formData.image_carrier_model.trim()
   }
 

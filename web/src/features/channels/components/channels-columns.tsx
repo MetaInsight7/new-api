@@ -90,7 +90,7 @@ import {
 } from '../lib'
 import { parseUpstreamUpdateMeta } from '../lib/upstream-update-utils'
 import type { Channel } from '../types'
-import { ChannelConcurrencyStatusDisplay } from './channel-concurrency-status'
+import { ChannelConcurrencyCell } from './channel-concurrency-status'
 import { ChannelRowActionsLayoutContext } from './channel-row-actions-context'
 import { TaskPluginChannelBadge } from './channel-type-badge'
 import { useChannels } from './channels-provider'
@@ -1187,7 +1187,7 @@ export function useChannelsColumns(
             !isTagAggregateRow(channel) && channel.max_concurrency > 0
               ? options.concurrencyStatusById?.get(channel.id)
               : undefined
-          return <ChannelConcurrencyStatusDisplay status={status} />
+          return <ChannelConcurrencyCell channel={channel} status={status} />
         },
         size: 180,
         enableSorting: false,
