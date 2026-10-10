@@ -20,6 +20,7 @@ import { useStatus } from '@/hooks/use-status'
 
 import { SettingsPage } from '../components/settings-page'
 import type { OperationsSettings } from '../types'
+import { defaultChannelConcurrencySettings } from './channel-concurrency-settings'
 import {
   OPERATIONS_DEFAULT_SECTION,
   getOperationsSectionContent,
@@ -27,6 +28,7 @@ import {
 } from './section-registry.tsx'
 
 const defaultOperationsSettings: OperationsSettings = {
+  ...defaultChannelConcurrencySettings,
   DefaultCollapseSidebar: false,
   DemoSiteEnabled: false,
   SelfUseModeEnabled: false,

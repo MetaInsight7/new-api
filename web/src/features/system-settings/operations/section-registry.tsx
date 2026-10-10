@@ -27,6 +27,7 @@ import { PerformanceSection } from '../maintenance/performance-section'
 import { UpdateCheckerSection } from '../maintenance/update-checker-section'
 import type { OperationsSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
+import { ChannelConcurrencySettingsSection } from './channel-concurrency-settings-section'
 
 const OPERATIONS_SECTIONS = [
   {
@@ -38,6 +39,40 @@ const OPERATIONS_SECTIONS = [
           DefaultCollapseSidebar: settings.DefaultCollapseSidebar,
           DemoSiteEnabled: settings.DemoSiteEnabled,
           SelfUseModeEnabled: settings.SelfUseModeEnabled,
+        }}
+      />
+    ),
+  },
+  {
+    id: 'channel-concurrency',
+    titleKey: 'Channel Concurrency Limits',
+    build: (settings: OperationsSettings) => (
+      <ChannelConcurrencySettingsSection
+        defaultValues={{
+          'channel_concurrency_setting.wait_enabled':
+            settings['channel_concurrency_setting.wait_enabled'],
+          'channel_concurrency_setting.wait_timeout_ms':
+            settings['channel_concurrency_setting.wait_timeout_ms'],
+          'channel_concurrency_setting.max_waiting_per_channel':
+            settings['channel_concurrency_setting.max_waiting_per_channel'],
+          'channel_concurrency_setting.cooldown_enabled':
+            settings['channel_concurrency_setting.cooldown_enabled'],
+          'channel_concurrency_setting.cooldown_seconds':
+            settings['channel_concurrency_setting.cooldown_seconds'],
+          'channel_concurrency_setting.cooldown_on_status_429':
+            settings['channel_concurrency_setting.cooldown_on_status_429'],
+          'channel_concurrency_setting.cooldown_on_message_match':
+            settings['channel_concurrency_setting.cooldown_on_message_match'],
+          'channel_concurrency_setting.load_cache_enabled':
+            settings['channel_concurrency_setting.load_cache_enabled'],
+          'channel_concurrency_setting.slot_ttl_minutes':
+            settings['channel_concurrency_setting.slot_ttl_minutes'],
+          'channel_concurrency_setting.wait_interval_ms':
+            settings['channel_concurrency_setting.wait_interval_ms'],
+          'channel_concurrency_setting.load_cache_ttl_ms':
+            settings['channel_concurrency_setting.load_cache_ttl_ms'],
+          'channel_concurrency_setting.max_acquire_attempts':
+            settings['channel_concurrency_setting.max_acquire_attempts'],
         }}
       />
     ),

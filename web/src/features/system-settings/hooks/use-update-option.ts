@@ -56,16 +56,24 @@ const STATUS_RELATED_KEYS = new Set([
   'passkey.origins',
 ])
 
-export function useUpdateOption() {
+type UpdateOptionMutationOptions = {
+  invalidateSystemOptions?: boolean
+  showFeedback?: boolean
+}
+
+export function useUpdateOption(options: UpdateOptionMutationOptions = {}) {
   const queryClient = useQueryClient()
+  const invalidateSystemOptions = options.invalidateSystemOptions ?? true
+  const showFeedback = options.showFeedback ?? true
 
   return useMutation({
     mutationFn: async (request: UpdateOptionRequest) =>
       requireServerSuccess(await updateSystemOption(request)),
     onSuccess: (data, variables) => {
       if (data.success) {
-        // Always refresh system-options
-        queryClient.invalidateQueries({ queryKey: ['system-options'] })
+        if (invalidateSystemOptions) {
+          queryClient.invalidateQueries({ queryKey: ['system-options'] })
+        }
 
         if (variables.key === 'GroupModelRatio') {
           queryClient.invalidateQueries({ queryKey: modelAccessQueryKeys.all })
@@ -81,13 +89,17 @@ export function useUpdateOption() {
           }
         }
 
-        toast.success(i18next.t('Setting updated successfully'))
-      } else {
+        if (showFeedback) {
+          toast.success(i18next.t('Setting updated successfully'))
+        }
+      } else if (showFeedback) {
         handleServerError(data, i18next.t('Failed to update setting'))
       }
     },
     onError: (error: Error) => {
-      handleServerError(error, i18next.t('Failed to update setting'))
+      if (showFeedback) {
+        handleServerError(error, i18next.t('Failed to update setting'))
+      }
     },
   })
 }
