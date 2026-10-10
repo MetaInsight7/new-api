@@ -19,9 +19,14 @@ import (
 
 var channelConcurrencyAcquireScriptSrc = `
 local key = KEYS[1]
+local cooldown_key = KEYS[2]
 local ttl = tonumber(ARGV[1])
 local max = tonumber(ARGV[2])
 local token = ARGV[3]
+
+if ARGV[4] == '1' and redis.call('EXISTS', cooldown_key) == 1 then
+	return -1
+end
 
 local redis_time = redis.call('TIME')
 local now = tonumber(redis_time[1]) * 1000 + math.floor(tonumber(redis_time[2]) / 1000)
@@ -211,22 +216,15 @@ func tryAcquireChannelConcurrencyWithToken(ctx context.Context, channel *model.C
 		return nil, true, nil
 	}
 
-	coolingDown, err := isChannelConcurrencyCoolingDown(ctx, channel.Id)
-	if err != nil {
-		return nil, false, err
-	}
-	if coolingDown {
-		return nil, false, nil
-	}
-
 	lease := &ChannelConcurrencyLease{
 		ChannelID: channel.Id,
 		token:     token,
 		useRedis:  common.RedisEnabled && common.RDB != nil,
 	}
+	cooldownEnabled := operation_setting.GetChannelConcurrencyCooldownPolicy().Enabled
 
 	if lease.useRedis {
-		ok, err := acquireRedisChannelConcurrency(ctx, channel.Id, maxConcurrency, token)
+		ok, err := acquireRedisChannelConcurrency(ctx, channel.Id, maxConcurrency, token, cooldownEnabled)
 		if err != nil {
 			return nil, false, fmt.Errorf("acquire channel concurrency in redis failed for channel %d: %w", channel.Id, err)
 		} else if !ok {
@@ -237,7 +235,7 @@ func tryAcquireChannelConcurrencyWithToken(ctx context.Context, channel *model.C
 		}
 	}
 
-	if !acquireMemoryChannelConcurrency(channel.Id, maxConcurrency, token) {
+	if !acquireMemoryChannelConcurrency(channel.Id, maxConcurrency, token, cooldownEnabled) {
 		return nil, false, nil
 	}
 	startChannelConcurrencyLeaseRenewal(lease)
@@ -277,14 +275,19 @@ func GetChannelConcurrencyLoads(ctx context.Context, channels []*model.Channel) 
 }
 
 func MarkChannelConcurrencyCooldown(ctx context.Context, channelID int, duration time.Duration, reason string) error {
-	if !operation_setting.IsChannelConcurrencyCooldownEnabled() {
+	policy := operation_setting.GetChannelConcurrencyCooldownPolicy()
+	if !policy.Enabled {
 		return nil
 	}
+	if duration <= 0 {
+		duration = policy.Duration
+	}
+	return markChannelConcurrencyCooldown(ctx, channelID, duration, reason)
+}
+
+func markChannelConcurrencyCooldown(ctx context.Context, channelID int, duration time.Duration, reason string) error {
 	if channelID <= 0 {
 		return fmt.Errorf("channel id is invalid")
-	}
-	if duration <= 0 {
-		duration = operation_setting.GetChannelConcurrencyCooldown()
 	}
 	if ctx == nil {
 		ctx = context.Background()
@@ -302,28 +305,6 @@ func MarkChannelConcurrencyCooldown(ctx context.Context, channelID int, duration
 	defer channelConcurrencyMemoryMu.Unlock()
 	channelConcurrencyMemoryCooldowns[channelID] = time.Now().Add(duration)
 	return nil
-}
-
-func isChannelConcurrencyCoolingDown(ctx context.Context, channelID int) (bool, error) {
-	if !operation_setting.IsChannelConcurrencyCooldownEnabled() || channelID <= 0 {
-		return false, nil
-	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
-	if common.RedisEnabled && common.RDB != nil {
-		coolingDown, err := common.RDB.Exists(ctx, channelConcurrencyCooldownRedisKey(channelID)).Result()
-		if err == nil {
-			return coolingDown > 0, nil
-		}
-		common.SysError(fmt.Sprintf("check channel concurrency cooldown in redis failed, fallback to memory: channel_id=%d, error=%s", channelID, err.Error()))
-	}
-
-	channelConcurrencyMemoryMu.Lock()
-	defer channelConcurrencyMemoryMu.Unlock()
-	cooldownUntil, ok := channelConcurrencyMemoryCooldowns[channelID]
-	return ok && cooldownUntil.After(time.Now()), nil
 }
 
 func ReleaseChannelConcurrency(ctx context.Context, lease *ChannelConcurrencyLease) error {
@@ -465,14 +446,19 @@ func getChannelConcurrencyLeaseForContext(c *gin.Context) *ChannelConcurrencyLea
 	return lease
 }
 
-func acquireRedisChannelConcurrency(ctx context.Context, channelID int, maxConcurrency int, token string) (bool, error) {
+func acquireRedisChannelConcurrency(ctx context.Context, channelID int, maxConcurrency int, token string, cooldownEnabled bool) (bool, error) {
+	cooldownFlag := "0"
+	if cooldownEnabled {
+		cooldownFlag = "1"
+	}
 	result, err := channelConcurrencyAcquireScript.Run(
 		ctx,
 		common.RDB,
-		[]string{channelConcurrencyRedisKey(channelID)},
+		[]string{channelConcurrencyRedisKey(channelID), channelConcurrencyCooldownRedisKey(channelID)},
 		operation_setting.GetChannelConcurrencySlotTTL().Milliseconds(),
 		maxConcurrency,
 		token,
+		cooldownFlag,
 	).Int()
 	if err != nil {
 		cleanupUncertainChannelConcurrencyAcquire(channelID, token)
@@ -629,12 +615,17 @@ func getRedisChannelConcurrencyLoads(ctx context.Context, initial map[int]Channe
 	return loads, nil
 }
 
-func acquireMemoryChannelConcurrency(channelID int, maxConcurrency int, token string) bool {
+func acquireMemoryChannelConcurrency(channelID int, maxConcurrency int, token string, cooldownEnabled bool) bool {
 	channelConcurrencyMemoryMu.Lock()
 	defer channelConcurrencyMemoryMu.Unlock()
 
 	now := time.Now()
 	cleanupMemoryChannelConcurrencyLocked(now)
+	if cooldownEnabled {
+		if cooldownUntil, ok := channelConcurrencyMemoryCooldowns[channelID]; ok && cooldownUntil.After(now) {
+			return false
+		}
+	}
 	slots := channelConcurrencyMemorySlots[channelID]
 	if slots == nil {
 		slots = make(map[string]time.Time)

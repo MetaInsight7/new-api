@@ -238,6 +238,9 @@ func validateOptionValue(key string, value string) error {
 	if key == legacyAccessTokenRetireAtKey {
 		return errLegacyRetireAtReadOnly
 	}
+	if err := operation_setting.ValidateChannelConcurrencyOption(key, value); err != nil {
+		return err
+	}
 	if err := operation_setting.ValidateQuotaOption(key, value); err != nil {
 		return err
 	}

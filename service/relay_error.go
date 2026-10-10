@@ -74,10 +74,11 @@ func ProcessChannelError(c *gin.Context, channelError types.ChannelError, err *t
 		return
 	}
 	logger.LogError(c, fmt.Sprintf("channel error (channel #%d, status code: %d): %s", channelError.ChannelId, err.StatusCode, common.LocalLogPreview(err.MaskSensitiveErrorWithStatusCode())))
-	if shouldMarkChannelConcurrencyCooldown(err) {
+	cooldownPolicy := operation_setting.GetChannelConcurrencyCooldownPolicy()
+	if shouldMarkChannelConcurrencyCooldown(err, cooldownPolicy) {
 		cooldownCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
-		if cooldownErr := MarkChannelConcurrencyCooldown(cooldownCtx, channelError.ChannelId, 0, err.MaskSensitiveErrorWithStatusCode()); cooldownErr != nil {
+		if cooldownErr := markChannelConcurrencyCooldown(cooldownCtx, channelError.ChannelId, cooldownPolicy.Duration, err.MaskSensitiveErrorWithStatusCode()); cooldownErr != nil {
 			logger.LogError(c, fmt.Sprintf("mark channel concurrency cooldown failed: %s", cooldownErr.Error()))
 		}
 	}
@@ -113,20 +114,27 @@ func ProcessChannelError(c *gin.Context, channelError types.ChannelError, err *t
 	}
 }
 
-func shouldMarkChannelConcurrencyCooldown(err *types.NewAPIError) bool {
-	if err == nil {
+func shouldMarkChannelConcurrencyCooldown(err *types.NewAPIError, policy operation_setting.ChannelConcurrencyCooldownPolicy) bool {
+	if err == nil || !policy.Enabled {
 		return false
 	}
 	message := strings.ToLower(err.Error())
 	if strings.Contains(message, "insufficient_quota") ||
+		strings.Contains(message, "insufficient quota") ||
 		strings.Contains(message, "quota exceeded") ||
+		strings.Contains(message, "quota exhausted") ||
+		strings.Contains(message, "quota depleted") ||
 		strings.Contains(message, "balance") ||
 		strings.Contains(message, "余额") ||
-		strings.Contains(message, "额度") {
+		strings.Contains(message, "额度") ||
+		strings.Contains(message, "配额") {
 		return false
 	}
 	if err.StatusCode == http.StatusTooManyRequests {
-		return true
+		return policy.OnStatus429
+	}
+	if !policy.OnMessageMatch {
+		return false
 	}
 	return strings.Contains(message, "rate limit") ||
 		strings.Contains(message, "rate limited") ||

@@ -18,6 +18,20 @@ type ConfigManager struct {
 
 var GlobalConfig = NewConfigManager()
 
+type configWriteLocker interface {
+	LockConfig()
+	UnlockConfig()
+}
+
+type configReadLocker interface {
+	RLockConfig()
+	RUnlockConfig()
+}
+
+type configUpdateValidator interface {
+	ValidateConfigUpdate(map[string]string) error
+}
+
 func NewConfigManager() *ConfigManager {
 	return &ConfigManager{
 		configs: make(map[string]any),
@@ -57,7 +71,7 @@ func (cm *ConfigManager) LoadFromDB(options map[string]string) error {
 
 		// 如果找到配置项，则更新配置
 		if len(configMap) > 0 {
-			if err := updateConfigFromMap(config, configMap); err != nil {
+			if err := UpdateConfigFromMap(config, configMap); err != nil {
 				common.SysError("failed to update config " + name + ": " + err.Error())
 				continue
 			}
@@ -73,7 +87,7 @@ func (cm *ConfigManager) SaveToDB(updateFunc func(key, value string) error) erro
 	defer cm.mutex.RUnlock()
 
 	for name, config := range cm.configs {
-		configMap, err := configToMap(config)
+		configMap, err := ConfigToMap(config)
 		if err != nil {
 			return err
 		}
@@ -274,11 +288,24 @@ func updateConfigFromMap(config any, configMap map[string]string) error {
 
 // ConfigToMap 将配置对象转换为map（导出函数）
 func ConfigToMap(config any) (map[string]string, error) {
+	if locker, ok := config.(configReadLocker); ok {
+		locker.RLockConfig()
+		defer locker.RUnlockConfig()
+	}
 	return configToMap(config)
 }
 
 // UpdateConfigFromMap 从map更新配置对象（导出函数）
 func UpdateConfigFromMap(config any, configMap map[string]string) error {
+	if locker, ok := config.(configWriteLocker); ok {
+		locker.LockConfig()
+		defer locker.UnlockConfig()
+	}
+	if validator, ok := config.(configUpdateValidator); ok {
+		if err := validator.ValidateConfigUpdate(configMap); err != nil {
+			return err
+		}
+	}
 	return updateConfigFromMap(config, configMap)
 }
 
