@@ -121,7 +121,7 @@ export function ModelAccessBrowser({ access }: ModelAccessBrowserProps) {
   )
   const description = fixedView
     ? t('View models and compatible endpoints available to your account.')
-    : t('View models supported by each access group and compatible endpoint.')
+    : null
 
   const clearFilters = () => {
     setQuery('')
@@ -374,7 +374,9 @@ export function ModelAccessBrowser({ access }: ModelAccessBrowserProps) {
 
   return (
     <div className='mx-auto flex w-full max-w-7xl flex-col gap-4'>
-      <p className='text-muted-foreground max-w-3xl text-sm'>{description}</p>
+      {description && (
+        <p className='text-muted-foreground max-w-3xl text-sm'>{description}</p>
+      )}
       {fixedView ? (
         catalog
       ) : (
