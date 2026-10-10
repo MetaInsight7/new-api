@@ -7100,7 +7100,7 @@
     "If this model becomes callable again, it will use the exclusive ratio {{ratio}}×, overriding the default ratio {{defaultRatio}}×; the two are not multiplied.": "如果此模型恢复可调用，将使用专属倍率 {{ratio}}×，覆盖默认倍率 {{defaultRatio}}×；两者不会相乘。",
     "If this model becomes callable again, it will use the exclusive ratio {{ratio}}×, overriding the default ratio; the two are not multiplied.": "如果此模型恢复可调用，将使用专属倍率 {{ratio}}×，覆盖默认倍率；两者不会相乘。",
     "Insufficient data": "数据不足",
-    "Last 24 Hours": "过去 24 小时",
+    "Last 24 Hours": "近 24 小时",
     "Last 30 Days for summary": "过去 30 天",
     "Last 30 days total": "过去 30 天总计",
     "Last 7 Days for summary": "过去 7 天",
