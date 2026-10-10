@@ -7004,6 +7004,26 @@
     "Updated at": "Время обновления",
     "Upstream did not confirm any reset windows.": "Вышестоящий сервис не подтвердил сброс ни одного окна.",
     "Upstream limits are a current snapshot; local usage follows the selected time range.": "Лимиты вышестоящего сервиса показаны на текущий момент; локальное использование — за выбранный период.",
-    "View upstream quota limits for Codex channels": "Просмотр квот вышестоящего сервиса для каналов Codex"
+    "View upstream quota limits for Codex channels": "Просмотр квот вышестоящего сервиса для каналов Codex",
+    "API for developers": "API для разработчиков",
+    "Call any model with an OpenAI-compatible API. Copy a ready-to-run example for your model and language.": "Вызывайте любую модель через API, совместимый с OpenAI. Скопируйте готовый к запуску пример для выбранной модели и языка.",
+    "SDKs for developers": "SDK для разработчиков",
+    "Use the OpenAI SDK you already know — with TokenDazi as the gateway.": "Используйте знакомый SDK OpenAI, подключив TokenDazi в качестве шлюза.",
+    "Codex & Claude Code": "Codex и Claude Code",
+    "Connect Codex or Claude Code with one command, then use TokenDazi from your existing projects.": "Подключите Codex или Claude Code одной командой и используйте TokenDazi в существующих проектах.",
+    "Choose how you will use TokenDazi": "Выберите способ использования TokenDazi",
+    "All three options use the same account and model catalog.": "Все три варианта используют одну учётную запись и каталог моделей.",
+    "Create a key to authenticate requests, or choose one of your recent keys.": "Создайте ключ для аутентификации запросов или выберите один из недавних ключей.",
+    "Create API key": "Создать API-ключ",
+    "No API key yet. Create one to get a ready-to-run example.": "API-ключей пока нет. Создайте ключ, чтобы получить готовый к запуску пример.",
+    "Step 2 · Submit a video task, then poll for the result": "Шаг 2 · Отправьте видеозадачу и затем опрашивайте результат",
+    "Step 2 · Copy the async video generation flow": "Шаг 2 · Скопируйте асинхронный процесс генерации видео",
+    "Step 2 · Copy a ready-to-run image request": "Шаг 2 · Скопируйте готовый к запуску запрос изображения",
+    "Step 2 · Copy the image generation setup": "Шаг 2 · Скопируйте настройки генерации изображений",
+    "Step 2 · Copy a ready-to-run request": "Шаг 2 · Скопируйте готовый к запуску запрос",
+    "Step 2 · Copy the SDK setup": "Шаг 2 · Скопируйте настройки SDK",
+    "Step 1 · Choose an API key": "Шаг 1 · Выберите API-ключ",
+    "Step 2 · Install TokenDazi for your system": "Шаг 2 · Установите TokenDazi в своей системе",
+    "Paste the next line into your terminal to configure Codex or Claude Code in seconds.": "Вставьте следующую строку в терминал, чтобы за несколько секунд настроить Codex или Claude Code."
   }
 }

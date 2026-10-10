@@ -7004,6 +7004,26 @@
     "Updated at": "更新日時",
     "Upstream did not confirm any reset windows.": "上流でリセット済みと確認されたウィンドウがありません。",
     "Upstream limits are a current snapshot; local usage follows the selected time range.": "上流の制限は現在のスナップショットです。ローカルの使用量は選択した期間に基づきます。",
-    "View upstream quota limits for Codex channels": "Codex チャンネルの上流クォータ制限を表示"
+    "View upstream quota limits for Codex channels": "Codex チャンネルの上流クォータ制限を表示",
+    "API for developers": "開発者向け API",
+    "Call any model with an OpenAI-compatible API. Copy a ready-to-run example for your model and language.": "OpenAI 互換 API で任意のモデルを呼び出せます。モデルと言語に合った実行可能なサンプルをコピーしてください。",
+    "SDKs for developers": "開発者向け SDK",
+    "Use the OpenAI SDK you already know — with TokenDazi as the gateway.": "使い慣れた OpenAI SDK を TokenDazi ゲートウェイ経由で利用できます。",
+    "Codex & Claude Code": "Codex と Claude Code",
+    "Connect Codex or Claude Code with one command, then use TokenDazi from your existing projects.": "ワンコマンドで Codex または Claude Code を接続し、既存のプロジェクトから TokenDazi を利用できます。",
+    "Choose how you will use TokenDazi": "TokenDazi の利用方法を選択",
+    "All three options use the same account and model catalog.": "3 つの方法は同じアカウントとモデルカタログを使用します。",
+    "Create a key to authenticate requests, or choose one of your recent keys.": "リクエストの認証用キーを作成するか、最近使用したキーを選択してください。",
+    "Create API key": "API キーを作成",
+    "No API key yet. Create one to get a ready-to-run example.": "API キーがまだありません。作成すると実行可能なサンプルを取得できます。",
+    "Step 2 · Submit a video task, then poll for the result": "ステップ 2 · 動画タスクを送信して結果をポーリング",
+    "Step 2 · Copy the async video generation flow": "ステップ 2 · 非同期動画生成フローをコピー",
+    "Step 2 · Copy a ready-to-run image request": "ステップ 2 · 実行可能な画像リクエストをコピー",
+    "Step 2 · Copy the image generation setup": "ステップ 2 · 画像生成の設定をコピー",
+    "Step 2 · Copy a ready-to-run request": "ステップ 2 · 実行可能なリクエストをコピー",
+    "Step 2 · Copy the SDK setup": "ステップ 2 · SDK の設定をコピー",
+    "Step 1 · Choose an API key": "ステップ 1 · API キーを選択",
+    "Step 2 · Install TokenDazi for your system": "ステップ 2 · システムに TokenDazi をインストール",
+    "Paste the next line into your terminal to configure Codex or Claude Code in seconds.": "次の行をターミナルに貼り付けると、数秒で Codex または Claude Code を設定できます。"
   }
 }

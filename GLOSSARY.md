@@ -4,6 +4,26 @@
 
 用户查看自己可访问模型范围的页面。页面按可选分组展示模型，并呈现模型的供应商、协议、价格、倍率和可用性状态。
 
+## Workspace
+
+普通用户登录后使用的工作台页面，承载用量概览、API 接入信息、公告以及常用接入入口。
+_Avoid_：管理员 Dashboard、Dashboard Overview
+
+## Dashboard Overview
+
+面向管理员的 Dashboard 概览页面，承载管理侧统计、公告、系统信息和运维面板；它不是普通用户 Workspace 的别名。
+_Avoid_：Workspace、用户首页
+
+## 接入面板
+
+Workspace 中用于引导 API、SDK、Codex 和 Claude Code 接入的紧凑入口卡片。每个接入行打开对应的说明弹窗，但不替代 API Key 管理页面。
+_Avoid_：Uptime 面板、API Key 管理页
+
+## API Key 创建深链接
+
+指向 API Key 管理页并携带创建参数的入口，例如 `/keys?open=create`；它复用现有创建抽屉、表单校验和成功流程，不在调用方重复实现创建逻辑。
+_Avoid_：接入面板内置创建表单
+
 ## Model Access
 
 面向用户界面的模型访问聚合结果。它把用户身份、用户可选分组、分组中的模型能力、价格与可用性状态组合成 Available Models 页面可以直接消费的范围，不等同于某一个渠道的原始配置。

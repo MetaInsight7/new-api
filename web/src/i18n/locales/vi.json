@@ -7004,6 +7004,26 @@
     "Updated at": "Cập nhật lúc",
     "Upstream did not confirm any reset windows.": "Dịch vụ thượng nguồn chưa xác nhận cửa sổ nào đã được đặt lại.",
     "Upstream limits are a current snapshot; local usage follows the selected time range.": "Giới hạn thượng nguồn là ảnh chụp hiện tại; mức sử dụng cục bộ theo khoảng thời gian đã chọn.",
-    "View upstream quota limits for Codex channels": "Xem giới hạn hạn mức thượng nguồn của các kênh Codex"
+    "View upstream quota limits for Codex channels": "Xem giới hạn hạn mức thượng nguồn của các kênh Codex",
+    "API for developers": "API dành cho nhà phát triển",
+    "Call any model with an OpenAI-compatible API. Copy a ready-to-run example for your model and language.": "Gọi bất kỳ mô hình nào bằng API tương thích với OpenAI. Sao chép ví dụ sẵn sàng chạy cho mô hình và ngôn ngữ của bạn.",
+    "SDKs for developers": "SDK dành cho nhà phát triển",
+    "Use the OpenAI SDK you already know — with TokenDazi as the gateway.": "Sử dụng SDK OpenAI quen thuộc của bạn với TokenDazi làm cổng kết nối.",
+    "Codex & Claude Code": "Codex & Claude Code",
+    "Connect Codex or Claude Code with one command, then use TokenDazi from your existing projects.": "Kết nối Codex hoặc Claude Code bằng một lệnh, sau đó sử dụng TokenDazi từ các dự án hiện có.",
+    "Choose how you will use TokenDazi": "Chọn cách bạn sẽ sử dụng TokenDazi",
+    "All three options use the same account and model catalog.": "Cả ba tùy chọn đều sử dụng cùng một tài khoản và danh mục mô hình.",
+    "Create a key to authenticate requests, or choose one of your recent keys.": "Tạo khóa để xác thực yêu cầu hoặc chọn một khóa gần đây của bạn.",
+    "Create API key": "Tạo khóa API",
+    "No API key yet. Create one to get a ready-to-run example.": "Chưa có khóa API. Hãy tạo một khóa để nhận ví dụ sẵn sàng chạy.",
+    "Step 2 · Submit a video task, then poll for the result": "Bước 2 · Gửi tác vụ video rồi thăm dò kết quả",
+    "Step 2 · Copy the async video generation flow": "Bước 2 · Sao chép quy trình tạo video không đồng bộ",
+    "Step 2 · Copy a ready-to-run image request": "Bước 2 · Sao chép yêu cầu hình ảnh sẵn sàng chạy",
+    "Step 2 · Copy the image generation setup": "Bước 2 · Sao chép thiết lập tạo hình ảnh",
+    "Step 2 · Copy a ready-to-run request": "Bước 2 · Sao chép yêu cầu sẵn sàng chạy",
+    "Step 2 · Copy the SDK setup": "Bước 2 · Sao chép thiết lập SDK",
+    "Step 1 · Choose an API key": "Bước 1 · Chọn khóa API",
+    "Step 2 · Install TokenDazi for your system": "Bước 2 · Cài đặt TokenDazi cho hệ thống của bạn",
+    "Paste the next line into your terminal to configure Codex or Claude Code in seconds.": "Dán dòng tiếp theo vào terminal để cấu hình Codex hoặc Claude Code trong vài giây."
   }
 }

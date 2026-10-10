@@ -7004,6 +7004,26 @@
     "Updated at": "更新時間",
     "Upstream did not confirm any reset windows.": "上游未確認任何已重置窗口。",
     "Upstream limits are a current snapshot; local usage follows the selected time range.": "上游額度為目前快照；本地用量按所選時段統計。",
-    "View upstream quota limits for Codex channels": "查看 Codex 渠道的上游額度限制"
+    "View upstream quota limits for Codex channels": "查看 Codex 渠道的上游額度限制",
+    "API for developers": "面向開發者的 API",
+    "Call any model with an OpenAI-compatible API. Copy a ready-to-run example for your model and language.": "透過相容 OpenAI 的 API 呼叫任意模型。複製適用於所選模型和語言的可直接執行範例。",
+    "SDKs for developers": "面向開發者的 SDK",
+    "Use the OpenAI SDK you already know — with TokenDazi as the gateway.": "使用你熟悉的 OpenAI SDK，並以 TokenDazi 作為閘道。",
+    "Codex & Claude Code": "Codex 與 Claude Code",
+    "Connect Codex or Claude Code with one command, then use TokenDazi from your existing projects.": "只需一個指令即可連接 Codex 或 Claude Code，並在現有專案中使用 TokenDazi。",
+    "Choose how you will use TokenDazi": "選擇使用 TokenDazi 的方式",
+    "All three options use the same account and model catalog.": "三種方式使用相同的帳號和模型目錄。",
+    "Create a key to authenticate requests, or choose one of your recent keys.": "建立用於驗證請求的金鑰，或選擇最近使用的金鑰。",
+    "Create API key": "建立 API 金鑰",
+    "No API key yet. Create one to get a ready-to-run example.": "尚無 API 金鑰。建立一個即可取得可直接執行的範例。",
+    "Step 2 · Submit a video task, then poll for the result": "第 2 步 · 提交影片任務，然後輪詢結果",
+    "Step 2 · Copy the async video generation flow": "第 2 步 · 複製非同步影片生成流程",
+    "Step 2 · Copy a ready-to-run image request": "第 2 步 · 複製可直接執行的圖片請求",
+    "Step 2 · Copy the image generation setup": "第 2 步 · 複製圖片生成設定",
+    "Step 2 · Copy a ready-to-run request": "第 2 步 · 複製可直接執行的請求",
+    "Step 2 · Copy the SDK setup": "第 2 步 · 複製 SDK 設定",
+    "Step 1 · Choose an API key": "第 1 步 · 選擇 API 金鑰",
+    "Step 2 · Install TokenDazi for your system": "第 2 步 · 在你的系統中安裝 TokenDazi",
+    "Paste the next line into your terminal to configure Codex or Claude Code in seconds.": "將下一行貼到終端機，即可在幾秒內設定 Codex 或 Claude Code。"
   }
 }

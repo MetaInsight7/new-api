@@ -7004,6 +7004,26 @@
     "Updated at": "Mis à jour le",
     "Upstream did not confirm any reset windows.": "Le fournisseur n’a confirmé aucune fenêtre réinitialisée.",
     "Upstream limits are a current snapshot; local usage follows the selected time range.": "Les limites du fournisseur sont un instantané actuel ; l’utilisation locale correspond à la période choisie.",
-    "View upstream quota limits for Codex channels": "Voir les quotas du fournisseur pour les canaux Codex"
+    "View upstream quota limits for Codex channels": "Voir les quotas du fournisseur pour les canaux Codex",
+    "API for developers": "API pour les développeurs",
+    "Call any model with an OpenAI-compatible API. Copy a ready-to-run example for your model and language.": "Appelez n’importe quel modèle avec une API compatible OpenAI. Copiez un exemple prêt à l’emploi pour votre modèle et votre langage.",
+    "SDKs for developers": "SDK pour les développeurs",
+    "Use the OpenAI SDK you already know — with TokenDazi as the gateway.": "Utilisez le SDK OpenAI que vous connaissez déjà, avec TokenDazi comme passerelle.",
+    "Codex & Claude Code": "Codex et Claude Code",
+    "Connect Codex or Claude Code with one command, then use TokenDazi from your existing projects.": "Connectez Codex ou Claude Code en une commande, puis utilisez TokenDazi dans vos projets existants.",
+    "Choose how you will use TokenDazi": "Choisissez comment utiliser TokenDazi",
+    "All three options use the same account and model catalog.": "Les trois options utilisent le même compte et catalogue de modèles.",
+    "Create a key to authenticate requests, or choose one of your recent keys.": "Créez une clé pour authentifier vos requêtes ou choisissez l’une de vos clés récentes.",
+    "Create API key": "Créer une clé API",
+    "No API key yet. Create one to get a ready-to-run example.": "Aucune clé API pour le moment. Créez-en une pour obtenir un exemple prêt à l’emploi.",
+    "Step 2 · Submit a video task, then poll for the result": "Étape 2 · Envoyez une tâche vidéo, puis interrogez le résultat",
+    "Step 2 · Copy the async video generation flow": "Étape 2 · Copiez le flux de génération vidéo asynchrone",
+    "Step 2 · Copy a ready-to-run image request": "Étape 2 · Copiez une requête d’image prête à l’emploi",
+    "Step 2 · Copy the image generation setup": "Étape 2 · Copiez la configuration de génération d’images",
+    "Step 2 · Copy a ready-to-run request": "Étape 2 · Copiez une requête prête à l’emploi",
+    "Step 2 · Copy the SDK setup": "Étape 2 · Copiez la configuration du SDK",
+    "Step 1 · Choose an API key": "Étape 1 · Choisissez une clé API",
+    "Step 2 · Install TokenDazi for your system": "Étape 2 · Installez TokenDazi sur votre système",
+    "Paste the next line into your terminal to configure Codex or Claude Code in seconds.": "Collez la ligne suivante dans votre terminal pour configurer Codex ou Claude Code en quelques secondes."
   }
 }

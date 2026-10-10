@@ -7305,6 +7305,26 @@
     "Updated at": "Updated at",
     "Upstream did not confirm any reset windows.": "Upstream did not confirm any reset windows.",
     "Upstream limits are a current snapshot; local usage follows the selected time range.": "Upstream limits are a current snapshot; local usage follows the selected time range.",
-    "View upstream quota limits for Codex channels": "View upstream quota limits for Codex channels"
+    "View upstream quota limits for Codex channels": "View upstream quota limits for Codex channels",
+    "API for developers": "API for developers",
+    "Call any model with an OpenAI-compatible API. Copy a ready-to-run example for your model and language.": "Call any model with an OpenAI-compatible API. Copy a ready-to-run example for your model and language.",
+    "SDKs for developers": "SDKs for developers",
+    "Use the OpenAI SDK you already know — with TokenDazi as the gateway.": "Use the OpenAI SDK you already know — with TokenDazi as the gateway.",
+    "Codex & Claude Code": "Codex & Claude Code",
+    "Connect Codex or Claude Code with one command, then use TokenDazi from your existing projects.": "Connect Codex or Claude Code with one command, then use TokenDazi from your existing projects.",
+    "Choose how you will use TokenDazi": "Choose how you will use TokenDazi",
+    "All three options use the same account and model catalog.": "All three options use the same account and model catalog.",
+    "Create a key to authenticate requests, or choose one of your recent keys.": "Create a key to authenticate requests, or choose one of your recent keys.",
+    "Create API key": "Create API key",
+    "No API key yet. Create one to get a ready-to-run example.": "No API key yet. Create one to get a ready-to-run example.",
+    "Step 2 · Submit a video task, then poll for the result": "Step 2 · Submit a video task, then poll for the result",
+    "Step 2 · Copy the async video generation flow": "Step 2 · Copy the async video generation flow",
+    "Step 2 · Copy a ready-to-run image request": "Step 2 · Copy a ready-to-run image request",
+    "Step 2 · Copy the image generation setup": "Step 2 · Copy the image generation setup",
+    "Step 2 · Copy a ready-to-run request": "Step 2 · Copy a ready-to-run request",
+    "Step 2 · Copy the SDK setup": "Step 2 · Copy the SDK setup",
+    "Step 1 · Choose an API key": "Step 1 · Choose an API key",
+    "Step 2 · Install TokenDazi for your system": "Step 2 · Install TokenDazi for your system",
+    "Paste the next line into your terminal to configure Codex or Claude Code in seconds.": "Paste the next line into your terminal to configure Codex or Claude Code in seconds."
   }
 }

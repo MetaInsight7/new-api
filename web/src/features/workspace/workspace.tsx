@@ -1,3 +1,5 @@
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { Calendar, RotateCcw } from 'lucide-react'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -17,22 +19,22 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useMemo, useState } from 'react'
-import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import { Calendar, RotateCcw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+
+import { DateTimePicker } from '@/components/datetime-picker'
+import { Dialog } from '@/components/dialog'
+import { SectionPageLayout } from '@/components/layout'
+import { Button } from '@/components/ui/button'
+import { AnnouncementsPanel } from '@/features/dashboard/components/overview/announcements-panel'
 import {
   getRollingDateRange,
   getStartOfDay,
   type TimeGranularity,
 } from '@/lib/time'
-import { Button } from '@/components/ui/button'
-import { DateTimePicker } from '@/components/datetime-picker'
-import { Dialog } from '@/components/dialog'
-import { SectionPageLayout } from '@/components/layout'
-import { AnnouncementsPanel } from '@/features/dashboard/components/overview/announcements-panel'
-import { UptimePanel } from '@/features/dashboard/components/overview/uptime-panel'
+
 import { getWorkspaceUsage } from './api'
+import { IntegrationPanel } from './components/integration/integration-panel'
 import { WorkspaceAnalytics } from './components/workspace-analytics'
 import { WorkspaceApiAccess } from './components/workspace-api-access'
 import { WorkspaceSummary } from './components/workspace-summary'
@@ -190,9 +192,9 @@ export function Workspace() {
             <AnnouncementsPanel />
           </div>
 
-          <div className='grid items-stretch gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]'>
+          <div className='grid items-stretch gap-4 xl:grid-cols-[minmax(0,1fr)_24rem]'>
             <WorkspaceAnalytics {...chartData} />
-            <UptimePanel />
+            <IntegrationPanel />
           </div>
           <Dialog
             open={customOpen}

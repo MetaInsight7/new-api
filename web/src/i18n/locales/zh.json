@@ -7305,6 +7305,26 @@
     "Updated at": "更新时间",
     "Upstream did not confirm any reset windows.": "上游未确认任何已重置窗口。",
     "Upstream limits are a current snapshot; local usage follows the selected time range.": "上游额度为当前快照；本地用量按所选时段统计。",
-    "View upstream quota limits for Codex channels": "查看 Codex 渠道的上游额度限制"
+    "View upstream quota limits for Codex channels": "查看 Codex 渠道的上游额度限制",
+    "API for developers": "面向开发者的 API",
+    "Call any model with an OpenAI-compatible API. Copy a ready-to-run example for your model and language.": "通过兼容 OpenAI 的 API 调用任意模型。复制适用于所选模型和语言的可直接运行示例。",
+    "SDKs for developers": "面向开发者的 SDK",
+    "Use the OpenAI SDK you already know — with TokenDazi as the gateway.": "使用你熟悉的 OpenAI SDK，以 TokenDazi 作为网关。",
+    "Codex & Claude Code": "Codex 与 Claude Code",
+    "Connect Codex or Claude Code with one command, then use TokenDazi from your existing projects.": "只需一条命令即可连接 Codex 或 Claude Code，在现有项目中使用 TokenDazi。",
+    "Choose how you will use TokenDazi": "选择使用 TokenDazi 的方式",
+    "All three options use the same account and model catalog.": "三种方式使用同一账号和模型目录。",
+    "Create a key to authenticate requests, or choose one of your recent keys.": "创建用于身份验证的密钥，或选择最近使用的密钥。",
+    "Create API key": "创建 API 密钥",
+    "No API key yet. Create one to get a ready-to-run example.": "尚无 API 密钥。创建一个即可获取可直接运行的示例。",
+    "Step 2 · Submit a video task, then poll for the result": "第 2 步 · 提交视频任务，然后轮询结果",
+    "Step 2 · Copy the async video generation flow": "第 2 步 · 复制异步视频生成流程",
+    "Step 2 · Copy a ready-to-run image request": "第 2 步 · 复制可直接运行的图片请求",
+    "Step 2 · Copy the image generation setup": "第 2 步 · 复制图片生成配置",
+    "Step 2 · Copy a ready-to-run request": "第 2 步 · 复制可直接运行的请求",
+    "Step 2 · Copy the SDK setup": "第 2 步 · 复制 SDK 配置",
+    "Step 1 · Choose an API key": "第 1 步 · 选择 API 密钥",
+    "Step 2 · Install TokenDazi for your system": "第 2 步 · 在你的系统中安装 TokenDazi",
+    "Paste the next line into your terminal to configure Codex or Claude Code in seconds.": "将下一行粘贴到终端，即可在几秒内配置 Codex 或 Claude Code。"
   }
 }
