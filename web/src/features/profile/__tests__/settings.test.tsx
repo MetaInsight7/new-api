@@ -120,9 +120,9 @@ describe('user notification settings', () => {
   it('a rejected profile read prevents the settings write', async () => {
     vi.spyOn(api, 'get').mockRejectedValue(new Error('offline'))
     const put = vi.spyOn(api, 'put')
-    await expect(updateUserSettings({ quota_warning_threshold: 2400 })).rejects.toThrow(
-      'offline'
-    )
+    await expect(
+      updateUserSettings({ quota_warning_threshold: 2400 })
+    ).rejects.toThrow('offline')
     expect(put).not.toHaveBeenCalled()
   })
 
@@ -131,10 +131,12 @@ describe('user notification settings', () => {
       data: { success: false, message: 'Unavailable' },
     })
     const put = vi.spyOn(api, 'put')
-    expect(await updateUserSettings({ quota_warning_threshold: 2400 })).toEqual({
-      success: false,
-      message: 'Unavailable',
-    })
+    expect(await updateUserSettings({ quota_warning_threshold: 2400 })).toEqual(
+      {
+        success: false,
+        message: 'Unavailable',
+      }
+    )
     expect(put).not.toHaveBeenCalled()
   })
 
@@ -145,10 +147,12 @@ describe('user notification settings', () => {
     vi.spyOn(api, 'put').mockResolvedValue({
       data: { success: false, message: 'Save failed' },
     })
-    expect(await updateUserSettings({ quota_warning_threshold: 2400 })).toEqual({
-      success: false,
-      message: 'Save failed',
-    })
+    expect(await updateUserSettings({ quota_warning_threshold: 2400 })).toEqual(
+      {
+        success: false,
+        message: 'Save failed',
+      }
+    )
   })
 
   it('saving a stale notification form does not reintroduce the removed IP setting', async () => {

@@ -38,7 +38,6 @@ import { usePricingData } from '@/features/pricing/hooks/use-pricing-data'
 import { cn } from '@/lib/utils'
 
 import { resolveModelRatioContext } from '../lib/model-access'
-
 import {
   ALL_MODEL_VENDORS,
   createModelVendorFilterState,
@@ -262,7 +261,6 @@ export function ModelAccessBrowser({ access }: ModelAccessBrowserProps) {
             onChange={(event) => setQuery(event.target.value)}
           />
         </div>
-
       </div>
 
       <div
