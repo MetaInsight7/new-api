@@ -186,7 +186,7 @@ export function Workspace() {
       </SectionPageLayout.Actions>
       <SectionPageLayout.Content>
         <div className='space-y-4'>
-          <div className='grid items-stretch gap-4 xl:grid-cols-3'>
+          <div className='grid items-stretch gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_24rem]'>
             <WorkspaceSummary {...chartData} />
             <WorkspaceApiAccess />
             <AnnouncementsPanel />
