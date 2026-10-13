@@ -168,6 +168,9 @@ func ApplyChannelGroupFilter(query *gorm.DB, group string) *gorm.DB {
 	if group == "" {
 		return query
 	}
+	if commonGroupCol == "" {
+		initCol()
+	}
 	return query.Where(channelGroupFilterCondition(), channelGroupFilterPattern(group))
 }
 

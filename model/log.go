@@ -587,6 +587,31 @@ type Stat struct {
 	Tpm   int `json:"tpm"`
 }
 
+func GetChannelRPMsSince(ctx context.Context, startTimestamp int64) (map[int]int64, error) {
+	type channelRPM struct {
+		ChannelID int   `gorm:"column:channel_id"`
+		RPM       int64 `gorm:"column:rpm"`
+	}
+
+	rows := make([]channelRPM, 0)
+	err := LOG_DB.WithContext(ctx).
+		Table("logs").
+		Select("channel_id, COUNT(*) AS rpm").
+		Where("type = ? AND created_at >= ? AND channel_id > 0", LogTypeConsume, startTimestamp).
+		Group("channel_id").
+		Scan(&rows).Error
+	if err != nil {
+		common.SysError("failed to query channel rpm: " + err.Error())
+		return nil, errors.New("查询渠道 RPM 失败")
+	}
+
+	rpms := make(map[int]int64, len(rows))
+	for _, row := range rows {
+		rpms[row.ChannelID] = row.RPM
+	}
+	return rpms, nil
+}
+
 func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string) (stat Stat, err error) {
 	tx := LOG_DB.Table("logs").Select("COALESCE(sum(quota), 0) quota")
 

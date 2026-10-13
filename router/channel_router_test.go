@@ -56,6 +56,41 @@ func TestChannelConcurrencySnapshotRequiresReadPermission(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, recorder.Code)
 }
 
+func TestChannelLoadMonitorRequiresReadPermission(t *testing.T) {
+	assertChannelRoutePermission(t, http.MethodGet, "/concurrency/monitor", authz.ChannelRead, controller.GetChannelLoadMonitor)
+
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	registerChannelRoutes(engine.Group("/api"))
+
+	rule, declared := middleware.AccessTokenRouteRule("GET /api/channel/concurrency/monitor")
+	require.True(t, declared)
+	assert.Equal(t, "channel:read", rule.Scope())
+
+	recorder := httptest.NewRecorder()
+	engine.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/channel/concurrency/monitor", nil))
+	assert.Equal(t, http.StatusUnauthorized, recorder.Code)
+}
+
+func TestChannelLoadMonitorAuthorizesReadScopeAndPermission(t *testing.T) {
+	engine, admin, channelReadToken, profileReadToken := newChannelConcurrencyAuthorizationEngine(t)
+
+	authorized := channelLoadMonitorBearerRequest(engine, channelReadToken)
+	require.Equal(t, http.StatusOK, authorized.Code, authorized.Body.String())
+	assert.Contains(t, authorized.Body.String(), `"success":true`)
+
+	wrongScope := channelLoadMonitorBearerRequest(engine, profileReadToken)
+	require.Equal(t, http.StatusForbidden, wrongScope.Code, wrongScope.Body.String())
+	assert.Contains(t, wrongScope.Body.String(), `"code":"ACCESS_TOKEN_SCOPE_DENIED"`)
+
+	require.NoError(t, authz.SetUserPermissions(admin.Id, authz.PermissionsMap{
+		authz.ResourceChannel: {authz.ActionRead: false},
+	}))
+	missingPermission := channelLoadMonitorBearerRequest(engine, channelReadToken)
+	require.Equal(t, http.StatusForbidden, missingPermission.Code, missingPermission.Body.String())
+	assert.NotContains(t, missingPermission.Body.String(), "ACCESS_TOKEN_SCOPE_DENIED")
+}
+
 func TestChannelConcurrencySnapshotAuthorizesReadScopeAndPermission(t *testing.T) {
 	engine, admin, channelReadToken, profileReadToken := newChannelConcurrencyAuthorizationEngine(t)
 
@@ -239,6 +274,14 @@ func createChannelConcurrencyScopedToken(t *testing.T, database *gorm.DB, userID
 
 func channelConcurrencyBearerRequest(engine *gin.Engine, token string) *httptest.ResponseRecorder {
 	request := httptest.NewRequest(http.MethodGet, "/api/channel/concurrency", nil)
+	request.Header.Set("Authorization", "Bearer "+token)
+	recorder := httptest.NewRecorder()
+	engine.ServeHTTP(recorder, request)
+	return recorder
+}
+
+func channelLoadMonitorBearerRequest(engine *gin.Engine, token string) *httptest.ResponseRecorder {
+	request := httptest.NewRequest(http.MethodGet, "/api/channel/concurrency/monitor", nil)
 	request.Header.Set("Authorization", "Bearer "+token)
 	recorder := httptest.NewRecorder()
 	engine.ServeHTTP(recorder, request)
