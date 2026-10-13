@@ -1,5 +1,10 @@
 {
   "translation": {
+    "Encrypted reasoning recovery": "Khôi phục suy luận được mã hóa",
+    "Continue Responses conversations when encrypted reasoning belongs to another upstream security domain.": "Tiếp tục hội thoại Responses khi suy luận được mã hóa thuộc một miền bảo mật thượng nguồn khác.",
+    "Recover incompatible encrypted reasoning": "Khôi phục suy luận mã hóa không tương thích",
+    "Retry once on the current channel after removing incompatible encrypted state.": "Thử lại một lần trên kênh hiện tại sau khi xóa trạng thái mã hóa không tương thích.",
+    "Lossy recovery removes encrypted reasoning state and provider-owned IDs after an upstream rejection. Hidden reasoning continuity will be lost.": "Khôi phục có mất mát sẽ xóa trạng thái suy luận được mã hóa và ID do nhà cung cấp sở hữu sau khi thượng nguồn từ chối. Tính liên tục của suy luận ẩn sẽ bị mất.",
     "Concurrency": "Trạng thái đồng thời",
     "Channel concurrency unavailable": "Không có ảnh chụp nhanh đồng thời của kênh",
     "Channel concurrency: {{active}} of {{max}} active": "Kênh đang hoạt động {{active}} / {{max}}",

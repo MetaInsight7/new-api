@@ -1,5 +1,10 @@
 {
   "translation": {
+    "Encrypted reasoning recovery": "暗号化された推論の復旧",
+    "Continue Responses conversations when encrypted reasoning belongs to another upstream security domain.": "暗号化された推論が別の上流セキュリティドメインに属する場合でも Responses の会話を継続します。",
+    "Recover incompatible encrypted reasoning": "互換性のない暗号化推論を復旧する",
+    "Retry once on the current channel after removing incompatible encrypted state.": "互換性のない暗号化状態を削除した後、現在のチャネルで一度再試行します。",
+    "Lossy recovery removes encrypted reasoning state and provider-owned IDs after an upstream rejection. Hidden reasoning continuity will be lost.": "損失を伴う復旧では、上流で拒否された後に暗号化推論状態とプロバイダー所有の ID を削除します。非表示の推論の連続性は失われます。",
     "Concurrency": "同時実行",
     "Channel concurrency unavailable": "チャネル同時実行スナップショットを取得できません",
     "Channel concurrency: {{active}} of {{max}} active": "チャネル同時実行：{{max}} 件中 {{active}} 件が実行中",

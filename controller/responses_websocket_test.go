@@ -25,6 +25,7 @@ import (
 	"github.com/QuantumNous/new-api/relay"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/alicebob/miniredis/v2"
@@ -411,6 +412,11 @@ func newResponsesWSBillingTest(t *testing.T, expression string, handle func(*web
 		defer func() { fixture.httpDone <- struct{}{} }()
 		c.Set(common.RequestIdKey, "responses-http-billing")
 		Relay(c, types.RelayFormatOpenAIResponses)
+	})
+	engine.POST("/v1/responses/compact", middleware.TokenAuth(), middleware.ModelRequestRateLimit(), middleware.Distribute(), func(c *gin.Context) {
+		defer func() { fixture.httpDone <- struct{}{} }()
+		c.Set(common.RequestIdKey, "responses-compact-billing")
+		Relay(c, types.RelayFormatOpenAIResponsesCompaction)
 	})
 	gateway := httptest.NewServer(engine)
 	fixture.gatewayURL = gateway.URL
@@ -1319,4 +1325,480 @@ func TestResponsesWebSocketPreRoutingRejectionsFollowHealthClassification(t *tes
 			assert.Zero(t, successes)
 		})
 	}
+}
+
+func TestResponsesHTTPRecoversEncryptedReasoningWithoutConsumingRetryBudget(t *testing.T) {
+	fixture := newResponsesWSBillingTest(t, `tier("request", fixed(0.002))`, func(ws *websocket.Conn, _ *http.Request) {
+		for {
+			if _, _, err := ws.ReadMessage(); err != nil {
+				return
+			}
+		}
+	})
+	require.Equal(t, 0, model.CurrentRequestPolicy().RetryTimes)
+	require.True(t, model.CurrentRequestPolicy().ResponsesEncryptedReasoningRecoveryEnabled)
+
+	var calls atomic.Int32
+	fixture.httpUpstream = func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		call := calls.Add(1)
+		if call == 1 {
+			assert.Contains(t, string(body), `"encrypted_content":"cipher"`)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"error":{"type":"invalid_request_error","code":"invalid_encrypted_content","message":"The encrypted content could not be verified"}}`))
+			return
+		}
+		assert.NotContains(t, string(body), "encrypted_content")
+		assert.NotContains(t, string(body), `"id":"rs_1"`)
+		assert.Contains(t, string(body), `"text":"Readable summary"`)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"resp_recovered","object":"response","created_at":1,"status":"completed","model":"gpt-4o","output":[],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`))
+	}
+
+	body := `{"model":"ws-billing","input":[{"type":"message","role":"user","content":"continue"},{"type":"reasoning","id":"rs_1","encrypted_content":"cipher","summary":[{"type":"summary_text","text":"Readable summary"}]}],"stream":false}`
+	request, err := http.NewRequest(http.MethodPost, fixture.gatewayURL+"/v1/responses", strings.NewReader(body))
+	require.NoError(t, err)
+	request.Header.Set("Authorization", "Bearer sk-"+fixture.token.Key)
+	request.Header.Set("Content-Type", "application/json")
+	response, err := http.DefaultClient.Do(request)
+	require.NoError(t, err)
+	defer response.Body.Close()
+	responseBody, err := io.ReadAll(response.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusOK, response.StatusCode, string(responseBody))
+	assert.Equal(t, int32(2), calls.Load())
+	var logs []model.Log
+	require.Eventually(t, func() bool {
+		logs = nil
+		return model.LOG_DB.Order("id DESC").Limit(1).Find(&logs).Error == nil && len(logs) == 1
+	}, 3*time.Second, 10*time.Millisecond)
+	require.Len(t, logs, 1)
+	assert.NotContains(t, logs[0].Other, "cipher")
+	assert.NotContains(t, logs[0].Other, "Readable summary")
+	var other struct {
+		AdminInfo struct {
+			RequestPolicy []service.PolicyEvent `json:"request_policy"`
+		} `json:"admin_info"`
+	}
+	require.NoError(t, common.Unmarshal([]byte(logs[0].Other), &other))
+	foundRecoveryEvent := false
+	for _, event := range other.AdminInfo.RequestPolicy {
+		if event.Attempt == 1 && event.ChannelID == fixture.channel.Id &&
+			event.Status == http.StatusBadRequest && event.ErrorCode == "invalid_encrypted_content" &&
+			event.ErrorSource == "upstream" && event.Decision.Action == "recover" &&
+			event.Decision.Reason == "encrypted_reasoning_removed" &&
+			event.Decision.Source == "responses_encrypted_state" && event.Health == "unchanged" {
+			foundRecoveryEvent = true
+			break
+		}
+	}
+	assert.True(t, foundRecoveryEvent)
+}
+
+func TestResponsesHTTPRetriesSanitizedRequestOnlyOnceForThinkingSignature(t *testing.T) {
+	fixture := newResponsesWSBillingTest(t, `tier("request", fixed(0.002))`, func(ws *websocket.Conn, _ *http.Request) {
+		for {
+			if _, _, err := ws.ReadMessage(); err != nil {
+				return
+			}
+		}
+	})
+	require.Equal(t, 0, model.CurrentRequestPolicy().RetryTimes)
+
+	var calls atomic.Int32
+	fixture.httpUpstream = func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		if calls.Add(1) == 1 {
+			assert.Contains(t, string(body), "encrypted_content")
+		} else {
+			assert.NotContains(t, string(body), "encrypted_content")
+			assert.NotContains(t, string(body), `"id":"rs_1"`)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error":{"type":"invalid_request_error","message":"Invalid signature in thinking block"}}`))
+	}
+
+	body := `{"model":"ws-billing","input":[{"type":"reasoning","id":"rs_1","encrypted_content":"cipher","summary":[{"type":"summary_text","text":"Readable summary"}]}],"stream":false}`
+	request, err := http.NewRequest(http.MethodPost, fixture.gatewayURL+"/v1/responses", strings.NewReader(body))
+	require.NoError(t, err)
+	request.Header.Set("Authorization", "Bearer sk-"+fixture.token.Key)
+	request.Header.Set("Content-Type", "application/json")
+	response, err := http.DefaultClient.Do(request)
+	require.NoError(t, err)
+	defer response.Body.Close()
+	_, err = io.Copy(io.Discard, response.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusBadRequest, response.StatusCode)
+	assert.Equal(t, int32(2), calls.Load(), "the same incoming request must not start a second recovery cycle")
+}
+
+func TestResponsesCompactRecoversEncryptedReasoning(t *testing.T) {
+	fixture := newResponsesWSBillingTest(t, `tier("request", fixed(0.002))`, func(ws *websocket.Conn, _ *http.Request) {
+		for {
+			if _, _, err := ws.ReadMessage(); err != nil {
+				return
+			}
+		}
+	})
+
+	var calls atomic.Int32
+	fixture.httpUpstream = func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		assert.Equal(t, "/v1/responses/compact", r.URL.Path)
+		if calls.Add(1) == 1 {
+			assert.Contains(t, string(body), "encrypted_content")
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"error":{"type":"invalid_request_error","code":"invalid_encrypted_content","message":"The encrypted content could not be verified"}}`))
+			return
+		}
+		assert.NotContains(t, string(body), "encrypted_content")
+		assert.NotContains(t, string(body), `"id":"rs_1"`)
+		assert.Contains(t, string(body), "Readable summary")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"cmp_recovered","object":"response.compaction","created_at":1,"output":[],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`))
+	}
+
+	body := `{"model":"ws-billing","input":[{"type":"reasoning","id":"rs_1","encrypted_content":"cipher","summary":[{"type":"summary_text","text":"Readable summary"}]}]}`
+	request, err := http.NewRequest(http.MethodPost, fixture.gatewayURL+"/v1/responses/compact", strings.NewReader(body))
+	require.NoError(t, err)
+	request.Header.Set("Authorization", "Bearer sk-"+fixture.token.Key)
+	request.Header.Set("Content-Type", "application/json")
+	response, err := http.DefaultClient.Do(request)
+	require.NoError(t, err)
+	defer response.Body.Close()
+	responseBody, err := io.ReadAll(response.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusOK, response.StatusCode, string(responseBody))
+	assert.Equal(t, int32(2), calls.Load())
+}
+
+func TestResponsesHTTPDoesNotRecoverEncryptedReasoningWhenDisabled(t *testing.T) {
+	fixture := newResponsesWSBillingTest(t, `tier("request", fixed(0.002))`, func(ws *websocket.Conn, _ *http.Request) {
+		for {
+			if _, _, err := ws.ReadMessage(); err != nil {
+				return
+			}
+		}
+	})
+	setResponsesEncryptedReasoningRecoveryForTest(t, false)
+
+	var calls atomic.Int32
+	fixture.httpUpstream = func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		calls.Add(1)
+		assert.Contains(t, string(body), "encrypted_content")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error":{"type":"invalid_request_error","code":"invalid_encrypted_content","message":"The encrypted content could not be verified"}}`))
+	}
+
+	body := `{"model":"ws-billing","input":[{"type":"reasoning","id":"rs_1","encrypted_content":"cipher","summary":[{"type":"summary_text","text":"Readable summary"}]}]}`
+	request, err := http.NewRequest(http.MethodPost, fixture.gatewayURL+"/v1/responses", strings.NewReader(body))
+	require.NoError(t, err)
+	request.Header.Set("Authorization", "Bearer sk-"+fixture.token.Key)
+	request.Header.Set("Content-Type", "application/json")
+	response, err := http.DefaultClient.Do(request)
+	require.NoError(t, err)
+	defer response.Body.Close()
+	_, err = io.Copy(io.Discard, response.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusBadRequest, response.StatusCode)
+	assert.Equal(t, int32(1), calls.Load())
+}
+
+func TestResponsesSSERecoversEncryptedReasoningBeforeCommittingFailure(t *testing.T) {
+	fixture := newResponsesWSBillingTest(t, `tier("request", fixed(0.002))`, func(ws *websocket.Conn, _ *http.Request) {
+		for {
+			if _, _, err := ws.ReadMessage(); err != nil {
+				return
+			}
+		}
+	})
+	var calls atomic.Int32
+	fixture.httpUpstream = func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		w.Header().Set("Content-Type", "text/event-stream")
+		if calls.Add(1) == 1 {
+			assert.Contains(t, string(body), "encrypted_content")
+			_, _ = fmt.Fprint(w, `data: {"type":"response.failed","response":{"id":"resp_failed","status":"failed","error":{"type":"invalid_request_error","code":"invalid_encrypted_content","message":"The encrypted content could not be verified"}}}`+"\n\n")
+			_, _ = fmt.Fprint(w, "data: [DONE]\n\n")
+			return
+		}
+		assert.NotContains(t, string(body), "encrypted_content")
+		_, _ = fmt.Fprint(w, `data: {"type":"response.created","response":{"id":"resp_recovered","status":"in_progress","model":"gpt-4o","output":[]}}`+"\n\n")
+		_, _ = fmt.Fprint(w, `data: {"type":"response.completed","response":{"id":"resp_recovered","status":"completed","model":"gpt-4o","output":[],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}}`+"\n\n")
+		_, _ = fmt.Fprint(w, "data: [DONE]\n\n")
+	}
+
+	body := `{"model":"ws-billing","input":[{"type":"message","role":"user","content":"continue"},{"type":"reasoning","id":"rs_1","encrypted_content":"cipher","summary":[{"type":"summary_text","text":"Readable summary"}]}],"stream":true}`
+	request, err := http.NewRequest(http.MethodPost, fixture.gatewayURL+"/v1/responses", strings.NewReader(body))
+	require.NoError(t, err)
+	request.Header.Set("Authorization", "Bearer sk-"+fixture.token.Key)
+	request.Header.Set("Content-Type", "application/json")
+	response, err := http.DefaultClient.Do(request)
+	require.NoError(t, err)
+	defer response.Body.Close()
+	responseBody, err := io.ReadAll(response.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusOK, response.StatusCode, string(responseBody))
+	assert.Equal(t, int32(2), calls.Load())
+	assert.NotContains(t, string(responseBody), "response.failed")
+	assert.Contains(t, string(responseBody), "response.completed")
+}
+
+func TestResponsesWebSocketRecoversEncryptedReasoningBeforeAcceptance(t *testing.T) {
+	upstreamCreates := atomic.Int32{}
+	fixture := newResponsesWSBillingTest(t, `tier("request", fixed(0.002))`, func(ws *websocket.Conn, _ *http.Request) {
+		_, first, err := ws.ReadMessage()
+		if !assert.NoError(t, err) {
+			return
+		}
+		upstreamCreates.Add(1)
+		assert.Contains(t, string(first), "encrypted_content")
+		if !assert.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(`{"type":"error","stream_id":"planner","status":400,"error":{"type":"invalid_request_error","code":"invalid_encrypted_content","message":"The encrypted content could not be verified"}}`))) {
+			return
+		}
+		_, second, err := ws.ReadMessage()
+		if !assert.NoError(t, err) {
+			return
+		}
+		upstreamCreates.Add(1)
+		assert.NotContains(t, string(second), "encrypted_content")
+		assert.NotContains(t, string(second), `"id":"rs_1"`)
+		assert.Contains(t, string(second), "Readable summary")
+		_ = ws.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.completed","stream_id":"planner","response":{"id":"resp_recovered","status":"completed","model":"gpt-4o","output":[],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}}`))
+		_, _, _ = ws.ReadMessage()
+	})
+
+	request := `{"type":"response.create","stream_id":"planner","model":"ws-billing","input":[{"type":"message","role":"user","content":"continue"},{"type":"reasoning","id":"rs_1","encrypted_content":"cipher","summary":[{"type":"summary_text","text":"Readable summary"}]}]}`
+	require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(request)))
+	terminal := readResponsesWSTestEvent(t, fixture.client)
+	assert.Equal(t, "response.completed", terminal["type"], terminal)
+	assert.Equal(t, int32(2), upstreamCreates.Load())
+	assert.Equal(t, int32(1), fixture.connections.Load())
+}
+
+func TestResponsesWebSocketGivesEachCreateOneEncryptedReasoningRecovery(t *testing.T) {
+	var upstreamCreates atomic.Int32
+	fixture := newResponsesWSBillingTest(t, `tier("request", fixed(0.002))`, func(ws *websocket.Conn, _ *http.Request) {
+		for responseIndex := 1; responseIndex <= 2; responseIndex++ {
+			_, first, err := ws.ReadMessage()
+			if !assert.NoError(t, err) {
+				return
+			}
+			upstreamCreates.Add(1)
+			assert.Contains(t, string(first), "encrypted_content")
+			if !assert.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(`{"type":"error","stream_id":"planner","status":400,"error":{"type":"invalid_request_error","message":"Invalid signature in thinking block"}}`))) {
+				return
+			}
+
+			_, second, err := ws.ReadMessage()
+			if !assert.NoError(t, err) {
+				return
+			}
+			upstreamCreates.Add(1)
+			assert.NotContains(t, string(second), "encrypted_content")
+			completed := fmt.Sprintf(`{"type":"response.completed","stream_id":"planner","response":{"id":"resp_%d","status":"completed","model":"gpt-4o","output":[],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}}`, responseIndex)
+			if !assert.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(completed))) {
+				return
+			}
+		}
+		_, _, _ = ws.ReadMessage()
+	})
+
+	request := `{"type":"response.create","stream_id":"planner","model":"ws-billing","input":[{"type":"reasoning","id":"rs_1","encrypted_content":"cipher","summary":[{"type":"summary_text","text":"Readable summary"}]}]}`
+	for range 2 {
+		require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(request)))
+		terminal := readResponsesWSTestEvent(t, fixture.client)
+		assert.Equal(t, "response.completed", terminal["type"], terminal)
+	}
+	assert.Equal(t, int32(4), upstreamCreates.Load())
+	assert.Equal(t, int32(1), fixture.connections.Load())
+}
+
+func TestResponsesWebSocketReturnsSecondEncryptedReasoningRejectionWithoutLooping(t *testing.T) {
+	var upstreamCreates atomic.Int32
+	fixture := newResponsesWSBillingTest(t, `tier("request", fixed(0.002))`, func(ws *websocket.Conn, _ *http.Request) {
+		for attempt := 0; attempt < 2; attempt++ {
+			_, body, err := ws.ReadMessage()
+			if !assert.NoError(t, err) {
+				return
+			}
+			upstreamCreates.Add(1)
+			if attempt == 0 {
+				assert.Contains(t, string(body), "encrypted_content")
+			} else {
+				assert.NotContains(t, string(body), "encrypted_content")
+			}
+			if !assert.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(`{"type":"error","stream_id":"planner","status":400,"error":{"type":"invalid_request_error","code":"invalid_encrypted_content","message":"The encrypted content could not be verified"}}`))) {
+				return
+			}
+		}
+		_, _, _ = ws.ReadMessage()
+	})
+
+	request := `{"type":"response.create","stream_id":"planner","model":"ws-billing","input":[{"type":"reasoning","id":"rs_1","encrypted_content":"cipher","summary":[{"type":"summary_text","text":"Readable summary"}]}]}`
+	require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(request)))
+	rejected := readResponsesWSTestEvent(t, fixture.client)
+	assert.Equal(t, "error", rejected["type"], rejected)
+	assert.Equal(t, int32(2), upstreamCreates.Load())
+}
+
+func TestResponsesWebSocketDoesNotRecoverEncryptedReasoningWhenDisabled(t *testing.T) {
+	var upstreamCreates atomic.Int32
+	fixture := newResponsesWSBillingTest(t, `tier("request", fixed(0.002))`, func(ws *websocket.Conn, _ *http.Request) {
+		_, body, err := ws.ReadMessage()
+		if !assert.NoError(t, err) {
+			return
+		}
+		upstreamCreates.Add(1)
+		assert.Contains(t, string(body), "encrypted_content")
+		_ = ws.WriteMessage(websocket.TextMessage, []byte(`{"type":"error","stream_id":"planner","status":400,"error":{"type":"invalid_request_error","code":"invalid_encrypted_content","message":"The encrypted content could not be verified"}}`))
+		_, _, _ = ws.ReadMessage()
+	})
+	setResponsesEncryptedReasoningRecoveryForTest(t, false)
+
+	request := `{"type":"response.create","stream_id":"planner","model":"ws-billing","input":[{"type":"reasoning","id":"rs_1","encrypted_content":"cipher","summary":[{"type":"summary_text","text":"Readable summary"}]}]}`
+	require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(request)))
+	rejected := readResponsesWSTestEvent(t, fixture.client)
+	assert.Equal(t, "error", rejected["type"], rejected)
+	assert.Equal(t, int32(1), upstreamCreates.Load())
+}
+
+func TestResponsesWebSocketFallsBackAfterRecoveredRequestIsRejectedAgain(t *testing.T) {
+	firstCreates := atomic.Int32{}
+	fixture := newResponsesWSBillingTest(t, `tier("request", fixed(0.002))`, func(ws *websocket.Conn, _ *http.Request) {
+		for attempt := 0; attempt < 2; attempt++ {
+			_, body, err := ws.ReadMessage()
+			if !assert.NoError(t, err) {
+				return
+			}
+			firstCreates.Add(1)
+			if attempt == 0 {
+				assert.Contains(t, string(body), "encrypted_content")
+			} else {
+				assert.NotContains(t, string(body), "encrypted_content")
+			}
+			if !assert.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(`{"type":"error","stream_id":"planner","status":400,"error":{"type":"invalid_request_error","code":"invalid_encrypted_content","message":"The encrypted content could not be verified"}}`))) {
+				return
+			}
+		}
+		_, _, _ = ws.ReadMessage()
+	})
+
+	previousRetryTimes := model.CurrentRequestPolicy().Options["RetryTimes"]
+	previousRetryCodes := model.CurrentRequestPolicy().Options["AutomaticRetryStatusCodes"]
+	require.NoError(t, model.DB.AutoMigrate(&model.Option{}))
+	common.OptionMapRWMutex.Lock()
+	optionMapWasNil := common.OptionMap == nil
+	if optionMapWasNil {
+		common.OptionMap = make(map[string]string, len(model.CurrentRequestPolicy().Options))
+		for key, value := range model.CurrentRequestPolicy().Options {
+			common.OptionMap[key] = value
+		}
+	}
+	common.OptionMapRWMutex.Unlock()
+	require.NoError(t, model.UpdateRequestPolicyOptions(map[string]string{
+		"RetryTimes":                "1",
+		"AutomaticRetryStatusCodes": "400",
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, model.UpdateRequestPolicyOptions(map[string]string{
+			"RetryTimes":                previousRetryTimes,
+			"AutomaticRetryStatusCodes": previousRetryCodes,
+		}))
+		if optionMapWasNil {
+			common.OptionMapRWMutex.Lock()
+			common.OptionMap = nil
+			common.OptionMapRWMutex.Unlock()
+		}
+	})
+
+	highPriority := int64(10)
+	lowPriority := int64(0)
+	require.NoError(t, model.DB.Model(fixture.channel).Update("priority", highPriority).Error)
+	require.NoError(t, model.DB.Model(&model.Ability{}).Where("channel_id = ?", fixture.channel.Id).Update("priority", highPriority).Error)
+
+	fallbackCreates := atomic.Int32{}
+	fallbackUpstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ws, err := (&websocket.Upgrader{}).Upgrade(w, r, nil)
+		if !assert.NoError(t, err) {
+			return
+		}
+		defer ws.Close()
+		_, body, err := ws.ReadMessage()
+		if !assert.NoError(t, err) {
+			return
+		}
+		fallbackCreates.Add(1)
+		assert.NotContains(t, string(body), "encrypted_content")
+		assert.Contains(t, string(body), "Readable summary")
+		_ = ws.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.completed","stream_id":"planner","response":{"id":"resp_fallback","status":"completed","model":"gpt-4o","output":[],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}}`))
+		_, _, _ = ws.ReadMessage()
+	}))
+	t.Cleanup(fallbackUpstream.Close)
+	fallbackChannel := &model.Channel{
+		Name:     "responses-ws-fallback",
+		Key:      "fallback-key",
+		Status:   common.ChannelStatusEnabled,
+		Type:     constant.ChannelTypeOpenAI,
+		Group:    "default",
+		Models:   "ws-billing",
+		BaseURL:  &fallbackUpstream.URL,
+		Priority: &lowPriority,
+	}
+	modelMapping := `{"ws-billing":"gpt-4o"}`
+	fallbackChannel.ModelMapping = &modelMapping
+	fallbackChannel.SetSetting(dto.ChannelSettings{ResponsesWebSocketEnabled: true})
+	require.NoError(t, model.DB.Create(fallbackChannel).Error)
+	require.NoError(t, model.DB.Create(&model.Ability{ChannelId: fallbackChannel.Id, Model: "ws-billing", Group: "default", Enabled: true, Priority: &lowPriority}).Error)
+	t.Cleanup(func() {
+		require.NoError(t, model.DB.Where("channel_id = ?", fallbackChannel.Id).Delete(&model.Ability{}).Error)
+		require.NoError(t, model.DB.Delete(fallbackChannel).Error)
+	})
+
+	request := `{"type":"response.create","stream_id":"planner","model":"ws-billing","input":[{"type":"reasoning","id":"rs_1","encrypted_content":"cipher","summary":[{"type":"summary_text","text":"Readable summary"}]}]}`
+	require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(request)))
+	terminal := readResponsesWSTestEvent(t, fixture.client)
+	assert.Equal(t, "response.completed", terminal["type"], terminal)
+	assert.Equal(t, int32(2), firstCreates.Load())
+	assert.Equal(t, int32(1), fallbackCreates.Load())
+}
+
+func setResponsesEncryptedReasoningRecoveryForTest(t *testing.T, enabled bool) {
+	t.Helper()
+	const key = "responses_encrypted_reasoning_setting.recovery_enabled"
+	previous := model.CurrentRequestPolicy().Options[key]
+	require.NoError(t, model.DB.AutoMigrate(&model.Option{}))
+	common.OptionMapRWMutex.Lock()
+	optionMapWasNil := common.OptionMap == nil
+	if optionMapWasNil {
+		common.OptionMap = make(map[string]string, len(model.CurrentRequestPolicy().Options))
+		for optionKey, value := range model.CurrentRequestPolicy().Options {
+			common.OptionMap[optionKey] = value
+		}
+	}
+	common.OptionMapRWMutex.Unlock()
+	require.NoError(t, model.UpdateRequestPolicyOptions(map[string]string{key: fmt.Sprint(enabled)}))
+	t.Cleanup(func() {
+		require.NoError(t, model.UpdateRequestPolicyOptions(map[string]string{key: previous}))
+		if optionMapWasNil {
+			common.OptionMapRWMutex.Lock()
+			common.OptionMap = nil
+			common.OptionMapRWMutex.Unlock()
+		}
+	})
 }

@@ -345,6 +345,64 @@ func TestOaiResponsesStreamHandlerKeepsCodexTerminalUsage(t *testing.T) {
 	assert.Equal(t, 14, usage.TotalTokens)
 }
 
+func TestOaiResponsesStreamHandlerRecognizesEncryptedReasoningFailureEnvelopes(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		event string
+	}{
+		{
+			name:  "nested error signature message",
+			event: `{"type":"error","error":{"type":"invalid_request_error","message":"Invalid signature in thinking block"}}`,
+		},
+		{
+			name:  "flat response error message",
+			event: `{"type":"response.error","message":"Encrypted content could not be parsed"}`,
+		},
+		{
+			name:  "flat normalized code",
+			event: `{"type":"error","code":"thinking_signature_invalid","message":"rejected"}`,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			usage, apiErr, recorder, _ := runCodexResponsesTerminalStream(t, test.event)
+
+			require.NotNil(t, apiErr)
+			assert.False(t, types.IsSkipRetryError(apiErr))
+			assert.Equal(t, http.StatusBadRequest, apiErr.StatusCode)
+			assert.Empty(t, recorder.Body.String())
+			assert.Zero(t, usage.TotalTokens)
+		})
+	}
+}
+
+func TestOaiResponsesStreamHandlerDoesNotReplayEncryptedReasoningFailureAfterOutput(t *testing.T) {
+	usage, apiErr, recorder, _ := runCodexResponsesTerminalStream(t,
+		`{"type":"response.output_text.delta","delta":"partial output"}`,
+		`{"type":"error","error":{"type":"invalid_request_error","message":"Invalid signature in thinking block"}}`,
+	)
+
+	require.NotNil(t, apiErr)
+	assert.True(t, types.IsSkipRetryError(apiErr))
+	assert.Contains(t, recorder.Body.String(), "partial output")
+	assert.Contains(t, recorder.Body.String(), `"type":"error"`)
+	assert.NotContains(t, recorder.Body.String(), "Invalid signature in thinking block")
+	assert.Zero(t, usage.TotalTokens)
+}
+
+func TestOaiResponsesStreamHandlerDoesNotReplayEncryptedReasoningFailureWithUsage(t *testing.T) {
+	usage, apiErr, recorder, _ := runCodexResponsesTerminalStream(t,
+		`{"type":"response.failed","response":{"status":"failed","usage":{"input_tokens":11,"output_tokens":3,"total_tokens":14},"error":{"type":"invalid_request_error","code":"invalid_encrypted_content","message":"The encrypted content could not be verified"}}}`,
+	)
+
+	require.NotNil(t, apiErr)
+	assert.True(t, types.IsSkipRetryError(apiErr))
+	assert.Contains(t, recorder.Body.String(), `"type":"response.failed"`)
+	assert.NotContains(t, recorder.Body.String(), "could not be verified")
+	assert.Equal(t, 11, usage.PromptTokens)
+	assert.Equal(t, 3, usage.CompletionTokens)
+	assert.Equal(t, 14, usage.TotalTokens)
+}
+
 func TestOaiResponsesStreamHandlerLeavesNonCodexTerminalFailureUnchanged(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	oldTimeout := constant.StreamingTimeout

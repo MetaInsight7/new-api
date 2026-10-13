@@ -23,7 +23,8 @@ export function PolicyDecisionRecord(props: {
           </span>
           <p
             className={
-              event.decision.action === 'stop'
+              event.decision.action === 'stop' ||
+              event.decision.action === 'recover'
                 ? 'font-medium text-amber-700 dark:text-amber-400'
                 : 'font-medium'
             }
@@ -32,6 +33,12 @@ export function PolicyDecisionRecord(props: {
             {event.channel_id
               ? ` · ${props.channelNames?.[event.channel_id] ?? `#${event.channel_id}`}`
               : ''}
+            {event.error_code ? (
+              <>
+                {' · '}
+                <code className='font-mono text-xs'>{event.error_code}</code>
+              </>
+            ) : null}
             {event.status && event.decision.action === 'failure'
               ? ` · HTTP ${event.status}`
               : ''}

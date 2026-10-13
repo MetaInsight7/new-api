@@ -1,5 +1,10 @@
 {
   "translation": {
+    "Encrypted reasoning recovery": "加密推理恢复",
+    "Continue Responses conversations when encrypted reasoning belongs to another upstream security domain.": "当加密推理属于其他上游安全域时，继续 Responses 对话。",
+    "Recover incompatible encrypted reasoning": "恢复不兼容的加密推理",
+    "Retry once on the current channel after removing incompatible encrypted state.": "移除不兼容的加密状态后，在当前渠道重试一次。",
+    "Lossy recovery removes encrypted reasoning state and provider-owned IDs after an upstream rejection. Hidden reasoning continuity will be lost.": "有损恢复会在上游拒绝后删除加密推理状态和上游生成的 ID。隐藏推理的连续性将会丢失。",
     "Concurrency": "并发状态",
     "Channel concurrency unavailable": "渠道并发快照不可用",
     "Channel concurrency: {{active}} of {{max}} active": "渠道并发：活跃 {{active}} / 上限 {{max}}",

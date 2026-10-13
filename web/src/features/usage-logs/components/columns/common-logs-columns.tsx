@@ -81,6 +81,7 @@ interface DetailSegment {
   text: string
   muted?: boolean
   danger?: boolean
+  warning?: boolean
 }
 
 function formatRatioCompact(ratio: number | undefined): string {
@@ -124,6 +125,19 @@ function buildDetailSegments(
   // defense in depth so the marker never leaks if that changes.
   if (isAdmin && other?.admin_info?.quota_saturation) {
     adminSegments.push({ text: t('Quota clamped'), danger: true })
+  }
+  if (
+    isAdmin &&
+    other?.admin_info?.request_policy?.some(
+      (event) =>
+        event.decision.action === 'recover' &&
+        event.decision.source === 'responses_encrypted_state'
+    )
+  ) {
+    adminSegments.push({
+      text: t('Encrypted reasoning recovery'),
+      warning: true,
+    })
   }
   return [...adminSegments, ...segments]
 }
@@ -836,6 +850,8 @@ export function useCommonLogsColumns(
             primaryTextClass = 'text-muted-foreground/60'
           } else if (primary?.danger) {
             primaryTextClass = 'text-red-600 dark:text-red-400'
+          } else if (primary?.warning) {
+            primaryTextClass = 'text-amber-700 dark:text-amber-400'
           }
           let detailPreview = (
             <span className='text-muted-foreground/40'>—</span>

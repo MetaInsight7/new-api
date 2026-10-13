@@ -145,6 +145,7 @@ function RoutingPolicyEditor(props: { config: PolicyConfig }) {
               </FormItem>
             )}
           />
+          <EncryptedReasoningRecoverySettings />
           <RetrySection />
           {mutation.isError ? (
             <p role='alert' className='text-destructive text-sm'>
@@ -162,6 +163,44 @@ function RoutingPolicyEditor(props: { config: PolicyConfig }) {
         </div>
       </div>
     </Form>
+  )
+}
+
+function EncryptedReasoningRecoverySettings() {
+  const { t } = useTranslation()
+  const form = useFormContext<RoutingPolicyFormValues>()
+
+  return (
+    <SettingsCard
+      title={t('Encrypted reasoning recovery')}
+      description={t(
+        'Continue Responses conversations when encrypted reasoning belongs to another upstream security domain.'
+      )}
+      className='shadow-none'
+    >
+      <FormField
+        control={form.control}
+        name='responses_encrypted_reasoning_setting.recovery_enabled'
+        render={({ field }) => (
+          <SettingsSwitchField
+            controlId='responses_encrypted_reasoning_setting.recovery_enabled'
+            checked={field.value}
+            onCheckedChange={field.onChange}
+            label={t('Recover incompatible encrypted reasoning')}
+            description={t(
+              'Retry once on the current channel after removing incompatible encrypted state.'
+            )}
+          />
+        )}
+      />
+      <Alert className='mt-4 border-amber-500/50 bg-amber-500/10'>
+        <AlertDescription>
+          {t(
+            'Lossy recovery removes encrypted reasoning state and provider-owned IDs after an upstream rejection. Hidden reasoning continuity will be lost.'
+          )}
+        </AlertDescription>
+      </Alert>
+    </SettingsCard>
   )
 }
 

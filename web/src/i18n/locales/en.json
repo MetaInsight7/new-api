@@ -1,5 +1,10 @@
 {
   "translation": {
+    "Encrypted reasoning recovery": "Encrypted reasoning recovery",
+    "Continue Responses conversations when encrypted reasoning belongs to another upstream security domain.": "Continue Responses conversations when encrypted reasoning belongs to another upstream security domain.",
+    "Recover incompatible encrypted reasoning": "Recover incompatible encrypted reasoning",
+    "Retry once on the current channel after removing incompatible encrypted state.": "Retry once on the current channel after removing incompatible encrypted state.",
+    "Lossy recovery removes encrypted reasoning state and provider-owned IDs after an upstream rejection. Hidden reasoning continuity will be lost.": "Lossy recovery removes encrypted reasoning state and provider-owned IDs after an upstream rejection. Hidden reasoning continuity will be lost.",
     "Concurrency": "Concurrency",
     "Channel concurrency unavailable": "Channel concurrency unavailable",
     "Channel concurrency: {{active}} of {{max}} active": "Channel concurrency: {{active}} of {{max}} active",

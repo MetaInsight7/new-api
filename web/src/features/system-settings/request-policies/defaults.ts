@@ -22,6 +22,7 @@ import type { SecuritySettings } from '../types'
 export type RetrySettings = {
   RetryTimes: number
   AutomaticRetryStatusCodes: string
+  'responses_encrypted_reasoning_setting.recovery_enabled': boolean
 }
 export type HealthSettings = {
   ChannelDisableThreshold: string
@@ -50,6 +51,7 @@ export const defaultRequestPolicySettings: RequestPolicySettings = {
   RetryTimes: 0,
   AutomaticRetryStatusCodes:
     '100-199,300-399,401-407,409-499,500-503,505-523,525-599',
+  'responses_encrypted_reasoning_setting.recovery_enabled': true,
   ChannelDisableThreshold: '',
   AutomaticDisableChannelEnabled: false,
   AutomaticEnableChannelEnabled: false,

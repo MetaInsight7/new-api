@@ -48,6 +48,7 @@ const options = {
       future_field: { retained: true },
     },
   ]),
+  'responses_encrypted_reasoning_setting.recovery_enabled': 'true',
   AutomaticRetryStatusCodes: '429,500-503',
 }
 let currentOptions: Record<string, string>
@@ -148,6 +149,16 @@ it('opens global affinity settings and the complete rules table without switchin
     })
   ).toBeVisible()
   expect(
+    screen.getByRole('switch', {
+      name: 'Recover incompatible encrypted reasoning',
+    })
+  ).toBeChecked()
+  expect(
+    screen.getByText(
+      'Lossy recovery removes encrypted reasoning state and provider-owned IDs after an upstream rejection. Hidden reasoning continuity will be lost.'
+    )
+  ).toBeVisible()
+  expect(
     screen.queryByRole('switch', { name: 'Switch affinity on success' })
   ).not.toBeInTheDocument()
   await userEvent.click(
@@ -178,6 +189,37 @@ it('opens global affinity settings and the complete rules table without switchin
     screen.queryByRole('button', { name: 'Manage all session rules' })
   ).not.toBeInTheDocument()
 })
+
+it('saves only the encrypted reasoning recovery switch when it changes', async () => {
+  show()
+  const recovery = await screen.findByRole('switch', {
+    name: 'Recover incompatible encrypted reasoning',
+  })
+  expect(recovery).toBeChecked()
+
+  await userEvent.click(recovery)
+  await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }))
+
+  await waitFor(() => expect(api.patch).toHaveBeenCalledTimes(1))
+  expect(vi.mocked(api.patch).mock.calls[0][1]).toEqual({
+    options: {
+      'responses_encrypted_reasoning_setting.recovery_enabled': 'false',
+    },
+  })
+})
+
+it('loads an explicitly disabled encrypted reasoning recovery switch', async () => {
+  currentOptions['responses_encrypted_reasoning_setting.recovery_enabled'] =
+    'false'
+  show()
+
+  expect(
+    await screen.findByRole('switch', {
+      name: 'Recover incompatible encrypted reasoning',
+    })
+  ).not.toBeChecked()
+})
+
 it('session rules sit between the session defaults and the retry budget', async () => {
   show()
   const table = await screen.findByRole('table')
@@ -302,7 +344,11 @@ it('a failed save retains the edited retries and rules for another save', async 
   const retries = await screen.findByRole('spinbutton', {
     name: 'Maximum retries',
   })
+  const recovery = screen.getByRole('switch', {
+    name: 'Recover incompatible encrypted reasoning',
+  })
   fireEvent.change(retries, { target: { value: '5' } })
+  await userEvent.click(recovery)
   await userEvent.click(screen.getByRole('button', { name: 'Edit Rule' }))
   const dialog = screen.getByRole('dialog')
   fireEvent.change(within(dialog).getByRole('textbox', { name: /^Name/ }), {
@@ -312,6 +358,7 @@ it('a failed save retains the edited retries and rules for another save', async 
   await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }))
   expect(await screen.findByText('Save rejected')).toBeVisible()
   expect(retries).toHaveValue(5)
+  expect(recovery).not.toBeChecked()
   expect(screen.getByRole('table')).toHaveTextContent('Unsaved rule')
   await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }))
   await waitFor(() => expect(api.patch).toHaveBeenCalledTimes(2))

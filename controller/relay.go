@@ -210,6 +210,9 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	}
 	relayInfo.RetryIndex = 0
 	relayInfo.LastError = nil
+	responsesEncryptedReasoningRecovery := service.NewResponsesEncryptedReasoningRecovery(
+		model.CurrentRequestPolicy().ResponsesEncryptedReasoningRecoveryEnabled,
+	)
 
 	for ; retryParam.GetRetry() <= common.RetryTimes; retryParam.IncreaseRetry() {
 		relayInfo.StreamStatus = nil
@@ -230,6 +233,19 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 		attemptStartedAt := time.Now()
 		newAPIError = executeRelayAttemptWithConcurrency(c, relayFormat, relayInfo, ws)
+		if newAPIError != nil &&
+			(relayInfo.RelayMode == relayconstant.RelayModeResponses || relayInfo.RelayMode == relayconstant.RelayModeResponsesCompact) &&
+			!types.IsSkipRetryError(newAPIError) && !c.Writer.Written() {
+			recovered, recoveryErr := responsesEncryptedReasoningRecovery.Prepare(c, relayInfo.Request, newAPIError)
+			if recoveryErr != nil {
+				logger.LogError(c, fmt.Sprintf("prepare Responses encrypted reasoning recovery failed: %s", recoveryErr.Error()))
+			} else if recovered {
+				relayInfo.StreamStatus = nil
+				relayInfo.PerformanceBusinessRejection = false
+				relayInfo.PerformanceOutputTokens = 0
+				newAPIError = executeRelayAttemptWithConcurrency(c, relayFormat, relayInfo, ws)
+			}
+		}
 		perfmetrics.RecordChannelAttempt(relayInfo, channel.Id, channel.Name, attemptStartedAt, newAPIError)
 
 		if newAPIError == nil {

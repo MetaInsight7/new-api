@@ -22,15 +22,16 @@ import (
 // settings API. It is rebuilt from the option map on every option write, so
 // the runtime globals updated by the same write never disagree with it.
 type RequestPolicySnapshot struct {
-	Affinity        operation_setting.ChannelAffinitySetting
-	RetryTimes      int
-	RetryCodes      []operation_setting.StatusCodeRange
-	DisableCodes    []operation_setting.StatusCodeRange
-	DisableKeywords []string
-	CheckText       bool
-	TextKeywords    []string
-	AutoDisable     bool
-	Options         map[string]string
+	Affinity                                   operation_setting.ChannelAffinitySetting
+	ResponsesEncryptedReasoningRecoveryEnabled bool
+	RetryTimes                                 int
+	RetryCodes                                 []operation_setting.StatusCodeRange
+	DisableCodes                               []operation_setting.StatusCodeRange
+	DisableKeywords                            []string
+	CheckText                                  bool
+	TextKeywords                               []string
+	AutoDisable                                bool
+	Options                                    map[string]string
 }
 
 var requestPolicySnapshot atomic.Pointer[RequestPolicySnapshot]
@@ -40,8 +41,9 @@ var requestPolicyDefaults = requestPolicyDefaultOptions()
 func requestPolicyDefaultOptions() map[string]string {
 	defaults := make(map[string]string)
 	for prefix, value := range map[string]any{
-		"channel_affinity_setting.": operation_setting.GetChannelAffinitySetting(),
-		"monitor_setting.":          operation_setting.GetMonitorSetting(),
+		"channel_affinity_setting.":              operation_setting.GetChannelAffinitySetting(),
+		"monitor_setting.":                       operation_setting.GetMonitorSetting(),
+		"responses_encrypted_reasoning_setting.": operation_setting.GetResponsesEncryptedReasoningSetting(),
 	} {
 		fields, err := config.ConfigToMap(value)
 		if err != nil {
@@ -65,7 +67,7 @@ func requestPolicyDefaultOptions() map[string]string {
 }
 
 func IsRequestPolicyOption(key string) bool {
-	if strings.HasPrefix(key, "channel_affinity_setting.") {
+	if strings.HasPrefix(key, "channel_affinity_setting.") || key == "responses_encrypted_reasoning_setting.recovery_enabled" {
 		return true
 	}
 	switch key {
@@ -133,6 +135,10 @@ func BuildRequestPolicy(options map[string]string) (*RequestPolicySnapshot, erro
 	snapshot.AutoDisable, err = strconv.ParseBool(raw["AutomaticDisableChannelEnabled"])
 	if err != nil {
 		return nil, err
+	}
+	snapshot.ResponsesEncryptedReasoningRecoveryEnabled, err = strconv.ParseBool(raw["responses_encrypted_reasoning_setting.recovery_enabled"])
+	if err != nil {
+		return nil, fmt.Errorf("invalid responses encrypted reasoning recovery setting")
 	}
 	snapshot.RetryCodes, err = operation_setting.ParseHTTPStatusCodeRanges(raw["AutomaticRetryStatusCodes"])
 	if err != nil {

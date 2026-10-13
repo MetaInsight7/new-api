@@ -208,6 +208,63 @@ test('quota saturation remains first and only billing adds to the counter', () =
   expect(preview.textContent).toBe('Quota clamped+1')
 })
 
+test('encrypted reasoning recovery is visible to admins without becoming a failed request', async () => {
+  const recoveryEvent = {
+    attempt: 1,
+    channel_id: 33,
+    group: 'default',
+    status: 400,
+    error_code: 'invalid_encrypted_content',
+    error_source: 'upstream',
+    elapsed_ms: 548,
+    decision: {
+      action: 'recover',
+      reason: 'encrypted_reasoning_removed',
+      source: 'responses_encrypted_state',
+    },
+    health: 'unchanged',
+  }
+
+  const preview = renderPreview({
+    admin_info: { request_policy: [recoveryEvent] },
+  })
+  expect(preview).toHaveTextContent('Encrypted reasoning recovery')
+
+  fireEvent.click(preview)
+  const dialog = within(await screen.findByRole('dialog'))
+  const recoveryItem = dialog
+    .getByText('invalid_encrypted_content')
+    .closest('li')
+  expect(recoveryItem).toHaveTextContent('Encrypted reasoning recovery')
+  expect(recoveryItem).toHaveTextContent('HTTP 400')
+})
+
+test('encrypted reasoning recovery marker remains admin-only', () => {
+  const preview = renderPreview(
+    {
+      admin_info: {
+        request_policy: [
+          {
+            attempt: 1,
+            channel_id: 33,
+            status: 400,
+            error_code: 'invalid_encrypted_content',
+            error_source: 'upstream',
+            elapsed_ms: 548,
+            decision: {
+              action: 'recover',
+              reason: 'encrypted_reasoning_removed',
+              source: 'responses_encrypted_state',
+            },
+          },
+        ],
+      },
+    },
+    false
+  )
+  expect(preview).not.toHaveTextContent('Encrypted reasoning recovery')
+})
+
 test.each([true, false])(
   'plugin information in the opened dialog respects admin=%s',
   async (isAdmin) => {

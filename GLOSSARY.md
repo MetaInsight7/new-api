@@ -92,6 +92,16 @@ _Avoid_：把渠道和上游账号混称为“账号”
 管理员确认某条渠道对应的上游账号已被封禁或永久不可用的状态，与暂时故障、授权凭证过期和平台用户封禁不同。
 _Avoid_：用户封禁、临时限流、令牌过期
 
+## Responses 加密状态
+
+**Responses 加密推理状态**：
+OpenAI Responses reasoning item 中由上游凭证安全域生成的 opaque `encrypted_content` 及其 provider-owned item ID；它不等同于客户端可读的 reasoning summary 或普通对话历史。
+_Avoid_：思考正文、完整推理内容、会话缓存
+
+**有损续接**：
+目标上游无法验证 Responses 加密推理状态时，删除不可移植的密文与 provider-owned ID、保留可读 summary/content 后继续对话；隐藏推理连续性会丢失，因此不是无损故障转移。
+_Avoid_：无损迁移、解密、重新加密
+
 ## Codex Identity
 
 Relay 对上游 Codex 声明的客户端软件身份，包括 User-Agent、客户端版本、originator 和相关客户端 metadata。它描述“Relay 以哪个 Codex 客户端版本发起请求”，不等同于用户身份、OAuth 账号或渠道指纹。

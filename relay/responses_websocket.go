@@ -65,9 +65,10 @@ type responsesWSErrorEvent struct {
 }
 
 type responsesWSMessage struct {
-	kind int
-	body []byte
-	err  error
+	target *websocket.Conn
+	kind   int
+	body   []byte
+	err    error
 }
 
 // responsesWSControl is a client control event (response.cancel) whose
@@ -227,6 +228,9 @@ func (s *responsesWSSession) runRequest(state *responsesWSCallState, message []b
 
 func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState, create responsesWSCreateRequest) (apiErr *types.NewAPIError) {
 	policy := service.RequestPolicy(c)
+	encryptedReasoningRecovery := service.NewResponsesEncryptedReasoningRecovery(
+		appmodel.CurrentRequestPolicy().ResponsesEncryptedReasoningRecoveryEnabled,
+	)
 	modelName := create.Request.Model
 	started := time.Now()
 	var info *relaycommon.RelayInfo
@@ -262,6 +266,8 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 	common.SetContextKey(c, appconstant.ContextKeyOriginalModel, modelName)
 	common.SetContextKey(c, appconstant.ContextKeyRequestStartTime, time.Now())
 	service.GetChannelConstraints(c).AddFilter(appdto.ChannelFilter{Kind: appdto.FilterRequestPath, RequestPath: c.Request.URL.Path})
+	retry := &service.RetryParam{Ctx: c, TokenGroup: common.GetContextKeyString(c, appconstant.ContextKeyUsingGroup), ModelName: modelName, RequestPath: c.Request.URL.Path, Retry: common.GetPointer(0)}
+	var currentChannel *appmodel.Channel
 
 	if s.lockedChannelID != 0 {
 		if apiErr = s.restoreConnectionContext(c, modelName); apiErr != nil {
@@ -271,6 +277,7 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 		if channelErr != nil {
 			return types.NewErrorWithStatusCode(channelErr, types.ErrorCodeGetChannelFailed, http.StatusServiceUnavailable)
 		}
+		currentChannel = lockedChannel
 		acquired, acquireErr := service.EnsureChannelConcurrencyWithWaitForContext(c, lockedChannel)
 		if acquireErr != nil {
 			statusCode := http.StatusServiceUnavailable
@@ -299,14 +306,12 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 			return types.NewError(err, types.ErrorCodeBadResponse, types.ErrOptionWithSkipRetry())
 		}
 	} else {
-		retry := &service.RetryParam{Ctx: c, TokenGroup: common.GetContextKeyString(c, appconstant.ContextKeyUsingGroup), ModelName: modelName, RequestPath: c.Request.URL.Path, Retry: common.GetPointer(0)}
 		for ; retry.GetRetry() <= common.RetryTimes; retry.IncreaseRetry() {
-			var channel *appmodel.Channel
-			channel, apiErr = selectResponsesWSChannel(c, modelName, retry)
+			currentChannel, apiErr = selectResponsesWSChannel(c, modelName, retry)
 			if apiErr != nil {
 				return apiErr
 			}
-			service.AppendUsedChannel(c, channel.Id)
+			service.AppendUsedChannel(c, currentChannel.Id)
 			if info == nil {
 				info = relaycommon.GenRelayInfoResponses(c, &create.Request)
 				info.IsStream = true
@@ -322,7 +327,7 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 				}
 			}
 			info.RetryIndex = retry.GetRetry()
-			policy.BeginAttempt(channel, info.UsingGroup)
+			policy.BeginAttempt(currentChannel, info.UsingGroup)
 			var payload []byte
 			payload, apiErr = buildResponsesWSCreatePayload(c, info, create.Request, create.Generate, create.StreamID)
 			if apiErr != nil {
@@ -336,8 +341,8 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 				service.ResetStatusCode(apiErr, c.GetString("status_code_mapping"))
 				info.LastError = apiErr
 				decision := service.DecideRelayRetry(c, apiErr, common.RetryTimes-retry.GetRetry())
-				service.RecordPolicyFailure(c, channel.Id, apiErr, decision)
-				service.ProcessChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, info.ApiKey, channel.GetAutoBan()), apiErr, info)
+				service.RecordPolicyFailure(c, currentChannel.Id, apiErr, decision)
+				service.ProcessChannelError(c, *types.NewChannelError(currentChannel.Id, currentChannel.Type, currentChannel.Name, currentChannel.ChannelInfo.IsMultiKey, info.ApiKey, currentChannel.GetAutoBan()), apiErr, info)
 				if decision.Action == "retry" {
 					continue
 				}
@@ -350,22 +355,8 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 				state.closeAfter = true
 				return types.NewError(err, types.ErrorCodeBadResponse, types.ErrOptionWithSkipRetry())
 			}
-			s.lockedModel, s.lockedChannelID, s.lockedGroup = modelName, channel.Id, info.UsingGroup
-			s.lockedKey, s.lockedKeyIndex = info.ApiKey, info.ChannelMultiKeyIndex
-			s.lockedRoute, _ = channel.GetOtherSettings().AdvancedCustom.MatchPathForModel(c.Request.URL.Path, modelName)
-			s.lockedContext = make(map[appconstant.ContextKey]any)
-			for _, key := range []appconstant.ContextKey{
-				appconstant.ContextKeyChannelId, appconstant.ContextKeyChannelName, appconstant.ContextKeyChannelType,
-				appconstant.ContextKeyChannelCreateTime, appconstant.ContextKeyChannelSetting, appconstant.ContextKeyChannelOtherSetting,
-				appconstant.ContextKeyChannelParamOverride, appconstant.ContextKeyChannelHeaderOverride, appconstant.ContextKeyChannelOrganization,
-				appconstant.ContextKeyChannelAutoBan, appconstant.ContextKeyChannelModelMapping, appconstant.ContextKeyChannelStatusCodeMapping,
-				appconstant.ContextKeyChannelIsMultiKey, appconstant.ContextKeyChannelMultiKeyIndex, appconstant.ContextKeyChannelKey, appconstant.ContextKeyChannelBaseUrl,
-			} {
-				if value, ok := c.Get(string(key)); ok {
-					s.lockedContext[key] = value
-				}
-			}
-			s.registerChannelClose(channel.Id)
+			s.bindResponsesWSChannel(c, currentChannel, info, modelName)
+			s.registerChannelClose(currentChannel.Id)
 			s.startTargetReader(target)
 			apiErr = nil
 			break
@@ -389,10 +380,14 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 	var pendingControl []byte
 	var sentControl []byte
 	var responseID string
+	encryptedReasoningRecovered := false
 	for {
 		select {
 		case incoming := <-state.inbox:
 			idle.Reset(timeout)
+			if incoming.target != nil && incoming.target != s.getTarget() {
+				continue
+			}
 			if incoming.err != nil {
 				info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonScannerErr, incoming.err)
 				state.closeAfter = true
@@ -455,9 +450,41 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 						// rejected request; keep the client-facing type stable.
 						rejection.Error = &types.OpenAIError{Type: "invalid_request_error", Message: event.Message, Code: event.Code}
 					}
-					rejected := types.WithOpenAIError(*rejection.Error, rejection.Status, types.ErrOptionWithSkipRetry())
+					rejected := types.WithOpenAIError(*rejection.Error, rejection.Status)
 					if rejected.StatusCode < 400 || rejected.StatusCode > 599 {
 						rejected.StatusCode = http.StatusBadRequest
+					}
+					recovered, recoveryErr := encryptedReasoningRecovery.Prepare(c, &create.Request, rejected)
+					if recoveryErr != nil {
+						logger.LogError(c, fmt.Sprintf("prepare Responses WebSocket encrypted reasoning recovery failed: %s", recoveryErr.Error()))
+					} else if recovered {
+						encryptedReasoningRecovered = true
+						payload, payloadErr := buildResponsesWSCreatePayload(c, info, create.Request, create.Generate, create.StreamID)
+						if payloadErr != nil {
+							return payloadErr
+						}
+						if err := s.writeTarget(websocket.TextMessage, payload); err != nil {
+							state.closeAfter = true
+							return types.NewError(err, types.ErrorCodeBadResponse, types.ErrOptionWithSkipRetry())
+						}
+						continue
+					}
+					if !encryptedReasoningRecovered {
+						return types.WithOpenAIError(rejected.ToOpenAIError(), rejected.StatusCode, types.ErrOptionWithSkipRetry())
+					}
+					nextChannel, switched, switchErr := s.retryRejectedResponsesWSCall(c, state, info, create, retry, currentChannel, rejected)
+					if switchErr != nil {
+						return switchErr
+					}
+					if switched {
+						currentChannel = nextChannel
+						accumulator = service.NewResponsesUsageAccumulator(info)
+						info.StreamStatus = relaycommon.NewStreamStatus()
+						info.StreamStatus.RequireTerminal()
+						common.SetContextKey(c, appconstant.ContextKeyResponseStreamStatus, info.StreamStatus)
+						responseID = ""
+						sentControl = nil
+						continue
 					}
 					return rejected
 				}
@@ -615,6 +642,107 @@ func (s *responsesWSSession) restoreConnectionContext(c *gin.Context, model stri
 	return nil
 }
 
+func (s *responsesWSSession) retryRejectedResponsesWSCall(
+	c *gin.Context,
+	state *responsesWSCallState,
+	info *relaycommon.RelayInfo,
+	create responsesWSCreateRequest,
+	retry *service.RetryParam,
+	currentChannel *appmodel.Channel,
+	rejected *types.NewAPIError,
+) (*appmodel.Channel, bool, *types.NewAPIError) {
+	policy := service.RequestPolicy(c)
+	currentErr := rejected
+	channel := currentChannel
+	for channel != nil && currentErr != nil {
+		info.LastError = currentErr
+		decision := service.DecideRelayRetry(c, currentErr, common.RetryTimes-retry.GetRetry())
+		service.RecordPolicyFailure(c, channel.Id, currentErr, decision)
+		service.ProcessChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, info.ApiKey, channel.GetAutoBan()), currentErr, info)
+		retry.AddExcludeChannel(channel.Id)
+		if decision.Action != "retry" {
+			return nil, false, currentErr
+		}
+
+		retry.IncreaseRetry()
+		if retry.GetRetry() > common.RetryTimes {
+			return nil, false, currentErr
+		}
+		if releaseErr := service.ReleaseChannelConcurrencyForContext(c); releaseErr != nil {
+			logger.LogError(c, fmt.Sprintf("release Responses WebSocket channel before retry failed: %s", releaseErr.Error()))
+		}
+		s.closeTarget()
+		s.clearResponsesWSChannelBinding()
+
+		var selectErr *types.NewAPIError
+		channel, selectErr = selectResponsesWSChannel(c, create.Request.Model, retry)
+		if selectErr != nil {
+			return nil, false, selectErr
+		}
+		service.AppendUsedChannel(c, channel.Id)
+		info.PriceData.GroupRatioInfo = helper.HandleGroupRatio(c, info)
+		if billingErr := service.PrepareTieredBillingForSelectedGroup(c, info); billingErr != nil {
+			return nil, false, billingErr
+		}
+		info.RetryIndex = retry.GetRetry()
+		policy.BeginAttempt(channel, info.UsingGroup)
+		payload, payloadErr := buildResponsesWSCreatePayload(c, info, create.Request, create.Generate, create.StreamID)
+		if payloadErr != nil {
+			return nil, false, payloadErr
+		}
+		adaptor := GetAdaptor(info.ApiType)
+		adaptor.Init(info)
+		target, dialErr := relaychannel.DoWssRequest(adaptor, c, info, nil)
+		if dialErr != nil {
+			currentErr = service.NormalizeViolationFeeError(types.NewError(dialErr, types.ErrorCodeDoRequestFailed))
+			service.ResetStatusCode(currentErr, c.GetString("status_code_mapping"))
+			continue
+		}
+		if !s.setTarget(target) {
+			return nil, false, types.NewError(context.Canceled, types.ErrorCodeBadResponse, types.ErrOptionWithSkipRetry())
+		}
+		if err := s.writeTarget(websocket.TextMessage, payload); err != nil {
+			s.closeTarget()
+			state.closeAfter = true
+			return nil, false, types.NewError(err, types.ErrorCodeBadResponse, types.ErrOptionWithSkipRetry())
+		}
+		s.bindResponsesWSChannel(c, channel, info, create.Request.Model)
+		s.registerChannelClose(channel.Id)
+		s.startTargetReader(target)
+		info.LastError = nil
+		return channel, true, nil
+	}
+	return nil, false, nil
+}
+
+func (s *responsesWSSession) bindResponsesWSChannel(c *gin.Context, channel *appmodel.Channel, info *relaycommon.RelayInfo, modelName string) {
+	s.lockedModel, s.lockedChannelID, s.lockedGroup = modelName, channel.Id, info.UsingGroup
+	s.lockedKey, s.lockedKeyIndex = info.ApiKey, info.ChannelMultiKeyIndex
+	s.lockedRoute, _ = channel.GetOtherSettings().AdvancedCustom.MatchPathForModel(c.Request.URL.Path, modelName)
+	s.lockedContext = make(map[appconstant.ContextKey]any)
+	for _, key := range []appconstant.ContextKey{
+		appconstant.ContextKeyChannelId, appconstant.ContextKeyChannelName, appconstant.ContextKeyChannelType,
+		appconstant.ContextKeyChannelCreateTime, appconstant.ContextKeyChannelSetting, appconstant.ContextKeyChannelOtherSetting,
+		appconstant.ContextKeyChannelParamOverride, appconstant.ContextKeyChannelHeaderOverride, appconstant.ContextKeyChannelOrganization,
+		appconstant.ContextKeyChannelAutoBan, appconstant.ContextKeyChannelModelMapping, appconstant.ContextKeyChannelStatusCodeMapping,
+		appconstant.ContextKeyChannelIsMultiKey, appconstant.ContextKeyChannelMultiKeyIndex, appconstant.ContextKeyChannelKey, appconstant.ContextKeyChannelBaseUrl,
+	} {
+		if value, ok := c.Get(string(key)); ok {
+			s.lockedContext[key] = value
+		}
+	}
+}
+
+func (s *responsesWSSession) clearResponsesWSChannelBinding() {
+	s.lockedModel = ""
+	s.lockedChannelID = 0
+	s.lockedGroup = ""
+	s.lockedKey = ""
+	s.lockedKeyIndex = 0
+	s.lockedContext = nil
+	s.lockedRoute = dto.AdvancedCustomRoute{}
+}
+
 func buildResponsesWSCreatePayload(c *gin.Context, info *relaycommon.RelayInfo, req dto.OpenAIResponsesRequest, generate common.RawMessage, streamID string) ([]byte, *types.NewAPIError) {
 	_, body, closer, apiErr := PrepareResponsesRequest(c, info, &req)
 	if apiErr != nil {
@@ -641,7 +769,7 @@ func (s *responsesWSSession) startTargetReader(target *websocket.Conn) {
 	s.workers.Go(func() {
 		for {
 			kind, body, err := target.ReadMessage()
-			incoming := responsesWSMessage{kind: kind, body: body, err: err}
+			incoming := responsesWSMessage{target: target, kind: kind, body: body, err: err}
 			if state := s.getCurrent(); state != nil {
 				select {
 				case state.inbox <- incoming:

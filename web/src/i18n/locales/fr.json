@@ -1,5 +1,10 @@
 {
   "translation": {
+    "Encrypted reasoning recovery": "Récupération du raisonnement chiffré",
+    "Continue Responses conversations when encrypted reasoning belongs to another upstream security domain.": "Poursuivre les conversations Responses lorsque le raisonnement chiffré appartient à un autre domaine de sécurité en amont.",
+    "Recover incompatible encrypted reasoning": "Récupérer le raisonnement chiffré incompatible",
+    "Retry once on the current channel after removing incompatible encrypted state.": "Réessayer une fois sur le canal actuel après avoir supprimé l’état chiffré incompatible.",
+    "Lossy recovery removes encrypted reasoning state and provider-owned IDs after an upstream rejection. Hidden reasoning continuity will be lost.": "La récupération avec perte supprime l’état de raisonnement chiffré et les identifiants appartenant au fournisseur après un rejet en amont. La continuité du raisonnement masqué sera perdue.",
     "Concurrency": "Concurrence",
     "Channel concurrency unavailable": "Instantané de concurrence du canal indisponible",
     "Channel concurrency: {{active}} of {{max}} active": "Concurrence du canal : {{active}} actifs sur {{max}}",

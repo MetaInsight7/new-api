@@ -38,6 +38,9 @@ export function policyLabel(t: TFunction, value: string): string {
       return t('Channel selected')
     case 'request_completed':
       return t('Request completed')
+    case 'encrypted_reasoning_removed':
+    case 'responses_encrypted_state':
+      return t('Encrypted reasoning recovery')
     case 'stream_not_successful':
       return t('Stream did not complete successfully')
     case 'channel':

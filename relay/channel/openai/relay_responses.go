@@ -88,13 +88,8 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 
 	accumulator := service.NewResponsesUsageAccumulator(info)
 	var terminalErr *types.NewAPIError
-	var responseHeaderSnapshot http.Header
-	var eventStreamHeadersValue any
-	var hadEventStreamHeaders bool
-	if info.GetChannelType() == constant.ChannelTypeCodex {
-		responseHeaderSnapshot = c.Writer.Header().Clone()
-		eventStreamHeadersValue, hadEventStreamHeaders = c.Get("event_stream_headers_set")
-	}
+	responseHeaderSnapshot := c.Writer.Header().Clone()
+	eventStreamHeadersValue, hadEventStreamHeaders := c.Get("event_stream_headers_set")
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 
@@ -107,6 +102,22 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		}
 		if streamResponse.Response != nil {
 			data = string(rewriteSGLangResponsesCreatedAt(info, []byte(data), "response.created_at", streamResponse.Response.CreatedAt))
+		}
+		if encryptedStateErr := newResponsesEncryptedReasoningStreamError(data, streamResponse); encryptedStateErr != nil {
+			responseWritten := c.Writer.Written()
+			accumulator.Observe(&streamResponse)
+			usageAuthoritative := codexResponsesUsageIsAuthoritative(streamResponse.Response)
+			if responseWritten || usageAuthoritative {
+				if info.GetChannelType() == constant.ChannelTypeCodex {
+					sendResponsesStreamData(c, streamResponse, sanitizeCodexTerminalEvent(data, streamResponse.Type))
+				} else {
+					sendResponsesStreamData(c, streamResponse, data)
+				}
+				encryptedStateErr = types.WithOpenAIError(encryptedStateErr.ToOpenAIError(), encryptedStateErr.StatusCode, types.ErrOptionWithSkipRetry())
+			}
+			terminalErr = encryptedStateErr
+			sr.Done()
+			return
 		}
 		if isCodexResponsesTerminalFailure(info, streamResponse) {
 			responseWritten := c.Writer.Written()
@@ -156,11 +167,45 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	usage := accumulator.Finish()
 	if terminalErr != nil {
 		if !types.IsSkipRetryError(terminalErr) {
-			restoreCodexResponsesStreamAttemptState(c, info, responseHeaderSnapshot, eventStreamHeadersValue, hadEventStreamHeaders)
+			restoreResponsesStreamAttemptState(c, info, responseHeaderSnapshot, eventStreamHeadersValue, hadEventStreamHeaders)
 		}
 		return usage, terminalErr
 	}
 	return usage, nil
+}
+
+func newResponsesEncryptedReasoningStreamError(data string, streamResponse dto.ResponsesStreamResponse) *types.NewAPIError {
+	var upstreamError *types.OpenAIError
+	if streamResponse.Response != nil {
+		upstreamError = streamResponse.Response.GetOpenAIError()
+	}
+	if upstreamError == nil {
+		var envelope struct {
+			Error *types.OpenAIError `json:"error"`
+		}
+		if err := common.UnmarshalJsonStr(data, &envelope); err == nil {
+			upstreamError = envelope.Error
+		}
+	}
+	if upstreamError == nil && (streamResponse.Code != "" || streamResponse.Message != "") {
+		upstreamError = &types.OpenAIError{
+			Type:    "invalid_request_error",
+			Code:    streamResponse.Code,
+			Message: streamResponse.Message,
+		}
+	}
+	if upstreamError == nil {
+		return nil
+	}
+	statusCode := codexResponsesFailedStatus(upstreamError)
+	if statusCode < http.StatusBadRequest || statusCode >= http.StatusInternalServerError {
+		statusCode = http.StatusBadRequest
+	}
+	apiErr := types.WithOpenAIError(*upstreamError, statusCode)
+	if !service.IsResponsesEncryptedReasoningError(apiErr) {
+		return nil
+	}
+	return apiErr
 }
 
 func codexResponsesUsageIsAuthoritative(response *dto.OpenAIResponsesResponse) bool {
@@ -218,7 +263,7 @@ func sanitizeCodexTerminalEvent(data, eventType string) string {
 	return string(sanitized)
 }
 
-func restoreCodexResponsesStreamAttemptState(
+func restoreResponsesStreamAttemptState(
 	c *gin.Context,
 	info *relaycommon.RelayInfo,
 	headerSnapshot http.Header,
