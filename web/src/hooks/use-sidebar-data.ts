@@ -28,6 +28,7 @@ import {
   FileText,
   FlaskConical,
   HeartPulse,
+  Gauge,
   Key,
   LayoutDashboard,
   ListTodo,
@@ -153,6 +154,11 @@ export function useSidebarData(): SidebarData {
             title: t('Channels'),
             url: '/channels',
             icon: Radio,
+          },
+          {
+            title: t('Channel Load Monitor'),
+            url: '/channel-load-monitor',
+            icon: Gauge,
           },
           {
             title: t('Models'),

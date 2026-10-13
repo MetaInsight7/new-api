@@ -242,7 +242,7 @@ test('updates every default desktop card with its live read-only snapshot', asyn
     .getByText('unlimited')
     .closest('[data-slot="data-table-card"]') as HTMLElement
   expect(
-    within(unlimitedCard).getByLabelText('Channel concurrency unavailable')
+    within(unlimitedCard).getByLabelText('Unlimited concurrency')
   ).toBeInTheDocument()
   expect(get).toHaveBeenCalledWith(
     '/api/channel/concurrency',
@@ -264,8 +264,14 @@ test('reuses the single-channel editor in the default desktop card', async () =>
   const card = (await screen.findByText('editable-card')).closest(
     '[data-slot="data-table-card"]'
   ) as HTMLElement
+  const user = userEvent.setup()
+  await user.click(
+    within(card).getByRole('button', {
+      name: 'Edit maximum concurrency: 3',
+    })
+  )
   expect(
-    within(card).getByRole('group', { name: 'Maximum Concurrency' })
+    await screen.findByRole('group', { name: 'Maximum Concurrency' })
   ).toBeVisible()
 })
 
@@ -307,7 +313,12 @@ test('refreshes and switches the bounded snapshot set after persisted edits', as
   const user = userEvent.setup()
 
   await screen.findByLabelText('Channel concurrency: 1 of 3 active')
-  let editor = screen.getByRole('group', { name: 'Maximum Concurrency' })
+  await user.click(
+    screen.getByRole('button', { name: 'Edit maximum concurrency: 3' })
+  )
+  let editor = await screen.findByRole('group', {
+    name: 'Maximum Concurrency',
+  })
   await user.click(within(editor).getByRole('button', { name: '3' }))
   await user.clear(within(editor).getByRole('textbox'))
   await user.type(within(editor).getByRole('textbox'), '5{Enter}')
@@ -318,20 +329,24 @@ test('refreshes and switches the bounded snapshot set after persisted edits', as
     expect.anything()
   )
 
-  editor = screen.getByRole('group', { name: 'Maximum Concurrency' })
+  await user.click(
+    screen.getByRole('button', { name: 'Edit maximum concurrency: 5' })
+  )
+  editor = await screen.findByRole('group', { name: 'Maximum Concurrency' })
   await user.click(within(editor).getByRole('button', { name: '5' }))
   await user.clear(within(editor).getByRole('textbox'))
   await user.type(within(editor).getByRole('textbox'), '0{Enter}')
   await waitFor(() =>
-    expect(
-      screen.getByLabelText('Channel concurrency unavailable')
-    ).toBeVisible()
+    expect(screen.getByLabelText('Unlimited concurrency')).toBeVisible()
   )
   expect(
     screen.queryByLabelText('Channel concurrency: 1 of 5 active')
   ).not.toBeInTheDocument()
 
-  editor = screen.getByRole('group', { name: 'Maximum Concurrency' })
+  await user.click(
+    screen.getByRole('button', { name: 'Set maximum concurrency' })
+  )
+  editor = await screen.findByRole('group', { name: 'Maximum Concurrency' })
   await user.click(within(editor).getByRole('button', { name: '0' }))
   await user.clear(within(editor).getByRole('textbox'))
   await user.type(within(editor).getByRole('textbox'), '2{Enter}')
@@ -422,11 +437,66 @@ test('shows the single-channel editor in a desktop table row with ChannelWrite',
   const concurrencyCell = row.querySelector(
     '[data-column-id="max_concurrency"]'
   ) as HTMLElement
+  const user = userEvent.setup()
+  await within(concurrencyCell).findByLabelText(
+    'Channel concurrency: 1 of 3 active'
+  )
+  await user.click(
+    within(concurrencyCell).getByRole('button', {
+      name: 'Edit maximum concurrency: 3',
+    })
+  )
   expect(
-    within(concurrencyCell).getByRole('group', {
+    await screen.findByRole('group', {
       name: 'Maximum Concurrency',
     })
   ).toBeVisible()
+})
+
+test('places concurrency directly after weight without wrapping its controls', async () => {
+  useAuthStore.getState().auth.setUser({
+    id: 3,
+    username: 'writer',
+    role: 10,
+    permissions: {
+      admin_permissions: { channel: { read: true, write: true } },
+    },
+  })
+  localStorage.setItem('channels:view-mode', 'table')
+  await renderChannels([channel(2, 'single-line-concurrency', 3)], {
+    data: {
+      success: true,
+      data: [
+        {
+          channel_id: 2,
+          max_concurrency: 3,
+          active: 0,
+          waiting: 0,
+          cooling_down: false,
+        },
+      ],
+    },
+  })
+
+  const row = (await screen.findByText('single-line-concurrency')).closest(
+    'tr'
+  ) as HTMLElement
+  const headerIds = [
+    ...document.querySelectorAll('thead th[data-column-id]'),
+  ].map((header) => header.getAttribute('data-column-id'))
+  expect
+    .soft(headerIds.indexOf('max_concurrency'))
+    .toBe(headerIds.indexOf('weight') + 1)
+
+  const concurrencyCell = row.querySelector(
+    '[data-column-id="max_concurrency"]'
+  ) as HTMLElement
+  const status = await within(concurrencyCell).findByLabelText(
+    'Channel concurrency: 0 of 3 active'
+  )
+  expect.soft(status).toHaveClass('flex-nowrap')
+  expect.soft(concurrencyCell).toHaveClass('whitespace-nowrap')
+  expect.soft(status).not.toHaveClass('flex-wrap')
 })
 
 test('keeps a saved concurrency-column preference', async () => {

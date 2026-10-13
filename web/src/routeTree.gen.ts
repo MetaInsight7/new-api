@@ -35,6 +35,7 @@ import { Route as RankingsIndexRouteImport } from './routes/rankings/index'
 import { Route as SetupIndexRouteImport } from './routes/setup/index'
 import { Route as authUserResetRouteImport } from './routes/(auth)/user/reset'
 import { Route as AuthenticatedAvailableModelsIndexRouteImport } from './routes/_authenticated/available-models/index'
+import { Route as AuthenticatedChannelLoadMonitorIndexRouteImport } from './routes/_authenticated/channel-load-monitor/index'
 import { Route as AuthenticatedChannelsIndexRouteImport } from './routes/_authenticated/channels/index'
 import { Route as AuthenticatedChatChatIdRouteImport } from './routes/_authenticated/chat/$chatId'
 import { Route as AuthenticatedCodexModelGovernanceIndexRouteImport } from './routes/_authenticated/codex-model-governance/index'
@@ -207,6 +208,12 @@ const AuthenticatedAvailableModelsIndexRoute =
   AuthenticatedAvailableModelsIndexRouteImport.update({
     id: '/available-models/',
     path: '/available-models/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedChannelLoadMonitorIndexRoute =
+  AuthenticatedChannelLoadMonitorIndexRouteImport.update({
+    id: '/channel-load-monitor/',
+    path: '/channel-load-monitor/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedChannelsIndexRoute =
@@ -495,6 +502,7 @@ export interface FileRoutesByFullPath {
   '/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
   '/usage-logs/audit': typeof AuthenticatedUsageLogsAuditRoute
   '/available-models/': typeof AuthenticatedAvailableModelsIndexRoute
+  '/channel-load-monitor/': typeof AuthenticatedChannelLoadMonitorIndexRoute
   '/channels/': typeof AuthenticatedChannelsIndexRoute
   '/codex-model-governance/': typeof AuthenticatedCodexModelGovernanceIndexRoute
   '/dashboard/': typeof AuthenticatedDashboardIndexRoute
@@ -563,6 +571,7 @@ export interface FileRoutesByTo {
   '/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
   '/usage-logs/audit': typeof AuthenticatedUsageLogsAuditRoute
   '/available-models': typeof AuthenticatedAvailableModelsIndexRoute
+  '/channel-load-monitor': typeof AuthenticatedChannelLoadMonitorIndexRoute
   '/channels': typeof AuthenticatedChannelsIndexRoute
   '/codex-model-governance': typeof AuthenticatedCodexModelGovernanceIndexRoute
   '/dashboard': typeof AuthenticatedDashboardIndexRoute
@@ -635,6 +644,7 @@ export interface FileRoutesById {
   '/_authenticated/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
   '/_authenticated/usage-logs/audit': typeof AuthenticatedUsageLogsAuditRoute
   '/_authenticated/available-models/': typeof AuthenticatedAvailableModelsIndexRoute
+  '/_authenticated/channel-load-monitor/': typeof AuthenticatedChannelLoadMonitorIndexRoute
   '/_authenticated/channels/': typeof AuthenticatedChannelsIndexRoute
   '/_authenticated/codex-model-governance/': typeof AuthenticatedCodexModelGovernanceIndexRoute
   '/_authenticated/dashboard/': typeof AuthenticatedDashboardIndexRoute
@@ -706,6 +716,7 @@ export interface FileRouteTypes {
     | '/usage-logs/$section'
     | '/usage-logs/audit'
     | '/available-models/'
+    | '/channel-load-monitor/'
     | '/channels/'
     | '/codex-model-governance/'
     | '/dashboard/'
@@ -774,6 +785,7 @@ export interface FileRouteTypes {
     | '/usage-logs/$section'
     | '/usage-logs/audit'
     | '/available-models'
+    | '/channel-load-monitor'
     | '/channels'
     | '/codex-model-governance'
     | '/dashboard'
@@ -845,6 +857,7 @@ export interface FileRouteTypes {
     | '/_authenticated/usage-logs/$section'
     | '/_authenticated/usage-logs/audit'
     | '/_authenticated/available-models/'
+    | '/_authenticated/channel-load-monitor/'
     | '/_authenticated/channels/'
     | '/_authenticated/codex-model-governance/'
     | '/_authenticated/dashboard/'
@@ -1085,6 +1098,13 @@ declare module '@tanstack/react-router' {
       path: '/available-models'
       fullPath: '/available-models/'
       preLoaderRoute: typeof AuthenticatedAvailableModelsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/channel-load-monitor/': {
+      id: '/_authenticated/channel-load-monitor/'
+      path: '/channel-load-monitor'
+      fullPath: '/channel-load-monitor/'
+      preLoaderRoute: typeof AuthenticatedChannelLoadMonitorIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/channels/': {
@@ -1490,6 +1510,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedUsageLogsSectionRoute: typeof AuthenticatedUsageLogsSectionRoute
   AuthenticatedUsageLogsAuditRoute: typeof AuthenticatedUsageLogsAuditRoute
   AuthenticatedAvailableModelsIndexRoute: typeof AuthenticatedAvailableModelsIndexRoute
+  AuthenticatedChannelLoadMonitorIndexRoute: typeof AuthenticatedChannelLoadMonitorIndexRoute
   AuthenticatedChannelsIndexRoute: typeof AuthenticatedChannelsIndexRoute
   AuthenticatedCodexModelGovernanceIndexRoute: typeof AuthenticatedCodexModelGovernanceIndexRoute
   AuthenticatedDashboardIndexRoute: typeof AuthenticatedDashboardIndexRoute
@@ -1523,6 +1544,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedUsageLogsAuditRoute: AuthenticatedUsageLogsAuditRoute,
   AuthenticatedAvailableModelsIndexRoute:
     AuthenticatedAvailableModelsIndexRoute,
+  AuthenticatedChannelLoadMonitorIndexRoute:
+    AuthenticatedChannelLoadMonitorIndexRoute,
   AuthenticatedChannelsIndexRoute: AuthenticatedChannelsIndexRoute,
   AuthenticatedCodexModelGovernanceIndexRoute:
     AuthenticatedCodexModelGovernanceIndexRoute,

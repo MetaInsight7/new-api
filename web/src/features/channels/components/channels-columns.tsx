@@ -121,6 +121,201 @@ function parseIonetMeta(otherInfo: string | null | undefined): null | {
   return null
 }
 
+export function ChannelTypeCell({ channel }: { channel: Channel }) {
+  const { t } = useTranslation()
+  const type = channel.type
+  const typeName = t(getChannelTypeLabel(type))
+  const iconName = getChannelTypeIcon(type)
+  const isMultiKey = isMultiKeyChannel(channel)
+  const multiKeyMode = channel.channel_info?.multi_key_mode ?? 'random'
+  const MultiKeyModeIcon = multiKeyMode === 'random' ? Shuffle : ListOrdered
+  const multiKeyTooltip =
+    multiKeyMode === 'random'
+      ? t('Multi-key: Random rotation')
+      : t('Multi-key: Polling rotation')
+  const ionetMeta = parseIonetMeta(channel.other_info)
+  const isIonet = ionetMeta?.source === 'ionet'
+  const deploymentId =
+    typeof ionetMeta?.deployment_id === 'string'
+      ? ionetMeta.deployment_id
+      : undefined
+
+  return (
+    <div className='flex max-w-full min-w-0 items-center gap-2 overflow-hidden'>
+      {isMultiKey && (
+        <TooltipProvider delay={100}>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <span className='border-border bg-muted text-primary inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md border' />
+              }
+            >
+              <MultiKeyModeIcon className='h-3 w-3' />
+            </TooltipTrigger>
+            <TooltipContent side='top'>{multiKeyTooltip}</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
+      {type === CHANNEL_TYPE_TASK_PLUGIN ? (
+        <TaskPluginChannelBadge
+          pluginKey={parseChannelSettings(channel.setting)?.task_plugin_key}
+        />
+      ) : (
+        <TooltipProvider delay={300}>
+          <Tooltip>
+            <TooltipTrigger
+              render={<div className='max-w-full min-w-0 overflow-hidden' />}
+            >
+              <ProviderBadge
+                iconKey={`${iconName}.Color`}
+                iconSize={18}
+                label={typeName}
+                colorText={false}
+                copyable={false}
+                showDot={false}
+                className='max-w-full min-w-0 overflow-hidden'
+              />
+            </TooltipTrigger>
+            <TooltipContent side='top'>{typeName}</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
+      {isIonet && (
+        <TooltipProvider delay={100}>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <span
+                  className='flex cursor-pointer items-center gap-1.5 text-xs font-medium'
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    if (!deploymentId) return
+                    const targetUrl = `/models/deployments?dFilter=${encodeURIComponent(deploymentId)}`
+                    window.open(targetUrl, '_blank', 'noopener')
+                  }}
+                />
+              }
+            >
+              <StatusBadge
+                label='IO.NET'
+                variant='purple'
+                size='sm'
+                copyable={false}
+                className='cursor-pointer'
+              />
+            </TooltipTrigger>
+            <TooltipContent side='top'>
+              <div className='max-w-xs space-y-1'>
+                <div className='text-xs'>{t('From IO.NET deployment')}</div>
+                {deploymentId && (
+                  <div className='text-muted-foreground font-mono text-xs'>
+                    {t('Deployment ID')}: {deploymentId}
+                  </div>
+                )}
+                <div className='text-muted-foreground text-xs'>
+                  {t('Click to open deployment')}
+                </div>
+              </div>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
+    </div>
+  )
+}
+
+export function ChannelStatusCell({ channel }: { channel: Channel }) {
+  const { t } = useTranslation()
+  const config =
+    CHANNEL_STATUS_CONFIG[
+      channel.status as keyof typeof CHANNEL_STATUS_CONFIG
+    ] || CHANNEL_STATUS_CONFIG[0]
+  const isMultiKey = isMultiKeyChannel(channel)
+  const keySize = channel.channel_info?.multi_key_size ?? 0
+  const disabledCount = channel.channel_info?.multi_key_status_list
+    ? Object.keys(channel.channel_info.multi_key_status_list).length
+    : 0
+  const enabledCount = Math.max(0, keySize - disabledCount)
+  const label =
+    isMultiKey && keySize > 0
+      ? `${t(config.label)} (${enabledCount}/${keySize})`
+      : t(config.label)
+
+  if (channel.status === 3) {
+    let statusReason = ''
+    let statusTime = ''
+    try {
+      const otherInfo = channel.other_info
+        ? JSON.parse(channel.other_info)
+        : null
+      if (otherInfo) {
+        statusReason = otherInfo.status_reason || ''
+        statusTime = otherInfo.status_time
+          ? formatTimestampToDate(otherInfo.status_time)
+          : ''
+      }
+    } catch {
+      /* empty */
+    }
+
+    if (statusReason || statusTime) {
+      return (
+        <TooltipProvider delay={100}>
+          <Tooltip>
+            <TooltipTrigger render={<span />}>
+              <StatusBadge
+                label={label}
+                variant={config.variant}
+                size='sm'
+                copyable={false}
+              />
+            </TooltipTrigger>
+            <TooltipContent side='top' className='max-w-xs'>
+              <div className='space-y-1 text-xs'>
+                {statusReason && (
+                  <div className='wrap-anywhere'>
+                    {t('Reason:')} {statusReason}
+                  </div>
+                )}
+                {statusTime && (
+                  <div>
+                    {t('Time:')} {statusTime}
+                  </div>
+                )}
+              </div>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )
+    }
+  }
+
+  return (
+    <StatusBadge
+      label={label}
+      variant={config.variant}
+      size='sm'
+      copyable={false}
+    />
+  )
+}
+
+export function ChannelGroupsCell({
+  group,
+  label,
+}: {
+  group: string
+  label?: string
+}) {
+  return (
+    <BadgeListCell
+      items={parseGroupsList(group).map((groupName) => (
+        <GroupBadge key={groupName} group={groupName} label={label} size='sm' />
+      ))}
+    />
+  )
+}
+
 /**
  * Upstream update tags (+N / -N) shown on channel name for model-fetchable channels
  */
@@ -263,13 +458,26 @@ function GroupOverrideTags({
 /**
  * Priority cell component with inline editing
  */
-function PriorityCell({ channel }: { channel: Channel }) {
+export function ChannelPriorityCell({
+  channel,
+  readOnly = false,
+}: {
+  channel: Channel
+  readOnly?: boolean
+}) {
   if (isTagAggregateRow(channel)) {
     return <TagPriorityCell channel={channel} />
   }
 
   const overrides = parseGroupPriority(channel.group_priority)
-  const fieldCell = (
+  const fieldCell = readOnly ? (
+    <NumericSpinnerInput
+      value={channel.priority}
+      onChange={() => undefined}
+      min={-999}
+      disabled
+    />
+  ) : (
     <ChannelFieldCell
       channelId={channel.id}
       value={channel.priority}
@@ -919,119 +1127,7 @@ export function useChannelsColumns(
             )
           }
 
-          const type = row.getValue('type') as number
-          const typeNameKey = getChannelTypeLabel(type)
-          const typeName = t(typeNameKey)
-          const iconName = getChannelTypeIcon(type)
-          const channel = row.original as Channel
-          const isMultiKey = isMultiKeyChannel(channel)
-          const multiKeyMode = channel.channel_info?.multi_key_mode ?? 'random'
-          const MultiKeyModeIcon =
-            multiKeyMode === 'random' ? Shuffle : ListOrdered
-          const multiKeyTooltip =
-            multiKeyMode === 'random'
-              ? t('Multi-key: Random rotation')
-              : t('Multi-key: Polling rotation')
-
-          const ionetMeta = parseIonetMeta(channel.other_info)
-          const isIonet = ionetMeta?.source === 'ionet'
-          const deploymentId =
-            typeof ionetMeta?.deployment_id === 'string'
-              ? ionetMeta?.deployment_id
-              : undefined
-
-          return (
-            <div className='flex max-w-full min-w-0 items-center gap-2 overflow-hidden'>
-              {isMultiKey && (
-                <TooltipProvider delay={100}>
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <span className='border-border bg-muted text-primary inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md border' />
-                      }
-                    >
-                      <MultiKeyModeIcon className='h-3 w-3' />
-                    </TooltipTrigger>
-                    <TooltipContent side='top'>
-                      {multiKeyTooltip}
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              )}
-              {type === CHANNEL_TYPE_TASK_PLUGIN ? (
-                <TaskPluginChannelBadge
-                  pluginKey={
-                    parseChannelSettings(channel.setting)?.task_plugin_key
-                  }
-                />
-              ) : (
-                <TooltipProvider delay={300}>
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <div className='max-w-full min-w-0 overflow-hidden' />
-                      }
-                    >
-                      <ProviderBadge
-                        iconKey={`${iconName}.Color`}
-                        iconSize={18}
-                        label={typeName}
-                        colorText={false}
-                        copyable={false}
-                        showDot={false}
-                        className='max-w-full min-w-0 overflow-hidden'
-                      />
-                    </TooltipTrigger>
-                    <TooltipContent side='top'>{typeName}</TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              )}
-              {isIonet && (
-                <TooltipProvider delay={100}>
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <span
-                          className='flex cursor-pointer items-center gap-1.5 text-xs font-medium'
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            if (!deploymentId) {
-                              return
-                            }
-                            const targetUrl = `/models/deployments?dFilter=${encodeURIComponent(String(deploymentId))}`
-                            window.open(targetUrl, '_blank', 'noopener')
-                          }}
-                        />
-                      }
-                    >
-                      <StatusBadge
-                        label='IO.NET'
-                        variant='purple'
-                        size='sm'
-                        copyable={false}
-                        className='cursor-pointer'
-                      />
-                    </TooltipTrigger>
-                    <TooltipContent side='top'>
-                      <div className='max-w-xs space-y-1'>
-                        <div className='text-xs'>
-                          {t('From IO.NET deployment')}
-                        </div>
-                        {deploymentId && (
-                          <div className='text-muted-foreground font-mono text-xs'>
-                            {t('Deployment ID')}: {deploymentId}
-                          </div>
-                        )}
-                        <div className='text-muted-foreground text-xs'>
-                          {t('Click to open deployment')}
-                        </div>
-                      </div>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              )}
-            </div>
-          )
+          return <ChannelTypeCell channel={row.original as Channel} />
         },
         filterFn: (row, id, value) => {
           if (!value || value.length === 0 || value.includes('all')) {
@@ -1081,81 +1177,7 @@ export function useChannelsColumns(
             }
           }
 
-          // Regular channel row
-          const config =
-            CHANNEL_STATUS_CONFIG[
-              status as keyof typeof CHANNEL_STATUS_CONFIG
-            ] || CHANNEL_STATUS_CONFIG[0]
-
-          const isMultiKey = isMultiKeyChannel(channel)
-          const keySize = channel.channel_info?.multi_key_size ?? 0
-          const disabledCount = channel.channel_info?.multi_key_status_list
-            ? Object.keys(channel.channel_info.multi_key_status_list).length
-            : 0
-          const enabledCount = Math.max(0, keySize - disabledCount)
-          const label =
-            isMultiKey && keySize > 0
-              ? `${t(config.label)} (${enabledCount}/${keySize})`
-              : t(config.label)
-
-          // Auto-disabled: show reason and time tooltip
-          if (status === 3) {
-            let statusReason = ''
-            let statusTime = ''
-            try {
-              const otherInfo = channel.other_info
-                ? JSON.parse(channel.other_info)
-                : null
-              if (otherInfo) {
-                statusReason = otherInfo.status_reason || ''
-                statusTime = otherInfo.status_time
-                  ? formatTimestampToDate(otherInfo.status_time)
-                  : ''
-              }
-            } catch {
-              /* empty */
-            }
-
-            if (statusReason || statusTime) {
-              return (
-                <TooltipProvider delay={100}>
-                  <Tooltip>
-                    <TooltipTrigger render={<span />}>
-                      <StatusBadge
-                        label={label}
-                        variant={config.variant}
-                        size='sm'
-                        copyable={false}
-                      />
-                    </TooltipTrigger>
-                    <TooltipContent side='top' className='max-w-xs'>
-                      <div className='space-y-1 text-xs'>
-                        {statusReason && (
-                          <div className='wrap-anywhere'>
-                            {t('Reason:')} {statusReason}
-                          </div>
-                        )}
-                        {statusTime && (
-                          <div>
-                            {t('Time:')} {statusTime}
-                          </div>
-                        )}
-                      </div>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              )
-            }
-          }
-
-          return (
-            <StatusBadge
-              label={label}
-              variant={config.variant}
-              size='sm'
-              copyable={false}
-            />
-          )
+          return <ChannelStatusCell channel={channel} />
         },
         filterFn: (row, id, value) => {
           if (!value || value.length === 0 || value.includes('all')) {
@@ -1174,22 +1196,6 @@ export function useChannelsColumns(
           return false
         },
         size: 120,
-        enableSorting: false,
-      },
-
-      {
-        accessorKey: 'max_concurrency',
-        header: t('Concurrency'),
-        meta: { mobileHidden: true },
-        cell: ({ row }) => {
-          const channel = row.original
-          const status =
-            !isTagAggregateRow(channel) && channel.max_concurrency > 0
-              ? options.concurrencyStatusById?.get(channel.id)
-              : undefined
-          return <ChannelConcurrencyCell channel={channel} status={status} />
-        },
-        size: 180,
         enableSorting: false,
       },
 
@@ -1224,22 +1230,12 @@ export function useChannelsColumns(
         accessorKey: 'group',
         header: t('Groups'),
         meta: { mobileHidden: true },
-        cell: ({ row }) => {
-          const group = row.getValue('group') as string
-          const groupArray = parseGroupsList(group)
-          return (
-            <BadgeListCell
-              items={groupArray.map((g) => (
-                <GroupBadge
-                  key={g}
-                  group={g}
-                  label={sensitiveVisible ? undefined : SENSITIVE_MASK}
-                  size='sm'
-                />
-              ))}
-            />
-          )
-        },
+        cell: ({ row }) => (
+          <ChannelGroupsCell
+            group={row.getValue('group') as string}
+            label={sensitiveVisible ? undefined : SENSITIVE_MASK}
+          />
+        ),
         filterFn: (row, id, value) => {
           if (!value || value.length === 0 || value.includes('all')) {
             return true
@@ -1281,7 +1277,7 @@ export function useChannelsColumns(
         accessorKey: 'priority',
         header: t('Priority'),
         meta: { mobileHidden: true },
-        cell: ({ row }) => <PriorityCell channel={row.original} />,
+        cell: ({ row }) => <ChannelPriorityCell channel={row.original} />,
         size: 100,
       },
 
@@ -1292,6 +1288,23 @@ export function useChannelsColumns(
         meta: { mobileHidden: true },
         cell: ({ row }) => <WeightCell channel={row.original} />,
         size: 90,
+        enableSorting: false,
+      },
+
+      // Concurrency column
+      {
+        accessorKey: 'max_concurrency',
+        header: t('Concurrency'),
+        meta: { mobileHidden: true },
+        cell: ({ row }) => {
+          const channel = row.original
+          const status =
+            !isTagAggregateRow(channel) && channel.max_concurrency > 0
+              ? options.concurrencyStatusById?.get(channel.id)
+              : undefined
+          return <ChannelConcurrencyCell channel={channel} status={status} />
+        },
+        size: 180,
         enableSorting: false,
       },
 

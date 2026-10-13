@@ -17,86 +17,124 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQueryClient } from '@tanstack/react-query'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { TFunction } from 'i18next'
+import { LoaderCircle } from 'lucide-react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { StatusBadge, type StatusVariant } from '@/components/status-badge'
 import {
+  Popover,
+  PopoverContent,
+  PopoverDescription,
+  PopoverTitle,
+  PopoverTrigger,
+} from '@/components/ui/popover'
+import {
   ADMIN_PERMISSION_ACTIONS,
   ADMIN_PERMISSION_RESOURCES,
   hasPermission,
 } from '@/lib/admin-permissions'
+import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
 
 import type { ChannelConcurrencyStatus } from '../api'
 import {
   createChannelFieldUpdateScheduler,
+  getChannelConcurrencyState,
   handleUpdateChannelMaxConcurrency,
   isTagAggregateRow,
+  type ChannelConcurrencyState,
 } from '../lib'
 import type { Channel } from '../types'
 import { NumericSpinnerInput } from './numeric-spinner-input'
 
-type ConcurrencyState = 'idle' | 'busy' | 'saturated'
-
-const concurrencyVariants: Record<ConcurrencyState, StatusVariant> = {
+const concurrencyVariants: Record<ChannelConcurrencyState, StatusVariant> = {
+  unlimited: 'neutral',
+  unavailable: 'neutral',
   idle: 'neutral',
   busy: 'warning',
   saturated: 'danger',
+  over_limit: 'danger',
 }
 
-export function ChannelConcurrencyStatusDisplay({
-  status,
-}: {
+function channelConcurrencyAccessibleLabel(
+  t: TFunction,
+  maxConcurrency: number,
   status?: ChannelConcurrencyStatus
-}) {
-  const { t } = useTranslation()
-  if (!status || status.max_concurrency <= 0) {
-    return (
-      <span
-        className='text-muted-foreground text-xs'
-        aria-label={t('Channel concurrency unavailable')}
-      >
-        -
-      </span>
-    )
-  }
+) {
+  if (maxConcurrency <= 0) return t('Unlimited concurrency')
+  if (!status) return t('Channel concurrency unavailable')
 
-  let state: ConcurrencyState = 'busy'
-  if (status.active <= 0) {
-    state = 'idle'
-  } else if (status.active >= status.max_concurrency) {
-    state = 'saturated'
-  }
-
-  const accessibleParts = [
+  const parts = [
     t('Channel concurrency: {{active}} of {{max}} active', {
       active: status.active,
-      max: status.max_concurrency,
+      max: maxConcurrency,
     }),
   ]
+  if (status.active > maxConcurrency) parts.push(t('Over limit'))
   if (status.waiting > 0) {
-    accessibleParts.push(t('{{count}} waiting', { count: status.waiting }))
+    parts.push(t('{{count}} waiting', { count: status.waiting }))
   }
-  if (status.cooling_down) {
-    accessibleParts.push(t('Cooling'))
-  }
+  if (status.cooling_down) parts.push(t('Cooling'))
+  return parts.join(', ')
+}
+
+function ChannelConcurrencyBadges({
+  maxConcurrency,
+  status,
+  maxTrigger,
+  showSecondaryBadges = true,
+}: {
+  maxConcurrency: number
+  status?: ChannelConcurrencyStatus
+  maxTrigger?: ReactNode
+  showSecondaryBadges?: boolean
+}) {
+  const { t } = useTranslation()
+  const state = getChannelConcurrencyState(maxConcurrency, status)
+  const active = status?.active
+  const primary =
+    maxConcurrency <= 0 ? (
+      (maxTrigger ?? t('Unlimited'))
+    ) : (
+      <>
+        <span>{active === undefined ? '-' : active}/</span>
+        {maxTrigger ?? <span>{maxConcurrency}</span>}
+      </>
+    )
 
   return (
     <span
-      className='flex min-w-0 flex-wrap items-center gap-1'
-      aria-label={accessibleParts.join(', ')}
+      className='flex min-w-0 flex-nowrap items-center gap-1'
+      aria-label={channelConcurrencyAccessibleLabel(t, maxConcurrency, status)}
       data-concurrency-state={state}
     >
       <StatusBadge
-        label={`${status.active}/${status.max_concurrency}`}
         variant={concurrencyVariants[state]}
         size='sm'
         copyable={false}
-        aria-hidden='true'
-      />
-      {status.waiting > 0 && (
+        aria-hidden={maxTrigger ? undefined : true}
+      >
+        {primary}
+      </StatusBadge>
+      {showSecondaryBadges && status && status.active > maxConcurrency && (
+        <StatusBadge
+          label={t('Over limit')}
+          variant='danger'
+          size='sm'
+          copyable={false}
+          aria-hidden='true'
+        />
+      )}
+      {showSecondaryBadges && status && status.waiting > 0 && (
         <StatusBadge
           label={`+${status.waiting}`}
           variant='neutral'
@@ -105,7 +143,7 @@ export function ChannelConcurrencyStatusDisplay({
           aria-hidden='true'
         />
       )}
-      {status.cooling_down && (
+      {showSecondaryBadges && status?.cooling_down && (
         <StatusBadge
           label={t('Cooling')}
           variant='blue'
@@ -118,12 +156,44 @@ export function ChannelConcurrencyStatusDisplay({
   )
 }
 
+export function ChannelConcurrencyStatusDisplay({
+  status,
+  maxConcurrency = status?.max_concurrency,
+  showSecondaryBadges = true,
+}: {
+  status?: ChannelConcurrencyStatus
+  maxConcurrency?: number
+  showSecondaryBadges?: boolean
+}) {
+  const { t } = useTranslation()
+  if (maxConcurrency === undefined) {
+    return (
+      <span
+        className='text-muted-foreground text-xs'
+        aria-label={t('Channel concurrency unavailable')}
+      >
+        -
+      </span>
+    )
+  }
+
+  return (
+    <ChannelConcurrencyBadges
+      maxConcurrency={maxConcurrency}
+      status={status}
+      showSecondaryBadges={showSecondaryBadges}
+    />
+  )
+}
+
 export function ChannelConcurrencyCell({
   channel,
   status,
+  showSecondaryBadges = true,
 }: {
   channel: Channel
   status?: ChannelConcurrencyStatus
+  showSecondaryBadges?: boolean
 }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
@@ -140,6 +210,7 @@ export function ChannelConcurrencyCell({
     !isTagRow && channel.max_concurrency > 0 ? status : undefined
   const [draftValue, setDraftValue] = useState(channel.max_concurrency)
   const [isSaving, setIsSaving] = useState(false)
+  const [open, setOpen] = useState(false)
 
   const saveValue = useCallback(
     async (nextValue: number) => {
@@ -150,9 +221,7 @@ export function ChannelConcurrencyCell({
         nextValue,
         queryClient
       )
-      if (!saved) {
-        setDraftValue(channel.max_concurrency)
-      }
+      if (!saved) setDraftValue(channel.max_concurrency)
       setIsSaving(false)
     },
     [channel.id, channel.max_concurrency, queryClient]
@@ -171,32 +240,90 @@ export function ChannelConcurrencyCell({
 
   useEffect(() => () => updateScheduler.flush(), [updateScheduler])
 
+  if (isTagRow) return <ChannelConcurrencyStatusDisplay />
   if (!canEdit) {
-    return <ChannelConcurrencyStatusDisplay status={visibleStatus} />
+    return (
+      <ChannelConcurrencyStatusDisplay
+        status={visibleStatus}
+        maxConcurrency={channel.max_concurrency}
+        showSecondaryBadges={showSecondaryBadges}
+      />
+    )
   }
 
+  const triggerLabel =
+    channel.max_concurrency > 0
+      ? t('Edit maximum concurrency: {{value}}', {
+          value: channel.max_concurrency,
+        })
+      : t('Set maximum concurrency')
+  const trigger = (
+    <Popover
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) updateScheduler.flush()
+        setOpen(nextOpen)
+      }}
+    >
+      <PopoverTrigger
+        render={
+          <button
+            type='button'
+            aria-label={triggerLabel}
+            className={cn(
+              'rounded-sm underline decoration-dotted underline-offset-2',
+              'hover:text-foreground focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none'
+            )}
+          />
+        }
+      >
+        {channel.max_concurrency > 0 ? channel.max_concurrency : t('Unlimited')}
+      </PopoverTrigger>
+      <PopoverContent
+        align='start'
+        className='w-64 max-w-[calc(100vw-2rem)] gap-3 p-3'
+      >
+        <div className='flex items-center justify-between gap-3'>
+          <PopoverTitle>{t('Maximum Concurrency')}</PopoverTitle>
+          {isSaving && (
+            <span className='text-muted-foreground flex items-center gap-1 text-xs'>
+              <LoaderCircle className='size-3 animate-spin' />
+              {t('Saving...')}
+            </span>
+          )}
+        </div>
+        <span role='group' aria-label={t('Maximum Concurrency')}>
+          <NumericSpinnerInput
+            value={draftValue}
+            onChange={(nextValue) => {
+              setDraftValue(nextValue)
+              updateScheduler.schedule(nextValue)
+            }}
+            onCommit={updateScheduler.flush}
+            min={0}
+            step={1}
+            disabled={isSaving}
+            rejectInvalid
+            onInvalid={() =>
+              toast.error(
+                t('Maximum concurrency must be a non-negative integer.')
+              )
+            }
+          />
+        </span>
+        <PopoverDescription>
+          {t('Set to 0 for unlimited concurrency.')}
+        </PopoverDescription>
+      </PopoverContent>
+    </Popover>
+  )
+
   return (
-    <span className='flex min-w-0 flex-wrap items-center gap-2'>
-      <ChannelConcurrencyStatusDisplay status={visibleStatus} />
-      <span role='group' aria-label={t('Maximum Concurrency')}>
-        <NumericSpinnerInput
-          value={draftValue}
-          onChange={(nextValue) => {
-            setDraftValue(nextValue)
-            updateScheduler.schedule(nextValue)
-          }}
-          onCommit={updateScheduler.flush}
-          min={0}
-          step={1}
-          disabled={isSaving}
-          rejectInvalid
-          onInvalid={() =>
-            toast.error(
-              t('Maximum concurrency must be a non-negative integer.')
-            )
-          }
-        />
-      </span>
-    </span>
+    <ChannelConcurrencyBadges
+      maxConcurrency={channel.max_concurrency}
+      status={visibleStatus}
+      maxTrigger={trigger}
+      showSecondaryBadges={showSecondaryBadges}
+    />
   )
 }

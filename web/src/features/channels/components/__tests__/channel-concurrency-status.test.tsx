@@ -53,30 +53,41 @@ function view(snapshot?: ChannelConcurrencyStatus) {
   )
 }
 
+function viewWithLimit(
+  maxConcurrency: number,
+  snapshot?: ChannelConcurrencyStatus
+) {
+  return (
+    <I18nextProvider i18n={i18n}>
+      <ChannelConcurrencyStatusDisplay
+        status={snapshot}
+        maxConcurrency={maxConcurrency}
+      />
+    </I18nextProvider>
+  )
+}
+
 test('uses neutral, warning, and danger states for channel load', () => {
   const rendered = render(view(status(0)))
-  expect(
-    screen.getByLabelText('Channel concurrency: 0 of 3 active')
-  ).toHaveAttribute('data-concurrency-state', 'idle')
-  expect(
-    screen.getByText('0/3').closest('[data-slot="status-badge"]')
-  ).toHaveClass('text-muted-foreground')
+  let display = screen.getByLabelText('Channel concurrency: 0 of 3 active')
+  expect(display).toHaveAttribute('data-concurrency-state', 'idle')
+  expect(display.querySelector('[data-slot="status-badge"]')).toHaveClass(
+    'text-muted-foreground'
+  )
 
   rendered.rerender(view(status(2)))
-  expect(
-    screen.getByLabelText('Channel concurrency: 2 of 3 active')
-  ).toHaveAttribute('data-concurrency-state', 'busy')
-  expect(
-    screen.getByText('2/3').closest('[data-slot="status-badge"]')
-  ).toHaveClass('text-warning')
+  display = screen.getByLabelText('Channel concurrency: 2 of 3 active')
+  expect(display).toHaveAttribute('data-concurrency-state', 'busy')
+  expect(display.querySelector('[data-slot="status-badge"]')).toHaveClass(
+    'text-warning'
+  )
 
   rendered.rerender(view(status(3)))
-  expect(
-    screen.getByLabelText('Channel concurrency: 3 of 3 active')
-  ).toHaveAttribute('data-concurrency-state', 'saturated')
-  expect(
-    screen.getByText('3/3').closest('[data-slot="status-badge"]')
-  ).toHaveClass('text-destructive')
+  display = screen.getByLabelText('Channel concurrency: 3 of 3 active')
+  expect(display).toHaveAttribute('data-concurrency-state', 'saturated')
+  expect(display.querySelector('[data-slot="status-badge"]')).toHaveClass(
+    'text-destructive'
+  )
 })
 
 test('shows positive waiting and cooling state with accessible semantics', () => {
@@ -91,6 +102,27 @@ test('shows positive waiting and cooling state with accessible semantics', () =>
   expect(
     screen.getByText('Cooling').closest('[data-slot="status-badge"]')
   ).toHaveClass('text-chart-1')
+})
+
+test('distinguishes over-limit and unlimited channels', () => {
+  const rendered = render(viewWithLimit(3, status(5)))
+
+  const overLimit = screen.getByLabelText(
+    'Channel concurrency: 5 of 3 active, Over limit'
+  )
+  expect(overLimit).toHaveAttribute('data-concurrency-state', 'over_limit')
+  expect(overLimit.querySelector('[data-slot="status-badge"]')).toHaveClass(
+    'text-destructive'
+  )
+  expect(screen.getByText('Over limit')).toBeVisible()
+
+  rendered.rerender(viewWithLimit(0))
+  expect(screen.getByLabelText('Unlimited concurrency')).toHaveAttribute(
+    'data-concurrency-state',
+    'unlimited'
+  )
+  expect(screen.getByText('Unlimited')).toBeVisible()
+  expect(screen.queryByText('0/0')).not.toBeInTheDocument()
 })
 
 test('shows an unavailable placeholder when no snapshot exists', () => {

@@ -150,6 +150,30 @@ describe('primary navigation', () => {
       )
     }
   })
+
+  it('places Channel Load Monitor immediately after Channels', () => {
+    const { result } = sidebarFor()
+    const items =
+      result.current.find((group) => group.id === 'admin')?.items ?? []
+    const channelsIndex = items.findIndex((item) => item.title === 'Channels')
+
+    expect(items[channelsIndex + 1]).toMatchObject({
+      title: 'Channel Load Monitor',
+      url: '/channel-load-monitor',
+    })
+  })
+
+  it('hides Channel Load Monitor with the configured channel module', () => {
+    const { result } = sidebarFor({
+      admin: { enabled: true, channel: false },
+    })
+    const titles = result.current
+      .flatMap((group) => group.items)
+      .map((item) => item.title)
+
+    expect(titles).not.toContain('Channels')
+    expect(titles).not.toContain('Channel Load Monitor')
+  })
 })
 
 describe('audit log sidebar entry', () => {

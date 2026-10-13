@@ -25,6 +25,7 @@ export const STATIC_I18N_KEYS = [
   'Channel concurrency: {{active}} of {{max}} active',
   '{{count}} waiting',
   'Cooling',
+  'At capacity',
   // Channel concurrency limit editing
   'Maximum Concurrency',
   'Maximum simultaneous upstream requests for this channel; 0 means unlimited.',

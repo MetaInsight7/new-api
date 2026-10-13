@@ -57,6 +57,8 @@ export const channelsQueryKeys = {
   concurrency: (channelIds: readonly number[]) =>
     [...channelsQueryKeys.all, 'concurrency', channelIds] as const,
   concurrencyAll: () => [...channelsQueryKeys.all, 'concurrency'] as const,
+  concurrencyMonitor: (params: Record<string, unknown>) =>
+    [...channelsQueryKeys.concurrencyAll(), 'monitor', params] as const,
   details: () => [...channelsQueryKeys.all, 'detail'] as const,
   detail: (id: number) => [...channelsQueryKeys.details(), id] as const,
 }

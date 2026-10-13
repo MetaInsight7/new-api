@@ -15,6 +15,7 @@ const requiredKeys = [
   'Channel concurrency: {{active}} of {{max}} active',
   '{{count}} waiting',
   'Cooling',
+  'At capacity',
   'Maximum Concurrency',
   'Maximum simultaneous upstream requests for this channel; 0 means unlimited.',
   'Maximum concurrency must be a non-negative integer.',

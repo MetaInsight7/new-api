@@ -71,6 +71,13 @@ function grantChannelWrite() {
   })
 }
 
+async function openConcurrencyEditor(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(
+    screen.getByRole('button', { name: 'Edit maximum concurrency: 3' })
+  )
+  return screen.findByRole('group', { name: 'Maximum Concurrency' })
+}
+
 beforeEach(() => {
   client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -103,14 +110,16 @@ test('keeps the live status read-only without ChannelWrite permission', () => {
   ).not.toBeInTheDocument()
 })
 
-test('shows the single-channel editor with ChannelWrite permission', () => {
+test('shows the single-channel editor with ChannelWrite permission', async () => {
   grantChannelWrite()
+  const user = userEvent.setup()
 
   renderConcurrencyCell()
 
   expect(
-    screen.getByRole('group', { name: 'Maximum Concurrency' })
+    screen.getByRole('button', { name: 'Edit maximum concurrency: 3' })
   ).toBeVisible()
+  expect(await openConcurrencyEditor(user)).toBeVisible()
   expect(
     screen.getByLabelText('Channel concurrency: 1 of 3 active')
   ).toBeVisible()
@@ -125,7 +134,7 @@ test('persists a positive maximum concurrency from the inline editor', async () 
   const user = userEvent.setup()
   renderConcurrencyCell()
 
-  const editor = screen.getByRole('group', { name: 'Maximum Concurrency' })
+  const editor = await openConcurrencyEditor(user)
   await user.click(within(editor).getByRole('button', { name: '3' }))
   const input = within(editor).getByRole('textbox')
   await user.clear(input)
@@ -153,7 +162,7 @@ test('persists an explicit zero to clear maximum concurrency', async () => {
   const user = userEvent.setup()
   renderConcurrencyCell()
 
-  const editor = screen.getByRole('group', { name: 'Maximum Concurrency' })
+  const editor = await openConcurrencyEditor(user)
   await user.click(within(editor).getByRole('button', { name: '3' }))
   const input = within(editor).getByRole('textbox')
   await user.clear(input)
@@ -176,14 +185,16 @@ test.each(['-1', '1.5'])(
     const user = userEvent.setup()
     renderConcurrencyCell()
 
-    const editor = screen.getByRole('group', { name: 'Maximum Concurrency' })
+    const editor = await openConcurrencyEditor(user)
     await user.click(within(editor).getByRole('button', { name: '3' }))
     const input = within(editor).getByRole('textbox')
     await user.clear(input)
     await user.type(input, `${invalidValue}{Enter}`)
 
     expect(put).not.toHaveBeenCalled()
-    expect(within(editor).getByRole('button', { name: '3' })).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: 'Edit maximum concurrency: 3' })
+    ).toBeVisible()
   }
 )
 
@@ -202,13 +213,15 @@ test('restores the persisted value after failure and allows retry', async () => 
   const user = userEvent.setup()
   renderConcurrencyCell()
 
-  const editor = screen.getByRole('group', { name: 'Maximum Concurrency' })
-  await user.click(within(editor).getByRole('button', { name: '3' }))
-  await user.clear(within(editor).getByRole('textbox'))
-  await user.type(within(editor).getByRole('textbox'), '5{Enter}')
+  const editor = await openConcurrencyEditor(user)
+  const increment = within(editor).getByRole('button', { name: 'Increment' })
+  await user.click(increment)
+  await user.click(increment)
 
   await waitFor(() => expect(put).toHaveBeenCalledTimes(1))
-  expect(within(editor).getByRole('button', { name: '3' })).toBeVisible()
+  await waitFor(() =>
+    expect(within(editor).getByRole('button', { name: '3' })).toBeVisible()
+  )
   expect(
     screen.getByLabelText('Channel concurrency: 1 of 3 active')
   ).toBeVisible()
@@ -219,9 +232,8 @@ test('restores the persisted value after failure and allows retry', async () => 
     client.getQueryState(channelsQueryKeys.concurrency([42]))?.isInvalidated
   ).toBe(false)
 
-  await user.click(within(editor).getByRole('button', { name: '3' }))
-  await user.clear(within(editor).getByRole('textbox'))
-  await user.type(within(editor).getByRole('textbox'), '5{Enter}')
+  await user.click(increment)
+  await user.click(increment)
 
   await waitFor(() => expect(put).toHaveBeenCalledTimes(2))
   await waitFor(() =>
@@ -245,14 +257,15 @@ test('keeps a successful saved value when cache refresh fails', async () => {
   const user = userEvent.setup()
   renderConcurrencyCell()
 
-  const editor = screen.getByRole('group', { name: 'Maximum Concurrency' })
-  await user.click(within(editor).getByRole('button', { name: '3' }))
-  await user.clear(within(editor).getByRole('textbox'))
-  await user.type(within(editor).getByRole('textbox'), '7{Enter}')
+  const editor = await openConcurrencyEditor(user)
+  const increment = within(editor).getByRole('button', { name: 'Increment' })
+  await user.click(increment)
+  await user.click(increment)
+  await user.click(increment)
+  await user.click(increment)
 
-  await waitFor(() =>
-    expect(within(editor).getByRole('button', { name: '7' })).toBeVisible()
-  )
+  await waitFor(() => expect(api.put).toHaveBeenCalledTimes(1))
+  expect(within(editor).getByRole('button', { name: '7' })).toBeVisible()
 })
 
 test('never exposes an editor for a tag aggregate row', () => {
