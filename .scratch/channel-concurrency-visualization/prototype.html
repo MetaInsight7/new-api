@@ -1,0 +1,1423 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>渠道并发显示方案原型</title>
+    <style>
+      /* PROTOTYPE ONLY — 用于比较渠道并发 UI 方案，不属于生产代码。 */
+      :root {
+        color-scheme: light;
+        --bg: #fbfbfc;
+        --surface: #ffffff;
+        --surface-soft: #f7f8fa;
+        --surface-hover: #f4f6f8;
+        --text: #17191c;
+        --text-2: #51565e;
+        --text-3: #858b95;
+        --border: #e8eaed;
+        --border-strong: #dfe2e6;
+        --primary: #4e7cf5;
+        --primary-soft: #eaf0ff;
+        --success: #15a36d;
+        --success-soft: #e9f8f1;
+        --warning: #ba7a08;
+        --warning-soft: #fff5da;
+        --danger: #dc3545;
+        --danger-soft: #ffebed;
+        --info: #2876dc;
+        --info-soft: #eaf3ff;
+        --shadow: 0 18px 50px rgb(26 32 44 / 10%);
+        --row-height: 54px;
+      }
+
+      html[data-theme='dark'] {
+        color-scheme: dark;
+        --bg: #171819;
+        --surface: #202224;
+        --surface-soft: #272a2d;
+        --surface-hover: #2b2e31;
+        --text: #f4f5f6;
+        --text-2: #c1c5ca;
+        --text-3: #8d939b;
+        --border: rgb(255 255 255 / 9%);
+        --border-strong: rgb(255 255 255 / 15%);
+        --primary: #77a1ff;
+        --primary-soft: #253454;
+        --success: #58d7a4;
+        --success-soft: #19382d;
+        --warning: #f3bd58;
+        --warning-soft: #44351d;
+        --danger: #ff7b86;
+        --danger-soft: #47252a;
+        --info: #78b3ff;
+        --info-soft: #21364f;
+        --shadow: 0 20px 60px rgb(0 0 0 / 35%);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        min-width: 1060px;
+        min-height: 100%;
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family:
+          Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          "PingFang SC", "Microsoft YaHei", sans-serif;
+        font-size: 14px;
+      }
+
+      button,
+      input {
+        font: inherit;
+      }
+
+      button {
+        color: inherit;
+      }
+
+      .app-shell {
+        min-height: 100vh;
+      }
+
+      .topbar {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        display: flex;
+        height: 50px;
+        align-items: center;
+        border-bottom: 1px solid var(--border);
+        background: color-mix(in srgb, var(--surface) 94%, transparent);
+        backdrop-filter: blur(14px);
+      }
+
+      .brand {
+        display: flex;
+        width: 164px;
+        flex: 0 0 164px;
+        align-items: center;
+        gap: 10px;
+        padding: 0 16px;
+        font-size: 18px;
+        font-weight: 760;
+        letter-spacing: -0.02em;
+      }
+
+      .brand-mark {
+        display: grid;
+        width: 30px;
+        height: 30px;
+        place-items: center;
+        border-radius: 9px;
+        background: linear-gradient(135deg, #6d93ff, #8d72ee);
+        color: white;
+        box-shadow: 0 7px 18px rgb(78 124 245 / 24%);
+        font-size: 15px;
+      }
+
+      .topnav {
+        display: flex;
+        flex: 1;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 22px;
+        padding: 0 18px;
+        color: var(--text-2);
+        font-size: 12px;
+      }
+
+      .icon-button,
+      .avatar {
+        display: grid;
+        width: 30px;
+        height: 30px;
+        place-items: center;
+        border: 1px solid transparent;
+        border-radius: 10px;
+        background: transparent;
+        cursor: pointer;
+      }
+
+      .icon-button:hover {
+        border-color: var(--border);
+        background: var(--surface-soft);
+      }
+
+      .avatar {
+        border-radius: 999px;
+        background: #9066d8;
+        color: white;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .body-shell {
+        display: grid;
+        min-height: calc(100vh - 50px);
+        grid-template-columns: 164px minmax(0, 1fr);
+      }
+
+      .sidebar {
+        position: sticky;
+        top: 50px;
+        height: calc(100vh - 50px);
+        overflow: auto;
+        border-right: 1px solid var(--border);
+        background: var(--surface);
+        padding: 10px 8px 92px;
+      }
+
+      .nav-title {
+        margin: 13px 8px 7px;
+        color: var(--text-3);
+        font-size: 9px;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+
+      .nav-item {
+        display: flex;
+        height: 32px;
+        align-items: center;
+        gap: 9px;
+        margin: 2px 0;
+        padding: 0 10px;
+        border-radius: 9px;
+        color: var(--text-2);
+        font-size: 12px;
+      }
+
+      .nav-item .nav-icon {
+        width: 15px;
+        color: var(--text-3);
+        text-align: center;
+      }
+
+      .nav-item.active {
+        background: var(--primary-soft);
+        color: var(--primary);
+        font-weight: 650;
+      }
+
+      .nav-item.active .nav-icon {
+        color: var(--primary);
+      }
+
+      .main {
+        min-width: 0;
+        padding: 18px 14px 104px;
+      }
+
+      .page-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 20px;
+        margin-bottom: 15px;
+      }
+
+      .title-line {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 18px;
+        letter-spacing: -0.02em;
+      }
+
+      .eyebrow {
+        margin-bottom: 5px;
+        color: var(--primary);
+        font-size: 10px;
+        font-weight: 750;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .subtitle {
+        margin: 5px 0 0;
+        color: var(--text-3);
+        font-size: 12px;
+      }
+
+      .prototype-badge,
+      .tiny-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        height: 22px;
+        padding: 0 8px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: var(--surface);
+        color: var(--text-2);
+        font-size: 10px;
+        font-weight: 650;
+        white-space: nowrap;
+      }
+
+      .header-actions,
+      .toolbar,
+      .toolbar-group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .button {
+        display: inline-flex;
+        height: 32px;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 0 11px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--surface);
+        color: var(--text-2);
+        cursor: pointer;
+        font-size: 11px;
+        font-weight: 650;
+        white-space: nowrap;
+      }
+
+      .button:hover {
+        border-color: var(--border-strong);
+        background: var(--surface-hover);
+        color: var(--text);
+      }
+
+      .button.primary {
+        border-color: var(--primary);
+        background: var(--primary);
+        color: white;
+      }
+
+      .button.ghost {
+        border-color: transparent;
+        background: transparent;
+      }
+
+      .toolbar {
+        justify-content: space-between;
+        margin-bottom: 10px;
+      }
+
+      .search {
+        width: 215px;
+        height: 34px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        outline: none;
+        background: var(--surface);
+        color: var(--text);
+        padding: 0 14px;
+        font-size: 11px;
+      }
+
+      .search::placeholder {
+        color: var(--text-3);
+      }
+
+      .filter-chip {
+        height: 32px;
+        padding: 0 11px;
+        border: 1px dashed var(--border-strong);
+        border-radius: 10px;
+        background: transparent;
+        color: var(--text-2);
+        cursor: pointer;
+        font-size: 11px;
+      }
+
+      .filter-chip.active {
+        border-style: solid;
+        border-color: var(--primary);
+        background: var(--primary-soft);
+        color: var(--primary);
+      }
+
+      .table-card {
+        overflow: hidden;
+        border: 1px solid var(--border);
+        border-radius: 15px;
+        background: var(--surface);
+      }
+
+      .table-scroll {
+        overflow-x: auto;
+      }
+
+      table {
+        width: 100%;
+        min-width: 940px;
+        border-collapse: collapse;
+        table-layout: auto;
+        font-size: 12px;
+      }
+
+      th {
+        height: 38px;
+        padding: 0 9px;
+        border-bottom: 1px solid var(--border);
+        background: var(--surface-soft);
+        color: var(--text-2);
+        font-size: 11px;
+        font-weight: 650;
+        text-align: left;
+        white-space: nowrap;
+      }
+
+      td {
+        height: var(--row-height);
+        padding: 0 9px;
+        border-bottom: 1px solid var(--border);
+        color: var(--text-2);
+        vertical-align: middle;
+        white-space: nowrap;
+      }
+
+      tbody tr:last-child td {
+        border-bottom: 0;
+      }
+
+      tbody tr:hover td {
+        background: color-mix(in srgb, var(--surface-hover) 70%, transparent);
+      }
+
+      .channel-name {
+        color: var(--text);
+        font-weight: 650;
+      }
+
+      .channel-id,
+      .mono {
+        font-variant-numeric: tabular-nums;
+      }
+
+      .provider {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .provider-logo {
+        display: grid;
+        width: 20px;
+        height: 20px;
+        place-items: center;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: var(--surface-soft);
+        color: var(--text);
+        font-size: 9px;
+        font-weight: 750;
+      }
+
+      .status-text {
+        color: var(--success);
+        font-weight: 650;
+      }
+
+      .group-badge {
+        display: inline-flex;
+        height: 22px;
+        align-items: center;
+        padding: 0 8px;
+        border-radius: 999px;
+        background: var(--info-soft);
+        color: var(--info);
+        font-size: 11px;
+        font-weight: 600;
+      }
+
+      .number-field,
+      .stepper {
+        display: inline-flex;
+        height: 28px;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid var(--border);
+        border-radius: 9px;
+        background: var(--surface);
+        color: var(--text);
+        font-variant-numeric: tabular-nums;
+      }
+
+      .number-field {
+        min-width: 60px;
+        padding: 0 10px;
+      }
+
+      .stepper button {
+        width: 24px;
+        height: 26px;
+        border: 0;
+        background: transparent;
+        color: var(--text-3);
+        cursor: pointer;
+      }
+
+      .stepper button:hover {
+        color: var(--text);
+        background: var(--surface-hover);
+      }
+
+      .stepper .value {
+        min-width: 30px;
+        color: var(--text);
+        text-align: center;
+      }
+
+      .action-icons {
+        display: flex;
+        gap: 7px;
+        color: var(--text-3);
+        font-size: 14px;
+      }
+
+      .action-icons span:hover {
+        color: var(--primary);
+      }
+
+      .load-editor {
+        display: inline-flex;
+        height: 28px;
+        align-items: center;
+        gap: 5px;
+        padding: 0 7px;
+        border: 1px solid transparent;
+        border-radius: 9px;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+
+      .load-editor:hover {
+        border-color: var(--border);
+        background: var(--surface-soft);
+      }
+
+      .load-dot {
+        width: 7px;
+        height: 7px;
+        flex: 0 0 7px;
+        border-radius: 999px;
+        background: var(--text-3);
+      }
+
+      .load-editor.idle .load-dot {
+        background: var(--text-3);
+      }
+
+      .load-editor.busy .load-dot {
+        background: var(--warning);
+        box-shadow: 0 0 0 3px var(--warning-soft);
+      }
+
+      .load-editor.full .load-dot {
+        background: var(--danger);
+        box-shadow: 0 0 0 3px var(--danger-soft);
+      }
+
+      .active-value {
+        color: var(--text);
+        font-weight: 700;
+      }
+
+      .slash {
+        color: var(--text-3);
+      }
+
+      .max-trigger {
+        min-width: 24px;
+        height: 22px;
+        padding: 0 5px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: var(--surface);
+        color: var(--text);
+        cursor: pointer;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .max-trigger:hover {
+        border-color: var(--primary);
+        color: var(--primary);
+      }
+
+      .queue-badge,
+      .cooling-badge,
+      .state-badge {
+        display: inline-flex;
+        height: 22px;
+        align-items: center;
+        gap: 4px;
+        padding: 0 7px;
+        border-radius: 999px;
+        font-size: 10px;
+        font-weight: 650;
+        white-space: nowrap;
+      }
+
+      .queue-badge {
+        background: var(--danger-soft);
+        color: var(--danger);
+      }
+
+      .cooling-badge {
+        background: var(--info-soft);
+        color: var(--info);
+      }
+
+      .unlimited {
+        color: var(--text-3);
+        font-size: 11px;
+      }
+
+      .inline-load,
+      .live-state {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        white-space: nowrap;
+      }
+
+      .live-count {
+        display: inline-flex;
+        height: 24px;
+        align-items: center;
+        gap: 5px;
+        padding: 0 8px;
+        border-radius: 999px;
+        background: var(--surface-soft);
+        color: var(--text-2);
+        font-variant-numeric: tabular-nums;
+      }
+
+      .live-count.busy {
+        background: var(--warning-soft);
+        color: var(--warning);
+      }
+
+      .live-count.full {
+        background: var(--danger-soft);
+        color: var(--danger);
+      }
+
+      .design-note {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 18px;
+        align-items: center;
+        margin: 12px 0 0;
+        padding: 13px 15px;
+        border: 1px solid var(--border);
+        border-radius: 13px;
+        background: var(--surface);
+      }
+
+      .design-note strong {
+        display: block;
+        margin-bottom: 4px;
+        font-size: 12px;
+      }
+
+      .design-note p {
+        margin: 0;
+        color: var(--text-3);
+        font-size: 11px;
+        line-height: 1.55;
+      }
+
+      .score-row {
+        display: flex;
+        gap: 7px;
+      }
+
+      .score {
+        display: grid;
+        min-width: 66px;
+        gap: 2px;
+        padding: 7px 9px;
+        border-radius: 9px;
+        background: var(--surface-soft);
+        text-align: center;
+      }
+
+      .score b {
+        font-size: 12px;
+      }
+
+      .score span {
+        color: var(--text-3);
+        font-size: 9px;
+      }
+
+      .monitor-tabs {
+        display: flex;
+        gap: 4px;
+        margin-bottom: 14px;
+        padding: 4px;
+        width: fit-content;
+        border: 1px solid var(--border);
+        border-radius: 11px;
+        background: var(--surface-soft);
+      }
+
+      .monitor-tab {
+        height: 29px;
+        padding: 0 12px;
+        border: 0;
+        border-radius: 8px;
+        background: transparent;
+        color: var(--text-3);
+        cursor: pointer;
+        font-size: 11px;
+      }
+
+      .monitor-tab.active {
+        background: var(--surface);
+        color: var(--text);
+        box-shadow: 0 1px 5px rgb(15 23 42 / 8%);
+        font-weight: 650;
+      }
+
+      .metrics-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+        margin-bottom: 12px;
+      }
+
+      .metric-card {
+        min-height: 100px;
+        padding: 14px;
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        background: var(--surface);
+      }
+
+      .metric-label {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        color: var(--text-3);
+        font-size: 10px;
+        font-weight: 650;
+      }
+
+      .metric-value {
+        margin: 9px 0 7px;
+        color: var(--text);
+        font-size: 24px;
+        font-weight: 750;
+        letter-spacing: -0.04em;
+      }
+
+      .metric-caption {
+        color: var(--text-3);
+        font-size: 10px;
+      }
+
+      .live-pulse {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        color: var(--success);
+        font-size: 10px;
+        font-weight: 650;
+      }
+
+      .live-pulse::before {
+        width: 6px;
+        height: 6px;
+        border-radius: 999px;
+        background: currentColor;
+        box-shadow: 0 0 0 3px var(--success-soft);
+        content: '';
+      }
+
+      .progress {
+        width: 136px;
+        height: 7px;
+        overflow: hidden;
+        border-radius: 999px;
+        background: var(--surface-soft);
+      }
+
+      .progress > span {
+        display: block;
+        height: 100%;
+        border-radius: inherit;
+        background: var(--success);
+      }
+
+      .progress.busy > span {
+        background: var(--warning);
+      }
+
+      .progress.full > span {
+        background: var(--danger);
+      }
+
+      .load-stack {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+      }
+
+      .monitor-status {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+      }
+
+      .state-badge.idle {
+        background: var(--surface-soft);
+        color: var(--text-3);
+      }
+
+      .state-badge.busy {
+        background: var(--warning-soft);
+        color: var(--warning);
+      }
+
+      .state-badge.full {
+        background: var(--danger-soft);
+        color: var(--danger);
+      }
+
+      .footer-row {
+        display: flex;
+        height: 46px;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 10px;
+        border-top: 1px solid var(--border);
+        padding: 0 12px;
+        color: var(--text-3);
+        font-size: 10px;
+      }
+
+      .variant-switcher {
+        position: fixed;
+        bottom: 18px;
+        left: 50%;
+        z-index: 50;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        padding: 6px;
+        border: 1px solid rgb(255 255 255 / 14%);
+        border-radius: 16px;
+        background: #111418;
+        color: white;
+        box-shadow: var(--shadow);
+        transform: translateX(-50%);
+      }
+
+      .variant-arrow,
+      .variant-option {
+        height: 34px;
+        border: 0;
+        border-radius: 10px;
+        background: transparent;
+        color: #aeb5bf;
+        cursor: pointer;
+      }
+
+      .variant-arrow {
+        width: 34px;
+        font-size: 16px;
+      }
+
+      .variant-option {
+        min-width: 108px;
+        padding: 0 11px;
+        font-size: 11px;
+        font-weight: 650;
+      }
+
+      .variant-option.active {
+        background: #2c66ef;
+        color: white;
+      }
+
+      .variant-arrow:hover,
+      .variant-option:hover:not(.active) {
+        background: #24282e;
+        color: white;
+      }
+
+      .prototype-toast {
+        position: fixed;
+        right: 18px;
+        bottom: 78px;
+        z-index: 60;
+        max-width: 290px;
+        padding: 11px 13px;
+        border: 1px solid var(--border);
+        border-radius: 11px;
+        background: var(--surface);
+        box-shadow: var(--shadow);
+        color: var(--text-2);
+        font-size: 11px;
+        opacity: 0;
+        pointer-events: none;
+        transform: translateY(8px);
+        transition: 160ms ease;
+      }
+
+      .prototype-toast.show {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      @media (max-width: 1180px) {
+        .main {
+          padding-right: 10px;
+          padding-left: 10px;
+        }
+
+        .metrics-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark">T</span>
+          <span>Token 搭子</span>
+        </div>
+        <nav class="topnav">
+          <span>Home</span><span>Models</span><span>Docs</span><span>Rankings</span>
+          <button class="icon-button" id="theme-toggle" title="切换明暗主题">◐</button>
+          <span class="avatar">C</span>
+        </nav>
+      </header>
+      <div class="body-shell">
+        <aside class="sidebar" id="sidebar"></aside>
+        <main class="main" id="prototype-root"></main>
+      </div>
+    </div>
+
+    <div class="variant-switcher" aria-label="原型方案切换">
+      <button class="variant-arrow" id="previous-variant" aria-label="上一方案">←</button>
+      <button class="variant-option" data-variant="A">A 紧凑合并</button>
+      <button class="variant-option" data-variant="B">B 双列拆分</button>
+      <button class="variant-option" data-variant="C">C 独立监控页</button>
+      <button class="variant-arrow" id="next-variant" aria-label="下一方案">→</button>
+    </div>
+    <div class="prototype-toast" id="toast"></div>
+
+    <script>
+      const variants = ['A', 'B', 'C']
+      const variantMeta = {
+        A: {
+          name: '紧凑合并单元格',
+          subtitle: '把“当前活跃 / 最大并发”合并成一个控件，分母可点击编辑。',
+          note: '消除 0/3 与数字 3 的重复展示，状态、配置仍在同一列完成；最适合日常渠道管理。',
+          density: '高',
+          clarity: '高',
+          ops: '中',
+        },
+        B: {
+          name: '状态与上限双列',
+          subtitle: '实时状态只展示活跃、排队、冷却；最大并发单独作为配置列。',
+          note: '运行状态与配置语义最清楚，也完全没有数字重复；代价是表格横向宽度增加约 110px。',
+          density: '中',
+          clarity: '最高',
+          ops: '中',
+        },
+        C: {
+          name: '独立并发监控页',
+          subtitle: '把汇总指标、利用率、排队和冷却状态集中到专门页面。',
+          note: '适合渠道很多、需要值班排障时使用；建议渠道页仍保留极简状态，并提供跳转入口，而不是完全移除。',
+          density: '低',
+          clarity: '高',
+          ops: '最高',
+        },
+      }
+
+      const channels = [
+        {
+          id: 4,
+          name: 'MiniMax 主力',
+          provider: 'MiniMax',
+          providerMark: 'M',
+          group: 'default',
+          priority: 10,
+          weight: 100,
+          active: 0,
+          max: 3,
+          waiting: 0,
+          cooling: false,
+          response: '1.42s',
+        },
+        {
+          id: 5,
+          name: 'Codex 订阅 B',
+          provider: 'OpenAI',
+          providerMark: 'O',
+          group: 'default',
+          priority: 10,
+          weight: 80,
+          active: 2,
+          max: 3,
+          waiting: 0,
+          cooling: false,
+          response: '2.18s',
+        },
+        {
+          id: 33,
+          name: 'Azure 主线路',
+          provider: 'Azure',
+          providerMark: 'A',
+          group: 'default',
+          priority: 10,
+          weight: 60,
+          active: 3,
+          max: 3,
+          waiting: 2,
+          cooling: false,
+          response: '1.87s',
+        },
+        {
+          id: 34,
+          name: 'Azure 备用',
+          provider: 'Azure',
+          providerMark: 'A',
+          group: 'default',
+          priority: 5,
+          weight: 40,
+          active: 0,
+          max: 2,
+          waiting: 0,
+          cooling: true,
+          response: '2.91s',
+        },
+        {
+          id: 17,
+          name: '不限并发兜底',
+          provider: 'OpenAI',
+          providerMark: 'O',
+          group: 'fallback',
+          priority: 0,
+          weight: 20,
+          active: 0,
+          max: 0,
+          waiting: 0,
+          cooling: false,
+          response: '3.26s',
+        },
+      ]
+
+      let currentVariant = getInitialVariant()
+      let monitorFilter = 'all'
+      let toastTimer
+
+      function getInitialVariant() {
+        const value = new URLSearchParams(location.search).get('variant')?.toUpperCase()
+        return variants.includes(value) ? value : 'A'
+      }
+
+      function loadState(channel) {
+        if (channel.max <= 0) return 'unlimited'
+        if (channel.active >= channel.max) return 'full'
+        if (channel.active > 0) return 'busy'
+        return 'idle'
+      }
+
+      function stateLabel(channel) {
+        if (channel.max <= 0) return '不限并发'
+        if (channel.cooling) return '冷却中'
+        if (channel.active >= channel.max) return '已满载'
+        if (channel.active > 0) return '运行中'
+        return '空闲'
+      }
+
+      function sidebarHtml() {
+        const monitor = currentVariant === 'C'
+        return `
+          <div class="nav-title">通用</div>
+          ${navItem('⌂', '概览')}${navItem('◇', '仪表盘')}${navItem('⌁', 'API Keys')}
+          ${navItem('▤', '使用日志')}${navItem('▦', '审计日志')}
+          <div class="nav-title">管理</div>
+          ${navItem('◉', '渠道', !monitor)}
+          ${navItem('◌', '并发监控', monitor)}
+          ${navItem('⬡', '模型')}${navItem('♡', '模型健康')}
+          ${navItem('⚙', '系统设置')}${navItem('♙', '用户')}
+        `
+      }
+
+      function navItem(icon, label, active = false) {
+        return `<div class="nav-item ${active ? 'active' : ''}"><span class="nav-icon">${icon}</span><span>${label}</span></div>`
+      }
+
+      function pageHeader(title = '渠道') {
+        const meta = variantMeta[currentVariant]
+        return `
+          <div class="page-header">
+            <div>
+              <div class="eyebrow">PROTOTYPE · 方案 ${currentVariant}</div>
+              <div class="title-line">
+                <h1>${title}</h1>
+                <span class="prototype-badge">${meta.name}</span>
+              </div>
+              <p class="subtitle">${meta.subtitle}</p>
+            </div>
+            <div class="header-actions">
+              <button class="button" data-action="simulate">↻ 模拟下一帧</button>
+              ${currentVariant === 'C' ? '<button class="button primary">＋ 配置并发策略</button>' : '<button class="button primary">＋ 创建渠道</button>'}
+            </div>
+          </div>
+        `
+      }
+
+      function toolbarHtml(extra = '') {
+        return `
+          <div class="toolbar">
+            <div class="toolbar-group">
+              <input class="search" placeholder="按名称、ID 或 Key 筛选…" />
+              <button class="filter-chip">⊕ 状态</button>
+              <button class="filter-chip">⊕ 类型</button>
+              <button class="filter-chip">⊕ 分组</button>
+              ${extra}
+            </div>
+            <div class="toolbar-group">
+              <span class="tiny-badge"><span class="live-pulse">10 秒刷新</span></span>
+              <button class="button ghost">◉</button>
+              <button class="button ghost">↻</button>
+              <button class="button">表格视图</button>
+            </div>
+          </div>
+        `
+      }
+
+      function providerCell(channel) {
+        return `<span class="provider"><span class="provider-logo">${channel.providerMark}</span>${channel.provider}</span>`
+      }
+
+      function basicCells(channel) {
+        return `
+          <td class="channel-id">${channel.id}</td>
+          <td><span class="channel-name">${channel.name}</span></td>
+          <td>${providerCell(channel)}</td>
+          <td><span class="status-text">已启用</span></td>
+          <td><span class="group-badge">${channel.group}</span></td>
+          <td><span class="number-field mono">${channel.priority}</span></td>
+          <td><span class="number-field mono">${channel.weight}</span></td>
+        `
+      }
+
+      function compactConcurrency(channel) {
+        if (channel.max <= 0) {
+          return `<span class="unlimited">— 不限制</span>`
+        }
+        const state = loadState(channel)
+        return `
+          <span class="inline-load">
+            <span class="load-editor ${state}" title="分母是最大并发，点击可编辑">
+              <span class="load-dot"></span>
+              <span class="active-value">${channel.active}</span>
+              <span class="slash">/</span>
+              <button class="max-trigger" data-edit-max="${channel.id}" aria-label="编辑 ${channel.name} 最大并发">${channel.max}</button>
+            </span>
+            ${channel.waiting > 0 ? `<span class="queue-badge">⌛ 排队 ${channel.waiting}</span>` : ''}
+            ${channel.cooling ? '<span class="cooling-badge">❄ 冷却</span>' : ''}
+          </span>
+        `
+      }
+
+      function liveStatusOnly(channel) {
+        if (channel.max <= 0) return `<span class="unlimited">不参与限制</span>`
+        const state = loadState(channel)
+        return `
+          <span class="live-state">
+            <span class="live-count ${state}"><b>${channel.active}</b> 活跃</span>
+            ${channel.waiting > 0 ? `<span class="queue-badge">排队 ${channel.waiting}</span>` : ''}
+            ${channel.cooling ? '<span class="cooling-badge">冷却</span>' : ''}
+          </span>
+        `
+      }
+
+      function stepper(channel) {
+        return `
+          <span class="stepper" aria-label="最大并发">
+            <button data-step="-1" data-channel-id="${channel.id}" title="减少">−</button>
+            <span class="value">${channel.max}</span>
+            <button data-step="1" data-channel-id="${channel.id}" title="增加">＋</button>
+          </span>
+        `
+      }
+
+      function actionCell() {
+        return '<span class="action-icons"><span>✎</span><span>◔</span><span>⋯</span></span>'
+      }
+
+      function tableFooter() {
+        return '<div class="footer-row"><span>总计：5</span><span>每页 20 行</span><span class="tiny-badge">1</span></div>'
+      }
+
+      function designNote() {
+        const meta = variantMeta[currentVariant]
+        return `
+          <div class="design-note">
+            <div>
+              <strong>这个方案解决什么？</strong>
+              <p>${meta.note}</p>
+            </div>
+            <div class="score-row">
+              <span class="score"><b>${meta.density}</b><span>信息密度</span></span>
+              <span class="score"><b>${meta.clarity}</b><span>语义清晰</span></span>
+              <span class="score"><b>${meta.ops}</b><span>运维能力</span></span>
+            </div>
+          </div>
+        `
+      }
+
+      function renderVariantA() {
+        return `
+          ${pageHeader()}
+          ${toolbarHtml()}
+          <section class="table-card">
+            <div class="table-scroll">
+              <table>
+                <thead><tr>
+                  <th>ID ↕</th><th>名称</th><th>类型</th><th>状态</th><th>分组</th>
+                  <th>优先级 ↕</th><th>权重</th><th>并发 <span title="当前活跃 / 最大并发">ⓘ</span></th>
+                  <th>响应</th><th>操作</th>
+                </tr></thead>
+                <tbody>
+                  ${channels.map((channel) => `
+                    <tr>${basicCells(channel)}
+                      <td>${compactConcurrency(channel)}</td>
+                      <td>${channel.response}</td><td>${actionCell()}</td>
+                    </tr>`).join('')}
+                </tbody>
+              </table>
+            </div>
+            ${tableFooter()}
+          </section>
+          ${designNote()}
+        `
+      }
+
+      function renderVariantB() {
+        return `
+          ${pageHeader()}
+          ${toolbarHtml()}
+          <section class="table-card">
+            <div class="table-scroll">
+              <table style="min-width: 1060px">
+                <thead><tr>
+                  <th>ID ↕</th><th>名称</th><th>类型</th><th>状态</th><th>分组</th>
+                  <th>优先级 ↕</th><th>权重</th><th>实时状态</th><th>最大并发</th>
+                  <th>响应</th><th>操作</th>
+                </tr></thead>
+                <tbody>
+                  ${channels.map((channel) => `
+                    <tr>${basicCells(channel)}
+                      <td>${liveStatusOnly(channel)}</td>
+                      <td>${stepper(channel)}</td>
+                      <td>${channel.response}</td><td>${actionCell()}</td>
+                    </tr>`).join('')}
+                </tbody>
+              </table>
+            </div>
+            ${tableFooter()}
+          </section>
+          ${designNote()}
+        `
+      }
+
+      function metricCards() {
+        const bounded = channels.filter((channel) => channel.max > 0)
+        const active = bounded.reduce((sum, channel) => sum + channel.active, 0)
+        const capacity = bounded.reduce((sum, channel) => sum + channel.max, 0)
+        const waiting = bounded.reduce((sum, channel) => sum + channel.waiting, 0)
+        const cooling = bounded.filter((channel) => channel.cooling).length
+        return `
+          <div class="metrics-grid">
+            ${metricCard('受限渠道 RPM', 36, '仅统计设置了并发限制的渠道', '◫')}
+            ${metricCard('活跃槽位', `${active}/${capacity}`, `整体占用 ${Math.round(active / capacity * 100)}%`, '◉')}
+            ${metricCard('排队请求', waiting, waiting ? '需要关注满载渠道' : '当前无等待', '⌛')}
+            ${metricCard('冷却渠道', cooling, cooling ? '短期退出调度' : '全部正常', '❄')}
+          </div>
+        `
+      }
+
+      function metricCard(label, value, caption, icon) {
+        return `<article class="metric-card"><div class="metric-label"><span>${label}</span><span>${icon}</span></div><div class="metric-value">${value}</div><div class="metric-caption">${caption}</div></article>`
+      }
+
+      function monitorRows() {
+        return channels
+          .filter((channel) => channel.max > 0)
+          .filter((channel) => {
+            if (monitorFilter === 'all') return true
+            if (monitorFilter === 'queued') return channel.waiting > 0
+            if (monitorFilter === 'cooling') return channel.cooling
+            if (monitorFilter === 'full') return loadState(channel) === 'full'
+            return true
+          })
+          .map((channel) => {
+            const state = loadState(channel)
+            const percentage = channel.max > 0 ? Math.min(100, channel.active / channel.max * 100) : 0
+            return `
+              <tr>
+                <td><div class="provider"><span class="provider-logo">${channel.providerMark}</span><span><span class="channel-name">${channel.name}</span><br><span style="color:var(--text-3);font-size:10px">#${channel.id} · ${channel.provider}</span></span></div></td>
+                <td><span class="group-badge">${channel.group}</span></td>
+                <td><span class="mono">P${channel.priority}</span> / <span class="mono">W${channel.weight}</span></td>
+                <td>${channel.max > 0 ? `<div class="load-stack"><div class="progress ${state}"><span style="width:${percentage}%"></span></div><b class="mono">${channel.active}/${channel.max}</b></div>` : '<span class="unlimited">不限并发</span>'}</td>
+                <td>${channel.waiting > 0 ? `<span class="queue-badge">${channel.waiting} 个等待</span>` : '<span class="unlimited">0</span>'}</td>
+                <td><div class="monitor-status"><span class="state-badge ${state === 'unlimited' ? 'idle' : state}">${stateLabel(channel)}</span>${channel.cooling ? '<span class="cooling-badge">冷却</span>' : ''}</div></td>
+                <td>${channel.response}</td>
+                <td><button class="button" data-edit-max="${channel.id}">配置</button></td>
+              </tr>
+            `
+          }).join('')
+      }
+
+      function monitorFilters() {
+        const options = [
+          ['all', '全部'], ['full', '满载'], ['queued', '有排队'], ['cooling', '冷却中'],
+        ]
+        return options.map(([value, label]) => `<button class="filter-chip ${monitorFilter === value ? 'active' : ''}" data-monitor-filter="${value}">${label}</button>`).join('')
+      }
+
+      function renderVariantC() {
+        return `
+          ${pageHeader('渠道并发监控')}
+          <div class="monitor-tabs"><button class="monitor-tab">渠道列表</button><button class="monitor-tab active">并发监控</button><button class="monitor-tab">全局策略</button></div>
+          ${metricCards()}
+          ${toolbarHtml(monitorFilters())}
+          <section class="table-card">
+            <div class="table-scroll">
+              <table style="min-width: 980px">
+                <thead><tr><th>渠道</th><th>分组</th><th>优先级 / 权重</th><th>槽位占用</th><th>排队</th><th>状态</th><th>响应</th><th>操作</th></tr></thead>
+                <tbody>${monitorRows()}</tbody>
+              </table>
+            </div>
+            <div class="footer-row"><span class="live-pulse">实时快照正常</span><span>上次刷新：刚刚</span><span>轮询间隔：10 秒</span></div>
+          </section>
+          ${designNote()}
+        `
+      }
+
+      function render() {
+        document.getElementById('sidebar').innerHTML = sidebarHtml()
+        const root = document.getElementById('prototype-root')
+        root.innerHTML = currentVariant === 'A' ? renderVariantA() : currentVariant === 'B' ? renderVariantB() : renderVariantC()
+        document.querySelectorAll('[data-variant]').forEach((button) => button.classList.toggle('active', button.dataset.variant === currentVariant))
+        bindRenderedInteractions()
+      }
+
+      function bindRenderedInteractions() {
+        document.querySelectorAll('[data-edit-max]').forEach((button) => {
+          button.addEventListener('click', () => editMax(Number(button.dataset.editMax)))
+        })
+        document.querySelectorAll('[data-step]').forEach((button) => {
+          button.addEventListener('click', () => changeMax(Number(button.dataset.channelId), Number(button.dataset.step)))
+        })
+        document.querySelectorAll('[data-action="simulate"]').forEach((button) => button.addEventListener('click', simulateNextFrame))
+        document.querySelectorAll('[data-monitor-filter]').forEach((button) => {
+          button.addEventListener('click', () => {
+            monitorFilter = button.dataset.monitorFilter
+            render()
+          })
+        })
+      }
+
+      function editMax(id) {
+        const channel = channels.find((item) => item.id === id)
+        const input = prompt(`设置「${channel.name}」的最大并发（0 = 不限制）`, String(channel.max))
+        if (input === null) return
+        const next = Number(input)
+        if (!Number.isInteger(next) || next < 0) {
+          showToast('请输入大于等于 0 的整数')
+          return
+        }
+        channel.max = next
+        if (next === 0) {
+          channel.active = 0
+          channel.waiting = 0
+          channel.cooling = false
+        } else {
+          channel.active = Math.min(channel.active, next)
+        }
+        render()
+        showToast(`已在原型中把 ${channel.name} 最大并发改为 ${next || '不限'}`)
+      }
+
+      function changeMax(id, delta) {
+        const channel = channels.find((item) => item.id === id)
+        channel.max = Math.max(0, channel.max + delta)
+        channel.active = channel.max === 0 ? 0 : Math.min(channel.active, channel.max)
+        if (channel.max === 0) channel.waiting = 0
+        render()
+      }
+
+      function simulateNextFrame() {
+        for (const channel of channels) {
+          if (channel.max <= 0 || channel.cooling) continue
+          channel.active = (channel.active + 1) % (channel.max + 1)
+          channel.waiting = channel.active === channel.max ? (channel.waiting + 1) % 4 : 0
+        }
+        render()
+        showToast('已模拟下一次 10 秒实时快照')
+      }
+
+      function showToast(message) {
+        const toast = document.getElementById('toast')
+        toast.textContent = message
+        toast.classList.add('show')
+        clearTimeout(toastTimer)
+        toastTimer = setTimeout(() => toast.classList.remove('show'), 2200)
+      }
+
+      function switchVariant(nextVariant) {
+        currentVariant = nextVariant
+        const url = new URL(location.href)
+        url.searchParams.set('variant', currentVariant)
+        history.replaceState(null, '', url)
+        render()
+      }
+
+      function cycleVariant(direction) {
+        const index = variants.indexOf(currentVariant)
+        switchVariant(variants[(index + direction + variants.length) % variants.length])
+      }
+
+      document.querySelectorAll('[data-variant]').forEach((button) => button.addEventListener('click', () => switchVariant(button.dataset.variant)))
+      document.getElementById('previous-variant').addEventListener('click', () => cycleVariant(-1))
+      document.getElementById('next-variant').addEventListener('click', () => cycleVariant(1))
+      document.getElementById('theme-toggle').addEventListener('click', () => {
+        const root = document.documentElement
+        root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark'
+      })
+      addEventListener('keydown', (event) => {
+        const tag = document.activeElement?.tagName
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable) return
+        if (event.key === 'ArrowLeft') cycleVariant(-1)
+        if (event.key === 'ArrowRight') cycleVariant(1)
+      })
+
+      render()
+    </script>
+  </body>
+</html>
