@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"sort"
@@ -204,6 +205,9 @@ func AcquireChannelConcurrencyWithWait(ctx context.Context, channel *model.Chann
 			return nil, false, ErrChannelConcurrencyLimit
 		case <-timer.C:
 			lease, ok, err = TryAcquireChannelConcurrency(waitCtx, channel)
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return nil, false, ErrChannelConcurrencyLimit
+			}
 			if err != nil || ok {
 				return lease, ok, err
 			}

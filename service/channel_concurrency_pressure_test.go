@@ -697,6 +697,85 @@ func TestChannelCandidateOrderingKeepsCachedCooldownsWhenFreshConfirmationFails(
 	require.Empty(t, ordered)
 }
 
+func TestChannelCandidateOrderingUsesGroupWeightForEqualLoad(t *testing.T) {
+	globalUnlimitedWeight := uint(100)
+	globalLimitedWeight := uint(0)
+	unlimited := &model.Channel{
+		Id:            2802,
+		Weight:        &globalUnlimitedWeight,
+		GroupPriority: common.GetPointer(`{"vip":{"weight":0}}`),
+	}
+	limited := &model.Channel{
+		Id:             2803,
+		Weight:         &globalLimitedWeight,
+		GroupPriority:  common.GetPointer(`{"vip":{"weight":100}}`),
+		MaxConcurrency: 1,
+	}
+	ordered, _, err := orderChannelCandidatesWithLoads(
+		[]*model.Channel{unlimited, limited},
+		map[int]ChannelConcurrencyLoad{
+			unlimited.Id: {ChannelID: unlimited.Id},
+			limited.Id:   {ChannelID: limited.Id, MaxConcurrency: 1},
+		},
+		"vip",
+	)
+
+	require.NoError(t, err)
+	require.Equal(t, []int{limited.Id, unlimited.Id}, []int{ordered[0].Id, ordered[1].Id})
+}
+
+func TestChannelSelectionFallsBackToLowerPriorityBeforeWaiting(t *testing.T) {
+	resetChannelConcurrencyForTest()
+	useCountingRedisChannelConcurrencyLoads(t)
+	database := useChannelConcurrencySelectionDatabase(t)
+	useChannelConcurrencyLoadSetting(t, operation_setting.ChannelConcurrencySetting{
+		SlotTTLMinutes:     1,
+		WaitEnabled:        false,
+		WaitTimeoutMS:      5000,
+		WaitIntervalMS:     100,
+		CooldownEnabled:    false,
+		CooldownSeconds:    30,
+		LoadCacheEnabled:   false,
+		LoadCacheTTLMS:     200,
+		MaxAcquireAttempts: 8,
+	})
+	highPriority := int64(10)
+	lowPriority := int64(0)
+	weight := uint(100)
+	high := &model.Channel{
+		Id: 2810, Type: constant.ChannelTypeOpenAI, Key: "key-high", Status: common.ChannelStatusEnabled,
+		Name: "high-full", Weight: &weight, Priority: &highPriority, Models: "gpt-priority-fallback", Group: "default", MaxConcurrency: 1,
+	}
+	low := &model.Channel{
+		Id: 2811, Type: constant.ChannelTypeOpenAI, Key: "key-low", Status: common.ChannelStatusEnabled,
+		Name: "low-unlimited", Weight: &weight, Priority: &lowPriority, Models: "gpt-priority-fallback", Group: "default",
+	}
+	require.NoError(t, database.Create(&[]*model.Channel{high, low}).Error)
+	require.NoError(t, database.Create(&[]model.Ability{
+		{Group: "default", Model: "gpt-priority-fallback", ChannelId: high.Id, Enabled: true, Priority: &highPriority, Weight: weight},
+		{Group: "default", Model: "gpt-priority-fallback", ChannelId: low.Id, Enabled: true, Priority: &lowPriority, Weight: weight},
+	}).Error)
+	model.InitChannelCache()
+	heldLease, acquired, err := TryAcquireChannelConcurrency(context.Background(), high)
+	require.NoError(t, err)
+	require.True(t, acquired)
+	t.Cleanup(func() { require.NoError(t, ReleaseChannelConcurrency(context.Background(), heldLease)) })
+
+	gin.SetMode(gin.TestMode)
+	requestContext, _ := gin.CreateTestContext(httptest.NewRecorder())
+	requestContext.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+	retry := 0
+	param := &RetryParam{
+		Ctx: requestContext, TokenGroup: "default", ModelName: "gpt-priority-fallback", Retry: &retry,
+	}
+	selected, _, err := CacheGetRandomSatisfiedChannel(param)
+
+	require.NoError(t, err)
+	require.NotNil(t, selected)
+	require.Equal(t, low.Id, selected.Id)
+	require.Equal(t, 1, param.GetRetry())
+}
+
 func TestChannelSelectionSharesAcquireBudgetThenWaitsForBestCandidate(t *testing.T) {
 	resetChannelConcurrencyForTest()
 	hook := useCountingRedisChannelConcurrencyLoads(t)
@@ -863,5 +942,73 @@ func TestAutoGroupChannelSelectionUsesConcurrencyAcquireBudget(t *testing.T) {
 	require.NotNil(t, selected)
 	require.Equal(t, "vip", selectedGroup)
 	require.NotNil(t, getChannelConcurrencyLeaseForContext(requestContext))
+	require.NoError(t, ReleaseChannelConcurrencyForContext(requestContext))
+}
+
+func TestAutoGroupSelectionResetsAcquireBudgetForEachGroup(t *testing.T) {
+	resetChannelConcurrencyForTest()
+	useCountingRedisChannelConcurrencyLoads(t)
+	database := useChannelConcurrencySelectionDatabase(t)
+	useChannelConcurrencyLoadSetting(t, operation_setting.ChannelConcurrencySetting{
+		SlotTTLMinutes:       1,
+		WaitEnabled:          false,
+		WaitTimeoutMS:        500,
+		WaitIntervalMS:       100,
+		MaxWaitingPerChannel: 1,
+		CooldownEnabled:      false,
+		CooldownSeconds:      30,
+		LoadCacheEnabled:     true,
+		LoadCacheTTLMS:       5000,
+		MaxAcquireAttempts:   2,
+	})
+	priority := int64(0)
+	preferredWeight := uint(100)
+	fallbackWeight := uint(0)
+	firstGroupFull := &model.Channel{
+		Id: 3010, Type: constant.ChannelTypeOpenAI, Key: "key-first-full", Status: common.ChannelStatusEnabled,
+		Name: "first-group-full", Weight: &preferredWeight, Priority: &priority, Models: "gpt-auto-budget-reset", Group: "vip", MaxConcurrency: 1,
+	}
+	secondGroupFull := &model.Channel{
+		Id: 3011, Type: constant.ChannelTypeOpenAI, Key: "key-second-full", Status: common.ChannelStatusEnabled,
+		Name: "second-group-full", Weight: &preferredWeight, Priority: &priority, Models: "gpt-auto-budget-reset", Group: "default", MaxConcurrency: 1,
+	}
+	secondGroupFree := &model.Channel{
+		Id: 3012, Type: constant.ChannelTypeOpenAI, Key: "key-second-free", Status: common.ChannelStatusEnabled,
+		Name: "second-group-free", Weight: &fallbackWeight, Priority: &priority, Models: "gpt-auto-budget-reset", Group: "default", MaxConcurrency: 1,
+	}
+	require.NoError(t, database.Create(&[]*model.Channel{firstGroupFull, secondGroupFull, secondGroupFree}).Error)
+	require.NoError(t, database.Create(&[]model.Ability{
+		{Group: "vip", Model: "gpt-auto-budget-reset", ChannelId: firstGroupFull.Id, Enabled: true, Priority: &priority, Weight: preferredWeight},
+		{Group: "default", Model: "gpt-auto-budget-reset", ChannelId: secondGroupFull.Id, Enabled: true, Priority: &priority, Weight: preferredWeight},
+		{Group: "default", Model: "gpt-auto-budget-reset", ChannelId: secondGroupFree.Id, Enabled: true, Priority: &priority, Weight: fallbackWeight},
+	}).Error)
+	model.InitChannelCache()
+	_, err := GetChannelConcurrencyLoads(context.Background(), []*model.Channel{secondGroupFull, secondGroupFree})
+	require.NoError(t, err)
+	firstGroupLease, acquired, err := TryAcquireChannelConcurrency(context.Background(), firstGroupFull)
+	require.NoError(t, err)
+	require.True(t, acquired)
+	secondGroupLease, acquired, err := TryAcquireChannelConcurrency(context.Background(), secondGroupFull)
+	require.NoError(t, err)
+	require.True(t, acquired)
+	t.Cleanup(func() {
+		require.NoError(t, ReleaseChannelConcurrency(context.Background(), firstGroupLease))
+		require.NoError(t, ReleaseChannelConcurrency(context.Background(), secondGroupLease))
+	})
+
+	gin.SetMode(gin.TestMode)
+	requestContext, _ := gin.CreateTestContext(httptest.NewRecorder())
+	requestContext.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+	common.SetContextKey(requestContext, constant.ContextKeyUserGroup, "default")
+	common.SetContextKey(requestContext, constant.ContextKeyTokenAutoGroups, []string{"vip", "default"})
+	retry := 0
+	selected, selectedGroup, err := CacheGetRandomSatisfiedChannel(&RetryParam{
+		Ctx: requestContext, TokenGroup: "auto", ModelName: "gpt-auto-budget-reset", Retry: &retry,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, selected)
+	require.Equal(t, secondGroupFree.Id, selected.Id)
+	require.Equal(t, "default", selectedGroup)
 	require.NoError(t, ReleaseChannelConcurrencyForContext(requestContext))
 }

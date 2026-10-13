@@ -119,6 +119,33 @@ func TestGroupPriorityRoutingUsesEffectiveValuesOnBothCachePaths(t *testing.T) {
 	}
 }
 
+func TestSatisfiedChannelCandidatesReturnsEmptyAfterAllPriorities(t *testing.T) {
+	for _, memoryCacheEnabled := range []bool{false, true} {
+		t.Run(fmt.Sprintf("memory_cache_%t", memoryCacheEnabled), func(t *testing.T) {
+			db := setupChannelGroupPriorityTestDB(t, memoryCacheEnabled)
+			modelName := "exhausted-priority-candidates-model"
+			highPriority := int64(10)
+			lowPriority := int64(0)
+			weight := uint(1)
+			require.NoError(t, db.Create(&[]Channel{
+				{Id: 21, Type: constant.ChannelTypeOpenAI, Key: "key-21", Status: common.ChannelStatusEnabled, Models: modelName, Group: "default", Priority: &highPriority, Weight: &weight},
+				{Id: 22, Type: constant.ChannelTypeOpenAI, Key: "key-22", Status: common.ChannelStatusEnabled, Models: modelName, Group: "default", Priority: &lowPriority, Weight: &weight},
+			}).Error)
+			require.NoError(t, db.Create(&[]Ability{
+				{Group: "default", Model: modelName, ChannelId: 21, Enabled: true, Priority: &highPriority, Weight: weight},
+				{Group: "default", Model: modelName, ChannelId: 22, Enabled: true, Priority: &lowPriority, Weight: weight},
+			}).Error)
+			if memoryCacheEnabled {
+				InitChannelCache()
+			}
+
+			candidates, err := GetSatisfiedChannelCandidates("default", modelName, 2, nil)
+			require.NoError(t, err)
+			require.Empty(t, candidates)
+		})
+	}
+}
+
 func TestModelAvailabilityProbeUsesGlobalChannelPriorityAndWeight(t *testing.T) {
 	db := setupChannelGroupPriorityTestDB(t, false)
 	modelName := "probe-global-priority-model"

@@ -63,7 +63,7 @@ func GetSatisfiedChannelCandidates(group string, modelName string, retry int, fi
 		retry = 0
 	}
 	if retry >= len(priorities) {
-		retry = len(priorities) - 1
+		return nil, nil
 	}
 	targetPriority := priorities[retry]
 
@@ -122,8 +122,11 @@ func getCachedSatisfiedChannelCandidates(group string, modelName string, retry i
 	if len(priorities) == 0 {
 		return nil
 	}
+	if retry < 0 {
+		retry = 0
+	}
 	if retry >= len(priorities) {
-		retry = len(priorities) - 1
+		return nil
 	}
 	targetPriority := priorities[retry]
 

@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	appI18n "github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -268,6 +269,183 @@ func TestDistributeAffinityChannelWaitsForConcurrencyRelease(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("affinity request did not acquire channel concurrency after release")
 	}
+}
+
+func TestDistributeAffinityQueueFullHonorsSessionMode(t *testing.T) {
+	require.NoError(t, appI18n.Init())
+	testCases := []struct {
+		name              string
+		sessionMode       string
+		expectedStatus    int
+		expectedChannelID int
+	}{
+		{
+			name:              "prefer falls back",
+			sessionMode:       "prefer",
+			expectedStatus:    http.StatusOK,
+			expectedChannelID: 930006,
+		},
+		{
+			name:              "strict stops",
+			sessionMode:       "strict",
+			expectedStatus:    http.StatusTooManyRequests,
+			expectedChannelID: 0,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			useMiddlewareMemoryChannelConcurrency(t)
+			useMiddlewareChannelConcurrencyWaitSetting(t, 2*time.Second, 5*time.Millisecond, 1)
+			useMiddlewareChannelSelectionDB(t)
+			useMiddlewareChannelAffinityRule(t)
+			affinitySetting := operation_setting.GetChannelAffinitySetting()
+			affinitySetting.SessionMode = testCase.sessionMode
+			affinitySetting.Rules[0].SessionMode = "inherit"
+
+			priority := int64(0)
+			preferredWeight := uint(1_000_000)
+			fallbackWeight := uint(1)
+			preferred := &model.Channel{
+				Id:             930005,
+				Type:           constant.ChannelTypeOpenAI,
+				Key:            "sk-preferred-full",
+				Status:         common.ChannelStatusEnabled,
+				Name:           "preferred-full",
+				Group:          "default",
+				Models:         "gpt-affinity-wait",
+				Priority:       &priority,
+				Weight:         &preferredWeight,
+				MaxConcurrency: 1,
+			}
+			fallback := &model.Channel{
+				Id:             930006,
+				Type:           constant.ChannelTypeOpenAI,
+				Key:            "sk-fallback-free",
+				Status:         common.ChannelStatusEnabled,
+				Name:           "fallback-free",
+				Group:          "default",
+				Models:         "gpt-affinity-wait",
+				Priority:       &priority,
+				Weight:         &fallbackWeight,
+				MaxConcurrency: 1,
+			}
+			for _, channel := range []*model.Channel{preferred, fallback} {
+				require.NoError(t, model.DB.Create(channel).Error)
+				require.NoError(t, channel.AddAbilities(nil))
+			}
+			model.InitChannelCache()
+
+			affinityValue := fmt.Sprintf("affinity-full-%d", time.Now().UnixNano())
+			seedContext, _ := gin.CreateTestContext(httptest.NewRecorder())
+			seedContext.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{"model":"gpt-affinity-wait"}`))
+			seedContext.Request.Header.Set("Content-Type", "application/json")
+			seedContext.Request.Header.Set("X-Test-Affinity", affinityValue)
+			_, found := service.GetPreferredChannelByAffinity(seedContext, "gpt-affinity-wait", "default")
+			require.False(t, found)
+			service.RecordChannelAffinity(seedContext, preferred.Id)
+
+			occupyMiddlewareChannelConcurrencyQueue(t, preferred)
+
+			selectedChannelID := 0
+			router := gin.New()
+			router.Use(func(c *gin.Context) {
+				common.SetContextKey(c, constant.ContextKeyUsingGroup, "default")
+				common.SetContextKey(c, constant.ContextKeyUserGroup, "default")
+				c.Next()
+			})
+			router.Use(Distribute())
+			router.POST("/v1/chat/completions", func(c *gin.Context) {
+				defer common.CleanupBodyStorage(c)
+				selectedChannelID = common.GetContextKeyInt(c, constant.ContextKeyChannelId)
+				c.Status(http.StatusOK)
+			})
+
+			recorder := httptest.NewRecorder()
+			request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{"model":"gpt-affinity-wait"}`))
+			request.Header.Set("Content-Type", "application/json")
+			request.Header.Set("X-Test-Affinity", affinityValue)
+			router.ServeHTTP(recorder, request)
+
+			require.Equal(t, testCase.expectedStatus, recorder.Code, recorder.Body.String())
+			require.Equal(t, testCase.expectedChannelID, selectedChannelID)
+		})
+	}
+}
+
+func TestDistributeConcurrencyQueueFullReturnsTooManyRequests(t *testing.T) {
+	require.NoError(t, appI18n.Init())
+	useMiddlewareMemoryChannelConcurrency(t)
+	useMiddlewareChannelConcurrencyWaitSetting(t, 2*time.Second, 5*time.Millisecond, 1)
+	useMiddlewareChannelSelectionDB(t)
+
+	channel := &model.Channel{
+		Id:             930007,
+		Type:           constant.ChannelTypeOpenAI,
+		Key:            "sk-full",
+		Status:         common.ChannelStatusEnabled,
+		Name:           "full",
+		Group:          "default",
+		Models:         "gpt-concurrency-full",
+		MaxConcurrency: 1,
+	}
+	require.NoError(t, model.DB.Create(channel).Error)
+	require.NoError(t, channel.AddAbilities(nil))
+	model.InitChannelCache()
+	occupyMiddlewareChannelConcurrencyQueue(t, channel)
+
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		common.SetContextKey(c, constant.ContextKeyUsingGroup, "default")
+		common.SetContextKey(c, constant.ContextKeyUserGroup, "default")
+		c.Next()
+	})
+	router.Use(Distribute())
+	router.POST("/v1/chat/completions", func(c *gin.Context) {
+		defer common.CleanupBodyStorage(c)
+		c.Status(http.StatusOK)
+	})
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{"model":"gpt-concurrency-full"}`))
+	request.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusTooManyRequests, recorder.Code, recorder.Body.String())
+}
+
+type middlewareConcurrencyWaitResult struct {
+	lease *service.ChannelConcurrencyLease
+	err   error
+}
+
+func occupyMiddlewareChannelConcurrencyQueue(t *testing.T, channel *model.Channel) {
+	t.Helper()
+	heldLease, acquired, err := service.TryAcquireChannelConcurrency(context.Background(), channel)
+	require.NoError(t, err)
+	require.True(t, acquired)
+
+	waitContext, cancelWait := context.WithCancel(context.Background())
+	waitDone := make(chan middlewareConcurrencyWaitResult, 1)
+	go func() {
+		lease, _, waitErr := service.AcquireChannelConcurrencyWithWait(waitContext, channel)
+		waitDone <- middlewareConcurrencyWaitResult{lease: lease, err: waitErr}
+	}()
+	require.Eventually(t, func() bool {
+		loads, loadErr := service.GetChannelConcurrencyLoads(context.Background(), []*model.Channel{channel})
+		return loadErr == nil && loads[channel.Id].Waiting == 1
+	}, time.Second, 5*time.Millisecond)
+
+	t.Cleanup(func() {
+		cancelWait()
+		require.NoError(t, service.ReleaseChannelConcurrency(context.Background(), heldLease))
+		result := <-waitDone
+		if result.lease != nil {
+			require.NoError(t, service.ReleaseChannelConcurrency(context.Background(), result.lease))
+		} else {
+			require.ErrorIs(t, result.err, service.ErrChannelConcurrencyLimit)
+		}
+	})
 }
 
 func useMiddlewareMemoryChannelConcurrency(t *testing.T) {

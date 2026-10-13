@@ -164,17 +164,10 @@ func GetRandomSatisfiedChannel(
 	}
 	targetPriority := sortedUniquePriorities[retry]
 
-	// get the priority for the given retry number
-	var sumWeight uint64
 	var targetChannels []*Channel
 	for _, channelId := range channels {
 		if channel, ok := channelsIDM[channelId]; ok {
 			if channel.GetPriorityForGroup(group) == targetPriority {
-				weight := channel.GetWeightForGroup(group)
-				if weight > maxInt64ForWeight || sumWeight > maxInt64ForWeight-weight {
-					return nil, errors.New("channel weight overflow")
-				}
-				sumWeight += weight
 				targetChannels = append(targetChannels, channel)
 			}
 		} else {
@@ -184,6 +177,25 @@ func GetRandomSatisfiedChannel(
 
 	if len(targetChannels) == 0 {
 		return nil, errors.New(fmt.Sprintf("no channel found, group: %s, model: %s, priority: %d", group, model, targetPriority))
+	}
+	return SelectWeightedRandomChannelForGroup(targetChannels, group)
+}
+
+func SelectWeightedRandomChannelForGroup(targetChannels []*Channel, group string) (*Channel, error) {
+	if len(targetChannels) == 0 {
+		return nil, nil
+	}
+	if len(targetChannels) == 1 {
+		return targetChannels[0], nil
+	}
+
+	var sumWeight uint64
+	for _, channel := range targetChannels {
+		weight := channel.GetWeightForGroup(group)
+		if weight > maxInt64ForWeight || sumWeight > maxInt64ForWeight-weight {
+			return nil, errors.New("channel weight overflow")
+		}
+		sumWeight += weight
 	}
 
 	// smoothing factor and adjustment
@@ -217,7 +229,6 @@ func GetRandomSatisfiedChannel(
 		}
 		randomWeight -= effectiveWeight
 	}
-	// return null if no channel is not found
 	return nil, errors.New("channel not found")
 }
 

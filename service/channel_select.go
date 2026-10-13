@@ -142,8 +142,6 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 		}
 		filters = append(filters, dto.ChannelFilter{Kind: dto.FilterExcludedChannels, ExcludedChannelIDs: excluded})
 	}
-	remainingAttempts := operation_setting.GetChannelConcurrencyMaxAcquireAttempts()
-
 	if param.TokenGroup == "auto" {
 		autoGroups := GetRequestAutoGroups(param.Ctx, userGroup)
 		if len(autoGroups) == 0 {
@@ -164,6 +162,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 		concurrencyLimited := false
 		for i := startGroupIndex; i < len(autoGroups); i++ {
 			autoGroup := autoGroups[i]
+			remainingAttempts := operation_setting.GetChannelConcurrencyMaxAcquireAttempts()
 			// Calculate priorityRetry for current group
 			// 计算当前分组的 priorityRetry
 			priorityRetry := param.GetRetry()
@@ -178,7 +177,8 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			param.SetRetry(priorityRetry)
 			logger.LogDebug(param.Ctx, "Auto selecting group: %s, priorityRetry: %d", autoGroup, priorityRetry)
 
-			channel, err = getRandomSatisfiedChannelWithConcurrency(param, autoGroup, filters, &remainingAttempts)
+			selectedRetry := priorityRetry
+			channel, selectedRetry, err = getRandomSatisfiedChannelWithConcurrency(param, autoGroup, filters, &remainingAttempts)
 			if err != nil {
 				if errors.Is(err, ErrChannelConcurrencyLimit) {
 					concurrencyLimited = true
@@ -202,6 +202,8 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 				param.SetRetry(0)
 				continue
 			}
+			param.SetRetry(selectedRetry)
+			priorityRetry = selectedRetry
 			common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroup, autoGroup)
 			selectGroup = autoGroup
 			logger.LogDebug(param.Ctx, "Auto selected group: %s", autoGroup)
@@ -230,116 +232,95 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			return nil, selectGroup, ErrChannelConcurrencyLimit
 		}
 	} else {
-		channel, err = getRandomSatisfiedChannelWithConcurrency(param, param.TokenGroup, filters, &remainingAttempts)
+		remainingAttempts := operation_setting.GetChannelConcurrencyMaxAcquireAttempts()
+		selectedRetry := param.GetRetry()
+		channel, selectedRetry, err = getRandomSatisfiedChannelWithConcurrency(param, param.TokenGroup, filters, &remainingAttempts)
 		if err != nil {
 			return nil, param.TokenGroup, err
 		}
+		param.SetRetry(selectedRetry)
 	}
 	return channel, selectGroup, nil
 }
 
-func getRandomSatisfiedChannelWithConcurrency(param *RetryParam, group string, filters []dto.ChannelFilter, remainingAttempts *int) (*model.Channel, error) {
-	selectionFilters := filters
+func getRandomSatisfiedChannelWithConcurrency(param *RetryParam, group string, filters []dto.ChannelFilter, remainingAttempts *int) (*model.Channel, int, error) {
 	priorityRetry := param.GetRetry()
 	if len(param.ExcludeChannelIDs) > 0 {
 		priorityRetry = 0
 	}
-	candidates, err := model.GetSatisfiedChannelCandidates(group, param.ModelName, priorityRetry, filters)
-	if err != nil {
-		return nil, err
-	}
-	if len(candidates) == 0 && len(param.ExcludeChannelIDs) > 0 && param.GetRetry() > 0 {
-		priorityRetry = param.GetRetry()
-		candidates, err = model.GetSatisfiedChannelCandidates(group, param.ModelName, priorityRetry, filters)
-		if err != nil {
-			return nil, err
-		}
-	}
-	if len(candidates) == 0 && len(param.ExcludeChannelIDs) > 0 && param.GetRetry() >= common.RetryTimes {
-		fallbackFilters := slices.DeleteFunc(slices.Clone(filters), func(filter dto.ChannelFilter) bool {
-			return filter.Kind == dto.FilterExcludedChannels
-		})
-		selectionFilters = fallbackFilters
-		candidates, err = model.GetSatisfiedChannelCandidates(group, param.ModelName, priorityRetry, fallbackFilters)
-		if err != nil {
-			return nil, err
-		}
-	}
-	hasLimitedChannel := false
-	for _, candidate := range candidates {
-		if candidate.GetMaxConcurrency() > 0 {
-			hasLimitedChannel = true
-			break
-		}
-	}
-	if !hasLimitedChannel {
-		selected, selectErr := model.GetRandomSatisfiedChannel(group, param.ModelName, priorityRetry, selectionFilters)
-		if selectErr != nil || selected == nil {
-			return selected, selectErr
-		}
-		acquired, acquireErr := EnsureChannelConcurrencyForContext(param.Ctx, selected)
-		if acquireErr != nil {
-			return nil, fmt.Errorf("acquire channel concurrency for channel #%d failed: %w", selected.Id, acquireErr)
-		}
-		if !acquired {
-			return nil, ErrChannelConcurrencyLimit
-		}
-		return selected, nil
-	}
-
 	ctx := context.Background()
 	if param.Ctx != nil && param.Ctx.Request != nil {
 		ctx = param.Ctx.Request.Context()
 	}
-	orderedCandidates, err := orderChannelCandidatesByConcurrencyLoad(ctx, candidates, group)
-	if err != nil {
-		return nil, err
-	}
+	activeFilters := filters
+	retriedWithoutExclusions := false
+	sawCandidates := false
 	var waitCandidate *model.Channel
-	for _, candidate := range orderedCandidates {
-		if candidate.GetMaxConcurrency() <= 0 {
+	waitCandidateRetry := priorityRetry
+	for {
+		candidates, err := model.GetSatisfiedChannelCandidates(group, param.ModelName, priorityRetry, activeFilters)
+		if err != nil {
+			return nil, priorityRetry, err
+		}
+		if len(candidates) == 0 {
+			if !sawCandidates && !retriedWithoutExclusions && len(param.ExcludeChannelIDs) > 0 && param.GetRetry() >= common.RetryTimes {
+				activeFilters = slices.DeleteFunc(slices.Clone(filters), func(filter dto.ChannelFilter) bool {
+					return filter.Kind == dto.FilterExcludedChannels
+				})
+				retriedWithoutExclusions = true
+				priorityRetry = 0
+				continue
+			}
+			if waitCandidate != nil {
+				acquired, acquireErr := EnsureChannelConcurrencyWithWaitForContext(param.Ctx, waitCandidate)
+				if acquireErr != nil {
+					if errors.Is(acquireErr, ErrChannelConcurrencyLimit) {
+						return nil, waitCandidateRetry, ErrChannelConcurrencyLimit
+					}
+					return nil, waitCandidateRetry, fmt.Errorf("wait for channel concurrency for channel #%d failed: %w", waitCandidate.Id, acquireErr)
+				}
+				if acquired {
+					return waitCandidate, waitCandidateRetry, nil
+				}
+			}
+			if sawCandidates {
+				return nil, waitCandidateRetry, ErrChannelConcurrencyLimit
+			}
+			return nil, priorityRetry, nil
+		}
+		sawCandidates = true
+
+		orderedCandidates, err := orderChannelCandidatesByConcurrencyLoad(ctx, candidates, group)
+		if err != nil {
+			return nil, priorityRetry, err
+		}
+		for _, candidate := range orderedCandidates {
+			if candidate.GetMaxConcurrency() > 0 {
+				if remainingAttempts != nil && *remainingAttempts <= 0 {
+					if waitCandidate == nil {
+						waitCandidate = candidate
+						waitCandidateRetry = priorityRetry
+					}
+					continue
+				}
+				if remainingAttempts != nil {
+					*remainingAttempts--
+				}
+			}
 			acquired, acquireErr := EnsureChannelConcurrencyForContext(param.Ctx, candidate)
 			if acquireErr != nil {
-				return nil, fmt.Errorf("acquire channel concurrency for channel #%d failed: %w", candidate.Id, acquireErr)
+				return nil, priorityRetry, fmt.Errorf("acquire channel concurrency for channel #%d failed: %w", candidate.Id, acquireErr)
 			}
-			if !acquired {
-				return nil, ErrChannelConcurrencyLimit
+			if acquired {
+				return candidate, priorityRetry, nil
 			}
-			return candidate, nil
-		}
-		if remainingAttempts != nil && *remainingAttempts <= 0 {
 			if waitCandidate == nil {
 				waitCandidate = candidate
+				waitCandidateRetry = priorityRetry
 			}
-			continue
 		}
-		if remainingAttempts != nil {
-			*remainingAttempts--
-		}
-		acquired, acquireErr := EnsureChannelConcurrencyForContext(param.Ctx, candidate)
-		if acquireErr != nil {
-			return nil, fmt.Errorf("acquire channel concurrency for channel #%d failed: %w", candidate.Id, acquireErr)
-		}
-		if acquired {
-			return candidate, nil
-		}
-		if waitCandidate == nil {
-			waitCandidate = candidate
-		}
+		priorityRetry++
 	}
-	if waitCandidate != nil {
-		acquired, acquireErr := EnsureChannelConcurrencyWithWaitForContext(param.Ctx, waitCandidate)
-		if acquireErr != nil {
-			if errors.Is(acquireErr, ErrChannelConcurrencyLimit) {
-				return nil, ErrChannelConcurrencyLimit
-			}
-			return nil, fmt.Errorf("wait for channel concurrency for channel #%d failed: %w", waitCandidate.Id, acquireErr)
-		}
-		if acquired {
-			return waitCandidate, nil
-		}
-	}
-	return nil, ErrChannelConcurrencyLimit
 }
 
 type channelCandidateLoad struct {
@@ -352,7 +333,10 @@ func orderChannelCandidatesByConcurrencyLoad(ctx context.Context, candidates []*
 	if err != nil {
 		return nil, err
 	}
-	ordered, sawCoolingDown := orderChannelCandidatesWithLoads(candidates, loads, group)
+	ordered, sawCoolingDown, err := orderChannelCandidatesWithLoads(candidates, loads, group)
+	if err != nil {
+		return nil, err
+	}
 	if len(ordered) != 0 || !sawCoolingDown {
 		return ordered, nil
 	}
@@ -360,11 +344,14 @@ func orderChannelCandidatesByConcurrencyLoad(ctx context.Context, candidates []*
 	if freshErr != nil {
 		return ordered, nil
 	}
-	ordered, _ = orderChannelCandidatesWithLoads(candidates, freshLoads, group)
+	ordered, _, err = orderChannelCandidatesWithLoads(candidates, freshLoads, group)
+	if err != nil {
+		return nil, err
+	}
 	return ordered, nil
 }
 
-func orderChannelCandidatesWithLoads(candidates []*model.Channel, loads map[int]ChannelConcurrencyLoad, group string) ([]*model.Channel, bool) {
+func orderChannelCandidatesWithLoads(candidates []*model.Channel, loads map[int]ChannelConcurrencyLoad, group string) ([]*model.Channel, bool, error) {
 	loadedCandidates := make([]channelCandidateLoad, 0, len(candidates))
 	sawCoolingDown := false
 	for _, candidate := range candidates {
@@ -379,24 +366,37 @@ func orderChannelCandidatesWithLoads(candidates []*model.Channel, loads map[int]
 		loadedCandidates = append(loadedCandidates, channelCandidateLoad{channel: candidate, load: load})
 	}
 	sort.SliceStable(loadedCandidates, func(i, j int) bool {
-		leftScore := loadedCandidates[i].load.LoadRate
-		rightScore := loadedCandidates[j].load.LoadRate
-		if loadedCandidates[i].load.MaxConcurrency <= 0 {
-			leftScore = -1
+		if loadedCandidates[i].load.LoadRate == loadedCandidates[j].load.LoadRate {
+			return loadedCandidates[i].channel.GetPriorityForGroup(group) > loadedCandidates[j].channel.GetPriorityForGroup(group)
 		}
-		if loadedCandidates[j].load.MaxConcurrency <= 0 {
-			rightScore = -1
-		}
-		if leftScore == rightScore {
-			return loadedCandidates[i].channel.GetWeightForGroup(group) > loadedCandidates[j].channel.GetWeightForGroup(group)
-		}
-		return leftScore < rightScore
+		return loadedCandidates[i].load.LoadRate < loadedCandidates[j].load.LoadRate
 	})
 	ordered := make([]*model.Channel, 0, len(loadedCandidates))
-	for _, candidate := range loadedCandidates {
-		ordered = append(ordered, candidate.channel)
+	for i := 0; i < len(loadedCandidates); {
+		j := i + 1
+		for j < len(loadedCandidates) && loadedCandidates[j].load.LoadRate == loadedCandidates[i].load.LoadRate {
+			j++
+		}
+		bucket := make([]*model.Channel, 0, j-i)
+		for _, candidate := range loadedCandidates[i:j] {
+			bucket = append(bucket, candidate.channel)
+		}
+		for len(bucket) > 0 {
+			channel, err := model.SelectWeightedRandomChannelForGroup(bucket, group)
+			if err != nil {
+				return nil, sawCoolingDown, err
+			}
+			if channel == nil {
+				break
+			}
+			ordered = append(ordered, channel)
+			bucket = slices.DeleteFunc(bucket, func(candidate *model.Channel) bool {
+				return candidate != nil && candidate.Id == channel.Id
+			})
+		}
+		i = j
 	}
-	return ordered, sawCoolingDown
+	return ordered, sawCoolingDown, nil
 }
 
 func pinnedTaskPluginIdentities(c *gin.Context, expected string) ([]int, []string) {
@@ -508,35 +508,72 @@ func SelectChannelForRequest(c *gin.Context, modelName string, retry *RetryParam
 	if retry.GetRetry() == 0 {
 		if preferredChannelID, found := GetPreferredChannelByAffinity(c, modelName, usingGroup); found {
 			affinityUsable := false
+			affinityConcurrencyLimited := false
 			preferred, err := model.CacheGetChannel(preferredChannelID)
 			affinitySatisfied := false
 			if err == nil && preferred != nil && preferred.Status == common.ChannelStatusEnabled {
 				affinitySatisfied, _ = model.ChannelSatisfiesFilters(preferred, modelName, constraints.Filters)
 			}
+			preferredGroup := ""
 			if affinitySatisfied {
 				if usingGroup == "auto" {
 					userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
 					for _, g := range GetRequestAutoGroups(c, userGroup) {
 						if model.IsChannelEnabledForGroupModel(g, modelName, preferred.Id) {
-							selectGroup = g
-							common.SetContextKey(c, constant.ContextKeyAutoGroup, g)
-							channel = preferred
-							affinityUsable = true
-							MarkChannelAffinityUsed(c, g, preferred.Id)
+							preferredGroup = g
 							break
 						}
 					}
 				} else if model.IsChannelEnabledForGroupModel(usingGroup, modelName, preferred.Id) {
-					channel = preferred
-					selectGroup = usingGroup
-					affinityUsable = true
-					MarkChannelAffinityUsed(c, usingGroup, preferred.Id)
+					preferredGroup = usingGroup
 				}
 			}
-			if !affinityUsable && !ShouldKeepChannelAffinityOnChannelDisabled() {
+			if preferredGroup != "" {
+				acquired, acquireErr := EnsureChannelConcurrencyWithWaitForContext(c, preferred)
+				switch {
+				case errors.Is(acquireErr, ErrChannelConcurrencyLimit), acquireErr == nil && !acquired:
+					affinityConcurrencyLimited = true
+				case acquireErr != nil:
+					return nil, preferredGroup, &ChannelSelectError{
+						StatusCode: http.StatusServiceUnavailable,
+						Code:       types.ErrorCodeGetChannelFailed,
+						MessageID:  i18n.MsgDistributorGetChannelFailed,
+						Params: map[string]any{
+							"Group": preferredGroup,
+							"Model": modelName,
+							"Error": acquireErr.Error(),
+						},
+					}
+				default:
+					selectGroup = preferredGroup
+					if usingGroup == "auto" {
+						common.SetContextKey(c, constant.ContextKeyAutoGroup, preferredGroup)
+					}
+					channel = preferred
+					affinityUsable = true
+					MarkChannelAffinityUsed(c, preferredGroup, preferred.Id)
+				}
+			}
+			if !affinityUsable && !affinityConcurrencyLimited && !ShouldKeepChannelAffinityOnChannelDisabled() {
 				ClearCurrentChannelAffinityCache(c)
 			}
 			if !affinityUsable && RequestPolicy(c).SessionMode == "strict" {
+				if affinityConcurrencyLimited {
+					showGroup := usingGroup
+					if usingGroup == "auto" {
+						showGroup = fmt.Sprintf("auto(%s)", preferredGroup)
+					}
+					return nil, preferredGroup, &ChannelSelectError{
+						StatusCode: http.StatusTooManyRequests,
+						Code:       types.ErrorCodeGetChannelFailed,
+						MessageID:  i18n.MsgDistributorGetChannelFailed,
+						Params: map[string]any{
+							"Group": showGroup,
+							"Model": modelName,
+							"Error": ErrChannelConcurrencyLimit.Error(),
+						},
+					}
+				}
 				return nil, "", &ChannelSelectError{StatusCode: http.StatusServiceUnavailable, Message: "strict_session_binding_unavailable"}
 			}
 		}
@@ -550,8 +587,14 @@ func SelectChannelForRequest(c *gin.Context, modelName string, retry *RetryParam
 			if usingGroup == "auto" {
 				showGroup = fmt.Sprintf("auto(%s)", selectGroup)
 			}
+			statusCode := http.StatusServiceUnavailable
+			errorCode := types.ErrorCodeModelNotFound
+			if errors.Is(err, ErrChannelConcurrencyLimit) {
+				statusCode = http.StatusTooManyRequests
+				errorCode = types.ErrorCodeGetChannelFailed
+			}
 			return nil, selectGroup, &ChannelSelectError{
-				StatusCode: http.StatusServiceUnavailable, Code: types.ErrorCodeModelNotFound, MessageID: i18n.MsgDistributorGetChannelFailed,
+				StatusCode: statusCode, Code: errorCode, MessageID: i18n.MsgDistributorGetChannelFailed,
 				Params: map[string]any{"Group": showGroup, "Model": modelName, "Error": err.Error()},
 			}
 		}
