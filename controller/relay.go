@@ -144,17 +144,21 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			if relayFormat != types.RelayFormatOpenAIRealtime && c.Writer.Written() {
 				return
 			}
+			openAIError := newAPIError.ToOpenAIError()
+			openAIError.Message = common.MaskSensitiveInfo(newAPIError.Error())
 			switch relayFormat {
 			case types.RelayFormatOpenAIRealtime:
-				helper.WssError(c, ws, newAPIError.ToOpenAIError())
+				helper.WssError(c, ws, openAIError)
 			case types.RelayFormatClaude:
+				claudeError := newAPIError.ToClaudeError()
+				claudeError.Message = common.MaskSensitiveInfo(newAPIError.Error())
 				c.JSON(newAPIError.StatusCode, gin.H{
 					"type":  "error",
-					"error": newAPIError.ToClaudeError(),
+					"error": claudeError,
 				})
 			default:
 				c.JSON(newAPIError.StatusCode, gin.H{
-					"error": newAPIError.ToOpenAIError(),
+					"error": openAIError,
 				})
 			}
 		}
@@ -366,6 +370,9 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 		return nil, types.NewError(fmt.Errorf("获取分组 %s 下模型 %s 的可用渠道失败（retry）: %s", selectGroup, info.OriginModelName, err.Error()), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
 	}
 	if channel == nil {
+		if info.LastError != nil {
+			return nil, types.NewError(info.LastError, types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
+		}
 		return nil, types.NewError(fmt.Errorf("分组 %s 下模型 %s 的可用渠道不存在（retry）", selectGroup, info.OriginModelName), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
 	}
 
@@ -598,6 +605,7 @@ func executeTaskSubmissionWith(
 	relayInfo *relaycommon.RelayInfo,
 	submit taskSubmitAttempt,
 ) (*taskSubmissionOutcome, *taskdto.TaskError) {
+	relayInfo.LastError = nil
 	policy := service.RequestPolicy(c)
 	diagnostics := newTaskPluginSubmitDiagnostics(c)
 	diagnostics.start(relayInfo)
@@ -648,7 +656,9 @@ func executeTaskSubmissionWith(
 			channel, channelErr = getChannel(c, relayInfo, retryParam)
 			if channelErr != nil {
 				logger.LogError(c, channelErr.Error())
-				taskErr = service.TaskErrorWrapperLocal(channelErr.Err, "get_channel_failed", channelErr.StatusCode)
+				if taskErr == nil || channelErr != relayInfo.LastError {
+					taskErr = service.TaskErrorWrapperLocal(channelErr.Err, "get_channel_failed", channelErr.StatusCode)
+				}
 				break
 			}
 		}
@@ -663,6 +673,7 @@ func executeTaskSubmissionWith(
 			break
 		}
 		if taskErr == nil {
+			relayInfo.LastError = nil
 			diagnostics.attemptSucceeded(retryParam.GetRetry()+1, result)
 			break
 		}
@@ -907,6 +918,9 @@ func taskSubmissionAPIError(taskErr *taskdto.TaskError) *types.NewAPIError {
 	err := taskErr.Error
 	if err == nil {
 		err = errors.New(taskErr.Message)
+	}
+	if taskErr.LocalError {
+		return types.NewError(err, types.ErrorCodeBadResponseStatusCode, types.ErrOptionWithStatusCode(taskErr.StatusCode))
 	}
 	return types.NewOpenAIError(err, types.ErrorCodeBadResponseStatusCode, taskErr.StatusCode)
 }

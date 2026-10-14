@@ -14,3 +14,17 @@ Rules:
 - After reading, follow every rule in `AGENTS.md` for the rest of the work.
 - If the task touches `web/`, also Read `web/AGENTS.md` before editing frontend files.
 - If the task touches billing as defined under **Billing rules (mandatory read gate)** in `AGENTS.md`, also Read `.agents/rules/billing.md` in full before planning or editing. Tasks outside that definition may skip it.
+
+## Agent skills
+
+### Issue tracker
+
+Issues and specs use local Markdown under `.scratch/`. Before creating, fetching, or updating them, read `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Use the five default triage roles. Before assigning triage state, read `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Use the single-context layout. Before domain exploration, read `docs/agents/domain.md` and follow its glossary and ADR rules.

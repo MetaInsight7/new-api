@@ -23,6 +23,7 @@ import (
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
+	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/mysql"
@@ -700,4 +701,247 @@ func TestExecuteTaskSubmissionRefundsWhenFinalReserveFails(t *testing.T) {
 	assert.Equal(t, []string{"reserve", "refund"}, events)
 	assert.Equal(t, 1, billing.refunds)
 	assert.False(t, c.Writer.Written())
+}
+
+func TestTaskCandidateExhaustionPreservesOriginalError(test *testing.T) {
+	for _, testCase := range []struct {
+		name       string
+		firstError *dto.TaskError
+		lastError  dto.TaskError
+		wantSource string
+		wantCalls  int
+	}{
+		{
+			name:       "upstream rate limit",
+			lastError:  dto.TaskError{StatusCode: 429, Code: "rate_limit_exceeded", Message: "provider capacity exhausted", Data: map[string]any{"retry_after": 30}},
+			wantSource: "upstream",
+			wantCalls:  1,
+		},
+		{
+			name:       "upstream unavailable",
+			lastError:  dto.TaskError{StatusCode: 503, Code: "provider_unavailable", Message: "provider unavailable", Data: map[string]any{"retry_after": 60}},
+			wantSource: "upstream",
+			wantCalls:  1,
+		},
+		{
+			name:       "latest failure wins",
+			firstError: &dto.TaskError{StatusCode: 429, Code: "first_rate_limit", Message: "first provider rejected submission"},
+			lastError:  dto.TaskError{StatusCode: 503, Code: "latest_unavailable", Message: "second provider unavailable", Data: map[string]any{"provider": "second"}},
+			wantSource: "upstream",
+			wantCalls:  2,
+		},
+		{
+			name:       "local capacity stays local",
+			firstError: &dto.TaskError{StatusCode: 429, Code: "first_local_capacity", Message: "first channel capacity exhausted", LocalError: true},
+			lastError:  dto.TaskError{StatusCode: 429, Code: "channel_concurrency_limit_exceeded", Message: "local capacity exhausted", LocalError: true},
+			wantSource: "local",
+			wantCalls:  2,
+		},
+		{
+			name:       "accepted task never resubmits",
+			lastError:  dto.TaskError{StatusCode: 502, Code: "accepted_stream_failed", Message: "accepted submission stream failed", LocalError: true, NoRetry: true},
+			wantSource: "local",
+			wantCalls:  1,
+		},
+	} {
+		test.Run(testCase.name, func(test *testing.T) {
+			database := setupRelayRetryRouting(test)
+			for index := range testCase.wantCalls {
+				priority := int64(testCase.wantCalls - index)
+				channel := &model.Channel{
+					Name:     fmt.Sprintf("task-provider-%d", index),
+					Type:     constant.ChannelTypeOpenAI,
+					Key:      "task-key",
+					Status:   common.ChannelStatusEnabled,
+					Group:    "default",
+					Models:   "plugin-model",
+					Priority: &priority,
+				}
+				require.NoError(test, database.Create(channel).Error)
+				require.NoError(test, channel.AddAbilities(nil))
+			}
+			model.InitChannelCache()
+
+			events := []string{}
+			billing := &taskSubmissionTestBilling{events: &events}
+			requestContext := taskSubmissionTestContext()
+			common.SetContextKey(requestContext, constant.ContextKeyUserGroup, "default")
+			relayInfo := taskSubmissionRelayInfo(billing)
+			relayInfo.LockedChannel = nil
+			relayInfo.TokenGroup = "default"
+			cause := errors.New(testCase.lastError.Message)
+			testCase.lastError.Error = cause
+			submissions := 0
+			outcome, taskError := executeTaskSubmissionWith(requestContext, relayInfo, func(*gin.Context, *relaycommon.RelayInfo) (*relay.TaskSubmitResult, *dto.TaskError) {
+				submissions++
+				if submissions == 1 && testCase.firstError != nil {
+					return nil, testCase.firstError
+				}
+				return nil, &testCase.lastError
+			})
+
+			require.Nil(test, outcome)
+			require.NotNil(test, taskError)
+			assert.Equal(test, testCase.lastError, *taskError)
+			assert.ErrorIs(test, taskError.Error, cause)
+			assert.Equal(test, testCase.wantCalls, submissions)
+			policy := service.RequestPolicy(requestContext)
+			assert.Equal(test, testCase.wantCalls, policy.Attempts)
+			failureEvents := 0
+			for _, event := range policy.Events() {
+				if event.Decision.Action == "failure" {
+					failureEvents++
+					assert.Equal(test, testCase.wantSource, event.ErrorSource)
+				}
+			}
+			assert.Equal(test, testCase.wantCalls, failureEvents)
+			assert.Equal(test, []string{"refund"}, events)
+			assert.False(test, requestContext.Writer.Written())
+		})
+	}
+}
+
+func TestTaskCandidateExhaustionDoesNotReusePreviousSubmissionError(test *testing.T) {
+	setupRelayRetryRouting(test)
+	model.InitChannelCache()
+	requestContext := taskSubmissionTestContext()
+	common.SetContextKey(requestContext, constant.ContextKeyUserGroup, "default")
+	relayInfo := taskSubmissionRelayInfo(nil)
+	relayInfo.LockedChannel = nil
+	relayInfo.TokenGroup = "default"
+	relayInfo.LastError = kittypes.NewOpenAIError(errors.New("previous submission failed"), "previous_error", http.StatusTooManyRequests)
+	submissions := 0
+	outcome, taskError := executeTaskSubmissionWith(requestContext, relayInfo, func(*gin.Context, *relaycommon.RelayInfo) (*relay.TaskSubmitResult, *dto.TaskError) {
+		submissions++
+		return nil, &dto.TaskError{StatusCode: http.StatusServiceUnavailable}
+	})
+
+	require.Nil(test, outcome)
+	require.NotNil(test, taskError)
+	assert.Equal(test, http.StatusInternalServerError, taskError.StatusCode)
+	assert.Equal(test, "get_channel_failed", taskError.Code)
+	assert.True(test, taskError.LocalError)
+	assert.Contains(test, taskError.Message, "可用渠道不存在")
+	assert.NotContains(test, taskError.Message, "previous submission failed")
+	assert.Zero(test, submissions)
+	assert.Zero(test, service.RequestPolicy(requestContext).Attempts)
+}
+
+func TestTaskRetrySuccessClearsFailureHistory(test *testing.T) {
+	events := []string{}
+	database := setupRelayRetryRouting(test, &model.Task{}, &model.User{})
+	require.NoError(test, database.Create(&model.User{Id: 1, Username: "task-retry-user", Group: "default"}).Error)
+	require.NoError(test, database.Create(&model.Channel{Id: 1, Name: "task-retry-channel", Type: constant.ChannelTypeTaskPlugin}).Error)
+	model.InitChannelCache()
+	previousRetryTimes := common.RetryTimes
+	previousLogConsumeEnabled := common.LogConsumeEnabled
+	previousBatchUpdateEnabled := common.BatchUpdateEnabled
+	common.RetryTimes = 3
+	common.LogConsumeEnabled = false
+	common.BatchUpdateEnabled = false
+	test.Cleanup(func() {
+		common.RetryTimes = previousRetryTimes
+		common.LogConsumeEnabled = previousLogConsumeEnabled
+		common.BatchUpdateEnabled = previousBatchUpdateEnabled
+	})
+	billing := &taskSubmissionTestBilling{events: &events}
+	requestContext := taskSubmissionTestContext()
+	relayInfo := taskSubmissionRelayInfo(billing)
+	submissions := 0
+	outcome, taskError := executeTaskSubmissionWith(requestContext, relayInfo, func(*gin.Context, *relaycommon.RelayInfo) (*relay.TaskSubmitResult, *dto.TaskError) {
+		submissions++
+		if submissions == 1 {
+			return nil, &dto.TaskError{StatusCode: 429, Code: "rate_limit_exceeded", Message: "temporary failure"}
+		}
+		return &relay.TaskSubmitResult{UpstreamTaskID: "upstream-success", Platform: "plugin"}, nil
+	})
+
+	require.Nil(test, taskError)
+	require.NotNil(test, outcome)
+	assert.Equal(test, "upstream-success", outcome.Result.UpstreamTaskID)
+	assert.Equal(test, "task_public", outcome.Task.TaskID)
+	assert.Nil(test, outcome.RelayInfo.LastError)
+	assert.True(test, service.RequestPolicy(requestContext).Successful)
+	assert.Equal(test, 2, submissions)
+	assert.Equal(test, []string{"reserve", "settle"}, events)
+	assert.Zero(test, billing.refunds)
+	assert.False(test, requestContext.Writer.Written())
+}
+
+func TestTaskNewRoutingFailureTakesPrecedence(test *testing.T) {
+	for _, testCase := range []struct {
+		name        string
+		failure     string
+		wantStatus  int
+		wantMessage string
+	}{
+		{"database unavailable", "database", 500, "routing database unavailable"},
+		{"concurrency system unavailable", "redis", 500, "redis: client is closed"},
+		{"new capacity rejection wins", "capacity", 429, "channel concurrency limit exceeded"},
+	} {
+		test.Run(testCase.name, func(test *testing.T) {
+			database := setupRelayRetryRouting(test)
+			for index := range 2 {
+				priority := int64(2 - index)
+				channel := &model.Channel{
+					Name:     fmt.Sprintf("task-provider-%d", index),
+					Type:     constant.ChannelTypeOpenAI,
+					Key:      "task-key",
+					Status:   common.ChannelStatusEnabled,
+					Group:    "default",
+					Models:   "plugin-model",
+					Priority: &priority,
+				}
+				if index == 1 && testCase.failure != "database" {
+					channel.MaxConcurrency = 1
+				}
+				require.NoError(test, database.Create(channel).Error)
+				require.NoError(test, channel.AddAbilities(nil))
+				if index == 1 && testCase.failure == "capacity" {
+					lease, acquired, acquireError := service.TryAcquireChannelConcurrency(context.Background(), channel)
+					require.NoError(test, acquireError)
+					require.True(test, acquired)
+					require.NotNil(test, lease)
+					test.Cleanup(func() { require.NoError(test, service.ReleaseChannelConcurrency(context.Background(), lease)) })
+				}
+			}
+			model.InitChannelCache()
+			previousRedis := common.RDB
+			test.Cleanup(func() { common.RDB = previousRedis })
+
+			requestContext := taskSubmissionTestContext()
+			common.SetContextKey(requestContext, constant.ContextKeyUserGroup, "default")
+			relayInfo := taskSubmissionRelayInfo(nil)
+			relayInfo.LockedChannel = nil
+			relayInfo.TokenGroup = "default"
+			submissions := 0
+			outcome, taskError := executeTaskSubmissionWith(requestContext, relayInfo, func(*gin.Context, *relaycommon.RelayInfo) (*relay.TaskSubmitResult, *dto.TaskError) {
+				submissions++
+				switch testCase.failure {
+				case "redis":
+					closedRedis := redis.NewClient(&redis.Options{Addr: "127.0.0.1:1"})
+					require.NoError(test, closedRedis.Close())
+					common.RedisEnabled = true
+					common.RDB = closedRedis
+				case "database":
+					common.MemoryCacheEnabled = false
+					require.NoError(test, database.Callback().Query().Before("gorm:query").Register("test:routing-failure", func(query *gorm.DB) {
+						query.AddError(errors.New("routing database unavailable"))
+					}))
+				}
+				return nil, &dto.TaskError{StatusCode: 503, Code: "old_upstream_failure", Message: "previous provider unavailable", Data: "old provider details"}
+			})
+
+			require.Nil(test, outcome)
+			require.NotNil(test, taskError)
+			assert.Equal(test, testCase.wantStatus, taskError.StatusCode)
+			assert.Equal(test, "get_channel_failed", taskError.Code)
+			assert.True(test, taskError.LocalError)
+			assert.Nil(test, taskError.Data)
+			assert.Contains(test, taskError.Message, testCase.wantMessage)
+			assert.NotContains(test, taskError.Message, "previous provider unavailable")
+			assert.Equal(test, 1, submissions)
+			assert.Equal(test, 1, service.RequestPolicy(requestContext).Attempts)
+		})
+	}
 }
