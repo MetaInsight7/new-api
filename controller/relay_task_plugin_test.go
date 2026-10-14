@@ -18,6 +18,7 @@ import (
 	pluginruntime "github.com/QuantumNous/new-api/pkg/jsplugin"
 	"github.com/QuantumNous/new-api/relay"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	kittypes "github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
@@ -623,6 +624,48 @@ export function buildQueryRequest(){throw new Error("completed submissions must 
 func TestAcceptedSubmitStreamNeverRetries(t *testing.T) {
 	c := taskSubmissionTestContext()
 	assert.Equal(t, service.PolicyDecision{Action: "stop", Reason: "task_accepted", Source: "system"}, decideTaskRetry(c, &dto.TaskError{StatusCode: 502, LocalError: true, NoRetry: true}, 3))
+}
+
+func TestTaskPreConsumeFailurePreservesRetryAndLoggingPolicy(test *testing.T) {
+	for _, testCase := range []struct {
+		name           string
+		code           kittypes.ErrorCode
+		status         int
+		recordErrorLog bool
+	}{
+		{"quota_rejection", kittypes.ErrorCodeInsufficientUserQuota, http.StatusForbidden, false},
+		{"funding_dependency_failure", kittypes.ErrorCodeQueryDataError, http.StatusInternalServerError, true},
+	} {
+		test.Run(testCase.name, func(test *testing.T) {
+			options := []kittypes.NewAPIErrorOptions{kittypes.ErrOptionWithSkipRetry()}
+			if !testCase.recordErrorLog {
+				options = append(options, kittypes.ErrOptionWithNoRecordErrorLog())
+			}
+			apiError := kittypes.NewErrorWithStatusCode(errors.New(testCase.name), testCase.code, testCase.status, options...)
+			taskError := service.TaskErrorFromAPIError(apiError)
+			require.NotNil(test, taskError)
+			assert.Equal(test, string(testCase.code), taskError.Code)
+			assert.Equal(test, testCase.name, taskError.Message)
+			assert.Equal(test, testCase.status, taskError.StatusCode)
+			assert.True(test, taskError.LocalError, "pre-consume fails before an upstream attempt")
+			assert.True(test, taskError.NoRetry, "the request-level retry exclusion must survive conversion")
+			assert.Equal(test, service.PolicyDecision{Action: "stop", Reason: "local_rejection", Source: "system"}, decideTaskRetry(taskSubmissionTestContext(), taskError, 2))
+
+			roundTripError := taskSubmissionAPIError(taskError)
+			require.NotNil(test, roundTripError)
+			assert.Equal(test, testCase.code, roundTripError.GetErrorCode())
+			assert.Equal(test, testCase.status, roundTripError.StatusCode)
+			assert.True(test, kittypes.IsSkipRetryError(roundTripError))
+			assert.Equal(test, testCase.recordErrorLog, kittypes.IsRecordErrorLog(roundTripError))
+		})
+	}
+
+	for _, status := range []int{http.StatusTooManyRequests, http.StatusServiceUnavailable} {
+		test.Run(fmt.Sprintf("channel_capacity_%d", status), func(test *testing.T) {
+			taskError := service.TaskErrorWrapperLocal(errors.New("channel capacity unavailable"), "get_channel_failed", status)
+			assert.Equal(test, service.PolicyDecision{Action: "retry", Reason: "retry_status_matched", Source: "system"}, decideTaskRetry(taskSubmissionTestContext(), taskError, 2))
+		})
+	}
 }
 
 // Local task rejections carry a message but no cause; the response and the

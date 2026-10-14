@@ -5,7 +5,7 @@ import (
 )
 
 type TaskError struct {
-	// NoRetry prevents duplicate upstream work after a response has been accepted.
+	// NoRetry stops terminal request failures and prevents resubmitting accepted work.
 	NoRetry    bool   `json:"-"`
 	Code       string `json:"code"`
 	Message    string `json:"message"`
