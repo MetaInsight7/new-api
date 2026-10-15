@@ -28,6 +28,11 @@ import {
 } from './section-registry.tsx'
 
 const defaultOperationsSettings: OperationsSettings = {
+  'monitor_setting.dingtalk_alert_enabled': false,
+  'monitor_setting.dingtalk_alert_webhook_url': '',
+  'monitor_setting.dingtalk_alert_cooldown_minutes': 60,
+  'monitor_setting.ai_analysis_base_url': 'https://api.openai.com/v1',
+  'monitor_setting.ai_analysis_model': 'gpt-5.4-mini',
   ...defaultChannelConcurrencySettings,
   DefaultCollapseSidebar: false,
   DemoSiteEnabled: false,

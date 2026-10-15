@@ -3,17 +3,23 @@ package service
 import (
 	"context"
 	"crypto/hmac"
+	cryptorand "crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"errors"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/iotest"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -35,10 +41,17 @@ func setupCodexGovernanceServiceTest(t *testing.T, handler http.HandlerFunc) *go
 	require.NoError(t, err)
 	sqlDB.SetMaxOpenConns(1)
 	t.Cleanup(func() { require.NoError(t, sqlDB.Close()) })
-	require.NoError(t, database.AutoMigrate(&model.Channel{}, &model.Ability{}, &model.CodexModelGovernanceRecord{}, &model.CodexModelGovernanceProbeState{}, &model.CodexModelGovernanceAlertCooldownRecord{}))
+	require.NoError(t, database.AutoMigrate(&model.Option{}, &model.Channel{}, &model.Ability{}, &model.CodexModelGovernanceRecord{}, &model.CodexModelGovernanceProbeState{}, &model.CodexModelGovernanceAlertCooldownRecord{}))
 	previousDB, previousType, previousCache := model.DB, common.MainDatabaseType(), common.MemoryCacheEnabled
 	setting := operation_setting.GetCodexModelGovernanceSetting()
 	previousSetting := *setting
+	previousMonitor := *operation_setting.GetMonitorSetting()
+	previousOptions := common.OptionMap
+	channelAlertLocalCooldown.Lock()
+	previousCooldowns := maps.Clone(channelAlertLocalCooldown.records)
+	channelAlertLocalCooldown.records = make(map[int]localChannelAlertCooldown)
+	channelAlertLocalCooldown.Unlock()
+	common.OptionMap = make(map[string]string)
 	previousClient := ssrfProtectedHTTPClient
 	model.DB = database
 	common.SetMainDatabaseType(common.DatabaseTypeSQLite)
@@ -51,9 +64,14 @@ func setupCodexGovernanceServiceTest(t *testing.T, handler http.HandlerFunc) *go
 		return (&net.Dialer{}).DialContext(ctx, network, server.Listener.Addr().String())
 	}, currentFetchProtection, func(*http.Request) (*url.URL, error) { return nil, nil })
 	t.Cleanup(func() {
+		channelAlertLocalCooldown.Lock()
+		channelAlertLocalCooldown.records = previousCooldowns
+		channelAlertLocalCooldown.Unlock()
 		ssrfProtectedHTTPClient.CloseIdleConnections()
 		ssrfProtectedHTTPClient = previousClient
 		*setting = previousSetting
+		*operation_setting.GetMonitorSetting() = previousMonitor
+		common.OptionMap = previousOptions
 		model.DB = previousDB
 		common.SetMainDatabaseType(previousType)
 		common.MemoryCacheEnabled = previousCache
@@ -65,8 +83,8 @@ func TestCodexGovernanceRulesAndSettingsRejectNoise(t *testing.T) {
 	setting := operation_setting.GetCodexModelGovernanceSetting()
 	assert.False(t, setting.Enabled)
 	assert.False(t, setting.ProbeEnabled)
-	assert.False(t, setting.DingTalkEnabled)
-	assert.Empty(t, setting.AIAnalysisAPIKey)
+	assert.False(t, operation_setting.GetMonitorAlertSetting().DingTalkAlertEnabled)
+	assert.Empty(t, operation_setting.GetMonitorAIAnalysisAPIKey())
 	patterns := []string{operation_setting.DefaultCodexUnsupportedPattern}
 	for _, message := range []string{"model not found", "rate limit exceeded", "context deadline exceeded", "The 'gpt-5.4' model is not supported by this endpoint", "invalid API key"} {
 		assert.False(t, ClassifyCodexUnsupportedMessage(message, patterns).Matched, message)
@@ -189,16 +207,17 @@ func TestCodexGovernanceDingTalkPersistsOnlyConfirmedDelivery(t *testing.T) {
 		assert.NotContains(t, string(body), "sk-sensitive-evidence")
 		_, _ = io.WriteString(writer, response)
 	})
-	setting := operation_setting.GetCodexModelGovernanceSetting()
-	setting.DingTalkEnabled = false
-	setting.DingTalkWebhookURL = "http://93.184.216.34/dingtalk?access_token=fake-webhook-token"
-	setting.DingTalkSecret = "fake-signing-secret"
+	require.NoError(t, model.UpdateOptionsBulk(map[string]string{
+		"monitor_setting.dingtalk_alert_enabled":     "false",
+		"monitor_setting.dingtalk_alert_webhook_url": "http://93.184.216.34/dingtalk?access_token=fake-webhook-token",
+		"monitor_setting.dingtalk_alert_secret":      "fake-signing-secret",
+	}))
 	finding := CodexModelUnsupportedFinding{ModelName: "gpt-5.4", Source: model.CodexModelGovernanceSourceOfficialNotice, LastError: "api_key=sk-sensitive-evidence"}
 	record, err := MoveCodexModelToPendingReview(finding)
 	require.NoError(t, err)
 	assert.Zero(t, record.LastAlertedAt)
 	assert.Zero(t, deliveries.Load())
-	setting.DingTalkEnabled = true
+	require.NoError(t, model.UpdateOption("monitor_setting.dingtalk_alert_enabled", "true"))
 	record, err = MoveCodexModelToPendingReview(finding)
 	require.NoError(t, err)
 	assert.Zero(t, record.LastAlertedAt)
@@ -218,8 +237,137 @@ func TestCodexGovernanceDingTalkPersistsOnlyConfirmedDelivery(t *testing.T) {
 	var stored model.CodexModelGovernanceRecord
 	require.NoError(t, database.First(&stored, record.ID).Error)
 	assert.Equal(t, record.LastAlertedAt, stored.LastAlertedAt)
-	setting.DingTalkWebhookURL = "http://127.0.0.1/internal"
+	require.NoError(t, model.UpdateOption("monitor_setting.dingtalk_alert_webhook_url", "http://127.0.0.1/internal"))
 	_, err = NotifyDingTalkCodexModelGovernance(context.Background(), record)
 	assert.Error(t, err)
 	assert.True(t, system_setting.GetFetchSetting().EnableSSRFProtection)
+}
+
+func TestChannelTestAlertFallbackAndTokenFailure(t *testing.T) {
+	var deliveries atomic.Int32
+	database := setupCodexGovernanceServiceTest(t, func(writer http.ResponseWriter, request *http.Request) {
+		deliveries.Add(1)
+		_, _ = io.WriteString(writer, `{"errcode":0}`)
+	})
+	require.False(t, database.Migrator().HasTable(&model.ChannelTestAlertCooldown{}))
+	require.NoError(t, model.UpdateOptionsBulk(map[string]string{
+		"monitor_setting.dingtalk_alert_enabled":     "true",
+		"monitor_setting.dingtalk_alert_webhook_url": "http://93.184.216.34/dingtalk",
+	}))
+	operation_setting.GetMonitorSetting().DingTalkAlertCooldownMinutes = 0
+	for range 2 {
+		require.NoError(t, NotifyDingTalkChannelTestFailures(context.Background(), []ChannelTestFailure{{ChannelID: 801, Message: "unavailable"}}))
+	}
+	assert.EqualValues(t, 1, deliveries.Load(), "database failure must retain process-local cooldown; zero must not disable it")
+	previousRandom := cryptorand.Reader
+	cryptorand.Reader = iotest.ErrReader(errors.New("random source unavailable"))
+	t.Cleanup(func() { cryptorand.Reader = previousRandom })
+	require.Error(t, NotifyDingTalkChannelTestFailures(context.Background(), []ChannelTestFailure{{ChannelID: 802, Message: "unavailable"}}))
+	assert.EqualValues(t, 1, deliveries.Load(), "token failure must not bypass reservations")
+}
+
+type channelAlertBlockingRandomReader struct {
+	original io.Reader
+	blocked  atomic.Bool
+	started  chan struct{}
+	release  chan struct{}
+}
+
+func (reader *channelAlertBlockingRandomReader) Read(buffer []byte) (int, error) {
+	if reader.blocked.CompareAndSwap(false, true) {
+		close(reader.started)
+		<-reader.release
+	}
+	return reader.original.Read(buffer)
+}
+
+func TestChannelTestAlertKeepsAnalysisConnectionSnapshot(t *testing.T) {
+	var analyses atomic.Int32
+	database := setupCodexGovernanceServiceTest(t, func(writer http.ResponseWriter, request *http.Request) {
+		if strings.HasSuffix(request.URL.Path, "/chat/completions") {
+			analyses.Add(1)
+			assert.Equal(t, "/old/chat/completions", request.URL.Path)
+			assert.Equal(t, "Bearer old-key", request.Header.Get("Authorization"))
+			body, err := io.ReadAll(request.Body)
+			require.NoError(t, err)
+			assert.Contains(t, string(body), `"model":"old-model"`)
+			_, _ = io.WriteString(writer, `{"choices":[{"message":{"content":"- 上游不可用"}}]}`)
+			return
+		}
+		_, _ = io.WriteString(writer, `{"errcode":0}`)
+	})
+	require.NoError(t, database.AutoMigrate(&model.ChannelTestAlertCooldown{}))
+	require.NoError(t, model.UpdateOptionsBulk(map[string]string{
+		"monitor_setting.dingtalk_alert_enabled": "true", "monitor_setting.dingtalk_alert_webhook_url": "http://93.184.216.34/robot",
+		"monitor_setting.ai_analysis_api_key": "old-key", "monitor_setting.ai_analysis_base_url": "http://93.184.216.34/old", "monitor_setting.ai_analysis_model": "old-model",
+	}))
+	reader := &channelAlertBlockingRandomReader{original: cryptorand.Reader, started: make(chan struct{}), release: make(chan struct{})}
+	cryptorand.Reader = reader
+	t.Cleanup(func() { cryptorand.Reader = reader.original })
+	done := make(chan error, 1)
+	go func() {
+		done <- NotifyDingTalkChannelTestFailures(context.Background(), []ChannelTestFailure{{ChannelID: 809, Message: "unavailable"}})
+		close(done)
+	}()
+	defer func() { close(reader.release); <-done }()
+	select {
+	case <-reader.started:
+	case <-time.After(5 * time.Second):
+		t.Fatal("reservation token generation did not start")
+	}
+	require.NoError(t, model.UpdateOptionsBulk(map[string]string{
+		"monitor_setting.ai_analysis_api_key": "new-key", "monitor_setting.ai_analysis_base_url": "http://93.184.216.34/new", "monitor_setting.ai_analysis_model": "new-model",
+	}))
+	reader.release <- struct{}{}
+	require.NoError(t, <-done)
+	assert.EqualValues(t, 1, analyses.Load())
+}
+
+func TestChannelTestAlertCancellationDuringDNSPreflight(t *testing.T) {
+	for _, stage := range []string{"analysis", "robot"} {
+		t.Run(stage, func(t *testing.T) {
+			var requests atomic.Int32
+			database := setupCodexGovernanceServiceTest(t, func(writer http.ResponseWriter, request *http.Request) { requests.Add(1) })
+			require.NoError(t, database.AutoMigrate(&model.ChannelTestAlertCooldown{}))
+			options := map[string]string{"monitor_setting.dingtalk_alert_enabled": "true", "monitor_setting.dingtalk_alert_webhook_url": "http://slow-robot.example/robot"}
+			if stage == "analysis" {
+				options["monitor_setting.ai_analysis_api_key"] = "analysis-key"
+				options["monitor_setting.ai_analysis_base_url"] = "http://slow-analysis.example/v1"
+			}
+			require.NoError(t, model.UpdateOptionsBulk(options))
+			started, release := make(chan struct{}), make(chan struct{})
+			var first sync.Once
+			previousResolver := net.DefaultResolver
+			net.DefaultResolver = &net.Resolver{PreferGo: true, Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+				first.Do(func() { close(started) })
+				select {
+				case <-ctx.Done():
+					return nil, ctx.Err()
+				case <-release:
+					return nil, errors.New("DNS fixture released")
+				}
+			}}
+			t.Cleanup(func() { net.DefaultResolver = previousResolver })
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			done := make(chan error, 1)
+			go func() {
+				done <- NotifyDingTalkChannelTestFailures(ctx, []ChannelTestFailure{{ChannelID: 810, Message: "unavailable"}})
+				close(done)
+			}()
+			defer func() { close(release); <-done }()
+			select {
+			case <-started:
+			case <-time.After(5 * time.Second):
+				t.Fatal("DNS preflight did not start")
+			}
+			cancel()
+			select {
+			case <-done:
+			case <-time.After(time.Second):
+				t.Error("task cancellation did not abort DNS preflight")
+			}
+			assert.Zero(t, requests.Load())
+		})
+	}
 }

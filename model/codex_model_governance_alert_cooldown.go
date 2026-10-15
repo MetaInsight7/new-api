@@ -41,7 +41,7 @@ func ReserveCodexModelGovernanceAlertCooldown(modelName string, cooldown time.Du
 	var reservation *CodexModelGovernanceAlertCooldownReservation
 	allowed := false
 	err := DB.Transaction(func(tx *gorm.DB) error {
-		nowMilli, err := codexGovernanceDBNowMilli(tx)
+		nowMilli, err := alertCooldownDBNowMilli(tx)
 		if err != nil {
 			return err
 		}
@@ -129,7 +129,7 @@ func RollbackCodexModelGovernanceAlertCooldown(reservation *CodexModelGovernance
 	return result.Error
 }
 
-func codexGovernanceDBNowMilli(tx *gorm.DB) (int64, error) {
+func alertCooldownDBNowMilli(tx *gorm.DB) (int64, error) {
 	var nowMilli int64
 	query := "SELECT CAST(UNIX_TIMESTAMP(CURRENT_TIMESTAMP(3)) * 1000 AS SIGNED)"
 	switch tx.Dialector.Name() {

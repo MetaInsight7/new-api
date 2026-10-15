@@ -70,13 +70,7 @@ export function CodexGovernanceSettingsSection(props: {
     mutationFn: (values: CodexGovernanceSettingsValues) =>
       saveCodexGovernanceSettings(values, defaults),
     onSuccess: (_, values) => {
-      form.reset({
-        ...values,
-        dingtalk_secret: '',
-        ai_analysis_api_key: '',
-        clear_dingtalk_secret: false,
-        clear_ai_analysis_api_key: false,
-      })
+      form.reset(values)
       toast.success(t('Setting updated successfully'))
       void queryClient.invalidateQueries({ queryKey: ['system-options'] })
     },
@@ -99,12 +93,6 @@ export function CodexGovernanceSettingsSection(props: {
   const switches = [
     { field: 'enabled', label: t('Enable Codex model governance') },
     { field: 'probe_enabled', label: t('Probe Codex models') },
-    { field: 'dingtalk_enabled', label: t('Enable DingTalk alerts') },
-    { field: 'clear_dingtalk_secret', label: t('Clear saved DingTalk secret') },
-    {
-      field: 'clear_ai_analysis_api_key',
-      label: t('Clear saved AI key and disable AI analysis'),
-    },
   ] as const
   const textFields = [
     {
@@ -121,27 +109,6 @@ export function CodexGovernanceSettingsSection(props: {
       field: 'official_lifecycle_terms',
       label: t('Official lifecycle terms'),
       multiline: true,
-    },
-    {
-      field: 'dingtalk_webhook_url',
-      label: t('DingTalk webhook URL'),
-      multiline: false,
-    },
-    { field: 'dingtalk_secret', label: t('DingTalk secret'), multiline: false },
-    {
-      field: 'ai_analysis_api_key',
-      label: t('Monitoring AI analysis API key'),
-      multiline: false,
-    },
-    {
-      field: 'ai_analysis_base_url',
-      label: t('Monitoring AI analysis base URL'),
-      multiline: false,
-    },
-    {
-      field: 'ai_analysis_model',
-      label: t('Monitoring AI analysis model'),
-      multiline: false,
     },
   ] as const
 
@@ -231,19 +198,7 @@ export function CodexGovernanceSettingsSection(props: {
                   <FormItem>
                     <FormLabel>{entry.label}</FormLabel>
                     <FormControl>
-                      {entry.multiline ? (
-                        <Textarea rows={4} {...field} />
-                      ) : (
-                        <Input
-                          type={
-                            entry.field === 'dingtalk_secret' ||
-                            entry.field === 'ai_analysis_api_key'
-                              ? 'password'
-                              : 'text'
-                          }
-                          {...field}
-                        />
-                      )}
+                      <Textarea rows={4} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -253,7 +208,7 @@ export function CodexGovernanceSettingsSection(props: {
           </SettingsFormGrid>
           <p className='text-muted-foreground text-sm'>
             {t(
-              'Leave saved secrets blank to keep them. An AI key enables official notice analysis; failed analysis falls back to keyword rules.'
+              'Configure the shared DingTalk robot and AI service in Monitoring & Alerts. Governance rules and its alert cooldown remain independent.'
             )}
           </p>
           <div className='space-y-2'>

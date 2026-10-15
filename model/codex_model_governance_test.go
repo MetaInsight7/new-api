@@ -156,6 +156,118 @@ func TestCodexGovernanceDatabaseMatrix(t *testing.T) {
 	}
 }
 
+func TestChannelTestAlertDatabaseMatrix(t *testing.T) {
+	for _, dialect := range []string{"sqlite", "mysql", "postgres"} {
+		for _, upgrade := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/upgrade_%t", dialect, upgrade), func(t *testing.T) {
+				database := newCodexGovernanceTestDatabase(t, dialect)
+				previousModels := []any{&Channel{}, &Ability{}, &Option{}, &SystemTask{}, &SystemTaskLock{}, &CodexModelGovernanceRecord{}, &CodexModelGovernanceAlertCooldownRecord{}}
+				if upgrade {
+					require.NoError(t, database.AutoMigrate(previousModels...))
+					require.NoError(t, database.Create(&Channel{Id: 77, Name: "existing channel", Models: "existing-model", Key: "existing-key"}).Error)
+					require.NoError(t, database.Create(&Option{Key: "codex_model_governance_setting.ai_analysis_api_key", Value: "obsolete-value"}).Error)
+					require.NoError(t, database.Create(&SystemTask{ID: 700, Type: "channel_test", Status: SystemTaskStatusSucceeded}).Error)
+					require.NoError(t, database.Create(&CodexModelGovernanceRecord{ModelName: "existing-model", Status: CodexModelGovernanceStatusPendingReview}).Error)
+				}
+				for range 2 {
+					require.NoError(t, database.AutoMigrate(append(previousModels, &ChannelTestAlertCooldown{})...))
+				}
+				if upgrade {
+					var channel Channel
+					require.NoError(t, database.First(&channel, 77).Error)
+					assert.Equal(t, "existing-key", channel.Key)
+					var task SystemTask
+					require.NoError(t, database.First(&task, 700).Error)
+					assert.Equal(t, SystemTaskStatusSucceeded, task.Status)
+					var option Option
+					require.NoError(t, database.First(&option, commonKeyCol+" = ?", "codex_model_governance_setting.ai_analysis_api_key").Error)
+					assert.Equal(t, "obsolete-value", option.Value)
+				}
+				assert.True(t, database.Migrator().HasIndex(&CodexModelGovernanceRecord{}, "idx_codex_model_governance_records_model_name"))
+				var workers sync.WaitGroup
+				reservations := make(chan *ChannelTestAlertReservation, 6)
+				errors := make(chan error, 6)
+				for workerID := range 6 {
+					workers.Go(func() {
+						reservation, allowed, err := ReserveChannelTestAlertCooldown(context.Background(), 77, time.Hour, 80*time.Second, fmt.Sprintf("owner-%d", workerID))
+						errors <- err
+						if allowed {
+							reservations <- reservation
+						}
+					})
+				}
+				workers.Wait()
+				close(errors)
+				for err := range errors {
+					require.NoError(t, err)
+				}
+				require.Len(t, reservations, 1)
+				first := <-reservations
+				require.NoError(t, RollbackChannelTestAlertCooldown(context.Background(), first))
+				replacement, allowed, err := ReserveChannelTestAlertCooldown(context.Background(), 77, time.Hour, 80*time.Second, "replacement")
+				require.NoError(t, err)
+				require.True(t, allowed)
+				require.NoError(t, RollbackChannelTestAlertCooldown(context.Background(), first))
+				require.Error(t, CommitChannelTestAlertCooldown(context.Background(), first))
+				_, allowed, err = ReserveChannelTestAlertCooldown(context.Background(), 77, time.Hour, 80*time.Second, "blocked")
+				require.NoError(t, err)
+				assert.False(t, allowed, "stale rollback must not release the replacement")
+				require.NoError(t, CommitChannelTestAlertCooldown(context.Background(), replacement))
+				require.NoError(t, database.AutoMigrate(&ChannelTestAlertCooldown{}))
+				_, allowed, err = ReserveChannelTestAlertCooldown(context.Background(), 77, time.Hour, 80*time.Second, "cooled")
+				require.NoError(t, err)
+				assert.False(t, allowed, "confirmed delivery must survive migration/restart")
+				require.Error(t, database.Create(&ChannelTestAlertCooldown{ChannelID: 77}).Error)
+				expiring, allowed, err := ReserveChannelTestAlertCooldown(context.Background(), 88, time.Hour, 80*time.Second, "expired")
+				require.NoError(t, err)
+				require.True(t, allowed)
+				require.NoError(t, database.Model(&ChannelTestAlertCooldown{}).Where("channel_id = ?", 88).Update("pending_at", expiring.PendingAt-81000).Error)
+				takeover, allowed, err := ReserveChannelTestAlertCooldown(context.Background(), 88, time.Hour, 80*time.Second, "takeover")
+				require.NoError(t, err)
+				require.True(t, allowed)
+				require.Error(t, CommitChannelTestAlertCooldown(context.Background(), expiring))
+				require.NoError(t, RollbackChannelTestAlertCooldown(context.Background(), expiring))
+				require.NoError(t, CommitChannelTestAlertCooldown(context.Background(), takeover))
+			})
+		}
+	}
+}
+
+func TestChannelTestAlertReleasedUpgrade(t *testing.T) {
+	if os.Getenv("CHANNEL_ALERT_RELEASE_FIXTURE") != "1" {
+		t.Skip("requires a database populated by the released-version migration fixture")
+	}
+	previousDB, previousType, previousMaster, previousSQLite := DB, common.MainDatabaseType(), common.IsMasterNode, common.SQLitePath
+	common.IsMasterNode, common.SQLitePath = true, os.Getenv("CHANNEL_ALERT_SQLITE_PATH")
+	t.Cleanup(func() {
+		DB, common.IsMasterNode, common.SQLitePath = previousDB, previousMaster, previousSQLite
+		common.SetMainDatabaseType(previousType)
+		initCol()
+	})
+	for range 2 {
+		require.NoError(t, InitDB())
+		assert.True(t, DB.Migrator().HasTable(&ChannelTestAlertCooldown{}), "startup must register the new primary-database table")
+		var channel Channel
+		require.NoError(t, DB.First(&channel, 777).Error)
+		assert.Equal(t, "retained-key", channel.Key)
+		var ability Ability
+		require.NoError(t, DB.First(&ability, "channel_id = ? AND model = ?", 777, "retained-model").Error)
+		assert.False(t, ability.Enabled)
+		var option Option
+		require.NoError(t, DB.Where(&Option{Key: "ChannelAlertUpgradeRetained"}).First(&option).Error)
+		assert.Equal(t, "retained-option", option.Value)
+		var task SystemTask
+		require.NoError(t, DB.Where("task_id = ?", "release-fixture").First(&task).Error)
+		assert.Equal(t, SystemTaskStatusSucceeded, task.Status)
+		assert.True(t, DB.Migrator().HasIndex(&SystemTask{}, "idx_system_tasks_active_key"))
+		assert.True(t, DB.Migrator().HasIndex(&CodexModelGovernanceRecord{}, "idx_codex_model_governance_records_model_name"))
+		assert.Error(t, DB.Create(&Option{Key: "ChannelAlertUpgradeRetained", Value: "duplicate"}).Error)
+		sqlDB, err := DB.DB()
+		require.NoError(t, err)
+		require.NoError(t, sqlDB.Close())
+	}
+}
+
 func verifyCodexGovernanceLifecycle(t *testing.T, database *gorm.DB) {
 	t.Helper()
 	priority, weight := int64(5), uint(1)

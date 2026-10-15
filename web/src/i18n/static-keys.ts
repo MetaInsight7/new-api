@@ -19,6 +19,8 @@ For commercial licensing, please contact support@quantumnous.com
 // Static translation keys that don't get picked up by the t('...') regex.
 // These cover dynamic labels (e.g. constants, configs) that are passed into t at runtime.
 export const STATIC_I18N_KEYS = [
+  'Enter an HTTP or HTTPS URL without credentials',
+  'Configure the DingTalk webhook before enabling alerts',
   'First-event wait must be an integer from 1 to 9223372036 seconds.',
   // Channel concurrency snapshot
   'Concurrency',

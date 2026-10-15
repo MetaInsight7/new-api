@@ -1,5 +1,14 @@
 {
   "translation": {
+    "Shared DingTalk and AI analysis": "Configuration partagée DingTalk et analyse IA",
+    "Channel alert cooldown (minutes)": "Délai entre alertes du canal (minutes)",
+    "Configure the shared DingTalk robot and AI service in Monitoring & Alerts. Governance rules and its alert cooldown remain independent.": "Configurez le robot DingTalk et le service IA partagés dans Supervision et alertes. Les règles de gouvernance et leur délai restent indépendants.",
+    "Scheduled test failures and Codex governance share this connection. Their alert cooldowns remain independent.": "Les échecs des tests planifiés et la gouvernance Codex partagent cette connexion. Leurs délais entre alertes restent indépendants.",
+    "The displayed analysis endpoint and model are effective values. Saving explicitly pins them; environment defaults apply only before configuration.": "Le point de terminaison et le modèle affichés sont les valeurs effectives. Leur enregistrement les fixe explicitement ; les valeurs d’environnement ne s’appliquent qu’avant configuration.",
+    "Leave secrets blank to keep them; use the clear switches to remove them. An analysis key enables optional Chinese summaries. Failures fall back to basic alerts.": "Laissez les secrets vides pour les conserver ; utilisez les options d’effacement pour les supprimer. Une clé d’analyse active les résumés facultatifs en chinois. En cas d’échec, l’alerte de base est envoyée.",
+    "Known credential, URL and IP patterns are masked, not fully anonymized. Channel IDs, names and failure facts may be sent to the configured analysis service.": "Les formats connus de secrets, URL et adresses IP sont masqués, sans anonymisation complète. Les identifiants, noms de canaux et faits d’échec peuvent être envoyés au service d’analyse configuré.",
+    "Enter an HTTP or HTTPS URL without credentials": "Saisissez une URL HTTP ou HTTPS sans identifiants",
+    "Configure the DingTalk webhook before enabling alerts": "Configurez le webhook DingTalk avant d’activer les alertes",
     "First-event timeout protection": "Protection du délai du premier événement",
     "First-event wait (seconds)": "Attente du premier événement (secondes)",
     "First-event wait must be an integer from 1 to 9223372036 seconds.": "L’attente doit être un entier compris entre 1 et 9223372036 secondes.",

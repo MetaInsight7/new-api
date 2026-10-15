@@ -1,5 +1,14 @@
 {
   "translation": {
+    "Shared DingTalk and AI analysis": "Общие настройки DingTalk и ИИ-анализа",
+    "Channel alert cooldown (minutes)": "Интервал оповещений канала (минуты)",
+    "Configure the shared DingTalk robot and AI service in Monitoring & Alerts. Governance rules and its alert cooldown remain independent.": "Настройте общего бота DingTalk и сервис ИИ в разделе мониторинга и оповещений. Правила управления и их интервал оповещений остаются независимыми.",
+    "Scheduled test failures and Codex governance share this connection. Their alert cooldowns remain independent.": "Ошибки плановых тестов и управление Codex используют это подключение. Их интервалы оповещений остаются независимыми.",
+    "The displayed analysis endpoint and model are effective values. Saving explicitly pins them; environment defaults apply only before configuration.": "Показаны действующие адрес анализа и модель. Сохранение явно закрепляет их; значения окружения используются только до настройки.",
+    "Leave secrets blank to keep them; use the clear switches to remove them. An analysis key enables optional Chinese summaries. Failures fall back to basic alerts.": "Оставьте секреты пустыми, чтобы сохранить их; для удаления используйте переключатели очистки. Ключ анализа включает необязательные сводки на китайском. При сбое отправляется базовое оповещение.",
+    "Known credential, URL and IP patterns are masked, not fully anonymized. Channel IDs, names and failure facts may be sent to the configured analysis service.": "Известные форматы секретов, URL и IP маскируются, но не полностью анонимизируются. Идентификаторы, имена каналов и сведения об ошибках могут передаваться настроенному сервису анализа.",
+    "Enter an HTTP or HTTPS URL without credentials": "Введите URL HTTP или HTTPS без имени пользователя и пароля",
+    "Configure the DingTalk webhook before enabling alerts": "Настройте вебхук DingTalk перед включением оповещений",
     "First-event timeout protection": "Тайм-аут первого события",
     "First-event wait (seconds)": "Ожидание первого события (секунды)",
     "First-event wait must be an integer from 1 to 9223372036 seconds.": "Время ожидания должно быть целым числом от 1 до 9223372036 секунд.",

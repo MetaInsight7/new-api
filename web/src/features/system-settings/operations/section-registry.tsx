@@ -98,6 +98,7 @@ const OPERATIONS_SECTIONS = [
     titleKey: 'Monitoring & Alerts',
     build: (settings: OperationsSettings) => (
       <MonitoringSettingsSection
+        monitorOptions={settings}
         defaultValues={{
           QuotaRemindThreshold: settings.QuotaRemindThreshold,
           'perf_metrics_setting.enabled':

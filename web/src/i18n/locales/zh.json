@@ -1,5 +1,14 @@
 {
   "translation": {
+    "Shared DingTalk and AI analysis": "共享钉钉与 AI 分析配置",
+    "Channel alert cooldown (minutes)": "渠道告警冷却时间（分钟）",
+    "Configure the shared DingTalk robot and AI service in Monitoring & Alerts. Governance rules and its alert cooldown remain independent.": "请在“监控与警报”中配置共享钉钉机器人和 AI 服务。治理规则及其告警冷却仍独立生效。",
+    "Scheduled test failures and Codex governance share this connection. Their alert cooldowns remain independent.": "定时测试失败告警与 Codex 治理共用此接入配置，两类告警的冷却时间相互独立。",
+    "The displayed analysis endpoint and model are effective values. Saving explicitly pins them; environment defaults apply only before configuration.": "显示的是当前实际使用的分析接口和模型。保存后将明确固定这些值；仅在未配置时才使用环境变量默认值。",
+    "Leave secrets blank to keep them; use the clear switches to remove them. An analysis key enables optional Chinese summaries. Failures fall back to basic alerts.": "密钥留空表示保留，清除需使用对应开关。配置分析密钥后启用可选中文摘要；分析失败时仍发送基础告警。",
+    "Known credential, URL and IP patterns are masked, not fully anonymized. Channel IDs, names and failure facts may be sent to the configured analysis service.": "仅对已知凭据、URL 和 IP 格式做掩码，并非完整匿名化。渠道 ID、名称和故障事实可能发送至所配置的分析服务。",
+    "Enter an HTTP or HTTPS URL without credentials": "请输入不含用户名和密码的 HTTP 或 HTTPS 地址",
+    "Configure the DingTalk webhook before enabling alerts": "启用告警前请先配置钉钉 Webhook",
     "First-event timeout protection": "首事件超时保护",
     "First-event wait (seconds)": "首事件等待时长（秒）",
     "First-event wait must be an integer from 1 to 9223372036 seconds.": "首事件等待时长必须是 1 到 9223372036 秒之间的整数。",

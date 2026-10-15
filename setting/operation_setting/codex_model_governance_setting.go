@@ -13,16 +13,7 @@ import (
 
 const DefaultCodexUnsupportedPattern = `The '([^']+)' model is not supported when using Codex with a ChatGPT account\.`
 
-const DefaultCodexGovernanceAIAnalysisBaseURL = "https://api.openai.com/v1"
-const DefaultCodexGovernanceAIAnalysisModelName = "gpt-5.4-mini"
-
 type CodexModelGovernanceSetting struct {
-	DingTalkEnabled            bool     `json:"dingtalk_enabled"`
-	DingTalkWebhookURL         string   `json:"dingtalk_webhook_url"`
-	DingTalkSecret             string   `json:"dingtalk_secret"`
-	AIAnalysisAPIKey           string   `json:"ai_analysis_api_key"`
-	AIAnalysisBaseURL          string   `json:"ai_analysis_base_url"`
-	AIAnalysisModel            string   `json:"ai_analysis_model"`
 	Enabled                    bool     `json:"enabled"`
 	ProbeEnabled               bool     `json:"probe_enabled"`
 	ProbeIntervalMinutes       int      `json:"probe_interval_minutes"`
@@ -34,8 +25,6 @@ type CodexModelGovernanceSetting struct {
 
 var codexModelGovernanceSetting = CodexModelGovernanceSetting{
 	Enabled:              false,
-	AIAnalysisBaseURL:    DefaultCodexGovernanceAIAnalysisBaseURL,
-	AIAnalysisModel:      DefaultCodexGovernanceAIAnalysisModelName,
 	ProbeEnabled:         false,
 	ProbeIntervalMinutes: 1440,
 	UnsupportedMessagePatterns: []string{
@@ -116,14 +105,14 @@ func NormalizeCodexModelGovernanceOption(key string, value any) (string, error) 
 		}
 		if field == "official_source_urls" {
 			for _, source := range normalized {
-				if err := validateCodexGovernanceURL(source); err != nil {
+				if err := validateOperationHTTPURL(source); err != nil {
 					return "", err
 				}
 			}
 		}
 		data, err := common.Marshal(normalized)
 		return string(data), err
-	case "enabled", "probe_enabled", "dingtalk_enabled":
+	case "enabled", "probe_enabled":
 		parsed, err := strconv.ParseBool(serialized)
 		if err != nil {
 			return "", fmt.Errorf("expected a boolean")
@@ -138,22 +127,13 @@ func NormalizeCodexModelGovernanceOption(key string, value any) (string, error) 
 		if err != nil || parsed < minimum || parsed > 525600 {
 			return "", fmt.Errorf("minutes must be between %d and 525600", minimum)
 		}
-	case "dingtalk_webhook_url", "ai_analysis_base_url":
-		serialized = strings.TrimSpace(serialized)
-		if serialized != "" {
-			if err := validateCodexGovernanceURL(serialized); err != nil {
-				return "", err
-			}
-		}
-	case "dingtalk_secret", "ai_analysis_api_key", "ai_analysis_model":
-		serialized = strings.TrimSpace(serialized)
 	default:
 		return "", fmt.Errorf("unknown Codex governance setting")
 	}
 	return serialized, nil
 }
 
-func validateCodexGovernanceURL(value string) error {
+func validateOperationHTTPURL(value string) error {
 	parsed, err := url.Parse(value)
 	if err != nil || parsed.Hostname() == "" || parsed.User != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") {
 		return fmt.Errorf("expected an HTTP(S) URL without embedded credentials")

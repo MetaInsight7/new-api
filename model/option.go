@@ -36,6 +36,7 @@ func AllOption() ([]*Option, error) {
 
 func InitOptionMap() {
 	common.OptionMapRWMutex.Lock()
+	operation_setting.ResetMonitorAIAnalysisConfiguration()
 	common.OptionMap = make(map[string]string)
 
 	// 添加原有的系统配置
@@ -279,6 +280,14 @@ func SyncOptions(frequency int) {
 }
 
 func validateOptionValue(key string, value string) error {
+	if err := operation_setting.ValidateMonitorOption(key, value); err != nil {
+		return err
+	}
+	if strings.HasPrefix(key, "codex_model_governance_setting.") {
+		if _, err := operation_setting.NormalizeCodexModelGovernanceOption(key, value); err != nil {
+			return err
+		}
+	}
 	if err := operation_setting.ValidateStreamingOption(key, value); err != nil {
 		return err
 	}
@@ -304,6 +313,9 @@ func validateOptionValue(key string, value string) error {
 }
 
 func UpdateOption(key string, value string) error {
+	if strings.HasPrefix(key, "monitor_setting.") {
+		return UpdateOptionsBulk(map[string]string{key: value})
+	}
 	if strings.HasPrefix(key, "streaming_setting.") {
 		return UpdateOptionsBulk(map[string]string{key: value})
 	}
@@ -343,6 +355,9 @@ func UpdateOption(key string, value string) error {
 func UpdateOptionsBulk(values map[string]string) error {
 	if len(values) == 0 {
 		return nil
+	}
+	if err := operation_setting.ValidateMonitorOptions(values); err != nil {
+		return err
 	}
 	for key := range values {
 		if IsPasskeyDomainOption(key) {
@@ -421,6 +436,11 @@ func UpdateOptionsBulk(values map[string]string) error {
 }
 
 func updateOptionMap(key string, value string) (err error) {
+	if strings.HasPrefix(key, "codex_model_governance_setting.") {
+		if _, err := operation_setting.NormalizeCodexModelGovernanceOption(key, value); err != nil {
+			return err
+		}
+	}
 	if err := operation_setting.ValidateStreamingOption(key, value); err != nil {
 		return err
 	}
@@ -432,6 +452,15 @@ func updateOptionMap(key string, value string) (err error) {
 	}
 	common.OptionMapRWMutex.Lock()
 	defer common.OptionMapRWMutex.Unlock()
+	if strings.HasPrefix(key, "monitor_setting.") {
+		field := strings.TrimPrefix(key, "monitor_setting.")
+		if err := config.UpdateConfigFromMap(config.GlobalConfig.Get("monitor_setting"), map[string]string{field: value}); err != nil {
+			return err
+		}
+		operation_setting.MarkMonitorAIAnalysisOption(key)
+		common.OptionMap[key] = value
+		return nil
+	}
 	common.OptionMap[key] = value
 
 	// 检查是否是模型配置 - 使用更规范的方式处理

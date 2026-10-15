@@ -267,13 +267,14 @@ func buildCodexOfficialNoticeAIResponseSchema() codexOfficialNoticeAIJSONSchema 
 }
 
 func resolveCodexOfficialNoticeAIOptions(options CodexOfficialNoticeAIOptions) CodexOfficialNoticeAIOptions {
+	shared := operation_setting.GetMonitorAIAnalysisConfig()
 	baseURL := strings.TrimSpace(options.BaseURL)
 	if baseURL == "" {
-		baseURL = operation_setting.GetCodexModelGovernanceSetting().AIAnalysisBaseURL
+		baseURL = shared.BaseURL
 	}
 	modelName := strings.TrimSpace(options.Model)
 	if modelName == "" {
-		modelName = operation_setting.GetCodexModelGovernanceSetting().AIAnalysisModel
+		modelName = shared.Model
 	}
 	return CodexOfficialNoticeAIOptions{
 		APIKey:  strings.TrimSpace(options.APIKey),
@@ -296,7 +297,7 @@ func codexOfficialNoticeAIBaseURL(baseURL string) string {
 	if baseURL != "" {
 		return baseURL
 	}
-	return operation_setting.DefaultCodexGovernanceAIAnalysisBaseURL
+	return operation_setting.DefaultMonitorAIAnalysisBaseURL
 }
 
 func codexOfficialNoticeAIModel(modelName string) string {
@@ -304,7 +305,7 @@ func codexOfficialNoticeAIModel(modelName string) string {
 	if modelName != "" {
 		return modelName
 	}
-	return operation_setting.DefaultCodexGovernanceAIAnalysisModelName
+	return operation_setting.DefaultMonitorAIAnalysisModelName
 }
 
 func codexOfficialNoticeAIErrorBodySummary(raw []byte) string {

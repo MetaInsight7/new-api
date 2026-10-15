@@ -107,6 +107,15 @@ func GetOptions(c *gin.Context) {
 		}
 	}
 	common.OptionMapRWMutex.Unlock()
+	analysis := operation_setting.GetMonitorAIAnalysisConfig()
+	for _, option := range options {
+		switch option.Key {
+		case "monitor_setting.ai_analysis_base_url":
+			option.Value = analysis.BaseURL
+		case "monitor_setting.ai_analysis_model":
+			option.Value = analysis.Model
+		}
+	}
 	// Display the same effective expressions used by pricing and settlement,
 	// including built-in defaults absent from persisted administrator options.
 	for key, values := range map[string]map[string]string{

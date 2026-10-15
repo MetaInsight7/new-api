@@ -235,8 +235,9 @@ func runCodexGovernanceNoticeMonitor(ctx context.Context, report func(int, int))
 			}
 			continue
 		}
+		analysis := operation_setting.GetMonitorAIAnalysisConfig()
 		findings, _, analysisErr := service.ExtractCodexOfficialNoticeFindingsWithOptionalAIWithOptions(ctx, body, candidates, setting.OfficialLifecycleTerms, sourceURL, service.CodexOfficialNoticeAIOptions{
-			APIKey: setting.AIAnalysisAPIKey, BaseURL: setting.AIAnalysisBaseURL, Model: setting.AIAnalysisModel,
+			APIKey: analysis.APIKey, BaseURL: analysis.BaseURL, Model: analysis.Model,
 		})
 		if analysisErr != nil {
 			common.SysError("Codex notice AI analysis downgraded: " + model.SanitizeCodexModelGovernanceEvidence(analysisErr.Error()))

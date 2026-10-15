@@ -12,14 +12,6 @@ export const codexGovernanceSettingsSchema = z.object({
   official_source_urls: z.string(),
   official_lifecycle_terms: z.string(),
   alert_cooldown_minutes: z.number().int().min(1).max(525600),
-  dingtalk_enabled: z.boolean(),
-  dingtalk_webhook_url: z.string(),
-  dingtalk_secret: z.string(),
-  ai_analysis_api_key: z.string(),
-  ai_analysis_base_url: z.string(),
-  ai_analysis_model: z.string(),
-  clear_dingtalk_secret: z.boolean(),
-  clear_ai_analysis_api_key: z.boolean(),
 })
 
 export type CodexGovernanceSettingsValues = z.infer<
@@ -36,14 +28,6 @@ export const codexGovernanceSettingsDefaults: CodexGovernanceSettingsValues = {
   official_lifecycle_terms:
     'deprecated\nretired\nsunset\nunavailable\nnot supported',
   alert_cooldown_minutes: 60,
-  dingtalk_enabled: false,
-  dingtalk_webhook_url: '',
-  dingtalk_secret: '',
-  ai_analysis_api_key: '',
-  ai_analysis_base_url: 'https://api.openai.com/v1',
-  ai_analysis_model: 'gpt-5.4-mini',
-  clear_dingtalk_secret: false,
-  clear_ai_analysis_api_key: false,
 }
 
 const listFields = new Set([
@@ -51,7 +35,6 @@ const listFields = new Set([
   'official_source_urls',
   'official_lifecycle_terms',
 ])
-const secretFields = new Set(['dingtalk_secret', 'ai_analysis_api_key'])
 
 export function codexGovernanceLines(value: string): string[] {
   return value
@@ -65,7 +48,6 @@ export function codexGovernanceSettingsFromOptions(
 ): CodexGovernanceSettingsValues {
   const result = { ...codexGovernanceSettingsDefaults }
   for (const field of Object.keys(result)) {
-    if (secretFields.has(field)) continue
     const value = options[`codex_model_governance_setting.${field}`]
     if (value === undefined) continue
     if (listFields.has(field)) {
@@ -104,23 +86,14 @@ export async function saveCodexGovernanceSettings(
 ): Promise<void> {
   const fields = (
     Object.keys(values) as Array<keyof CodexGovernanceSettingsValues>
-  ).filter(
-    (field) =>
-      !field.startsWith('clear_') &&
-      ((secretFields.has(field) && Reflect.get(values, `clear_${field}`)) ||
-        (values[field] !== baseline[field] &&
-          (!secretFields.has(field) || values[field] !== '')))
-  )
+  ).filter((field) => values[field] !== baseline[field])
   fields.sort(
     (left, right) =>
       (Number(left === 'enabled') - Number(right === 'enabled')) *
       (values.enabled ? 1 : -1)
   )
   for (const field of fields) {
-    const raw =
-      secretFields.has(field) && Reflect.get(values, `clear_${field}`)
-        ? ''
-        : values[field]
+    const raw = values[field]
     const value =
       listFields.has(field) && typeof raw === 'string'
         ? JSON.stringify(codexGovernanceLines(raw))

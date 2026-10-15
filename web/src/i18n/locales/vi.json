@@ -1,5 +1,14 @@
 {
   "translation": {
+    "Shared DingTalk and AI analysis": "Cấu hình DingTalk và phân tích AI dùng chung",
+    "Channel alert cooldown (minutes)": "Thời gian chờ cảnh báo kênh (phút)",
+    "Configure the shared DingTalk robot and AI service in Monitoring & Alerts. Governance rules and its alert cooldown remain independent.": "Cấu hình bot DingTalk và dịch vụ AI dùng chung trong Giám sát và cảnh báo. Quy tắc quản trị và thời gian chờ cảnh báo vẫn độc lập.",
+    "Scheduled test failures and Codex governance share this connection. Their alert cooldowns remain independent.": "Lỗi kiểm tra định kỳ và quản trị Codex dùng chung kết nối này. Thời gian chờ cảnh báo của chúng vẫn độc lập.",
+    "The displayed analysis endpoint and model are effective values. Saving explicitly pins them; environment defaults apply only before configuration.": "Điểm cuối phân tích và mô hình hiển thị là giá trị đang có hiệu lực. Lưu sẽ cố định chúng; giá trị môi trường chỉ áp dụng khi chưa cấu hình.",
+    "Leave secrets blank to keep them; use the clear switches to remove them. An analysis key enables optional Chinese summaries. Failures fall back to basic alerts.": "Để trống bí mật để giữ nguyên; dùng công tắc xóa để loại bỏ. Khóa phân tích bật bản tóm tắt tiếng Trung tùy chọn. Khi phân tích lỗi, cảnh báo cơ bản vẫn được gửi.",
+    "Known credential, URL and IP patterns are masked, not fully anonymized. Channel IDs, names and failure facts may be sent to the configured analysis service.": "Chỉ che các mẫu thông tin xác thực, URL và IP đã biết, không ẩn danh hoàn toàn. ID, tên kênh và sự kiện lỗi có thể được gửi đến dịch vụ phân tích đã cấu hình.",
+    "Enter an HTTP or HTTPS URL without credentials": "Nhập URL HTTP hoặc HTTPS không chứa tên người dùng và mật khẩu",
+    "Configure the DingTalk webhook before enabling alerts": "Cấu hình webhook DingTalk trước khi bật cảnh báo",
     "First-event timeout protection": "Bảo vệ thời gian chờ sự kiện đầu tiên",
     "First-event wait (seconds)": "Chờ sự kiện đầu tiên (giây)",
     "First-event wait must be an integer from 1 to 9223372036 seconds.": "Thời gian chờ phải là số nguyên từ 1 đến 9223372036 giây.",

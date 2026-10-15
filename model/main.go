@@ -354,6 +354,7 @@ func migrateDB() error {
 		&CodexModelGovernanceRecord{},
 		&CodexModelGovernanceProbeState{},
 		&CodexModelGovernanceAlertCooldownRecord{},
+		&ChannelTestAlertCooldown{},
 		&Log{},
 		&Midjourney{},
 		&TopUp{},

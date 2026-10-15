@@ -1,5 +1,14 @@
 {
   "translation": {
+    "Shared DingTalk and AI analysis": "Shared DingTalk and AI analysis",
+    "Channel alert cooldown (minutes)": "Channel alert cooldown (minutes)",
+    "Configure the shared DingTalk robot and AI service in Monitoring & Alerts. Governance rules and its alert cooldown remain independent.": "Configure the shared DingTalk robot and AI service in Monitoring & Alerts. Governance rules and its alert cooldown remain independent.",
+    "Scheduled test failures and Codex governance share this connection. Their alert cooldowns remain independent.": "Scheduled test failures and Codex governance share this connection. Their alert cooldowns remain independent.",
+    "The displayed analysis endpoint and model are effective values. Saving explicitly pins them; environment defaults apply only before configuration.": "The displayed analysis endpoint and model are effective values. Saving explicitly pins them; environment defaults apply only before configuration.",
+    "Leave secrets blank to keep them; use the clear switches to remove them. An analysis key enables optional Chinese summaries. Failures fall back to basic alerts.": "Leave secrets blank to keep them; use the clear switches to remove them. An analysis key enables optional Chinese summaries. Failures fall back to basic alerts.",
+    "Known credential, URL and IP patterns are masked, not fully anonymized. Channel IDs, names and failure facts may be sent to the configured analysis service.": "Known credential, URL and IP patterns are masked, not fully anonymized. Channel IDs, names and failure facts may be sent to the configured analysis service.",
+    "Enter an HTTP or HTTPS URL without credentials": "Enter an HTTP or HTTPS URL without credentials",
+    "Configure the DingTalk webhook before enabling alerts": "Configure the DingTalk webhook before enabling alerts",
     "First-event timeout protection": "First-event timeout protection",
     "First-event wait (seconds)": "First-event wait (seconds)",
     "First-event wait must be an integer from 1 to 9223372036 seconds.": "First-event wait must be an integer from 1 to 9223372036 seconds.",

@@ -410,6 +410,7 @@ func TestRunChannelTestWorkersHonorsConfiguredConcurrency(t *testing.T) {
 			func(processed, _ int) {
 				progress = append(progress, processed)
 			},
+			nil,
 		)
 	}()
 
@@ -458,6 +459,7 @@ func TestRunChannelTestWorkersStopsAfterCancellation(t *testing.T) {
 			func(processed, _ int) {
 				progress = append(progress, processed)
 			},
+			nil,
 		)
 	}()
 

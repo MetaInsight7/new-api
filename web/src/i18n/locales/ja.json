@@ -1,5 +1,14 @@
 {
   "translation": {
+    "Shared DingTalk and AI analysis": "DingTalk と AI 分析の共通設定",
+    "Channel alert cooldown (minutes)": "チャネル通知のクールダウン（分）",
+    "Configure the shared DingTalk robot and AI service in Monitoring & Alerts. Governance rules and its alert cooldown remain independent.": "「監視と通知」で共通の DingTalk ボットと AI サービスを設定してください。ガバナンスのルールと通知間隔は独立したままです。",
+    "Scheduled test failures and Codex governance share this connection. Their alert cooldowns remain independent.": "定期テスト失敗通知と Codex ガバナンスはこの接続を共有します。通知のクールダウンは独立しています。",
+    "The displayed analysis endpoint and model are effective values. Saving explicitly pins them; environment defaults apply only before configuration.": "表示中の分析エンドポイントとモデルは現在の有効値です。保存すると明示的に固定され、環境変数の既定値は未設定時のみ使用されます。",
+    "Leave secrets blank to keep them; use the clear switches to remove them. An analysis key enables optional Chinese summaries. Failures fall back to basic alerts.": "秘密情報は空欄で保持され、削除にはクリア用スイッチを使用します。分析キーを設定すると任意の中国語要約が有効になります。分析失敗時は基本通知を送信します。",
+    "Known credential, URL and IP patterns are masked, not fully anonymized. Channel IDs, names and failure facts may be sent to the configured analysis service.": "既知の認証情報、URL、IP の形式をマスクしますが、完全な匿名化ではありません。チャネル ID、名前、障害の事実が設定した分析サービスに送信される場合があります。",
+    "Enter an HTTP or HTTPS URL without credentials": "ユーザー名とパスワードを含まない HTTP または HTTPS の URL を入力してください",
+    "Configure the DingTalk webhook before enabling alerts": "通知を有効にする前に DingTalk Webhook を設定してください",
     "First-event timeout protection": "初回イベントのタイムアウト保護",
     "First-event wait (seconds)": "初回イベントの待機時間（秒）",
     "First-event wait must be an integer from 1 to 9223372036 seconds.": "初回イベントの待機時間は 1〜9223372036 秒の整数で指定してください。",

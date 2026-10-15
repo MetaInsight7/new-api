@@ -1025,6 +1025,7 @@ type channelTestSummary struct {
 	Failed    int `json:"failed"`
 	Disabled  int `json:"disabled"`
 	Enabled   int `json:"enabled"`
+	failure   *service.ChannelTestFailure
 }
 
 func testChannelForHealthCheck(ctx context.Context, channel *model.Channel, testUserID int, allowDisable bool, disableThreshold int64) channelTestSummary {
@@ -1057,11 +1058,20 @@ func testChannelForHealthCheck(ctx context.Context, channel *model.Channel, test
 		summary.Succeeded++
 	} else {
 		summary.Failed++
+		summary.failure = &service.ChannelTestFailure{
+			ChannelID: channel.Id, ChannelName: channel.Name,
+			ChannelTypeName: constant.GetChannelTypeName(channel.Type),
+			StatusCode:      newAPIError.StatusCode, ErrorCode: string(newAPIError.GetErrorCode()),
+			Message: newAPIError.Error(), AutoBanEnabled: channel.GetAutoBan(), TestedAt: time.Now(),
+		}
 	}
 
 	if allowDisable && isChannelEnabled && shouldBanChannel && channel.GetAutoBan() {
 		processChannelError(result.context, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(result.context, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError, nil)
 		summary.Disabled++
+		if summary.failure != nil {
+			summary.failure.DisableTriggered = true
+		}
 	}
 
 	if result.localErr == nil && !isChannelEnabled && service.ShouldEnableChannel(newAPIError, channel.Status) {
@@ -1082,6 +1092,7 @@ func runChannelTestWorkers(
 	concurrency int,
 	run func(context.Context, *model.Channel) channelTestSummary,
 	report func(processed, total int),
+	onFailure func(service.ChannelTestFailure),
 ) channelTestSummary {
 	if ctx == nil {
 		ctx = context.Background()
@@ -1162,6 +1173,9 @@ func runChannelTestWorkers(
 		if report != nil && ctx.Err() == nil {
 			report(processed, total)
 		}
+		if onFailure != nil && result.failure != nil && ctx.Err() == nil {
+			onFailure(*result.failure)
+		}
 	}
 	return summary
 }
@@ -1169,7 +1183,7 @@ func runChannelTestWorkers(
 // performChannelTests runs channel health checks with the configured bounded
 // concurrency and honors cancellation when a system-task runner loses its
 // lease.
-func performChannelTests(ctx context.Context, channels []*model.Channel, testUserID int, allowDisable bool, concurrency int, report func(processed, total int)) channelTestSummary {
+func performChannelTests(ctx context.Context, channels []*model.Channel, testUserID int, allowDisable bool, concurrency int, report func(processed, total int), onFailure func(service.ChannelTestFailure)) channelTestSummary {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -1185,6 +1199,7 @@ func performChannelTests(ctx context.Context, channels []*model.Channel, testUse
 			return testChannelForHealthCheck(ctx, channel, testUserID, allowDisable, disableThreshold)
 		},
 		report,
+		onFailure,
 	)
 }
 
@@ -1197,6 +1212,9 @@ func performChannelTests(ctx context.Context, channels []*model.Channel, testUse
 // is set the root user is notified on completion. Cross-instance execution is
 // guarded by the system task per-type lock, so no process-local guard is needed.
 func runChannelTestTask(ctx context.Context, mode string, notify bool, report func(processed, total int)) (channelTestSummary, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	testUserID, err := resolveChannelTestUserID(nil)
 	if err != nil {
 		return channelTestSummary{}, err
@@ -1211,7 +1229,28 @@ func runChannelTestTask(ctx context.Context, mode string, notify bool, report fu
 	selected := selectChannelsForAutomaticTest(channels, mode)
 	allowDisable := mode != operation_setting.ChannelTestModePassiveRecovery
 	concurrency := operation_setting.GetMonitorSetting().ChannelTestConcurrency
-	summary := performChannelTests(ctx, selected, testUserID, allowDisable, concurrency, report)
+	var pending []service.ChannelTestFailure
+	flushAlerts := func() {
+		if ctx.Err() == nil {
+			if err := service.NotifyDingTalkChannelTestFailures(ctx, pending); err != nil && ctx.Err() == nil {
+				common.SysError("channel-test failure alert: " + err.Error())
+			}
+		}
+		pending = nil
+	}
+	var onFailure func(service.ChannelTestFailure)
+	if !notify && operation_setting.GetMonitorAlertSetting().DingTalkAlertEnabled {
+		onFailure = func(failure service.ChannelTestFailure) {
+			pending = append(pending, failure)
+			if len(pending) == service.ChannelTestAlertBatchSize {
+				flushAlerts()
+			}
+		}
+	}
+	summary := performChannelTests(ctx, selected, testUserID, allowDisable, concurrency, report, onFailure)
+	if len(pending) > 0 {
+		flushAlerts()
+	}
 	if notify && (ctx == nil || ctx.Err() == nil) {
 		service.NotifyRootUser(dto.NotifyTypeChannelTest, "通道测试完成", "所有通道测试已完成")
 	}

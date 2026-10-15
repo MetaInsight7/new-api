@@ -38,7 +38,7 @@ func setupCodexGovernanceControllerTest(t *testing.T) *gorm.DB {
 	constant.StreamingTimeout = 60
 	require.NoError(t, database.AutoMigrate(&model.CodexModelGovernanceRecord{}, &model.CodexModelGovernanceProbeState{}, &model.CodexModelGovernanceAlertCooldownRecord{}, &model.SystemTask{}, &model.SystemTaskLock{}))
 	require.NoError(t, database.Create(&model.User{Id: 9001, Username: "governance-root", Role: common.RoleRootUser, Status: common.UserStatusEnabled, Group: "default", Quota: 1000000, Setting: `{"accept_unset_model_ratio_model":true}`}).Error)
-	setting.Enabled, setting.ProbeEnabled, setting.DingTalkEnabled = false, false, false
+	setting.Enabled, setting.ProbeEnabled = false, false
 	setting.UnsupportedMessagePatterns = []string{operation_setting.DefaultCodexUnsupportedPattern}
 	t.Cleanup(func() {
 		model.DB, model.LOG_DB = previousDB, previousLogDB

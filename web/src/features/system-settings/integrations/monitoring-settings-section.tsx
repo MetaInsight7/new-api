@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -42,6 +43,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { handleServerError } from '@/lib/handle-server-error'
 
 import {
   SettingsForm,
@@ -53,6 +55,12 @@ import { SettingsSection } from '../components/settings-section'
 import { useResetForm } from '../hooks/use-reset-form'
 import { useUpdateOption } from '../hooks/use-update-option'
 import { safeNumberFieldProps } from '../utils/numeric-field'
+import { MonitorAlertFields } from './monitor-alert-fields'
+import {
+  monitorAlertSettingsFromOptions,
+  monitorAlertSettingsSchema,
+  saveMonitorAlertSettings,
+} from './monitor-alert-settings'
 
 const numericString = z.string().refine((value) => {
   const trimmed = value.trim()
@@ -61,6 +69,7 @@ const numericString = z.string().refine((value) => {
 }, 'Enter a non-negative number or leave empty')
 
 const monitoringSchema = z.object({
+  monitor_setting: monitorAlertSettingsSchema,
   QuotaRemindThreshold: numericString,
   perf_metrics_setting: z.object({
     enabled: z.boolean(),
@@ -70,8 +79,8 @@ const monitoringSchema = z.object({
   }),
 })
 
-type MonitoringFormInput = z.input<typeof monitoringSchema>
-type MonitoringFormValues = z.output<typeof monitoringSchema>
+export type MonitoringFormInput = z.input<typeof monitoringSchema>
+export type MonitoringFormValues = z.output<typeof monitoringSchema>
 
 type FlatMonitoringDefaults = {
   QuotaRemindThreshold: string
@@ -83,11 +92,13 @@ type FlatMonitoringDefaults = {
 
 type MonitoringSettingsSectionProps = {
   defaultValues: FlatMonitoringDefaults
+  monitorOptions?: Record<string, unknown>
 }
 
 const buildFormDefaults = (
   defaults: MonitoringSettingsSectionProps['defaultValues']
 ): MonitoringFormInput => ({
+  monitor_setting: monitorAlertSettingsFromOptions({}),
   QuotaRemindThreshold: defaults.QuotaRemindThreshold ?? '',
   perf_metrics_setting: {
     enabled: defaults['perf_metrics_setting.enabled'],
@@ -122,11 +133,20 @@ const normalizeFormValues = (
     values.perf_metrics_setting.retention_days,
 })
 
-export function MonitoringSettingsSection({
-  defaultValues,
-}: MonitoringSettingsSectionProps) {
+export function MonitoringSettingsSection(
+  props: MonitoringSettingsSectionProps
+) {
   const { t } = useTranslation()
-  const updateOption = useUpdateOption()
+  const defaultValues = props.defaultValues
+  const queryClient = useQueryClient()
+  const updateOption = useUpdateOption({
+    invalidateSystemOptions: false,
+    showFeedback: false,
+  })
+  const monitorDefaults = useMemo(
+    () => monitorAlertSettingsFromOptions(props.monitorOptions ?? {}),
+    [props.monitorOptions]
+  )
   const baselineRef = useRef<FlatMonitoringDefaults>(
     normalizeDefaults(defaultValues)
   )
@@ -135,8 +155,11 @@ export function MonitoringSettingsSection({
   )
 
   const formDefaults = useMemo(
-    () => buildFormDefaults(defaultValues),
-    [defaultValues]
+    () => ({
+      ...buildFormDefaults(defaultValues),
+      monitor_setting: monitorDefaults,
+    }),
+    [defaultValues, monitorDefaults]
   )
 
   const form = useForm<MonitoringFormInput, unknown, MonitoringFormValues>({
@@ -162,20 +185,33 @@ export function MonitoringSettingsSection({
       Object.keys(normalized) as Array<keyof FlatMonitoringDefaults>
     ).filter((key) => normalized[key] !== baselineRef.current[key])
 
-    if (updates.length === 0) {
-      toast.info(t('No changes to save'))
-      return
-    }
-
-    for (const key of updates) {
-      await updateOption.mutateAsync({
-        key,
-        value: normalized[key],
+    try {
+      for (const key of updates) {
+        await updateOption.mutateAsync({ key, value: normalized[key] })
+      }
+      await saveMonitorAlertSettings(
+        values.monitor_setting,
+        monitorDefaults,
+        updateOption.mutateAsync
+      )
+      baselineRef.current = normalized
+      baselineSerializedRef.current = JSON.stringify(normalized)
+      form.reset({
+        ...values,
+        monitor_setting: {
+          ...values.monitor_setting,
+          dingtalk_alert_secret: '',
+          ai_analysis_api_key: '',
+          clear_dingtalk_alert_secret: false,
+          clear_ai_analysis_api_key: false,
+        },
       })
+      toast.success(t('Setting updated successfully'))
+    } catch (error) {
+      handleServerError(error, t('Failed to update setting'))
+    } finally {
+      void queryClient.invalidateQueries({ queryKey: ['system-options'] })
     }
-
-    baselineRef.current = normalized
-    baselineSerializedRef.current = JSON.stringify(normalized)
   }
 
   return (
@@ -184,8 +220,9 @@ export function MonitoringSettingsSection({
         <SettingsForm onSubmit={form.handleSubmit(onSubmit)}>
           <SettingsPageFormActions
             onSave={form.handleSubmit(onSubmit)}
-            isSaving={updateOption.isPending}
+            isSaving={form.formState.isSubmitting}
           />
+          <MonitorAlertFields form={form} />
           <FormField
             control={form.control}
             name='QuotaRemindThreshold'

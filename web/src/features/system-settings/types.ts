@@ -392,6 +392,11 @@ export type ChannelConcurrencySettingsValues = {
 }
 
 export type OperationsSettings = {
+  'monitor_setting.dingtalk_alert_enabled': boolean
+  'monitor_setting.dingtalk_alert_webhook_url': string
+  'monitor_setting.dingtalk_alert_cooldown_minutes': number
+  'monitor_setting.ai_analysis_base_url': string
+  'monitor_setting.ai_analysis_model': string
   DefaultCollapseSidebar: boolean
   DemoSiteEnabled: boolean
   SelfUseModeEnabled: boolean
