@@ -16,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/setting/perf_metrics_setting"
 
 	"github.com/bytedance/gopkg/util/gopool"
+	"github.com/go-redis/redis/v8"
 )
 
 var hotBuckets sync.Map
@@ -35,10 +36,8 @@ func RecordRelayResult(ctx context.Context, info *relaycommon.RelayInfo, apiErr 
 		return
 	}
 	outcome := ClassifyRelayOutcome(ctx, info, apiErr)
-	if outcome == OutcomeIgnored {
-		return
-	}
 	now := time.Now()
+	recordModelPerformance(ctx, info, outcome == OutcomeSuccess, apiErr, now)
 	hasTtft := info.IsStream && info.HasSendResponse()
 	ttftMs := int64(0)
 	if hasTtft {
@@ -69,7 +68,7 @@ func RecordRelayResult(ctx context.Context, info *relaycommon.RelayInfo, apiErr 
 // task duration (second resolution, unlike the ms-resolution relay samples);
 // throughput is only present when the provider reports tokens.
 func RecordTaskResult(task *model.Task, result *relaycommon.TaskInfo) {
-	if task == nil {
+	if task == nil || (task.Status != model.TaskStatusSuccess && task.Status != model.TaskStatusFailure) {
 		return
 	}
 	modelName := task.Properties.OriginModelName
@@ -96,6 +95,11 @@ func RecordTaskResult(task *model.Task, result *relaycommon.TaskInfo) {
 			sample.GenerationMs = (endTs - genStart) * 1000
 		}
 	}
+	info := &relaycommon.RelayInfo{OriginModelName: modelName}
+	if task.SubmitTime > 0 {
+		info.StartTime = time.Unix(task.SubmitTime, 0)
+	}
+	recordModelPerformance(context.Background(), info, sample.Success, nil, time.Unix(endTs, 0))
 	Record(sample)
 }
 
@@ -118,9 +122,13 @@ func Record(sample Sample) {
 	}
 	actual, _ := hotBuckets.LoadOrStore(key, &atomicBucket{})
 	actual.(*atomicBucket).add(sample)
-	gopool.Go(func() {
-		recordRedis(key, sample)
-	})
+	recordModelRequest(sample)
+	if common.RedisEnabled && common.RDB != nil {
+		client := common.RDB
+		gopool.Go(func() {
+			recordRedis(client, key, sample)
+		})
+	}
 }
 
 // queryWindow covers the current partial hour plus the preceding complete
@@ -485,15 +493,12 @@ func avgTps(value counters) float64 {
 	return float64(value.outputTokens) / (float64(value.generationMs) / 1000)
 }
 
-func recordRedis(key bucketKey, sample Sample) {
-	if !common.RedisEnabled || common.RDB == nil {
-		return
-	}
+func recordRedis(client *redis.Client, key bucketKey, sample Sample) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
 	redisKey := redisBucketKey(key)
-	pipe := common.RDB.TxPipeline()
+	pipe := client.TxPipeline()
 	pipe.HIncrBy(ctx, redisKey, "req", 1)
 	if sample.Success {
 		pipe.HIncrBy(ctx, redisKey, "ok", 1)

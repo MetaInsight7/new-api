@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -16,6 +17,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+var prometheusAuthTestSequence atomic.Uint64
 
 func useRateLimitMiniRedis(t *testing.T) (*miniredis.Miniredis, *redis.Client) {
 	t.Helper()
@@ -43,6 +46,91 @@ func performRateLimitRequest(router http.Handler, path string, remoteAddr string
 	request.RemoteAddr = remoteAddr
 	router.ServeHTTP(recorder, request)
 	return recorder
+}
+
+func TestPrometheusMetricsAuthentication(testContext *testing.T) {
+	gin.SetMode(gin.TestMode)
+	invocation := prometheusAuthTestSequence.Add(1)
+	for scenarioIndex, scenario := range []struct {
+		name          string
+		redis         bool
+		uninitialized bool
+	}{
+		{name: "memory"},
+		{name: "redis", redis: true},
+		{name: "uninitialized redis", redis: true, uninitialized: true},
+	} {
+		testContext.Run(scenario.name, func(testContext *testing.T) {
+			address := fmt.Sprintf("[2001:db8:%x::%x]:1234", invocation, scenarioIndex+1)
+			previousEnabled, previousClient := common.RedisEnabled, common.RDB
+			testContext.Cleanup(func() { common.RedisEnabled, common.RDB = previousEnabled, previousClient })
+			common.RedisEnabled, common.RDB = scenario.redis, nil
+			if scenario.redis && !scenario.uninitialized {
+				useRateLimitMiniRedis(testContext)
+			}
+			testContext.Setenv(PrometheusMetricsTokenEnv, "monitor-secret")
+			testContext.Setenv("PROMETHEUS_METRICS_RATE_LIMIT", "1")
+			testContext.Setenv("PROMETHEUS_METRICS_RATE_LIMIT_DURATION", "60")
+			router := gin.New()
+			require.NoError(testContext, router.SetTrustedProxies(nil))
+			router.GET("/metrics", PrometheusMetricsAuth(), func(c *gin.Context) { c.Status(http.StatusNoContent) })
+			request := func(address, token string) *httptest.ResponseRecorder {
+				recorder := httptest.NewRecorder()
+				incoming := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+				incoming.RemoteAddr = address
+				incoming.Header.Set("X-Forwarded-For", "127.0.0.1")
+				incoming.Header.Set("Authorization", token)
+				router.ServeHTTP(recorder, incoming)
+				assert.NotContains(testContext, recorder.Body.String(), "monitor-secret")
+				return recorder
+			}
+			assert.Equal(testContext, http.StatusNoContent, request("127.0.0.1:1234", "").Code)
+			assert.Equal(testContext, http.StatusNoContent, request("[::1]:1234", "").Code)
+			assert.Equal(testContext, http.StatusNoContent, request(address, "Bearer monitor-secret").Code)
+			assert.Equal(testContext, http.StatusNoContent, request(address, "bearer monitor-secret").Code)
+			for tokenIndex, token := range []string{"", "Basic monitor-secret", "Bearer monitor-secret extra"} {
+				invalidAddress := fmt.Sprintf("[2001:db8:%x:%x::%x]:1234", invocation, scenarioIndex+1, tokenIndex+1)
+				assert.Equal(testContext, http.StatusUnauthorized, request(invalidAddress, token).Code)
+			}
+			assert.Equal(testContext, http.StatusUnauthorized, request(address, "Bearer wrong").Code)
+			assert.Equal(testContext, http.StatusTooManyRequests, request(address, "malformed").Code)
+			assert.Equal(testContext, http.StatusNoContent, request(address, "Bearer monitor-secret").Code)
+			testContext.Setenv(PrometheusMetricsTokenEnv, " ")
+			assert.Equal(testContext, http.StatusServiceUnavailable, request(address, "Bearer monitor-secret").Code)
+			assert.Equal(testContext, http.StatusNoContent, request("127.0.0.1:1234", "").Code)
+		})
+	}
+}
+
+func TestPrometheusAuthenticationNonpositiveLimitsUseDefaultsAndFailClosed(testContext *testing.T) {
+	gin.SetMode(gin.TestMode)
+	for _, value := range []string{"0", "-1"} {
+		testContext.Run(value, func(testContext *testing.T) {
+			server, _ := useRateLimitMiniRedis(testContext)
+			testContext.Setenv(PrometheusMetricsTokenEnv, "monitor-secret")
+			testContext.Setenv("PROMETHEUS_METRICS_RATE_LIMIT", value)
+			testContext.Setenv("PROMETHEUS_METRICS_RATE_LIMIT_DURATION", value)
+			router := gin.New()
+			require.NoError(testContext, router.SetTrustedProxies(nil))
+			router.GET("/metrics", PrometheusMetricsAuth(), func(c *gin.Context) { c.Status(http.StatusNoContent) })
+			for range 60 {
+				require.Equal(testContext, http.StatusUnauthorized, performRateLimitRequest(router, "/metrics", "192.0.2.211:1234").Code)
+			}
+			require.Equal(testContext, http.StatusTooManyRequests, performRateLimitRequest(router, "/metrics", "192.0.2.211:1234").Code)
+			server.FastForward(59 * time.Second)
+			require.Equal(testContext, http.StatusTooManyRequests, performRateLimitRequest(router, "/metrics", "192.0.2.211:1234").Code)
+			server.FastForward(time.Second)
+			require.Equal(testContext, http.StatusUnauthorized, performRateLimitRequest(router, "/metrics", "192.0.2.211:1234").Code)
+			server.Close()
+			require.Equal(testContext, http.StatusInternalServerError, performRateLimitRequest(router, "/metrics", "192.0.2.211:1234").Code)
+			request := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+			request.RemoteAddr = "192.0.2.211:1234"
+			request.Header.Set("Authorization", "Bearer monitor-secret")
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, request)
+			require.Equal(testContext, http.StatusNoContent, response.Code)
+		})
+	}
 }
 
 func TestRedisIPRateLimiterThresholdTTLAndNamespace(t *testing.T) {

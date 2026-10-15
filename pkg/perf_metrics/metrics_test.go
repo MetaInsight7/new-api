@@ -26,27 +26,27 @@ func TestClassifyRelayOutcome(t *testing.T) {
 		want Outcome
 	}{
 		{"success", context.Background(), nil, OutcomeSuccess},
-		{"upstream bad request", context.Background(), types.InitOpenAIError("unknown", 400), OutcomeIgnored},
+		{"upstream bad request", context.Background(), types.InitOpenAIError("unknown", 400), OutcomeFailure},
 		{"upstream credentials returned as 400", context.Background(), types.InitOpenAIError("invalid_api_key", 400), OutcomeFailure},
 		{"wrapped credentials keep their cause", context.Background(), types.NewErrorWithStatusCode(types.InitOpenAIError("invalid_api_key", 400), types.ErrorCodeInvalidRequest, 400), OutcomeFailure},
-		{"upstream context limit returned as 500", context.Background(), types.InitOpenAIError("context_length_exceeded", 500), OutcomeIgnored},
-		{"local rate limit", context.Background(), types.NewErrorWithStatusCode(errors.New("limited"), types.ErrorCodeInvalidRequest, 429), OutcomeIgnored},
+		{"upstream context limit returned as 500", context.Background(), types.InitOpenAIError("context_length_exceeded", 500), OutcomeFailure},
+		{"local rate limit", context.Background(), types.NewErrorWithStatusCode(errors.New("limited"), types.ErrorCodeInvalidRequest, 429), OutcomeFailure},
 		{"upstream rate limit", context.Background(), types.InitOpenAIError("rate_limit_exceeded", 429), OutcomeFailure},
-		{"local quota", context.Background(), types.NewError(errors.New("quota"), types.ErrorCodeInsufficientUserQuota), OutcomeIgnored},
-		{"local violation fee", context.Background(), types.NewError(errors.New("csam"), types.ErrorCodeViolationFeeGrokCSAM), OutcomeIgnored},
+		{"local quota", context.Background(), types.NewError(errors.New("quota"), types.ErrorCodeInsufficientUserQuota), OutcomeFailure},
+		{"local violation fee", context.Background(), types.NewError(errors.New("csam"), types.ErrorCodeViolationFeeGrokCSAM), OutcomeFailure},
 		{"upstream quota", context.Background(), types.InitOpenAIError("insufficient_quota", 429), OutcomeFailure},
 		{"upstream gateway quota", context.Background(), types.InitOpenAIError(types.ErrorCodeInsufficientUserQuota, 403), OutcomeFailure},
 		{"unavailable channel", context.Background(), types.NewErrorWithStatusCode(errors.New("disabled"), types.ErrorCodeGetChannelFailed, 403), OutcomeFailure},
 		{"empty upstream response", context.Background(), types.NewError(errors.New("empty"), types.ErrorCodeEmptyResponse), OutcomeFailure},
 		{"network failure", context.Background(), types.NewOpenAIError(errors.New("connection refused"), types.ErrorCodeDoRequestFailed, 500), OutcomeFailure},
-		{"client cancellation", canceled, types.NewOpenAIError(errors.New("context canceled"), types.ErrorCodeDoRequestFailed, 500), OutcomeIgnored},
+		{"client cancellation", canceled, types.NewOpenAIError(errors.New("context canceled"), types.ErrorCodeDoRequestFailed, 500), OutcomeFailure},
 		{"upstream deadline", context.Background(), types.NewOpenAIError(context.DeadlineExceeded, types.ErrorCodeDoRequestFailed, 504), OutcomeFailure},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			assert.Equal(t, tc.want, ClassifyRelayOutcome(tc.ctx, &relaycommon.RelayInfo{}, tc.err))
 		})
 	}
-	assert.Equal(t, OutcomeIgnored, ClassifyRelayOutcome(context.Background(), &relaycommon.RelayInfo{PerformanceBusinessRejection: true}, nil))
+	assert.Equal(t, OutcomeFailure, ClassifyRelayOutcome(context.Background(), &relaycommon.RelayInfo{PerformanceBusinessRejection: true}, nil))
 }
 
 func TestStreamOutcomeClassification(t *testing.T) {
@@ -57,13 +57,13 @@ func TestStreamOutcomeClassification(t *testing.T) {
 		want Outcome
 	}{
 		{"completed", (*relaycommon.StreamStatus).MarkCompleted, relaycommon.StreamEndReasonEOF, OutcomeSuccess},
-		{"business rejection", func(s *relaycommon.StreamStatus) { s.MarkFailed("context_length_exceeded", "", 0) }, relaycommon.StreamEndReasonEOF, OutcomeIgnored},
+		{"business rejection", func(s *relaycommon.StreamStatus) { s.MarkFailed("context_length_exceeded", "", 0) }, relaycommon.StreamEndReasonEOF, OutcomeFailure},
 		{"service error", func(s *relaycommon.StreamStatus) { s.MarkFailed("server_error", "", 0) }, relaycommon.StreamEndReasonEOF, OutcomeFailure},
 		{"error after completion", func(s *relaycommon.StreamStatus) { s.MarkCompleted(); s.MarkFailed("", "server_error", 0) }, relaycommon.StreamEndReasonEOF, OutcomeFailure},
 		{"output limit", func(s *relaycommon.StreamStatus) { s.MarkIncomplete("max_output_tokens") }, relaycommon.StreamEndReasonEOF, OutcomeSuccess},
-		{"content filter", func(s *relaycommon.StreamStatus) { s.MarkIncomplete("content_filter") }, relaycommon.StreamEndReasonEOF, OutcomeIgnored},
-		{"client cancel", (*relaycommon.StreamStatus).MarkCancelled, relaycommon.StreamEndReasonEOF, OutcomeIgnored},
-		{"client gone", nil, relaycommon.StreamEndReasonClientGone, OutcomeIgnored},
+		{"content filter", func(s *relaycommon.StreamStatus) { s.MarkIncomplete("content_filter") }, relaycommon.StreamEndReasonEOF, OutcomeFailure},
+		{"client cancel", (*relaycommon.StreamStatus).MarkCancelled, relaycommon.StreamEndReasonEOF, OutcomeFailure},
+		{"client gone", nil, relaycommon.StreamEndReasonClientGone, OutcomeFailure},
 		{"timeout", nil, relaycommon.StreamEndReasonTimeout, OutcomeFailure},
 		{"first event timeout", nil, relaycommon.StreamEndReasonFirstResponseTimeout, OutcomeFailure},
 		{"missing terminal", nil, relaycommon.StreamEndReasonEOF, OutcomeFailure},
@@ -87,7 +87,7 @@ func TestClientCancellationDuringUpstreamRead(t *testing.T) {
 	stream := relaycommon.NewStreamStatus()
 	stream.RequireTerminal()
 	stream.SetEndReason(relaycommon.StreamEndReasonScannerErr, errors.New("reader closed"))
-	assert.Equal(t, OutcomeIgnored, ClassifyRelayOutcome(ctx, &relaycommon.RelayInfo{StreamStatus: stream}, nil))
+	assert.Equal(t, OutcomeFailure, ClassifyRelayOutcome(ctx, &relaycommon.RelayInfo{StreamStatus: stream}, nil))
 
 	deadline := relaycommon.NewStreamStatus()
 	deadline.SetEndReason(relaycommon.StreamEndReasonClientGone, context.DeadlineExceeded)
@@ -158,6 +158,7 @@ func TestPerformanceAggregationAndFlush(t *testing.T) {
 		{"sqlite", ""}, {"mysql", "TEST_PERF_MYSQL_DSN"}, {"postgres", "TEST_PERF_POSTGRES_DSN"},
 	} {
 		t.Run(dialect.name, func(t *testing.T) {
+			isolatePrometheusMetrics(t)
 			dsn := ""
 			if dialect.env != "" {
 				dsn = os.Getenv(dialect.env)
@@ -182,6 +183,13 @@ func TestPerformanceAggregationAndFlush(t *testing.T) {
 			t.Cleanup(func() { require.NoError(t, sqlDB.Close()) })
 			require.NoError(t, db.Migrator().DropTable(&model.PerfMetric{}))
 			require.NoError(t, db.AutoMigrate(&model.PerfMetric{}))
+			versionQuery := "SELECT version()"
+			if dialect.name == "sqlite" {
+				versionQuery = "SELECT sqlite_version()"
+			}
+			var databaseVersion string
+			require.NoError(t, db.Raw(versionQuery).Scan(&databaseVersion).Error)
+			t.Logf("database: %s %s", dialect.name, databaseVersion)
 
 			now := time.Now()
 			start, _ := queryWindow(now, 24)
@@ -200,7 +208,8 @@ func TestPerformanceAggregationAndFlush(t *testing.T) {
 			businessRejected, err := QuerySummaryAll(24, groups)
 			require.NoError(t, err)
 			require.NotNil(t, businessRejected.Summary)
-			assert.Equal(t, 100.0, businessRejected.Summary.SuccessRate)
+			assert.Equal(t, 99.01, businessRejected.Summary.SuccessRate)
+			hotBuckets.Clear()
 
 			failure := &atomicBucket{}
 			failure.add(Sample{LatencyMs: 2000})
@@ -236,10 +245,10 @@ func TestPerformanceAggregationAndFlush(t *testing.T) {
 			RecordRelayResult(context.Background(), &relaycommon.RelayInfo{OriginModelName: "test-model", UsingGroup: "a", StartTime: now}, types.InitOpenAIError("context_length_exceeded", 400))
 			after, err = Query(QueryParams{Model: "test-model", Hours: 24, AllowedGroups: groups})
 			require.NoError(t, err)
-			assert.Equal(t, before.Summary, after.Summary)
+			assert.Equal(t, 98.04, after.Summary.SuccessRate)
 			onlyA, err := Query(QueryParams{Model: "test-model", Group: "a", Hours: 24, AllowedGroups: groups})
 			require.NoError(t, err)
-			assert.Equal(t, 100.0, onlyA.Summary.SuccessRate)
+			assert.Equal(t, 99.01, onlyA.Summary.SuccessRate)
 			empty, err := Query(QueryParams{Model: "missing", Hours: 24, AllowedGroups: groups})
 			require.NoError(t, err)
 			assert.Nil(t, empty.Summary)
@@ -248,8 +257,50 @@ func TestPerformanceAggregationAndFlush(t *testing.T) {
 			require.NoError(t, model.UpsertPerfMetric(&model.PerfMetric{ModelName: "second-model", Group: "a", BucketTs: hour, RequestCount: 1}))
 			combined, err := QuerySummaryAll(24, groups)
 			require.NoError(t, err)
-			assert.Equal(t, 98.04, combined.Summary.SuccessRate)
-			assert.Equal(t, 99.01, combined.Models[0].SuccessRate)
+			assert.Equal(t, 97.09, combined.Summary.SuccessRate)
+			assert.Equal(t, 98.04, combined.Models[0].SuccessRate)
+
+			for range 9 {
+				RecordRelayResult(context.Background(), &relaycommon.RelayInfo{OriginModelName: "cancel-counting", UsingGroup: "a", StartTime: now.Add(-time.Second)}, nil)
+			}
+			canceled, cancel := context.WithCancel(context.Background())
+			cancel()
+			RecordRelayResult(canceled, &relaycommon.RelayInfo{OriginModelName: "cancel-counting", UsingGroup: "b", StartTime: now.Add(-time.Second)}, nil)
+			observed, err := Query(QueryParams{Model: "cancel-counting", Hours: 24, AllowedGroups: groups})
+			require.NoError(t, err)
+			require.NotNil(t, observed.Summary)
+			assert.Equal(t, 90.0, observed.Summary.SuccessRate)
+			text, err := BuildPrometheusText(context.Background())
+			require.NoError(t, err)
+			assert.Contains(t, text, `newapi_model_requests_total{model="cancel-counting",status="success"} 9`)
+			assert.Contains(t, text, `newapi_model_requests_total{model="cancel-counting",status="error"} 1`)
+			assert.Contains(t, text, `newapi_model_errors_total{model="cancel-counting",error_category="client_cancel"} 1`)
+			health, err := GetModelHealthDetail("cancel-counting", 24)
+			require.NoError(t, err)
+			assert.Zero(t, health.Model.RequestCount)
+			safeBucket := health.DataCutoff - 3600
+			for _, group := range groups {
+				current := bucketKey{model: "cancel-counting", group: group, bucketTs: bucketStart(now.Unix())}
+				bucket, exists := hotBuckets.LoadAndDelete(current)
+				require.True(t, exists)
+				current.bucketTs = safeBucket
+				hotBuckets.Store(current, bucket)
+			}
+			flushCompletedBuckets()
+			flushCompletedBuckets()
+			health, err = GetModelHealthDetail("cancel-counting", 24)
+			require.NoError(t, err)
+			assert.Equal(t, int64(10), health.Model.RequestCount)
+			assert.Equal(t, int64(9), health.Model.SuccessCount)
+			assert.Equal(t, 90.0, health.Model.SuccessRate)
+			assert.Equal(t, ModelHealthInsufficient, health.Model.Health)
+			require.Len(t, health.Groups, 2)
+			assert.Equal(t, 100.0, health.Groups[0].SuccessRate)
+			assert.Zero(t, health.Groups[1].SuccessRate)
+			filtered, err := Query(QueryParams{Model: "cancel-counting", Hours: 24, AllowedGroups: []string{"b"}})
+			require.NoError(t, err)
+			require.NotNil(t, filtered.Summary)
+			assert.Zero(t, filtered.Summary.SuccessRate)
 		})
 	}
 }

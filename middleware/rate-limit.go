@@ -171,6 +171,24 @@ func GlobalAPIRateLimit() func(c *gin.Context) {
 	return defNext
 }
 
+func PrometheusMetricsRateLimit() func(c *gin.Context) {
+	maximum := common.GetEnvOrDefault("PROMETHEUS_METRICS_RATE_LIMIT", 60)
+	if maximum <= 0 {
+		maximum = 60
+	}
+	duration := common.GetEnvOrDefault("PROMETHEUS_METRICS_RATE_LIMIT_DURATION", 60)
+	if duration <= 0 {
+		duration = 60
+	}
+	if common.RedisEnabled && common.RDB == nil {
+		inMemoryRateLimiter.Init(common.RateLimitKeyExpirationDuration)
+		return func(c *gin.Context) {
+			memoryRateLimiter(c, maximum, int64(duration), "PM_AUTH_FAIL")
+		}
+	}
+	return rateLimitFactory(maximum, int64(duration), "PM_AUTH_FAIL")
+}
+
 func CriticalRateLimit() func(c *gin.Context) {
 	if common.CriticalRateLimitEnable {
 		return rateLimitFactory(common.CriticalRateLimitNum, common.CriticalRateLimitDuration, "CT")

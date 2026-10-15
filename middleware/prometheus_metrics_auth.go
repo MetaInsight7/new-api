@@ -15,14 +15,24 @@ import (
 const PrometheusMetricsTokenEnv = "PROMETHEUS_METRICS_TOKEN"
 
 func PrometheusMetricsAuth() gin.HandlerFunc {
+	authFailureRateLimit := PrometheusMetricsRateLimit()
 	return func(c *gin.Context) {
 		if prometheusMetricsLocalScrape(c.Request.RemoteAddr) {
 			c.Next()
 			return
 		}
 		expected := strings.TrimSpace(common.GetEnvOrDefaultString(PrometheusMetricsTokenEnv, ""))
+		if expected == "" {
+			c.String(http.StatusServiceUnavailable, "prometheus metrics token not configured")
+			c.Abort()
+			return
+		}
 		provided := prometheusMetricsBearer(c.GetHeader("Authorization"))
-		if expected == "" || provided == "" || !prometheusMetricsTokenEqual(expected, provided) {
+		if provided == "" || !prometheusMetricsTokenEqual(expected, provided) {
+			authFailureRateLimit(c)
+			if c.IsAborted() {
+				return
+			}
 			c.Header("WWW-Authenticate", `Bearer realm="prometheus"`)
 			c.String(http.StatusUnauthorized, "unauthorized")
 			c.Abort()

@@ -209,7 +209,8 @@ func BuildPrometheusText(ctx context.Context) (string, error) {
 		default:
 		}
 	}
-	cutoff := time.Now().Add(-prometheusSeriesIdleRetention)
+	now := time.Now()
+	cutoff := now.Add(-prometheusSeriesIdleRetention)
 	snapshots := make([]channelMetricSnapshot, 0)
 	channelMetricBuckets.Range(func(key, value any) bool {
 		channelID := key.(int)
@@ -239,10 +240,11 @@ func BuildPrometheusText(ctx context.Context) (string, error) {
 	})
 	sort.Slice(snapshots, func(i, j int) bool { return snapshots[i].channelID < snapshots[j].channelID })
 	modelSnapshots := snapshotChannelModels(cutoff)
+	requestSnapshots := snapshotModelRequests(cutoff)
 
-	series := 0
+	series := len(requestSnapshots)
 	for _, snapshot := range snapshots {
-		series += 1 + len(snapshot.attempts) + len(channelDurationBuckets) + 2
+		series += 1 + len(snapshot.attempts) + len(channelDurationBuckets) + 3
 		if snapshot.ttftCount > 0 {
 			series += 2
 		}
@@ -260,8 +262,51 @@ func BuildPrometheusText(ctx context.Context) (string, error) {
 	if maxSeries > 0 && series > maxSeries {
 		return "", fmt.Errorf("prometheus series limit exceeded: %d > %d", series, maxSeries)
 	}
+	includeModelMetadata := maxSeries <= 0 || series+5 <= maxSeries
+	remaining := -1
+	if maxSeries > 0 {
+		remaining = max(0, maxSeries-series-5)
+	}
+	performanceSnapshots, activeModels, dropped := snapshotModelPerformance(now, remaining)
+	if includeModelMetadata {
+		series += 5
+		for _, snapshot := range performanceSnapshots {
+			series += snapshot.seriesCount()
+		}
+	}
 
 	var output strings.Builder
+	fmt.Fprintf(&output, "# HELP newapi_perf_metrics_series Number of application metric series exposed by this endpoint.\n# TYPE newapi_perf_metrics_series gauge\nnewapi_perf_metrics_series %d\n", series)
+	output.WriteString("# HELP newapi_model_requests_total Total model requests by model and status.\n# TYPE newapi_model_requests_total counter\n")
+	for _, snapshot := range requestSnapshots {
+		fmt.Fprintf(&output, "newapi_model_requests_total{model=\"%s\",status=\"%s\"} %d\n", escapePrometheusLabelValue(snapshot.model), snapshot.status, snapshot.count)
+	}
+	if includeModelMetadata {
+		fmt.Fprintf(&output, "# HELP newapi_model_histogram_active_models Current admitted model performance groups.\n# TYPE newapi_model_histogram_active_models gauge\nnewapi_model_histogram_active_models %d\n", activeModels)
+		output.WriteString("# HELP newapi_model_histogram_dropped_samples_total Model observations dropped by reason.\n# TYPE newapi_model_histogram_dropped_samples_total counter\n")
+		for _, reason := range modelDropReasons {
+			fmt.Fprintf(&output, "newapi_model_histogram_dropped_samples_total{reason=\"%s\"} %d\n", reason, dropped[reason])
+		}
+		output.WriteString("# HELP newapi_model_errors_total Total final model errors by category.\n# TYPE newapi_model_errors_total counter\n")
+		output.WriteString("# HELP newapi_model_request_duration_seconds Duration of successful final model operations.\n# TYPE newapi_model_request_duration_seconds histogram\n")
+		output.WriteString("# HELP newapi_model_ttft_seconds Time to first response of successful streaming model operations.\n# TYPE newapi_model_ttft_seconds histogram\n")
+		output.WriteString("# HELP newapi_model_stream_success_total Total successful streaming model operations.\n# TYPE newapi_model_stream_success_total counter\n")
+		for _, snapshot := range performanceSnapshots {
+			writeModelHistogram(&output, "newapi_model_request_duration_seconds", snapshot.model, snapshot.latency, modelLatencyBounds)
+			writeModelHistogram(&output, "newapi_model_ttft_seconds", snapshot.model, snapshot.ttft, modelTTFTBounds)
+			if snapshot.streamSuccess > 0 {
+				fmt.Fprintf(&output, "newapi_model_stream_success_total{model=\"%s\"} %d\n", escapePrometheusLabelValue(snapshot.model), snapshot.streamSuccess)
+			}
+			categories := make([]string, 0, len(snapshot.errors))
+			for category := range snapshot.errors {
+				categories = append(categories, category)
+			}
+			sort.Strings(categories)
+			for _, category := range categories {
+				fmt.Fprintf(&output, "newapi_model_errors_total{model=\"%s\",error_category=\"%s\"} %d\n", escapePrometheusLabelValue(snapshot.model), category, snapshot.errors[category])
+			}
+		}
+	}
 	output.WriteString("# HELP newapi_channel_info Current display name for a stable channel ID.\n")
 	output.WriteString("# TYPE newapi_channel_info gauge\n")
 	for _, snapshot := range snapshots {
@@ -440,5 +485,9 @@ func escapePrometheusLabel(value string) string {
 	if runes := []rune(value); len(runes) > 256 {
 		value = string(runes[:256])
 	}
+	return strings.NewReplacer("\\", "\\\\", "\n", "\\n", "\"", "\\\"").Replace(value)
+}
+
+func escapePrometheusLabelValue(value string) string {
 	return strings.NewReplacer("\\", "\\\\", "\n", "\\n", "\"", "\\\"").Replace(value)
 }

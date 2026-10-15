@@ -3,10 +3,12 @@ package service
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -15,12 +17,17 @@ import (
 	taskdto "github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
+	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/setting/config"
+	"github.com/QuantumNous/new-api/setting/perf_metrics_setting"
 	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+var taskPerformanceTestSequence atomic.Uint64
 
 type taskPollingFetchAdaptor struct {
 	mu           sync.Mutex
@@ -297,7 +304,19 @@ func TestDispatchPlatformUpdateUsesFetchMode(t *testing.T) {
 	GetTaskAdaptorFunc = previousFactory
 }
 
+func enableTaskPerformanceCollection(testContext *testing.T) {
+	testContext.Helper()
+	testContext.Setenv("PROMETHEUS_MAX_MODEL_HISTOGRAM_MODELS", "0")
+	testContext.Setenv("PROMETHEUS_MAX_SERIES_PER_SCRAPE", "0")
+	previous := perf_metrics_setting.GetSetting().Enabled
+	require.NoError(testContext, config.GlobalConfig.LoadFromDB(map[string]string{"perf_metrics_setting.enabled": "true"}))
+	testContext.Cleanup(func() {
+		require.NoError(testContext, config.GlobalConfig.LoadFromDB(map[string]string{"perf_metrics_setting.enabled": fmt.Sprint(previous)}))
+	})
+}
+
 func TestUpdateBatchTasksSettlesTieredUsageForTerminalStates(t *testing.T) {
+	enableTaskPerformanceCollection(t)
 	testCases := []struct {
 		name        string
 		status      model.TaskStatus
@@ -325,6 +344,9 @@ func TestUpdateBatchTasksSettlesTieredUsageForTerminalStates(t *testing.T) {
 			task.TaskID = "task_batch_tiered_" + string(testCase.status)
 			task.Platform = "batch-plugin"
 			task.PrivateData.UpstreamTaskID = "upstream_batch_tiered_" + string(testCase.status)
+			modelName := fmt.Sprintf("task-final-%s-%d", testCase.name, taskPerformanceTestSequence.Add(1))
+			task.Properties.OriginModelName = modelName
+			task.PrivateData.BillingContext.OriginModelName = modelName
 			task.SetData(map[string]any{"provider_payload": "must-be-preserved"})
 			task.PrivateData.BillingContext.TieredSnapshot = &billingexpr.BillingSnapshot{
 				ExprString:       expression,
@@ -373,6 +395,14 @@ func TestUpdateBatchTasksSettlesTieredUsageForTerminalStates(t *testing.T) {
 			require.NoError(t, UpdateBatchTasks(context.Background(), adaptor, map[int][]string{channelID: taskIDs}, taskMap))
 			assert.Equal(t, initialQuota+(preConsumedQuota-testCase.actualQuota), getUserQuota(t, userID))
 			assert.Equal(t, int64(1), countLogs(t))
+			text, err := perfmetrics.BuildPrometheusText(context.Background())
+			require.NoError(t, err)
+			status := "success"
+			if testCase.status == model.TaskStatusFailure {
+				status = "error"
+			}
+			assert.Contains(t, text, `newapi_model_requests_total{model="`+modelName+`",status="`+status+`"} 1`+"\n")
+			assert.NotContains(t, text, `newapi_model_ttft_seconds_count{model="`+modelName+`"}`)
 		})
 	}
 }
@@ -432,6 +462,50 @@ func TestUpdateBatchTasksRefundsFailedTieredTask(t *testing.T) {
 	facts, ok := other["usage_facts"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, map[string]any{"units": float64(5)}, facts)
+}
+
+func TestIndividualTaskPollingObservesOnlyWonTerminalTransition(testContext *testing.T) {
+	enableTaskPerformanceCollection(testContext)
+	for _, terminal := range []model.TaskStatus{model.TaskStatusSuccess, model.TaskStatusFailure} {
+		testContext.Run(string(terminal), func(testContext *testing.T) {
+			truncate(testContext)
+			const channelID = 904
+			seedTaskPollingChannel(testContext, channelID, true)
+			task := seedPollingTask(testContext, channelID, "individual-observation", "individual-upstream")
+			modelName := fmt.Sprintf("individual-final-%s-%d", terminal, taskPerformanceTestSequence.Add(1))
+			task.Properties.OriginModelName = modelName
+			task.SubmitTime = time.Now().Add(-3 * time.Second).Unix()
+			require.NoError(testContext, model.DB.Save(task).Error)
+			adaptor := &scriptedPollingAdaptor{parse: &relaycommon.TaskInfo{Status: model.TaskStatusInProgress}}
+			previousFactory := GetTaskAdaptorFunc
+			GetTaskAdaptorFunc = func(constant.TaskPlatform) TaskPollingAdaptor { return adaptor }
+			testContext.Cleanup(func() { GetTaskAdaptorFunc = previousFactory })
+			channels := map[int][]string{channelID: {task.GetUpstreamTaskID()}}
+			tasks := map[string]*model.Task{task.GetUpstreamTaskID(): task}
+			require.NoError(testContext, UpdateVideoTasks(context.Background(), constant.TaskPlatform("kling"), channels, tasks))
+			text, err := perfmetrics.BuildPrometheusText(context.Background())
+			require.NoError(testContext, err)
+			require.NotContains(testContext, text, `newapi_model_requests_total{model="`+modelName+`"`)
+			stale := *task
+			adaptor.parse.Status = string(terminal)
+			require.NoError(testContext, UpdateVideoTasks(context.Background(), constant.TaskPlatform("kling"), channels, tasks))
+			require.NoError(testContext, UpdateVideoTasks(context.Background(), constant.TaskPlatform("kling"), channels, tasks))
+			tasks[task.GetUpstreamTaskID()] = &stale
+			require.NoError(testContext, UpdateVideoTasks(context.Background(), constant.TaskPlatform("kling"), channels, tasks))
+			text, err = perfmetrics.BuildPrometheusText(context.Background())
+			require.NoError(testContext, err)
+			status := "success"
+			if terminal == model.TaskStatusFailure {
+				status = "error"
+			}
+			require.Contains(testContext, text, `newapi_model_requests_total{model="`+modelName+`",status="`+status+`"} 1`+"\n")
+			if terminal == model.TaskStatusSuccess {
+				require.Contains(testContext, text, `newapi_model_request_duration_seconds_count{model="`+modelName+`"} 1`+"\n")
+			} else {
+				require.Contains(testContext, text, `newapi_model_errors_total{model="`+modelName+`",error_category="other"} 1`+"\n")
+			}
+		})
+	}
 }
 
 func TestUpdateBatchTasksRefundsFailedTaskWithoutUsageSettlement(t *testing.T) {

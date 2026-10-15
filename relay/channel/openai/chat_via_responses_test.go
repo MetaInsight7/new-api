@@ -9,6 +9,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert"
@@ -164,6 +165,7 @@ func TestOaiResponsesToChatBufferedStreamHandlerReturnsJSONFromSSE(t *testing.T)
 	require.Nil(t, err)
 	require.NotNil(t, usage)
 	require.Equal(t, 3, usage.TotalTokens)
+	assert.Equal(t, perfmetrics.OutcomeSuccess, perfmetrics.ClassifyRelayOutcome(c.Request.Context(), info, err))
 
 	got := recorder.Body.String()
 	require.NotContains(t, got, `data:`)
@@ -200,6 +202,7 @@ func TestOaiResponsesToChatBufferedStreamHandlerPreservesInterleavedClaudeConten
 	require.Nil(t, apiErr)
 	require.NotNil(t, usage)
 	assert.Equal(t, 3, usage.TotalTokens)
+	assert.Equal(t, perfmetrics.OutcomeSuccess, perfmetrics.ClassifyRelayOutcome(c.Request.Context(), info, apiErr))
 
 	var claudeResponse dto.ClaudeResponse
 	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &claudeResponse))

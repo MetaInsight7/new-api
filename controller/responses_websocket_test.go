@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -326,6 +327,34 @@ func waitPerfCounters(t *testing.T, wantRequests int64) (requests, successes int
 	return requests, successes
 }
 
+func responsesPrometheusCounters(testContext *testing.T) (requests, successes int64) {
+	testContext.Helper()
+	testContext.Setenv("PROMETHEUS_MAX_SERIES_PER_SCRAPE", "0")
+	router := gin.New()
+	router.GET("/metrics", middleware.PrometheusMetricsAuth(), GetPrometheusMetrics)
+	request := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	request.RemoteAddr = "127.0.0.1:1234"
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	require.Equal(testContext, http.StatusOK, response.Code)
+	require.Equal(testContext, "text/plain; version=0.0.4; charset=utf-8", response.Header().Get("Content-Type"))
+	for line := range strings.SplitSeq(response.Body.String(), "\n") {
+		for _, status := range []string{"success", "error"} {
+			value, found := strings.CutPrefix(line, `newapi_model_requests_total{model="ws-billing",status="`+status+`"} `)
+			if !found {
+				continue
+			}
+			count, err := strconv.ParseInt(value, 10, 64)
+			require.NoError(testContext, err)
+			requests += count
+			if status == "success" {
+				successes = count
+			}
+		}
+	}
+	return requests, successes
+}
+
 func newResponsesWSBillingTest(t *testing.T, expression string, handle func(*websocket.Conn, *http.Request), httpEvents ...string) *responsesWSBillingTest {
 	t.Helper()
 	user, token := setupResponsesWSRequestTest(t)
@@ -490,12 +519,6 @@ func TestResponsesInterruptedStreamHealth(t *testing.T) {
 			}
 			fixture.closeAndWait(t)
 			assertResponsesWSAccounting(t, fixture, []int{1000})
-			if scenario == "sse client cancel" {
-				keys, err := common.RDB.Keys(context.Background(), "perf:ws-billing:*").Result()
-				require.NoError(t, err)
-				assert.Empty(t, keys, "client cancellation must not affect model health")
-				return
-			}
 			requests, successes := waitPerfCounters(t, 1)
 			assert.Equal(t, int64(1), requests)
 			assert.Zero(t, successes)
@@ -532,6 +555,7 @@ func assertResponsesWSAccounting(t *testing.T, fixture *responsesWSBillingTest, 
 }
 
 func TestResponsesWebSocketReusesConnectionAndSettlesEachRequest(t *testing.T) {
+	beforeRequests, beforeSuccesses := responsesPrometheusCounters(t)
 	type upstreamRequest struct {
 		Authorization      string
 		Type               string `json:"type"`
@@ -646,6 +670,10 @@ func TestResponsesWebSocketReusesConnectionAndSettlesEachRequest(t *testing.T) {
 	assert.Equal(t, 3000, token.UsedQuota)
 	assert.Equal(t, 97000, user.Quota)
 	assert.Equal(t, 3000, user.UsedQuota)
+	fixture.closeAndWait(t)
+	afterRequests, afterSuccesses := responsesPrometheusCounters(t)
+	assert.Equal(t, int64(2), afterRequests-beforeRequests)
+	assert.Equal(t, int64(2), afterSuccesses-beforeSuccesses)
 }
 
 // Both transports must reach the same upstream target with the same
@@ -747,9 +775,9 @@ func TestResponsesWebSocketDisconnectSettlesDeliveredOutputOnce(t *testing.T) {
 	assert.Equal(t, "hello", delta["delta"])
 	fixture.closeAndWait(t)
 	assertResponsesWSAccounting(t, fixture, []int{1})
-	keys, err := common.RDB.Keys(context.Background(), "perf:ws-billing:*").Result()
-	require.NoError(t, err)
-	assert.Empty(t, keys, "client cancellation must not affect model health")
+	requests, successes := waitPerfCounters(t, 1)
+	assert.Equal(t, int64(1), requests)
+	assert.Zero(t, successes)
 }
 
 func TestResponsesWebSocketCancelErrorDoesNotFinishActiveRequest(t *testing.T) {
@@ -886,14 +914,13 @@ func TestResponsesStreamOutcomesPreserveAccounting(t *testing.T) {
 			sseTerminal string
 			delta       bool
 			failed      bool
-			ignored     bool
 		}{
 			{name: "failed-null-fixed", expression: `tier("request", fixed(0.002))`, terminal: `{"type":"response.failed","response":{"id":"first","status":"failed","usage":null,"error":{"code":"server_error","message":"sensitive upstream detail"}}}`, failed: true},
 			{name: "failed-missing-fixed", expression: `tier("request", fixed(0.002))`, terminal: `{"type":"response.failed","response":{"id":"first","status":"failed"}}`, failed: true},
 			{name: "failed-actual-usage", expression: `tier("input", p * 2)`, terminal: `{"type":"response.failed","response":{"id":"first","status":"failed","usage":{"input_tokens":1000,"output_tokens":10,"total_tokens":1010}}}`, failed: true},
 			{name: "failed-estimated-output", expression: `tier("output", c * 2000)`, terminal: `{"type":"response.failed","response":{"id":"first","status":"failed","usage":null}}`, delta: true, failed: true},
 			{name: "error-after-created", expression: `tier("request", fixed(0.002))`, terminal: `{"type":"error","status":500,"error":{"type":"server_error","code":"server_error","message":"Internal server error"}}`, sseTerminal: `{"type":"error","code":"server_error","message":"Internal server error","param":null,"sequence_number":2}`, failed: true},
-			{name: "business-error-after-created", expression: `tier("request", fixed(0.002))`, terminal: `{"type":"error","status":400,"error":{"type":"invalid_request_error","code":"context_length_exceeded","message":"Input too long"}}`, sseTerminal: `{"type":"error","code":"context_length_exceeded","message":"Input too long","param":null,"sequence_number":2}`, failed: true, ignored: true},
+			{name: "business-error-after-created", expression: `tier("request", fixed(0.002))`, terminal: `{"type":"error","status":400,"error":{"type":"invalid_request_error","code":"context_length_exceeded","message":"Input too long"}}`, sseTerminal: `{"type":"error","code":"context_length_exceeded","message":"Input too long","param":null,"sequence_number":2}`, failed: true},
 			{name: "completed-at-output-limit", expression: `tier("request", fixed(0.002))`, terminal: `{"type":"response.incomplete","response":{"id":"first","status":"incomplete","incomplete_details":{"reason":"max_output_tokens"},"usage":{"input_tokens":1000,"output_tokens":1,"total_tokens":1001}}}`},
 			{name: "completed-zero-fixed", expression: `tier("request", fixed(0.002))`, terminal: `{"type":"response.completed","response":{"id":"first","status":"completed","usage":{"input_tokens":0,"output_tokens":0,"total_tokens":0}}}`},
 		} {
@@ -988,9 +1015,6 @@ func TestResponsesStreamOutcomesPreserveAccounting(t *testing.T) {
 				}
 				assert.NotContains(t, logs[0].Other, "sensitive upstream detail")
 				expectedRequests := int64(len(quotas))
-				if tc.ignored {
-					expectedRequests--
-				}
 				requests, successes := waitPerfCounters(t, expectedRequests)
 				assert.Equal(t, expectedRequests, requests)
 				assert.Equal(t, int64(1), successes)
@@ -1004,14 +1028,14 @@ func TestResponsesHTTPHealthCountsFinalResult(t *testing.T) {
 		name, code            string
 		firstStatus, attempts int
 		success               bool
-		ignored               bool
 	}{
-		{"business rejection", "context_length_exceeded", 400, 1, false, true},
-		{"credentials rejected as 400", "invalid_api_key", 400, 1, false, false},
-		{"retry succeeds", "server_error", 500, 2, true, false},
+		{"business rejection", "context_length_exceeded", 400, 1, false},
+		{"credentials rejected as 400", "invalid_api_key", 400, 1, false},
+		{"retry succeeds", "server_error", 500, 2, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			fixture := newResponsesWSBillingTest(t, `tier("request", fixed(0.002))`, func(*websocket.Conn, *http.Request) {})
+			beforeRequests, beforeSuccesses := responsesPrometheusCounters(t)
 			oldRetries := common.RetryTimes
 			common.RetryTimes = 1
 			t.Cleanup(func() { common.RetryTimes = oldRetries })
@@ -1048,12 +1072,6 @@ func TestResponsesHTTPHealthCountsFinalResult(t *testing.T) {
 			} else {
 				assert.Equal(t, http.StatusOK, response.StatusCode)
 			}
-			if tc.ignored {
-				keys, err := common.RDB.Keys(context.Background(), "perf:ws-billing:*").Result()
-				require.NoError(t, err)
-				assert.Empty(t, keys)
-				return
-			}
 			requests, successes := waitPerfCounters(t, 1)
 			assert.Equal(t, int64(1), requests)
 			if tc.success {
@@ -1061,6 +1079,9 @@ func TestResponsesHTTPHealthCountsFinalResult(t *testing.T) {
 			} else {
 				assert.Zero(t, successes)
 			}
+			afterRequests, afterSuccesses := responsesPrometheusCounters(t)
+			assert.Equal(t, requests, afterRequests-beforeRequests)
+			assert.Equal(t, successes, afterSuccesses-beforeSuccesses)
 		})
 	}
 }
@@ -1282,9 +1303,6 @@ func TestResponsesWebSocketForwardsErrorForOtherResponseWithoutEndingRequest(t *
 	assert.Equal(t, "completed", stream["response_status"])
 }
 
-// Requests rejected before a RelayInfo exists reach the model health sampler
-// with the HTTP classification: routing failures count against the model,
-// business rejections such as a token model limit do not.
 func TestResponsesWebSocketPreRoutingRejectionsFollowHealthClassification(t *testing.T) {
 	require.NoError(t, i18n.Init())
 	for _, tc := range []struct {
@@ -1317,7 +1335,7 @@ func TestResponsesWebSocketPreRoutingRejectionsFollowHealthClassification(t *tes
 			if !tc.sampled {
 				keys, err := common.RDB.Keys(context.Background(), "perf:ws-billing:*").Result()
 				require.NoError(t, err)
-				assert.Empty(t, keys, "a business rejection must not affect model health")
+				assert.Empty(t, keys, "model access validation before sampling must not affect model health")
 				return
 			}
 			requests, successes := waitPerfCounters(t, 1)

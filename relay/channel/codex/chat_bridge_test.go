@@ -75,10 +75,10 @@ func TestRelayChatOverCodexPreservesTerminalErrorClassification(t *testing.T) {
 		status    int
 		outcome   perfmetrics.Outcome
 	}{
-		{"input rejection", `{"type":"response.failed","response":{"status":"failed","error":{"code":"context_length_exceeded","type":"invalid_request_error","message":"secret diagnostic"}}}`, "context_length_exceeded", "invalid_request_error", 400, perfmetrics.OutcomeIgnored},
+		{"input rejection", `{"type":"response.failed","response":{"status":"failed","error":{"code":"context_length_exceeded","type":"invalid_request_error","message":"secret diagnostic"}}}`, "context_length_exceeded", "invalid_request_error", 400, perfmetrics.OutcomeFailure},
 		{"credentials take precedence", `{"type":"response.failed","response":{"status":"failed","error":{"code":"invalid_api_key","type":"invalid_request_error","message":"secret diagnostic"}}}`, "invalid_api_key", "invalid_request_error", 401, perfmetrics.OutcomeFailure},
 		{"server failure", `{"type":"response.failed","response":{"status":"failed","error":{"code":"server_error","type":"server_error","message":"secret diagnostic"}}}`, "server_error", "server_error", 500, perfmetrics.OutcomeFailure},
-		{"flat input rejection", `{"type":"error","code":"context_length_exceeded","message":"secret diagnostic"}`, "context_length_exceeded", "upstream_error", 400, perfmetrics.OutcomeIgnored},
+		{"flat input rejection", `{"type":"error","code":"context_length_exceeded","message":"secret diagnostic"}`, "context_length_exceeded", "upstream_error", 400, perfmetrics.OutcomeFailure},
 	} {
 		for _, stream := range []bool{false, true} {
 			for _, afterOutput := range []bool{false, true} {
