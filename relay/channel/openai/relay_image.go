@@ -143,7 +143,7 @@ func OpenaiImageStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 	var lastStreamData []byte
 	var completedImages int64
 
-	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
+	scanErr := helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 		raw := common.StringToByteSlice(data)
 		lastStreamData = raw
 		if isOpenAIImageStreamErrorEvent(raw) {
@@ -168,6 +168,10 @@ func OpenaiImageStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 			sr.Stop(err)
 		}
 	})
+
+	if scanErr != nil {
+		return nil, scanErr
+	}
 
 	// StreamScannerHandler consumes the upstream [DONE]; re-emit it so the
 	// client still receives a terminal data: [DONE].

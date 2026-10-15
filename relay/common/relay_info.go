@@ -17,6 +17,7 @@ import (
 	kitreasoning "github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/setting/model_setting"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	hosttypes "github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -83,16 +84,17 @@ type TokenCountMeta struct {
 }
 
 type RelayInfo struct {
-	TokenId           int
-	TokenKey          string
-	TokenGroup        string
-	UserId            int
-	UsingGroup        string // 使用的分组，当auto跨分组重试时，会变动
-	UserGroup         string // 用户所在分组
-	TokenUnlimited    bool
-	StartTime         time.Time
-	FirstResponseTime time.Time
-	isFirstResponse   bool
+	TokenId              int
+	TokenKey             string
+	TokenGroup           string
+	UserId               int
+	UsingGroup           string // 使用的分组，当auto跨分组重试时，会变动
+	UserGroup            string // 用户所在分组
+	TokenUnlimited       bool
+	StartTime            time.Time
+	FirstResponseTime    time.Time
+	FirstResponseTimeout time.Duration
+	isFirstResponse      bool
 	//SendLastReasoningResponse bool
 	IsStream               bool
 	IsGeminiBatchEmbedding bool
@@ -620,8 +622,9 @@ func genBaseRelayInfo(c *gin.Context, request dto.Request) *RelayInfo {
 		RequestHeaders:  cloneRequestHeaders(c),
 		IsStream:        isStream,
 
-		StartTime:         startTime,
-		FirstResponseTime: startTime.Add(-time.Second),
+		StartTime:            startTime,
+		FirstResponseTime:    startTime.Add(-time.Second),
+		FirstResponseTimeout: operation_setting.GetStreamingSetting().FirstResponseTimeout(),
 		ThinkingContentInfo: ThinkingContentInfo{
 			IsFirstThinkingContent:  true,
 			SendLastThinkingContent: false,

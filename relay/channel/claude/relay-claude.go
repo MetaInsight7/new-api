@@ -167,6 +167,11 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 	return nil
 }
 
+func isClaudeHeartbeat(data string) bool {
+	var response dto.ClaudeResponse
+	return common.UnmarshalJsonStr(data, &response) == nil && response.Type == "ping" && response.Error == nil
+}
+
 func claudeToChatStreamState(info *relaycommon.RelayInfo) (*relayconvert.ClaudeToChatStreamState, error) {
 	if info != nil && info.ClaudeToChatStreamState != nil {
 		state, ok := info.ClaudeToChatStreamState.(*relayconvert.ClaudeToChatStreamState)
@@ -304,12 +309,18 @@ func ClaudeStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.
 		Usage:        &dto.Usage{},
 	}
 	var err *types.NewAPIError
-	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
+	scanErr := helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 		err = HandleStreamResponseData(c, info, claudeInfo, data)
 		if err != nil {
 			sr.Stop(err)
 		}
-	})
+	}, isClaudeHeartbeat)
+	if scanErr != nil {
+		if c.Writer.Written() && info.RelayFormat == types.RelayFormatClaude {
+			_ = helper.ClaudeData(c, dto.ClaudeResponse{Type: "error", Error: scanErr.ToClaudeError()})
+		}
+		return nil, scanErr
+	}
 	info.StreamStatus.RequireTerminal()
 	if err != nil {
 		return nil, err

@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -39,6 +40,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
+import { handleServerError } from '@/lib/handle-server-error'
 
 import {
   SettingsForm,
@@ -97,6 +99,20 @@ const schema = z.object({
     ping_interval_enabled: z.boolean(),
     ping_interval_seconds: z.coerce.number().min(1),
   }),
+  streaming_setting: z.object({
+    first_response_timeout_enabled: z.boolean(),
+    first_response_timeout_seconds: z.coerce
+      .number()
+      .int('First-event wait must be an integer from 1 to 9223372036 seconds.')
+      .min(
+        1,
+        'First-event wait must be an integer from 1 to 9223372036 seconds.'
+      )
+      .max(
+        9223372036,
+        'First-event wait must be an integer from 1 to 9223372036 seconds.'
+      ),
+  }),
 })
 
 type GlobalModelSettingsFormValues = z.output<typeof schema>
@@ -108,6 +124,8 @@ type FlatGlobalModelSettings = {
   'global.chat_completions_to_responses_policy': string
   'general_setting.ping_interval_enabled': boolean
   'general_setting.ping_interval_seconds': number
+  'streaming_setting.first_response_timeout_seconds': number
+  'streaming_setting.first_response_timeout_enabled': boolean
 }
 
 const flattenGlobalValues = (
@@ -127,6 +145,10 @@ const flattenGlobalValues = (
     values.general_setting.ping_interval_enabled,
   'general_setting.ping_interval_seconds':
     values.general_setting.ping_interval_seconds,
+  'streaming_setting.first_response_timeout_seconds':
+    values.streaming_setting.first_response_timeout_seconds,
+  'streaming_setting.first_response_timeout_enabled':
+    values.streaming_setting.first_response_timeout_enabled,
 })
 
 function normalizeJsonText(value: string, fallback: string) {
@@ -140,7 +162,11 @@ type GlobalSettingsCardProps = {
 
 export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
   const { t } = useTranslation()
-  const updateOption = useUpdateOption()
+  const queryClient = useQueryClient()
+  const updateOption = useUpdateOption({
+    invalidateSystemOptions: false,
+    showFeedback: false,
+  })
 
   const form = useForm<
     GlobalModelSettingsFormInput,
@@ -156,6 +182,9 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
   }, [defaultValues, form])
 
   const pingEnabled = form.watch('general_setting.ping_interval_enabled')
+  const firstResponseTimeoutEnabled = form.watch(
+    'streaming_setting.first_response_timeout_enabled'
+  )
 
   const onSubmit = async (values: GlobalModelSettingsFormValues) => {
     const flattenedDefaults = flattenGlobalValues(defaultValues)
@@ -170,11 +199,16 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
       return
     }
 
-    for (const [key, value] of updates) {
-      await updateOption.mutateAsync({
-        key,
-        value,
-      })
+    try {
+      for (const [key, value] of updates) {
+        await updateOption.mutateAsync({ key, value })
+      }
+      form.reset(values)
+      toast.success(t('Setting updated successfully'))
+    } catch (error) {
+      handleServerError(error, t('Failed to update setting'))
+    } finally {
+      await queryClient.invalidateQueries({ queryKey: ['system-options'] })
     }
   }
 
@@ -184,7 +218,7 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
         <SettingsForm onSubmit={form.handleSubmit(onSubmit)}>
           <SettingsPageFormActions
             onSave={form.handleSubmit(onSubmit)}
-            isSaving={updateOption.isPending}
+            isSaving={form.formState.isSubmitting}
           />
           <FormField
             control={form.control}
@@ -367,6 +401,61 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
                 <FormDescription>
                   {t(
                     'Recommended to keep this high to avoid upstream throttling.'
+                  )}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <Separator />
+
+          <FormField
+            control={form.control}
+            name='streaming_setting.first_response_timeout_enabled'
+            render={({ field }) => (
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>{t('First-event timeout protection')}</FormLabel>
+                  <FormDescription>
+                    {t(
+                      'Wait for the first upstream non-heartbeat data event, not the first text token. Metadata, reasoning, and tool calls count; this does not limit total generation time.'
+                    )}
+                  </FormDescription>
+                </SettingsSwitchContent>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+              </SettingsSwitchItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='streaming_setting.first_response_timeout_seconds'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('First-event wait (seconds)')}</FormLabel>
+                <FormControl>
+                  <Input
+                    type='number'
+                    min={1}
+                    max={9223372036}
+                    step={1}
+                    disabled={!firstResponseTimeoutEnabled}
+                    className='w-40'
+                    value={field.value == null ? '' : String(field.value)}
+                    onChange={(event) => field.onChange(event.target.value)}
+                    onBlur={field.onBlur}
+                    name={field.name}
+                    ref={field.ref}
+                  />
+                </FormControl>
+                <FormDescription>
+                  {t(
+                    'The countdown starts after upstream response headers. Keep-alive pings sent by OP to the client and upstream heartbeats do not extend it. Existing timeouts may end the request sooner; other instances use the normal settings sync interval.'
                   )}
                 </FormDescription>
                 <FormMessage />

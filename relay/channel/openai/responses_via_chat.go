@@ -110,7 +110,7 @@ func OaiChatToResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		return true
 	}
 
-	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
+	scanErr := helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 		if streamErr != nil {
 			sr.Stop(streamErr)
 			return
@@ -166,6 +166,12 @@ func OaiChatToResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		}
 	})
 
+	if scanErr != nil {
+		if c.Writer.Written() {
+			failResponsesStream(scanErr)
+		}
+		return nil, scanErr
+	}
 	if streamErr != nil {
 		return nil, streamErr
 	}

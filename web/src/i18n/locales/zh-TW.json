@@ -1,5 +1,10 @@
 {
   "translation": {
+    "First-event timeout protection": "首事件逾時保護",
+    "First-event wait (seconds)": "首事件等待時間（秒）",
+    "First-event wait must be an integer from 1 to 9223372036 seconds.": "首事件等待時間必須是 1 到 9223372036 秒之間的整數。",
+    "Wait for the first upstream non-heartbeat data event, not the first text token. Metadata, reasoning, and tool calls count; this does not limit total generation time.": "等待上游傳回首個非心跳資料事件，而非首個正文 token。中繼資料、思考及工具呼叫均算首事件；此項不限制整個生成過程的時間。",
+    "The countdown starts after upstream response headers. Keep-alive pings sent by OP to the client and upstream heartbeats do not extend it. Existing timeouts may end the request sooner; other instances use the normal settings sync interval.": "收到上游回應標頭後開始倒數。OP 傳給用戶端的保活及上游心跳均不能延長期限。既有逾時可能更早結束請求；其他實例依既有設定同步週期生效。",
     "Encrypted reasoning recovery": "加密推理恢復",
     "Continue Responses conversations when encrypted reasoning belongs to another upstream security domain.": "當加密推理屬於其他上游安全域時，繼續 Responses 對話。",
     "Recover incompatible encrypted reasoning": "恢復不相容的加密推理",

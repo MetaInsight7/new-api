@@ -1,5 +1,10 @@
 {
   "translation": {
+    "First-event timeout protection": "初回イベントのタイムアウト保護",
+    "First-event wait (seconds)": "初回イベントの待機時間（秒）",
+    "First-event wait must be an integer from 1 to 9223372036 seconds.": "初回イベントの待機時間は 1〜9223372036 秒の整数で指定してください。",
+    "Wait for the first upstream non-heartbeat data event, not the first text token. Metadata, reasoning, and tool calls count; this does not limit total generation time.": "最初の本文トークンではなく、上流からのハートビート以外の初回データイベントを待ちます。メタデータ、推論、ツール呼び出しも対象で、生成全体の時間は制限しません。",
+    "The countdown starts after upstream response headers. Keep-alive pings sent by OP to the client and upstream heartbeats do not extend it. Existing timeouts may end the request sooner; other instances use the normal settings sync interval.": "上流の応答ヘッダー受信後にカウントダウンを開始します。OP からクライアントへの保活 ping や上流のハートビートでは延長されません。既存のタイムアウトが先に発生する場合があります。他のインスタンスには通常の設定同期周期で反映されます。",
     "Encrypted reasoning recovery": "暗号化された推論の復旧",
     "Continue Responses conversations when encrypted reasoning belongs to another upstream security domain.": "暗号化された推論が別の上流セキュリティドメインに属する場合でも Responses の会話を継続します。",
     "Recover incompatible encrypted reasoning": "互換性のない暗号化推論を復旧する",

@@ -1,5 +1,10 @@
 {
   "translation": {
+    "First-event timeout protection": "First-event timeout protection",
+    "First-event wait (seconds)": "First-event wait (seconds)",
+    "First-event wait must be an integer from 1 to 9223372036 seconds.": "First-event wait must be an integer from 1 to 9223372036 seconds.",
+    "Wait for the first upstream non-heartbeat data event, not the first text token. Metadata, reasoning, and tool calls count; this does not limit total generation time.": "Wait for the first upstream non-heartbeat data event, not the first text token. Metadata, reasoning, and tool calls count; this does not limit total generation time.",
+    "The countdown starts after upstream response headers. Keep-alive pings sent by OP to the client and upstream heartbeats do not extend it. Existing timeouts may end the request sooner; other instances use the normal settings sync interval.": "The countdown starts after upstream response headers. Keep-alive pings sent by OP to the client and upstream heartbeats do not extend it. Existing timeouts may end the request sooner; other instances use the normal settings sync interval.",
     "Encrypted reasoning recovery": "Encrypted reasoning recovery",
     "Continue Responses conversations when encrypted reasoning belongs to another upstream security domain.": "Continue Responses conversations when encrypted reasoning belongs to another upstream security domain.",
     "Recover incompatible encrypted reasoning": "Recover incompatible encrypted reasoning",

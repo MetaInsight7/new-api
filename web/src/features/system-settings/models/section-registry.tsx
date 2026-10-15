@@ -59,6 +59,12 @@ const MODELS_SECTIONS = [
             ping_interval_seconds:
               settings['general_setting.ping_interval_seconds'],
           },
+          streaming_setting: {
+            first_response_timeout_enabled:
+              settings['streaming_setting.first_response_timeout_enabled'],
+            first_response_timeout_seconds:
+              settings['streaming_setting.first_response_timeout_seconds'],
+          },
         }}
       />
     ),

@@ -91,7 +91,7 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	responseHeaderSnapshot := c.Writer.Header().Clone()
 	eventStreamHeadersValue, hadEventStreamHeaders := c.Get("event_stream_headers_set")
 
-	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
+	scanErr := helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 
 		// 检查当前数据是否包含 completed 状态和 usage 信息
 		var streamResponse dto.ResponsesStreamResponse
@@ -163,6 +163,19 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	})
 
 	common.SetContextKey(c, constant.ContextKeyResponseStreamStatus, info.StreamStatus)
+	if scanErr != nil {
+		if c.Writer.Written() {
+			streamResponse := dto.ResponsesStreamResponse{
+				Type:    "error",
+				Code:    string(scanErr.GetErrorCode()),
+				Message: scanErr.ToOpenAIError().Message,
+			}
+			if data, err := common.Marshal(streamResponse); err == nil {
+				sendResponsesStreamData(c, streamResponse, string(data))
+			}
+		}
+		return nil, scanErr
+	}
 	info.StreamStatus.RequireTerminal()
 	usage := accumulator.Finish()
 	if terminalErr != nil {

@@ -11,15 +11,311 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestFirstEventDeadlineEndsSilentUpstream(test *testing.T) {
+	settings := config.GlobalConfig.Get("streaming_setting")
+	previous, err := config.ConfigToMap(settings)
+	require.NoError(test, err)
+	require.NoError(test, config.UpdateConfigFromMap(settings, map[string]string{
+		"first_response_timeout_enabled": "true", "first_response_timeout_seconds": "1",
+	}))
+	test.Cleanup(func() { require.NoError(test, config.UpdateConfigFromMap(settings, previous)) })
+	synctest.Test(test, func(test *testing.T) {
+		reader, writer := io.Pipe()
+		defer writer.Close()
+		requestContext, response, _ := setupStreamTest(test, reader)
+		response.Body = reader
+		info := relaycommon.GenRelayInfoOpenAI(requestContext, nil)
+		info.DisablePing = true
+		StreamScannerHandler(requestContext, response, info, func(data string, result *StreamResult) {
+			test.Errorf("unexpected upstream data: %s", data)
+		})
+		assert.Equal(test, "first_response_timeout", string(info.StreamStatus.EndReason))
+		_, err := writer.Write([]byte("data: late\n\n"))
+		assert.Error(test, err)
+	})
+}
+
+func TestFirstEventDeadlineIgnoresTransportActivity(test *testing.T) {
+	previousPing := *operation_setting.GetGeneralSetting()
+	operation_setting.GetGeneralSetting().PingIntervalEnabled = true
+	operation_setting.GetGeneralSetting().PingIntervalSeconds = 1
+	test.Cleanup(func() { *operation_setting.GetGeneralSetting() = previousPing })
+	synctest.Test(test, func(test *testing.T) {
+		reader, writer := io.Pipe()
+		defer writer.Close()
+		requestContext, response, info := setupStreamTest(test, reader)
+		response.Body = reader
+		info.FirstResponseTimeout = 3 * time.Second
+		finished := make(chan *types.NewAPIError, 1)
+		go func() {
+			finished <- StreamScannerHandler(requestContext, response, info, func(data string, result *StreamResult) {
+				test.Errorf("heartbeat became data: %s", data)
+			})
+		}()
+		synctest.Wait()
+		_, err := io.WriteString(writer, ": upstream keep-alive\n\nevent: ping\ndata: \n\n")
+		require.NoError(test, err)
+		<-time.NewTimer(time.Second).C
+		synctest.Wait()
+		_, err = io.WriteString(writer, ": another keep-alive\n\n")
+		require.NoError(test, err)
+		apiErr := <-finished
+		require.NotNil(test, apiErr)
+		assert.True(test, requestContext.Writer.Written())
+		assert.Equal(test, http.StatusGatewayTimeout, apiErr.StatusCode)
+		assert.Equal(test, "upstream_first_response_timeout", string(apiErr.GetErrorCode()))
+		assert.Equal(test, relaycommon.StreamEndReasonFirstResponseTimeout, info.StreamStatus.EndReason)
+		written := requestContext.Writer.Size()
+		<-time.NewTimer(2 * time.Second).C
+		synctest.Wait()
+		assert.Equal(test, written, requestContext.Writer.Size(), "local pings must stop before returning")
+	})
+}
+
+func TestFirstEventDeadlineStopsAtDataButNotTheGeneration(test *testing.T) {
+	for _, data := range []string{
+		`{"choices":[{"delta":{"role":"assistant"}}]}`,
+		`{"choices":[{"delta":{"reasoning_content":"thinking"}}]}`,
+		`{"choices":[{"delta":{"tool_calls":[{"id":"call_1"}]}}]}`,
+		`{"type":"response.created"}`,
+		`{"type":"image_generation.partial_image"}`,
+		`{"type":"unknown_accepted_event","note":"ping is only a word"}`,
+	} {
+		test.Run(data, func(test *testing.T) {
+			synctest.Test(test, func(test *testing.T) {
+				reader, writer := io.Pipe()
+				defer writer.Close()
+				requestContext, response, info := setupStreamTest(test, reader)
+				response.Body = reader
+				info.DisablePing = true
+				info.FirstResponseTimeout = time.Second
+				finished := make(chan *types.NewAPIError, 1)
+				var observed []string
+				go func() {
+					finished <- StreamScannerHandler(requestContext, response, info, func(data string, result *StreamResult) { observed = append(observed, data) })
+				}()
+				synctest.Wait()
+				_, err := io.WriteString(writer, "data: "+data+"\n\n")
+				require.NoError(test, err)
+				synctest.Wait()
+				<-time.NewTimer(2 * time.Second).C
+				synctest.Wait()
+				select {
+				case apiErr := <-finished:
+					test.Fatalf("stream stopped after first event: %v", apiErr)
+				default:
+				}
+				_, err = io.WriteString(writer, "data: [DONE]\n\n")
+				require.NoError(test, err)
+				require.Nil(test, <-finished)
+				assert.Equal(test, []string{data}, observed)
+				assert.Equal(test, relaycommon.StreamEndReasonDone, info.StreamStatus.EndReason)
+			})
+		})
+	}
+}
+
+func TestFirstEventDeadlinePreservesEndAndCancellation(test *testing.T) {
+	for _, ending := range []string{"eof", "done", "cancel", "disabled"} {
+		test.Run(ending, func(test *testing.T) {
+			synctest.Test(test, func(test *testing.T) {
+				reader, writer := io.Pipe()
+				defer writer.Close()
+				requestContext, response, info := setupStreamTest(test, reader)
+				response.Body = reader
+				info.DisablePing = true
+				info.FirstResponseTimeout = time.Second
+				request, cancel := context.WithCancel(requestContext.Request.Context())
+				defer cancel()
+				requestContext.Request = requestContext.Request.WithContext(request)
+				if ending == "disabled" {
+					info.FirstResponseTimeout = 0
+				}
+				finished := make(chan *types.NewAPIError, 1)
+				go func() {
+					finished <- StreamScannerHandler(requestContext, response, info, func(data string, result *StreamResult) {})
+				}()
+				synctest.Wait()
+				wantReason := relaycommon.StreamEndReasonEOF
+				switch ending {
+				case "done":
+					_, err := io.WriteString(writer, "data: [DONE]\n\n")
+					require.NoError(test, err)
+					wantReason = relaycommon.StreamEndReasonDone
+				case "cancel":
+					cancel()
+					wantReason = relaycommon.StreamEndReasonClientGone
+				case "disabled":
+					<-time.NewTimer(2 * time.Second).C
+					require.NoError(test, writer.Close())
+				default:
+					require.NoError(test, writer.Close())
+				}
+				require.Nil(test, <-finished)
+				assert.Equal(test, wantReason, info.StreamStatus.EndReason)
+			})
+		})
+	}
+}
+
+func TestFirstEventDeadlineUsesRequestSnapshotAndFreshAttempt(test *testing.T) {
+	settings := config.GlobalConfig.Get("streaming_setting")
+	previous, err := config.ConfigToMap(settings)
+	require.NoError(test, err)
+	require.NoError(test, config.UpdateConfigFromMap(settings, map[string]string{"first_response_timeout_enabled": "true", "first_response_timeout_seconds": "1"}))
+	test.Cleanup(func() { require.NoError(test, config.UpdateConfigFromMap(settings, previous)) })
+	synctest.Test(test, func(test *testing.T) {
+		requestContext, response, _ := setupStreamTest(test, strings.NewReader("data: {\"choices\":[]}\n\n"))
+		info := relaycommon.GenRelayInfoOpenAI(requestContext, nil)
+		info.DisablePing = true
+		require.Nil(test, StreamScannerHandler(requestContext, response, info, func(data string, result *StreamResult) { result.Stop(fmt.Errorf("attempt failed after data")) }))
+		require.Positive(test, info.ReceivedResponseCount)
+		require.NoError(test, config.UpdateConfigFromMap(settings, map[string]string{"first_response_timeout_enabled": "false", "first_response_timeout_seconds": "600"}))
+
+		reader, writer := io.Pipe()
+		defer writer.Close()
+		response.Body = reader
+		apiErr := StreamScannerHandler(requestContext, response, info, func(data string, result *StreamResult) {})
+		require.NotNil(test, apiErr)
+		assert.Equal(test, "upstream_first_response_timeout", string(apiErr.GetErrorCode()))
+
+		newInfo := relaycommon.GenRelayInfoOpenAI(requestContext, nil)
+		newInfo.DisablePing = true
+		newReader, newWriter := io.Pipe()
+		defer newWriter.Close()
+		response.Body = newReader
+		finished := make(chan *types.NewAPIError, 1)
+		go func() {
+			finished <- StreamScannerHandler(requestContext, response, newInfo, func(data string, result *StreamResult) {})
+		}()
+		synctest.Wait()
+		<-time.NewTimer(2 * time.Second).C
+		synctest.Wait()
+		select {
+		case apiErr := <-finished:
+			test.Fatalf("new request did not use disabled policy: %v", apiErr)
+		default:
+		}
+		require.NoError(test, newWriter.Close())
+		require.Nil(test, <-finished)
+	})
+}
+
+func TestFirstEventDeadlineRejectsLateProgressAfterTimeout(test *testing.T) {
+	synctest.Test(test, func(test *testing.T) {
+		reader, writer := io.Pipe()
+		defer writer.Close()
+		requestContext, response, info := setupStreamTest(test, reader)
+		response.Body = reader
+		info.DisablePing = true
+		info.FirstResponseTimeout = time.Second
+		classifying, release := make(chan struct{}), make(chan struct{})
+		finished := make(chan *types.NewAPIError, 1)
+		var forwarded atomic.Bool
+		go func() {
+			finished <- StreamScannerHandler(requestContext, response, info, func(data string, result *StreamResult) { forwarded.Store(true) }, func(data string) bool {
+				close(classifying)
+				<-release
+				return false
+			})
+		}()
+		synctest.Wait()
+		_, err := io.WriteString(writer, "data: {\"role\":\"assistant\"}\n\n")
+		require.NoError(test, err)
+		<-classifying
+		<-time.NewTimer(2 * time.Second).C
+		close(release)
+		apiErr := <-finished
+		require.NotNil(test, apiErr)
+		assert.Equal(test, "upstream_first_response_timeout", string(apiErr.GetErrorCode()))
+		assert.False(test, forwarded.Load())
+		assert.Equal(test, relaycommon.StreamEndReasonFirstResponseTimeout, info.StreamStatus.EndReason)
+	})
+}
+
+func TestFirstEventDeadlineClosesUpstreamWhileHeartbeatForwardingIsBlocked(test *testing.T) {
+	synctest.Test(test, func(test *testing.T) {
+		reader, writer := io.Pipe()
+		defer writer.Close()
+		requestContext, response, info := setupStreamTest(test, reader)
+		response.Body = reader
+		info.DisablePing = true
+		info.FirstResponseTimeout = time.Second
+		blocked, release := make(chan struct{}), make(chan struct{})
+		finished := make(chan *types.NewAPIError, 1)
+		go func() {
+			finished <- StreamScannerHandler(requestContext, response, info, func(data string, result *StreamResult) {
+				if data == "heartbeat" {
+					close(blocked)
+					<-release
+				}
+			}, func(data string) bool { return data == "heartbeat" })
+		}()
+		synctest.Wait()
+		_, err := io.WriteString(writer, "data: heartbeat\n\n")
+		require.NoError(test, err)
+		<-blocked
+		<-time.NewTimer(2 * time.Second).C
+		synctest.Wait()
+		_, err = io.WriteString(writer, "data: late response\n\n")
+		assert.Error(test, err, "downstream backpressure must not delay closing the stalled upstream")
+		close(release)
+		_ = writer.Close()
+		apiErr := <-finished
+		require.NotNil(test, apiErr)
+		assert.Equal(test, "upstream_first_response_timeout", string(apiErr.GetErrorCode()))
+	})
+}
+
+func TestDisabledFirstEventDeadlinePreservesQueuedUsageAfterCancellation(test *testing.T) {
+	synctest.Test(test, func(test *testing.T) {
+		reader, writer := io.Pipe()
+		defer writer.Close()
+		requestContext, response, info := setupStreamTest(test, reader)
+		response.Body = reader
+		info.DisablePing = true
+		request, cancel := context.WithCancel(requestContext.Request.Context())
+		defer cancel()
+		requestContext.Request = requestContext.Request.WithContext(request)
+		blocked, release := make(chan struct{}), make(chan struct{})
+		finished := make(chan *types.NewAPIError, 1)
+		var observed []string
+		go func() {
+			finished <- StreamScannerHandler(requestContext, response, info, func(data string, result *StreamResult) {
+				observed = append(observed, data)
+				if data == "content" {
+					close(blocked)
+					<-release
+				}
+			})
+		}()
+		synctest.Wait()
+		_, err := io.WriteString(writer, "data: content\n\n")
+		require.NoError(test, err)
+		<-blocked
+		_, err = io.WriteString(writer, "data: authoritative usage\n\n")
+		require.NoError(test, err)
+		synctest.Wait()
+		cancel()
+		synctest.Wait()
+		close(release)
+		require.Nil(test, <-finished)
+		assert.Equal(test, []string{"content", "authoritative usage"}, observed)
+	})
+}
 
 func init() {
 	gin.SetMode(gin.TestMode)

@@ -8,12 +8,14 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 
@@ -32,6 +34,8 @@ const (
 	// the handler forever.
 	streamWriteTimeout = 30 * time.Second
 )
+
+const ErrorCodeUpstreamFirstResponseTimeout types.ErrorCode = "upstream_first_response_timeout"
 
 func getScannerBufferSize() int {
 	if constant.StreamScannerMaxBufferMB > 0 {
@@ -80,10 +84,10 @@ func ExtendWriteDeadline(c *gin.Context) {
 	_ = http.NewResponseController(c.Writer).SetWriteDeadline(time.Now().Add(streamWriteTimeout))
 }
 
-func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo, dataHandler func(data string, sr *StreamResult)) {
+func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo, dataHandler func(data string, sr *StreamResult), heartbeatClassifier ...func(string) bool) *types.NewAPIError {
 
 	if resp == nil || dataHandler == nil {
-		return
+		return nil
 	}
 
 	// 无条件新建 StreamStatus
@@ -92,6 +96,22 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	ctx, cancel := context.WithCancel(context.Background())
 
 	streamingTimeout := time.Duration(constant.StreamingTimeout) * time.Second
+	const (
+		firstResponsePending int32 = iota
+		firstResponseStarted
+		firstResponseExpired
+		firstResponseEnded
+	)
+	var firstResponseState atomic.Int32
+	var firstResponseTimer *time.Timer
+	var firstResponseDeadline <-chan time.Time
+	if info.FirstResponseTimeout > 0 {
+		firstResponseTimer = time.NewTimer(info.FirstResponseTimeout)
+		firstResponseDeadline = firstResponseTimer.C
+	} else {
+		firstResponseState.Store(firstResponseStarted)
+	}
+	var firstResponseError *types.NewAPIError
 
 	var (
 		stopChan    = make(chan bool, 3) // 增加缓冲区避免阻塞
@@ -136,6 +156,9 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 			}
 
 			ticker.Stop()
+			if firstResponseTimer != nil {
+				firstResponseTimer.Stop()
+			}
 			if pingTicker != nil {
 				pingTicker.Stop()
 			}
@@ -158,8 +181,11 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 		gopool.Go(func() {
 			defer func() {
 				if r := recover(); r != nil {
+					firstResponseState.CompareAndSwap(firstResponsePending, firstResponseEnded)
 					logger.LogError(c, fmt.Sprintf("ping goroutine panic: %v", r))
-					info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonPanic, fmt.Errorf("ping panic: %v", r))
+					if firstResponseState.Load() != firstResponseExpired {
+						info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonPanic, fmt.Errorf("ping panic: %v", r))
+					}
 					stop()
 				}
 				logger.LogDebug(c, "ping goroutine exited")
@@ -175,15 +201,26 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 				select {
 				case <-pingTicker.C:
 					var err error
+					var stopped bool
 					func() {
 						writeMutex.Lock()
 						defer writeMutex.Unlock()
+						if ctx.Err() != nil || firstResponseState.Load() == firstResponseExpired {
+							stopped = true
+							return
+						}
 						ExtendWriteDeadline(c)
 						err = PingData(c)
 					}()
+					if stopped {
+						return
+					}
 					if err != nil {
 						logger.LogError(c, "ping data error: "+err.Error())
-						info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonPingFail, err)
+						firstResponseState.CompareAndSwap(firstResponsePending, firstResponseEnded)
+						if firstResponseState.Load() != firstResponseExpired {
+							info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonPingFail, err)
+						}
 						return
 					}
 					logger.LogDebug(c, "ping data sent")
@@ -207,9 +244,12 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	wg.Add(1)
 	gopool.Go(func() {
 		defer func() {
+			firstResponseState.CompareAndSwap(firstResponsePending, firstResponseEnded)
 			if r := recover(); r != nil {
 				logger.LogError(c, fmt.Sprintf("data handler goroutine panic: %v", r))
-				info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonPanic, fmt.Errorf("handler panic: %v", r))
+				if firstResponseState.Load() != firstResponseExpired {
+					info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonPanic, fmt.Errorf("handler panic: %v", r))
+				}
 			}
 			stop()
 			wg.Done()
@@ -217,13 +257,18 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 		sr := newStreamResult(info.StreamStatus)
 		for data := range dataChan {
 			sr.reset()
+			var stopped bool
 			func() {
 				writeMutex.Lock()
 				defer writeMutex.Unlock()
+				if firstResponseState.Load() == firstResponseExpired {
+					stopped = true
+					return
+				}
 				ExtendWriteDeadline(c)
 				dataHandler(data, sr)
 			}()
-			if sr.IsStopped() {
+			if stopped || sr.IsStopped() {
 				return
 			}
 		}
@@ -233,10 +278,13 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	wg.Add(1)
 	common.RelayCtxGo(ctx, func() {
 		defer func() {
+			firstResponseState.CompareAndSwap(firstResponsePending, firstResponseEnded)
 			close(dataChan)
 			if r := recover(); r != nil {
 				logger.LogError(c, fmt.Sprintf("scanner goroutine panic: %v", r))
-				info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonPanic, fmt.Errorf("scanner panic: %v", r))
+				if firstResponseState.Load() != firstResponseExpired {
+					info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonPanic, fmt.Errorf("scanner panic: %v", r))
+				}
 			}
 			stop()
 			logger.LogDebug(c, "scanner goroutine exited")
@@ -269,6 +317,13 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 				continue
 			}
 			if !strings.HasPrefix(data, "[DONE]") {
+				isHeartbeat := firstResponseState.Load() == firstResponsePending && len(heartbeatClassifier) > 0 && heartbeatClassifier[0] != nil && heartbeatClassifier[0](data)
+				if !isHeartbeat && firstResponseState.CompareAndSwap(firstResponsePending, firstResponseStarted) {
+					firstResponseTimer.Stop()
+				}
+				if firstResponseState.Load() == firstResponseExpired {
+					return
+				}
 				info.SetFirstResponseTime()
 				info.ReceivedResponseCount++
 
@@ -280,12 +335,20 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 					return
 				}
 			} else {
+				firstResponseState.CompareAndSwap(firstResponsePending, firstResponseEnded)
+				if firstResponseState.Load() == firstResponseExpired {
+					return
+				}
 				info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonDone, nil)
 				logger.LogDebug(c, "received [DONE], stopping scanner")
 				return
 			}
 		}
 
+		firstResponseState.CompareAndSwap(firstResponsePending, firstResponseEnded)
+		if firstResponseState.Load() == firstResponseExpired {
+			return
+		}
 		if err := scanner.Err(); err != nil {
 			if err != io.EOF {
 				logger.LogError(c, "scanner error: "+err.Error())
@@ -296,21 +359,47 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	})
 
 	// 主循环等待完成或超时
-	select {
-	case <-ticker.C:
-		info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonTimeout, nil)
-	case <-stopChan:
-		// EndReason already set by the goroutine that triggered stopChan
-	case <-c.Request.Context().Done():
-		// 客户端断开：立即 cleanup 关闭上游 resp.Body，解除 scanner 阻塞并让上游停止生成，
-		// 避免为已放弃的请求继续消费上游 token。
-		info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, c.Request.Context().Err())
+waitForStream:
+	for {
+		select {
+		case <-firstResponseDeadline:
+			firstResponseDeadline = nil
+			if requestErr := c.Request.Context().Err(); requestErr != nil {
+				info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, requestErr)
+				break waitForStream
+			}
+			if firstResponseState.CompareAndSwap(firstResponsePending, firstResponseExpired) {
+				firstResponseError = types.WithOpenAIError(types.OpenAIError{Message: "upstream did not send a non-heartbeat data event before the first-response deadline", Type: "timeout_error", Code: string(ErrorCodeUpstreamFirstResponseTimeout)}, http.StatusGatewayTimeout)
+				info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonFirstResponseTimeout, firstResponseError)
+				info.StreamStatus.MarkFailed(string(ErrorCodeUpstreamFirstResponseTimeout), "timeout_error", http.StatusGatewayTimeout)
+			}
+			if firstResponseError != nil {
+				break waitForStream
+			}
+		case <-ticker.C:
+			info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonTimeout, nil)
+			break waitForStream
+		case <-stopChan:
+			break waitForStream
+		case <-c.Request.Context().Done():
+			// 客户端断开：立即 cleanup 关闭上游 resp.Body，解除 scanner 阻塞并让上游停止生成，
+			// 避免为已放弃的请求继续消费上游 token。
+			info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, c.Request.Context().Err())
+			break waitForStream
+		}
 	}
 
 	cleanup()
+	if firstResponseError != nil && !c.Writer.Written() {
+		for _, header := range []string{"Content-Type", "Content-Length", "Cache-Control", "Connection", "Transfer-Encoding", "X-Accel-Buffering"} {
+			c.Writer.Header().Del(header)
+		}
+		delete(c.Keys, "event_stream_headers_set")
+	}
 	if info.StreamStatus.IsNormalEnd() && !info.StreamStatus.HasErrors() {
 		logger.LogInfo(c, fmt.Sprintf("stream ended: %s", info.StreamStatus.Summary()))
 	} else {
 		logger.LogError(c, fmt.Sprintf("stream ended: %s, received=%d", info.StreamStatus.Summary(), info.ReceivedResponseCount))
 	}
+	return firstResponseError
 }

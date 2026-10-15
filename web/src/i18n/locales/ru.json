@@ -1,5 +1,10 @@
 {
   "translation": {
+    "First-event timeout protection": "Тайм-аут первого события",
+    "First-event wait (seconds)": "Ожидание первого события (секунды)",
+    "First-event wait must be an integer from 1 to 9223372036 seconds.": "Время ожидания должно быть целым числом от 1 до 9223372036 секунд.",
+    "Wait for the first upstream non-heartbeat data event, not the first text token. Metadata, reasoning, and tool calls count; this does not limit total generation time.": "Ожидает первое событие данных провайдера, кроме heartbeat, а не первый текстовый токен. Метаданные, рассуждения и вызовы инструментов учитываются; общая длительность генерации не ограничивается.",
+    "The countdown starts after upstream response headers. Keep-alive pings sent by OP to the client and upstream heartbeats do not extend it. Existing timeouts may end the request sooner; other instances use the normal settings sync interval.": "Отсчёт начинается после заголовков ответа провайдера. Ping от OP клиенту и heartbeat провайдера не продлевают его. Другие тайм-ауты могут сработать раньше; остальные экземпляры используют обычный интервал синхронизации настроек.",
     "Encrypted reasoning recovery": "Восстановление зашифрованных рассуждений",
     "Continue Responses conversations when encrypted reasoning belongs to another upstream security domain.": "Продолжать диалоги Responses, когда зашифрованные рассуждения принадлежат другому домену безопасности вышестоящего сервиса.",
     "Recover incompatible encrypted reasoning": "Восстанавливать несовместимые зашифрованные рассуждения",

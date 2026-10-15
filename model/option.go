@@ -4,6 +4,7 @@ import (
 	"maps"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -22,6 +23,9 @@ type Option struct {
 	Key   string `json:"key" gorm:"primaryKey"`
 	Value string `json:"value"`
 }
+
+var streamingOptionMutex sync.Mutex
+var streamingOptionRevision uint64
 
 func AllOption() ([]*Option, error) {
 	var options []*Option
@@ -211,9 +215,17 @@ func loadOptionsFromDatabase() {
 	}()
 	passkeyOptionMutex.Lock()
 	defer passkeyOptionMutex.Unlock()
-	options, _ := AllOption()
+	streamingOptionMutex.Lock()
+	loadedStreamingRevision := streamingOptionRevision
+	streamingOptionMutex.Unlock()
+	options, loadErr := AllOption()
 	passkeyOptions := make(map[string]string)
+	streamingOptions := make(map[string]string)
 	for _, option := range options {
+		if strings.HasPrefix(option.Key, "streaming_setting.") {
+			streamingOptions[option.Key] = option.Value
+			continue
+		}
 		if IsPasskeyDomainOption(option.Key) {
 			passkeyOptions[option.Key] = option.Value
 			continue
@@ -223,7 +235,39 @@ func loadOptionsFromDatabase() {
 			common.SysLog("failed to update option map: " + err.Error())
 		}
 	}
+	if loadErr != nil {
+		common.SysError("failed to load streaming settings: " + loadErr.Error())
+	} else {
+		streamingOptionMutex.Lock()
+		if streamingOptionRevision == loadedStreamingRevision {
+			if err := applyStreamingOptions(streamingOptions); err != nil {
+				common.SysError("invalid streaming settings: " + err.Error())
+			}
+		}
+		streamingOptionMutex.Unlock()
+	}
 	applyPasskeyDomainOptions(passkeyOptions)
+}
+
+func applyStreamingOptions(options map[string]string) error {
+	values := make(map[string]string)
+	for key, value := range options {
+		if configKey, ok := strings.CutPrefix(key, "streaming_setting."); ok {
+			values[configKey] = value
+		}
+	}
+	if len(values) == 0 {
+		return nil
+	}
+	common.OptionMapRWMutex.Lock()
+	defer common.OptionMapRWMutex.Unlock()
+	if err := config.UpdateConfigFromMap(config.GlobalConfig.Get("streaming_setting"), values); err != nil {
+		return err
+	}
+	for key, value := range values {
+		common.OptionMap["streaming_setting."+key] = value
+	}
+	return nil
 }
 
 func SyncOptions(frequency int) {
@@ -235,6 +279,9 @@ func SyncOptions(frequency int) {
 }
 
 func validateOptionValue(key string, value string) error {
+	if err := operation_setting.ValidateStreamingOption(key, value); err != nil {
+		return err
+	}
 	if key == legacyAccessTokenRetireAtKey {
 		return errLegacyRetireAtReadOnly
 	}
@@ -257,6 +304,9 @@ func validateOptionValue(key string, value string) error {
 }
 
 func UpdateOption(key string, value string) error {
+	if strings.HasPrefix(key, "streaming_setting.") {
+		return UpdateOptionsBulk(map[string]string{key: value})
+	}
 	if IsRequestPolicyOption(key) {
 		return UpdateRequestPolicyOptions(map[string]string{key: value})
 	}
@@ -325,6 +375,15 @@ func UpdateOptionsBulk(values map[string]string) error {
 		}
 	}
 
+	updatesStreaming := false
+	for key := range values {
+		if strings.HasPrefix(key, "streaming_setting.") {
+			updatesStreaming = true
+			streamingOptionMutex.Lock()
+			defer streamingOptionMutex.Unlock()
+			break
+		}
+	}
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		for k, v := range values {
 			option := Option{Key: k}
@@ -341,7 +400,16 @@ func UpdateOptionsBulk(values map[string]string) error {
 	if err != nil {
 		return err
 	}
+	if err := applyStreamingOptions(values); err != nil {
+		return err
+	}
+	if updatesStreaming {
+		streamingOptionRevision++
+	}
 	for k, v := range values {
+		if strings.HasPrefix(k, "streaming_setting.") {
+			continue
+		}
 		if err := updateOptionMap(k, v); err != nil {
 			return err
 		}
@@ -353,6 +421,9 @@ func UpdateOptionsBulk(values map[string]string) error {
 }
 
 func updateOptionMap(key string, value string) (err error) {
+	if err := operation_setting.ValidateStreamingOption(key, value); err != nil {
+		return err
+	}
 	if key == retiredThemeOptionKey || key == legacyAccessTokenRetireAtKey {
 		common.OptionMapRWMutex.Lock()
 		delete(common.OptionMap, key)

@@ -65,6 +65,7 @@ func TestStreamOutcomeClassification(t *testing.T) {
 		{"client cancel", (*relaycommon.StreamStatus).MarkCancelled, relaycommon.StreamEndReasonEOF, OutcomeIgnored},
 		{"client gone", nil, relaycommon.StreamEndReasonClientGone, OutcomeIgnored},
 		{"timeout", nil, relaycommon.StreamEndReasonTimeout, OutcomeFailure},
+		{"first event timeout", nil, relaycommon.StreamEndReasonFirstResponseTimeout, OutcomeFailure},
 		{"missing terminal", nil, relaycommon.StreamEndReasonEOF, OutcomeFailure},
 		{"done marker without terminal", nil, relaycommon.StreamEndReasonDone, OutcomeSuccess},
 	} {

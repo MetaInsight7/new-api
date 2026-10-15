@@ -1,5 +1,10 @@
 {
   "translation": {
+    "First-event timeout protection": "Bảo vệ thời gian chờ sự kiện đầu tiên",
+    "First-event wait (seconds)": "Chờ sự kiện đầu tiên (giây)",
+    "First-event wait must be an integer from 1 to 9223372036 seconds.": "Thời gian chờ phải là số nguyên từ 1 đến 9223372036 giây.",
+    "Wait for the first upstream non-heartbeat data event, not the first text token. Metadata, reasoning, and tool calls count; this does not limit total generation time.": "Chờ sự kiện dữ liệu đầu tiên từ thượng nguồn không phải nhịp tim, không phải token văn bản đầu tiên. Siêu dữ liệu, suy luận và gọi công cụ đều được tính; không giới hạn tổng thời gian tạo.",
+    "The countdown starts after upstream response headers. Keep-alive pings sent by OP to the client and upstream heartbeats do not extend it. Existing timeouts may end the request sooner; other instances use the normal settings sync interval.": "Bắt đầu đếm sau khi nhận tiêu đề phản hồi thượng nguồn. Ping giữ kết nối từ OP đến máy khách và nhịp tim thượng nguồn không gia hạn thời gian này. Giới hạn hiện có có thể kết thúc yêu cầu sớm hơn; các phiên bản khác dùng chu kỳ đồng bộ cấu hình thông thường.",
     "Encrypted reasoning recovery": "Khôi phục suy luận được mã hóa",
     "Continue Responses conversations when encrypted reasoning belongs to another upstream security domain.": "Tiếp tục hội thoại Responses khi suy luận được mã hóa thuộc một miền bảo mật thượng nguồn khác.",
     "Recover incompatible encrypted reasoning": "Khôi phục suy luận mã hóa không tương thích",

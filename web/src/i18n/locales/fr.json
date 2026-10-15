@@ -1,5 +1,10 @@
 {
   "translation": {
+    "First-event timeout protection": "Protection du délai du premier événement",
+    "First-event wait (seconds)": "Attente du premier événement (secondes)",
+    "First-event wait must be an integer from 1 to 9223372036 seconds.": "L’attente doit être un entier compris entre 1 et 9223372036 secondes.",
+    "Wait for the first upstream non-heartbeat data event, not the first text token. Metadata, reasoning, and tool calls count; this does not limit total generation time.": "Attend le premier événement de données amont hors signal de maintien, pas le premier token de texte. Métadonnées, raisonnement et appels d’outils comptent ; la durée totale de génération n’est pas limitée.",
+    "The countdown starts after upstream response headers. Keep-alive pings sent by OP to the client and upstream heartbeats do not extend it. Existing timeouts may end the request sooner; other instances use the normal settings sync interval.": "Le compte à rebours commence après les en-têtes amont. Les pings d’OP vers le client et les signaux de maintien amont ne le prolongent pas. Les délais existants peuvent terminer la requête plus tôt ; les autres instances suivent la synchronisation habituelle.",
     "Encrypted reasoning recovery": "Récupération du raisonnement chiffré",
     "Continue Responses conversations when encrypted reasoning belongs to another upstream security domain.": "Poursuivre les conversations Responses lorsque le raisonnement chiffré appartient à un autre domaine de sécurité en amont.",
     "Recover incompatible encrypted reasoning": "Récupérer le raisonnement chiffré incompatible",
