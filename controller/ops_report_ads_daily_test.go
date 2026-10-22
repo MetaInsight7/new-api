@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/model"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -36,7 +38,7 @@ func adsDailyFindDay(t *testing.T, days []*adsDailyDay, date string) *adsDailyDa
 			return d
 		}
 	}
-	t.Fatalf("day %s not found", date)
+	require.FailNow(t, "day not found", "date: %s", date)
 	return nil
 }
 
@@ -55,46 +57,31 @@ func TestBuildAdsDailyDaysDiffs(t *testing.T) {
 		adsTestAd("2026-07-19", "a1", true, `["h1","h2-edited"]`, 2.5),
 	}
 	days := buildAdsDailyDays(keywords, creatives, nil)
-	if len(days) != 2 {
-		t.Fatalf("expected 2 days, got %d", len(days))
-	}
-	if days[0].Date != "2026-07-19" {
-		t.Fatalf("days not newest-first: %s", days[0].Date)
-	}
+	require.Len(t, days, 2)
+	assert.Equal(t, "2026-07-19", days[0].Date)
 
 	d1 := adsDailyFindDay(t, days, "2026-07-18")
-	if !d1.Snapshot {
-		t.Error("day1 should be a snapshot day")
-	}
-	if d1.Changes != (adsDailyChangeSummary{}) {
-		t.Errorf("first snapshot day must report no changes, got %+v", d1.Changes)
-	}
+	assert.True(t, d1.Snapshot)
+	assert.Equal(t, adsDailyChangeSummary{}, d1.Changes)
 	// totals sum the per-ad metrics
-	if d1.CostUSD != 3.0 {
-		t.Errorf("day1 cost = %v, want 3.0", d1.CostUSD)
-	}
+	assert.Equal(t, 3.0, d1.CostUSD)
 
 	d2 := adsDailyFindDay(t, days, "2026-07-19")
 	want := adsDailyChangeSummary{KeywordsAdded: 1, KeywordsRemoved: 1, BidChanges: 1, CreativeChanges: 1}
-	if d2.Changes != want {
-		t.Errorf("day2 changes = %+v, want %+v", d2.Changes, want)
-	}
+	assert.Equal(t, want, d2.Changes)
 	byKw := map[string]adsDailyKeywordRow{}
 	for _, r := range d2.Keywords {
 		byKw[r.Keyword] = r
 	}
-	if r := byKw["claude api"]; r.Change != "bid_changed" || r.PrevBidUSD != 0.5 || r.CpcBidUSD != 0.7 {
-		t.Errorf("k1 = %+v, want bid_changed 0.5→0.7", r)
-	}
-	if r := byKw["gpt api"]; r.Change != "removed" || r.Clicks != 1 {
-		t.Errorf("k2 = %+v, want removed with its metrics kept", r)
-	}
-	if r := byKw["gemini api"]; r.Change != "added" || r.Status != "PAUSED" {
-		t.Errorf("k3 = %+v, want added", r)
-	}
-	if len(d2.Creatives) != 1 || d2.Creatives[0].Change != "content_changed" {
-		t.Errorf("creatives = %+v, want a1 content_changed", d2.Creatives)
-	}
+	assert.Equal(t, "bid_changed", byKw["claude api"].Change)
+	assert.Equal(t, 0.5, byKw["claude api"].PrevBidUSD)
+	assert.Equal(t, 0.7, byKw["claude api"].CpcBidUSD)
+	assert.Equal(t, "removed", byKw["gpt api"].Change)
+	assert.Equal(t, 1, byKw["gpt api"].Clicks)
+	assert.Equal(t, "added", byKw["gemini api"].Change)
+	assert.Equal(t, "PAUSED", byKw["gemini api"].Status)
+	require.Len(t, d2.Creatives, 1)
+	assert.Equal(t, "content_changed", d2.Creatives[0].Change)
 }
 
 func TestBuildAdsDailyDaysMetricsOnlyHistory(t *testing.T) {
@@ -105,16 +92,10 @@ func TestBuildAdsDailyDaysMetricsOnlyHistory(t *testing.T) {
 		adsTestKw("2026-07-02", "g1", "k1", "claude api", false, 0, 2.0, 3, ""),
 	}
 	days := buildAdsDailyDays(keywords, nil, nil)
-	if len(days) != 2 {
-		t.Fatalf("expected 2 days, got %d", len(days))
-	}
+	require.Len(t, days, 2)
 	for _, d := range days {
-		if d.Snapshot {
-			t.Errorf("day %s should not be a snapshot day", d.Date)
-		}
-		if d.Changes != (adsDailyChangeSummary{}) {
-			t.Errorf("day %s changes = %+v, want none", d.Date, d.Changes)
-		}
+		assert.False(t, d.Snapshot, d.Date)
+		assert.Equal(t, adsDailyChangeSummary{}, d.Changes, d.Date)
 	}
 }
 
@@ -125,16 +106,14 @@ func TestAdsDailyConfiguredScopeFilter(t *testing.T) {
 		{CampaignName: "solvea-USCA-Search-Verticals", Keyword: "ai receptionist"},
 		{CampaignName: "brandkeyboard-US", Keyword: "mechanical keyboard"},
 	}, adsTestCampaignPrefix)
-	if len(kws) != 1 || kws[0].Keyword != "kimi 3.0" {
-		t.Errorf("keyword filter = %+v, want configured campaign only", kws)
-	}
+	require.Len(t, kws, 1)
+	assert.Equal(t, "kimi 3.0", kws[0].Keyword)
 	ads := adsDailyFilterCreatives([]*model.AdsDailyCreative{
 		{CampaignName: "brand-SEA-Search", AdId: "a1"},
 		{CampaignName: "Android US App Installs - AI Receptionist Translation", AdId: "a2"},
 	}, adsTestCampaignPrefix)
-	if len(ads) != 1 || ads[0].AdId != "a1" {
-		t.Errorf("creative filter = %+v, want configured campaign only", ads)
-	}
+	require.Len(t, ads, 1)
+	assert.Equal(t, "a1", ads[0].AdId)
 	lps := adsDailyFilterLandings([]*model.AdsDailyLanding{
 		{Url: "https://brand.example/pt/models/gemini-api"},
 		{Url: "https://www.brand.example/chinese-ai"},
@@ -147,11 +126,9 @@ func TestAdsDailyConfiguredScopeFilter(t *testing.T) {
 		{Url: "file://brand.example/etc/passwd"},
 		{Url: "//brand.example/scheme-relative"},
 	}, adsTestLandingHost)
-	if len(lps) != 2 ||
-		lps[0].Url != "https://brand.example/pt/models/gemini-api" ||
-		lps[1].Url != "https://www.brand.example/chinese-ai" {
-		t.Errorf("landing filter = %+v, want exact configured host only", lps)
-	}
+	require.Len(t, lps, 2)
+	assert.Equal(t, "https://brand.example/pt/models/gemini-api", lps[0].Url)
+	assert.Equal(t, "https://www.brand.example/chinese-ai", lps[1].Url)
 }
 
 func TestBuildAdsDailyLandingsDiff(t *testing.T) {
@@ -169,21 +146,14 @@ func TestBuildAdsDailyLandingsDiff(t *testing.T) {
 	for _, r := range rows {
 		byUrl[r.Url] = r
 	}
-	if r := byUrl["https://brand.example/new"]; r.Change != "added" || r.Clicks != 5 {
-		t.Errorf("new url = %+v, want added with metrics", r)
-	}
-	if r := byUrl["https://brand.example/old"]; r.Change != "removed" {
-		t.Errorf("old url = %+v, want removed", r)
-	}
-	if day.Changes.LandingChanges != 2 {
-		t.Errorf("landing changes = %d, want 2", day.Changes.LandingChanges)
-	}
+	assert.Equal(t, "added", byUrl["https://brand.example/new"].Change)
+	assert.Equal(t, 5, byUrl["https://brand.example/new"].Clicks)
+	assert.Equal(t, "removed", byUrl["https://brand.example/old"].Change)
+	assert.Equal(t, 2, day.Changes.LandingChanges)
 }
 
 func TestAdsThumbTarget(t *testing.T) {
 	got := adsThumbTarget("https://brand.example/sign-up?lng=pt&a=b#frag one")
 	want := "https://brand.example/sign-up%3Flng%3Dpt%26a%3Db%23frag%20one"
-	if got != want {
-		t.Errorf("adsThumbTarget = %q, want %q", got, want)
-	}
+	assert.Equal(t, want, got)
 }

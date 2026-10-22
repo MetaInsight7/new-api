@@ -1,6 +1,12 @@
 package model
 
-import "gorm.io/gorm/clause"
+import (
+	"errors"
+	"strconv"
+
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+)
 
 // Ads Daily report (运营日报 → 广告日报): per-day keyword, creative and
 // landing-page detail for the configured Google Ads account, synced cloud-side
@@ -199,4 +205,27 @@ func GetAdsDailyLastUpdated() (int64, error) {
 	err := DB.Model(&AdsDailyKeyword{}).
 		Select("COALESCE(MAX(updated_at), 0)").Scan(&last).Error
 	return last, err
+}
+
+const optionKeyAdsDailyLastFullSync = "AdsDailyLastFullSync"
+
+// GetAdsDailyLastFullUpdated returns the completion time of the last full
+// ads-daily sync. Individual tables advance before later remote calls finish,
+// so their row timestamps cannot represent whole-dataset freshness.
+func GetAdsDailyLastFullUpdated() (int64, error) {
+	var option Option
+	err := DB.Select("value").Where(&Option{Key: optionKeyAdsDailyLastFullSync}).First(&option).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	return strconv.ParseInt(option.Value, 10, 64)
+}
+
+// MarkAdsDailyFullSyncCompleted advances freshness only after every ads-daily
+// table has been refreshed successfully.
+func MarkAdsDailyFullSyncCompleted(at int64) error {
+	return UpdateOption(optionKeyAdsDailyLastFullSync, strconv.FormatInt(at, 10))
 }

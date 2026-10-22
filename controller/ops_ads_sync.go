@@ -111,31 +111,28 @@ func opsAdsCredsFromEnv() (opsAdsCreds, bool) {
 }
 
 // opsSyncAdsSpend refreshes ads_spend_daily from the Google Ads API when the
-// stored rows are older than opsAdsSyncTTL. Callers run inside opsReportMutex,
-// so a node never fires two syncs at once.
-func opsSyncAdsSpend() {
+// stored rows are older than opsAdsSyncTTL.
+func opsSyncAdsSpend() error {
 	creds, ok := opsAdsCredsFromEnv()
 	if !ok {
-		return
+		return nil
 	}
 	lastSync, err := model.GetOpsAdsSpendLastUpdated()
 	if err != nil {
-		common.SysError("ops ads sync: freshness check failed: " + err.Error())
-		return
+		return fmt.Errorf("freshness check: %w", err)
 	}
 	if time.Since(time.Unix(lastSync, 0)) < opsAdsSyncTTL {
-		return
+		return nil
 	}
 	rows, err := opsFetchAdsSpendDaily(creds)
 	if err != nil {
-		common.SysError("ops ads sync: " + err.Error())
-		return
+		return err
 	}
 	if err := model.UpsertAdsSpendDaily(rows); err != nil {
-		common.SysError("ops ads sync: upsert failed: " + err.Error())
-		return
+		return fmt.Errorf("upsert: %w", err)
 	}
 	common.SysLog(fmt.Sprintf("ops ads sync: upserted %d days", len(rows)))
+	return nil
 }
 
 type opsAdsTokenResponse struct {

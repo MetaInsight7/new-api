@@ -153,25 +153,24 @@ func opsAdsDailySearch(creds opsAdsCreds, client *http.Client, accessToken, quer
 }
 
 // opsSyncAdsDaily refreshes the ads_daily_* tables when they are older than
-// opsAdsSyncTTL. Callers serialize via opsAdsDailyReportMutex.
-func opsSyncAdsDaily() {
+// opsAdsSyncTTL.
+func opsSyncAdsDaily() error {
 	creds, ok := opsAdsCredsFromEnv()
 	if !ok {
-		return
+		return nil
 	}
-	lastSync, err := model.GetAdsDailyLastUpdated()
+	lastSync, err := model.GetAdsDailyLastFullUpdated()
 	if err != nil {
-		common.SysError("ops ads daily sync: freshness check failed: " + err.Error())
-		return
+		return fmt.Errorf("freshness check: %w", err)
 	}
 	if time.Since(time.Unix(lastSync, 0)) < opsAdsSyncTTL {
-		return
+		return nil
 	}
 	if err := opsFetchAdsDaily(creds); err != nil {
-		common.SysError("ops ads daily sync: " + err.Error())
-		return
+		return err
 	}
 	common.SysLog("ops ads daily sync: completed")
+	return nil
 }
 
 func opsAdsMicrosToUSD(micros string) float64 {
@@ -436,6 +435,9 @@ func opsFetchAdsDaily(creds opsAdsCreds) error {
 	}
 	if err := model.UpsertAdsDailyLandings(landings); err != nil {
 		return fmt.Errorf("landing upsert: %w", err)
+	}
+	if err := model.MarkAdsDailyFullSyncCompleted(now); err != nil {
+		return fmt.Errorf("full-sync watermark: %w", err)
 	}
 	return nil
 }

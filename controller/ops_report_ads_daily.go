@@ -6,7 +6,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -25,8 +24,6 @@ const (
 	adsDailyKeywordCap  = 200 // per day, changed rows always kept
 	adsDailyCreativeCap = 50
 )
-
-var opsAdsDailySyncMutex sync.Mutex
 
 type adsDailyKeywordRow struct {
 	AdGroupId    string  `json:"ad_group_id"`
@@ -101,6 +98,7 @@ type adsDailyReport struct {
 	Days        int            `json:"days"`
 	LastSyncAt  int64          `json:"last_sync_at"`
 	Configured  bool           `json:"configured"`
+	SyncError   string         `json:"sync_error"`
 	DaysList    []*adsDailyDay `json:"days_list"`
 }
 
@@ -126,9 +124,7 @@ func GetOpsAdsDailyReport(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": report})
 		return
 	}
-	opsAdsDailySyncMutex.Lock()
-	opsSyncAdsDaily()
-	opsAdsDailySyncMutex.Unlock()
+	ensureAdsSyncStarted()
 	since := now.In(opsLoc).AddDate(0, 0, -(days - 1)).Format("2006-01-02")
 	keywords, err := model.GetAdsDailyKeywords(since)
 	if err != nil {
@@ -145,7 +141,7 @@ func GetOpsAdsDailyReport(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	lastSync, err := model.GetAdsDailyLastUpdated()
+	lastSync, err := model.GetAdsDailyLastFullUpdated()
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -156,6 +152,7 @@ func GetOpsAdsDailyReport(c *gin.Context) {
 		Days:        days,
 		LastSyncAt:  lastSync,
 		Configured:  configured,
+		SyncError:   currentAdsSyncError(),
 		DaysList: buildAdsDailyDays(
 			adsDailyFilterKeywords(keywords, creds.campaignPrefix),
 			adsDailyFilterCreatives(creatives, creds.campaignPrefix),

@@ -53,7 +53,7 @@ type opsFunnelRow struct {
 	Key           string `json:"key"`
 	Registrations int    `json:"registrations"`
 	// Activated mirrors the activate_success GA event: the user performed a
-	// real activation action (created a manual/CLI key, used an API key, or
+	// real activation action (created a manual key, used an API key, or
 	// used the playground), bucketed by registration day like the rest of the
 	// funnel.
 	Activated  int     `json:"activated"`
@@ -159,6 +159,7 @@ type opsReportData struct {
 	PaidOnly         bool             `json:"paid_only"`
 	StripeConfigured bool             `json:"stripe_configured"`
 	AdsConfigured    bool             `json:"ads_daily_configured"`
+	AdsSyncError     string           `json:"ads_sync_error"`
 	Daily            []opsDailyRow    `json:"daily"`
 	WeeklyFunnel     []opsFunnelRow   `json:"weekly_funnel"`
 	CampaignFunnel   []opsCampaignRow `json:"campaign_funnel"`
@@ -212,10 +213,11 @@ var (
 	// day-windowed slices (DAU, ads) are NOT part of this cache.
 	// Two caches: one per include_disabled denominator, so switching the report
 	// filter does not cross-contaminate the funnel numbers.
-	opsAggsCacheEnabled map[int]*opsUserAgg
-	opsAggsCacheAll     map[int]*opsUserAgg
-	opsAggsCacheAt      time.Time
-	opsAggsMutex        sync.Mutex
+	opsAggsCacheEnabled   map[int]*opsUserAgg
+	opsAggsCacheAll       map[int]*opsUserAgg
+	opsAggsCacheAtEnabled time.Time
+	opsAggsCacheAtAll     time.Time
+	opsAggsMutex          sync.Mutex
 )
 
 // GetOpsReport handles GET /api/ops_report?days=N (admin only).
@@ -233,6 +235,7 @@ func GetOpsReport(c *gin.Context) {
 	dauScope := "customers"
 	includeDisabled := c.Query("include_disabled") == "1" || c.Query("include_disabled") == "true"
 	paidOnly := c.Query("paid_only") == "1" || c.Query("paid_only") == "true"
+	ensureAdsSyncStarted()
 
 	opsReportMutex.Lock()
 	defer opsReportMutex.Unlock()
@@ -241,6 +244,7 @@ func GetOpsReport(c *gin.Context) {
 		opsReportCache.IncludeDisabled == includeDisabled &&
 		opsReportCache.PaidOnly == paidOnly &&
 		time.Since(opsReportAggsAt) < opsReportCacheTTL {
+		opsReportCache.AdsSyncError = currentAdsSyncError()
 		c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": opsReportCache})
 		return
 	}
@@ -383,24 +387,24 @@ func buildOpsAggs(includeDisabled bool) (map[int]*opsUserAgg, error) {
 func getOpsAggs(includeDisabled bool) (map[int]*opsUserAgg, time.Time, error) {
 	opsAggsMutex.Lock()
 	defer opsAggsMutex.Unlock()
-	cache := opsAggsCacheEnabled
+	cache, cachedAt := opsAggsCacheEnabled, opsAggsCacheAtEnabled
 	if includeDisabled {
-		cache = opsAggsCacheAll
+		cache, cachedAt = opsAggsCacheAll, opsAggsCacheAtAll
 	}
-	if cache != nil && time.Since(opsAggsCacheAt) < opsReportCacheTTL {
-		return cache, opsAggsCacheAt, nil
+	if cache != nil && time.Since(cachedAt) < opsReportCacheTTL {
+		return cache, cachedAt, nil
 	}
 	aggs, err := buildOpsAggs(includeDisabled)
 	if err != nil {
 		return nil, time.Time{}, err
 	}
+	now := time.Now()
 	if includeDisabled {
-		opsAggsCacheAll = aggs
+		opsAggsCacheAll, opsAggsCacheAtAll = aggs, now
 	} else {
-		opsAggsCacheEnabled = aggs
+		opsAggsCacheEnabled, opsAggsCacheAtEnabled = aggs, now
 	}
-	opsAggsCacheAt = time.Now()
-	return aggs, opsAggsCacheAt, nil
+	return aggs, now, nil
 }
 
 func buildOpsReport(days int, dauScope string, includeDisabled bool, paidOnly bool) (*opsReportData, time.Time, error) {
@@ -445,6 +449,7 @@ func buildOpsReport(days int, dauScope string, includeDisabled bool, paidOnly bo
 		PaidOnly:         paidOnly,
 		StripeConfigured: isStripeTopUpEnabled(),
 		AdsConfigured:    adsConfigured,
+		AdsSyncError:     currentAdsSyncError(),
 	}
 	keyDaily, err := model.GetOpsKeyDailyUsage(ids, dayStarts)
 	if err != nil {
@@ -459,9 +464,8 @@ func buildOpsReport(days int, dauScope string, includeDisabled bool, paidOnly bo
 	}, true)
 	var adsDaily []*model.AdsSpendDaily
 	if adsConfigured {
-		// The sync is a no-op when credentials are removed between the capability
-		// check and this build. A failed refresh keeps the last successful rows.
-		opsSyncAdsSpend()
+		// External refreshes run in the background; report reads always serve the
+		// last successfully stored rows.
 		adsDaily, err = model.GetOpsAdsSpendDaily(opsDay(startTs))
 		if err != nil {
 			return nil, time.Time{}, err
@@ -670,20 +674,13 @@ func (a *opsUserAgg) manualKey() bool {
 	return a.tokenStats != nil && a.tokenStats.ManualTokenCount > 0
 }
 
-// cliKey reports whether the user created a token through the CLI
-// device-authorization flow. CLI token creation fires activate_success too
-// (see cli_device_authorization.go), so it counts toward activation.
-func (a *opsUserAgg) cliKey() bool {
-	return a.tokenStats != nil && a.tokenStats.CliTokenCount > 0
-}
-
 // activated mirrors the activate_success GA event: the user took a real
-// activation action — created a manual or CLI key, made an API-key request, or
+// activation action — created a manual key, made an API-key request, or
 // had a real playground browse. Auto-provisioned signup tokens and the
 // auto-fired onboarding request are deliberately excluded (they are not real
 // user actions).
 func (a *opsUserAgg) activated() bool {
-	return a.realBrowse() || a.manualKey() || a.usedKey() || a.cliKey()
+	return a.realBrowse() || a.manualKey() || a.usedKey()
 }
 
 // opsSubscriptionOrdersAsTopUps folds customer subscription orders into the

@@ -1,22 +1,19 @@
 package model
 
 import (
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"gorm.io/gorm"
 )
 
 func TestOpsExternalAPIKeyPredicateExcludesPlayground(t *testing.T) {
-	if !strings.Contains(opsExternalAPIKeyLogPredicate, "token_id > 0") {
-		t.Fatal("external API usage must require a real token")
-	}
-	if !strings.Contains(opsExternalAPIKeyLogPredicate, "NOT LIKE 'playground%'") {
-		t.Fatal("external API usage must exclude Playground requests")
-	}
+	assert.Contains(t, opsExternalAPIKeyLogPredicate, "token_id > 0")
+	assert.Contains(t, opsExternalAPIKeyLogPredicate, "NOT LIKE 'playground%'")
 }
 
 func TestGetOpsUsersExcludesSoftDeletedAccounts(t *testing.T) {
@@ -28,43 +25,29 @@ func TestGetOpsUsersExcludesSoftDeletedAccounts(t *testing.T) {
 		{Id: 1003, Username: "ops-deleted", Password: "password", Role: common.RoleCommonUser, AffCode: "ops1003", DeletedAt: gorm.DeletedAt{Time: time.Now(), Valid: true}},
 	}
 	for _, user := range users {
-		if err := DB.Create(user).Error; err != nil {
-			t.Fatalf("create user %d: %v", user.Id, err)
-		}
+		require.NoError(t, DB.Create(user).Error, "create user %d", user.Id)
 	}
 
 	rows, err := GetOpsUsers(true)
-	if err != nil {
-		t.Fatalf("get ops users: %v", err)
-	}
-	if len(rows) != 2 {
-		t.Fatalf("ops users = %d, want enabled and disabled but not soft-deleted", len(rows))
-	}
+	require.NoError(t, err)
+	assert.Len(t, rows, 2)
 }
 
 func TestGetOpsUserSubscriptionRemainingSumsActiveEntitlements(t *testing.T) {
 	truncateTables(t)
 
 	user := &User{Id: 1004, Username: "ops-subscriber", Password: "password", Role: common.RoleCommonUser}
-	if err := DB.Create(user).Error; err != nil {
-		t.Fatalf("create user: %v", err)
-	}
+	require.NoError(t, DB.Create(user).Error)
 	now := common.GetTimestamp()
 	for _, subscription := range []*UserSubscription{
 		{UserId: user.Id, AmountTotal: 1000, AmountUsed: 100, Status: "active", EndTime: now + 3600},
 		{UserId: user.Id, AmountTotal: 500, AmountUsed: 600, Status: "active", EndTime: now + 7200},
 		{UserId: user.Id, AmountTotal: 900, AmountUsed: 0, Status: "expired", EndTime: now + 7200},
 	} {
-		if err := DB.Create(subscription).Error; err != nil {
-			t.Fatalf("create subscription: %v", err)
-		}
+		require.NoError(t, DB.Create(subscription).Error)
 	}
 
 	remaining, err := GetOpsUserSubscriptionRemaining([]int{user.Id})
-	if err != nil {
-		t.Fatalf("get subscription remaining: %v", err)
-	}
-	if got := remaining[user.Id]; got != 900 {
-		t.Fatalf("remaining quota = %d, want 900", got)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, int64(900), remaining[user.Id])
 }

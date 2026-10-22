@@ -77,10 +77,6 @@ type OpsUserTokenStats struct {
 	UserId           int   `json:"user_id"`
 	ManualTokenCount int   `json:"manual_token_count"`
 	FirstManualAt    int64 `json:"first_manual_at"`
-	// CliTokenCount counts tokens created via the CLI device-authorization flow
-	// (source = 'cli'); those fire the activate_success event too, so they must
-	// count as activation regardless of when they were created.
-	CliTokenCount int `json:"cli_token_count"`
 	// AutoKeyUsedQuota is the quota burned through auto-provisioned tokens
 	// (created within the auto window of signup) — the ops cost of giving
 	// signup credit to bot/farm registrations that never create a manual key.
@@ -145,7 +141,6 @@ func GetOpsUserSubscriptionRemaining(userIds []int) (map[int]int64, error) {
 	now := common.GetTimestamp()
 	result := make(map[int]int64, len(userIds))
 
-	var legacyRows []OpsUserSubscriptionRemaining
 	legacySQL := `
 		SELECT s.user_id AS user_id,
 		       COALESCE(SUM(CASE
@@ -159,11 +154,14 @@ func GetOpsUserSubscriptionRemaining(userIds []int) (map[int]int64, error) {
 		  AND s.status = ?
 		  AND s.end_time > ?
 		GROUP BY s.user_id`
-	if err := DB.Raw(legacySQL, userIds, "active", now).Scan(&legacyRows).Error; err != nil {
-		return nil, err
-	}
-	for _, row := range legacyRows {
-		result[row.UserId] = row.RemainingQuota
+	for _, chunk := range chunkInts(userIds, opsReportChunkSize) {
+		var legacyRows []OpsUserSubscriptionRemaining
+		if err := DB.Raw(legacySQL, chunk, "active", now).Scan(&legacyRows).Error; err != nil {
+			return nil, err
+		}
+		for _, row := range legacyRows {
+			result[row.UserId] = row.RemainingQuota
+		}
 	}
 
 	return result, nil
@@ -178,7 +176,6 @@ func GetOpsUserSubscriptionSources(userIds []int) (map[int]OpsUserSubscriptionSo
 	now := common.GetTimestamp()
 	result := make(map[int]OpsUserSubscriptionSource, len(userIds))
 
-	var legacyRows []OpsUserSubscriptionSource
 	legacySQL := `
 		SELECT s.user_id AS user_id,
 		       COALESCE(NULLIF(TRIM(s.source), ''), '') AS source,
@@ -190,12 +187,17 @@ func GetOpsUserSubscriptionSources(userIds []int) (map[int]OpsUserSubscriptionSo
 		  AND s.status = ?
 		  AND s.end_time > ?
 		ORDER BY s.end_time ASC, s.id ASC`
-	if err := DB.Raw(legacySQL, userIds, "active", now).Scan(&legacyRows).Error; err != nil {
-		return nil, err
-	}
-	for _, row := range legacyRows {
-		if _, ok := result[row.UserId]; !ok {
-			result[row.UserId] = row
+	for _, chunk := range chunkInts(userIds, opsReportChunkSize) {
+		var legacyRows []OpsUserSubscriptionSource
+		if err := DB.Raw(legacySQL, chunk, "active", now).Scan(&legacyRows).Error; err != nil {
+			return nil, err
+		}
+		// Each user id belongs to one chunk, so the query's ordering still makes
+		// the first row for that user its globally earliest active subscription.
+		for _, row := range legacyRows {
+			if _, ok := result[row.UserId]; !ok {
+				result[row.UserId] = row
+			}
 		}
 	}
 
@@ -221,6 +223,14 @@ func chunkInts(ids []int, size int) [][]int {
 			end = len(ids)
 		}
 		chunks = append(chunks, ids[i:end])
+	}
+	return chunks
+}
+
+func chunkInt64s(ids []int64, size int) [][]int64 {
+	var chunks [][]int64
+	for i := 0; i < len(ids); i += size {
+		chunks = append(chunks, ids[i:min(i+size, len(ids))])
 	}
 	return chunks
 }
@@ -342,7 +352,6 @@ func GetOpsUserTokenStats(autoWindowSec int64) ([]*OpsUserTokenStats, error) {
 		SELECT t.user_id,
 		       COALESCE(SUM(CASE WHEN t.created_time - u.created_at >= ? THEN 1 ELSE 0 END), 0) AS manual_token_count,
 		       COALESCE(MIN(CASE WHEN t.created_time - u.created_at >= ? THEN t.created_time END), 0) AS first_manual_at,
-		       0 AS cli_token_count,
 		       COALESCE(SUM(CASE WHEN t.created_time - u.created_at < ? THEN t.used_quota ELSE 0 END), 0) AS auto_key_used_quota
 		FROM tokens t
 		INNER JOIN users u ON u.id = t.user_id
@@ -444,15 +453,25 @@ func GetOpsUsersLastIP(userIds []int, since int64) ([]*OpsUserLastIP, error) {
 		SELECT MAX(id) FROM logs%s
 		WHERE user_id IN ? AND ip <> '' AND created_at >= ?
 		GROUP BY user_id`, logsForceIndexHint())
-	if err := LOG_DB.Raw(sql, userIds, since).Scan(&maxIds).Error; err != nil {
-		return nil, err
+	for _, chunk := range chunkInts(userIds, opsReportChunkSize) {
+		var batch []int64
+		if err := LOG_DB.Raw(sql, chunk, since).Scan(&batch).Error; err != nil {
+			return nil, err
+		}
+		maxIds = append(maxIds, batch...)
 	}
 	if len(maxIds) == 0 {
 		return nil, nil
 	}
 	var rows []*OpsUserLastIP
-	err := LOG_DB.Raw(`SELECT user_id, ip FROM logs WHERE id IN ?`, maxIds).Scan(&rows).Error
-	return rows, err
+	for _, chunk := range chunkInt64s(maxIds, opsReportChunkSize) {
+		var batch []*OpsUserLastIP
+		if err := LOG_DB.Raw(`SELECT user_id, ip FROM logs WHERE id IN ?`, chunk).Scan(&batch).Error; err != nil {
+			return nil, err
+		}
+		rows = append(rows, batch...)
+	}
+	return rows, nil
 }
 
 type OpsUserModelUsage struct {
@@ -461,8 +480,9 @@ type OpsUserModelUsage struct {
 	Count     int    `json:"count"`
 }
 
-// GetOpsUsersModelUsage returns per-model request counts for a small user set
-// (top payers, <=~20 ids), aggregated from quota_data rollups.
+// GetOpsUsersModelUsage returns per-model request counts for one caller-sized
+// user batch, aggregated from quota_data rollups. The report caller splits the
+// full payer list into opsReportChunkSize-sized batches.
 func GetOpsUsersModelUsage(userIds []int) ([]*OpsUserModelUsage, error) {
 	if len(userIds) == 0 {
 		return nil, nil

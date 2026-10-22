@@ -50,10 +50,12 @@ func (OpsUserLogStatsRow) TableName() string {
 // log tail — until then the report must keep using the slow direct scan rather
 // than reading a half-populated table.
 type OpsUserLogStatsMeta struct {
-	Id         int   `gorm:"primaryKey;autoIncrement:false"` // always 1
-	LastLogId  int64 `gorm:"column:last_log_id;default:0"`
-	Backfilled bool  `gorm:"column:backfilled;default:false"`
-	UpdatedAt  int64 `gorm:"column:updated_at;default:0"`
+	Id           int   `gorm:"primaryKey;autoIncrement:false"` // always 1
+	LastLogId    int64 `gorm:"column:last_log_id;default:0"`
+	PendingLogId int64 `gorm:"column:pending_log_id;default:0"`
+	PendingSince int64 `gorm:"column:pending_since;default:0"`
+	Backfilled   bool  `gorm:"column:backfilled;default:false"`
+	UpdatedAt    int64 `gorm:"column:updated_at;default:0"`
 }
 
 func (OpsUserLogStatsMeta) TableName() string {
@@ -63,6 +65,11 @@ func (OpsUserLogStatsMeta) TableName() string {
 const (
 	opsUserLogStatsSyncBatch = 50000
 	opsUserLogStatsSyncEvery = 5 * time.Minute
+	opsUserLogStatsGapWait   = 5 * time.Minute
+
+	// Each stats row uses seven bind parameters. Keeping inserts at 500 rows
+	// stays well below MySQL and PostgreSQL's 65,535-parameter protocol limit.
+	opsUserLogStatsUpsertChunk = 500
 )
 
 // getOpsUserLogStatsMeta reads the single cursor row, creating it on first use.
@@ -93,34 +100,91 @@ func opsUserLogStatsReady() bool {
 	return err == nil && meta.Backfilled
 }
 
-// SyncOpsUserLogStats runs one incremental aggregation pass: consume logs with
-// id > cursor are aggregated per user and upserted into ops_user_log_stats,
-// then the cursor advances. The first pass (cursor == 0) backfills the whole
-// logs history in batches. Safe on multi-node: only the master node runs the
-// task, and per-user upserts are idempotent by primary key.
+// SyncOpsUserLogStats runs one incremental aggregation pass. It scans every log
+// ID so an invisible lower ID cannot be skipped when a higher transaction
+// commits first, while only consume logs contribute to the aggregate rows.
 func SyncOpsUserLogStats() error {
 	meta, err := getOpsUserLogStatsMeta()
 	if err != nil {
 		return err
 	}
 	cursor := meta.LastLogId
+	pendingLogId := meta.PendingLogId
+	pendingSince := meta.PendingSince
+	if pendingLogId <= cursor {
+		pendingLogId = 0
+		pendingSince = 0
+	}
 	reachedTail := false
 	for {
 		var logs []*Log
-		if err := LOG_DB.Select("id", "user_id", "created_at", "token_name", "token_id").
-			Where("type = ? AND id > ?", LogTypeConsume, cursor).
+		query := LOG_DB.Select("id", "user_id", "created_at", "type", "token_name", "token_id").
+			Where("id > ?", cursor)
+		boundedByPendingGap := pendingLogId > cursor
+		if boundedByPendingGap {
+			query = query.Where("id <= ?", pendingLogId)
+		}
+		if err := query.
 			Order("id").
 			Limit(opsUserLogStatsSyncBatch).
 			Find(&logs).Error; err != nil {
 			return err
 		}
 		if len(logs) == 0 {
-			// No rows newer than the cursor: the pass reached the log tail.
+			if boundedByPendingGap {
+				now := common.GetTimestamp()
+				if pendingSince == 0 || now-pendingSince < int64(opsUserLogStatsGapWait/time.Second) {
+					return nil
+				}
+				cursor = pendingLogId
+				pendingLogId = 0
+				pendingSince = 0
+				if err := LOG_DB.Model(&OpsUserLogStatsMeta{}).Where("id = 1").Updates(map[string]interface{}{
+					"last_log_id":    cursor,
+					"pending_log_id": 0,
+					"pending_since":  0,
+					"updated_at":     now,
+				}).Error; err != nil {
+					return err
+				}
+				continue
+			}
 			reachedTail = true
 			break
 		}
+
+		hasIdGap := int64(logs[0].Id) != cursor+1
+		for index := 1; !hasIdGap && index < len(logs); index++ {
+			hasIdGap = logs[index].Id != logs[index-1].Id+1
+		}
+		if hasIdGap {
+			now := common.GetTimestamp()
+			if pendingLogId == 0 {
+				pendingLogId = int64(logs[len(logs)-1].Id)
+				pendingSince = now
+				return LOG_DB.Model(&OpsUserLogStatsMeta{}).Where("id = 1").Updates(map[string]interface{}{
+					"pending_log_id": pendingLogId,
+					"pending_since":  pendingSince,
+					"updated_at":     now,
+				}).Error
+			}
+			if pendingSince == 0 {
+				pendingSince = now
+				return LOG_DB.Model(&OpsUserLogStatsMeta{}).Where("id = 1").Updates(map[string]interface{}{
+					"pending_since": pendingSince,
+					"updated_at":    now,
+				}).Error
+			}
+			if now-pendingSince < int64(opsUserLogStatsGapWait/time.Second) {
+				return nil
+			}
+		}
+
 		agg := map[int]*OpsUserLogStatsRow{}
 		for _, l := range logs {
+			if l.Type != LogTypeConsume {
+				continue
+			}
 			row, ok := agg[l.UserId]
 			if !ok {
 				row = &OpsUserLogStatsRow{UserId: l.UserId}
@@ -151,8 +215,12 @@ func SyncOpsUserLogStats() error {
 			ids = append(ids, uid)
 		}
 		var existing []OpsUserLogStatsRow
-		if err := LOG_DB.Where("user_id IN ?", ids).Find(&existing).Error; err != nil {
-			return err
+		for _, chunk := range chunkInts(ids, opsReportChunkSize) {
+			var batch []OpsUserLogStatsRow
+			if err := LOG_DB.Where("user_id IN ?", chunk).Find(&batch).Error; err != nil {
+				return err
+			}
+			existing = append(existing, batch...)
 		}
 		byId := map[int]*OpsUserLogStatsRow{}
 		for i := range existing {
@@ -178,25 +246,42 @@ func SyncOpsUserLogStats() error {
 			rows = append(rows, *row)
 		}
 		cursor = int64(logs[len(logs)-1].Id)
+		nextPendingLogId := pendingLogId
+		nextPendingSince := pendingSince
+		if nextPendingLogId > 0 && cursor >= nextPendingLogId {
+			nextPendingLogId = 0
+			nextPendingSince = 0
+		}
 		// Persist stats and cursor atomically. If either write fails, the next
 		// pass must replay the batch without double-counting it.
 		if err := LOG_DB.Transaction(func(tx *gorm.DB) error {
-			if err := tx.Clauses(clause.OnConflict{
-				Columns: []clause.Column{{Name: "user_id"}},
-				DoUpdates: clause.AssignmentColumns([]string{
-					"first_playground_at", "playground_count", "first_api_key_at",
-					"api_key_count", "last_request_at", "updated_at",
-				}),
-			}).Create(&rows).Error; err != nil {
-				return err
+			for start := 0; start < len(rows); start += opsUserLogStatsUpsertChunk {
+				end := min(start+opsUserLogStatsUpsertChunk, len(rows))
+				if err := tx.Clauses(clause.OnConflict{
+					Columns: []clause.Column{{Name: "user_id"}},
+					DoUpdates: clause.AssignmentColumns([]string{
+						"first_playground_at", "playground_count", "first_api_key_at",
+						"api_key_count", "last_request_at", "updated_at",
+					}),
+				}).Create(rows[start:end]).Error; err != nil {
+					return err
+				}
 			}
-			return tx.Model(&OpsUserLogStatsMeta{}).Where("id = 1").
-				Updates(map[string]interface{}{"last_log_id": cursor, "updated_at": now}).Error
+			return tx.Model(&OpsUserLogStatsMeta{}).Where("id = 1").Updates(map[string]interface{}{
+				"last_log_id":    cursor,
+				"pending_log_id": nextPendingLogId,
+				"pending_since":  nextPendingSince,
+				"updated_at":     now,
+			}).Error
 		}); err != nil {
 			return err
 		}
+		pendingLogId = nextPendingLogId
+		pendingSince = nextPendingSince
 		if len(logs) < opsUserLogStatsSyncBatch {
-			// A short final batch means we drained the tail in this pass.
+			if boundedByPendingGap {
+				continue
+			}
 			reachedTail = true
 			break
 		}

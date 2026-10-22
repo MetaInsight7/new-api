@@ -464,17 +464,6 @@ func buildOpsStripeReport(days int) (*opsStripeReport, error) {
 		sort.Strings(out)
 		return out
 	}
-	// last request IP (any log row, playground included) as an identity hint
-	personIds := make([]int, 0, len(persons))
-	for _, a := range persons {
-		personIds = append(personIds, a.row.UserId)
-	}
-	ipByUser := map[int]string{}
-	if ips, err := model.GetOpsUsersLastIP(personIds, startTs); err == nil {
-		for _, r := range ips {
-			ipByUser[r.UserId] = r.Ip
-		}
-	}
 	for _, a := range persons {
 		a.row.Amounts = opsSortedCounts(a.amounts, 6)
 		a.row.FailReasons = opsSortedCounts(a.fails, 6)
@@ -484,8 +473,7 @@ func buildOpsStripeReport(days int) (*opsStripeReport, error) {
 		a.row.BillingCC = keys(a.billingCC)
 		a.row.BillingNames = keys(a.names)
 		a.row.Locales = keys(a.locales)
-		a.row.LastIP = ipByUser[a.row.UserId]
-		a.row.IPCountry = opsIPCountry(a.row.LastIP)
+		opsStripeApplyUserLocation(&a.row, byId[a.row.UserId])
 		a.row.Status = opsStripeStatus(a)
 		report.Persons = append(report.Persons, a.row)
 	}
@@ -493,4 +481,15 @@ func buildOpsStripeReport(days int) (*opsStripeReport, error) {
 		return report.Persons[i].LastAt > report.Persons[j].LastAt
 	})
 	return report, nil
+}
+
+// opsStripeApplyUserLocation uses the same person-location signals as the
+// funnel report. API request IPs are deliberately excluded because they often
+// identify a customer's production datacenter rather than the customer.
+func opsStripeApplyUserLocation(row *opsStripePersonRow, user *model.OpsUser) {
+	if row == nil || user == nil {
+		return
+	}
+	row.LastIP = user.LastLoginIp
+	row.IPCountry = opsUserCountry(user)
 }

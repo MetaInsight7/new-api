@@ -1,6 +1,11 @@
 package controller
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
 
 func TestOpsAdsCredsRequireReportScope(t *testing.T) {
 	for key, value := range map[string]string{
@@ -14,19 +19,16 @@ func TestOpsAdsCredsRequireReportScope(t *testing.T) {
 	}
 	t.Setenv("GOOGLE_ADS_CAMPAIGN_PREFIX", "")
 	t.Setenv("GOOGLE_ADS_LANDING_HOST", "")
-	if _, configured := opsAdsCredsFromEnv(); configured {
-		t.Fatal("ads integration enabled without campaign and landing scope")
-	}
+	_, configured := opsAdsCredsFromEnv()
+	assert.False(t, configured)
 
 	t.Setenv("GOOGLE_ADS_CAMPAIGN_PREFIX", "brand")
 	t.Setenv("GOOGLE_ADS_LANDING_HOST", "https://www.brand.example/path")
 	creds, configured := opsAdsCredsFromEnv()
-	if !configured {
-		t.Fatal("ads integration did not enable with complete configuration")
-	}
-	if creds.customerId != "1234567890" || creds.campaignPrefix != "brand" || creds.landingHost != "www.brand.example" {
-		t.Fatalf("normalized ads config = %+v", creds)
-	}
+	require.True(t, configured)
+	assert.Equal(t, "1234567890", creds.customerId)
+	assert.Equal(t, "brand", creds.campaignPrefix)
+	assert.Equal(t, "www.brand.example", creds.landingHost)
 }
 
 func TestOpsAdsCredsRejectUnsafeCampaignPrefix(t *testing.T) {
@@ -37,7 +39,6 @@ func TestOpsAdsCredsRejectUnsafeCampaignPrefix(t *testing.T) {
 	t.Setenv("GOOGLE_ADS_CUSTOMER_ID", "1234567890")
 	t.Setenv("GOOGLE_ADS_CAMPAIGN_PREFIX", "brand' OR 1=1")
 	t.Setenv("GOOGLE_ADS_LANDING_HOST", "brand.example")
-	if _, configured := opsAdsCredsFromEnv(); configured {
-		t.Fatal("unsafe campaign prefix enabled ads integration")
-	}
+	_, configured := opsAdsCredsFromEnv()
+	assert.False(t, configured)
 }

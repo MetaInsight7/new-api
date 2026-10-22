@@ -203,10 +203,18 @@ func EnsureUsageReportDate(date string) error {
 	if row.SchemaV < usageReportSchemaV {
 		return computeUsageReportDate(date)
 	}
-	if date == utcToday(time.Now().UTC()) {
-		if time.Since(time.Unix(row.BuiltAt, 0)) >= usageReportTodayFresh {
-			return computeUsageReportDate(date)
+	_, end, err := utcDateBounds(date)
+	if err != nil {
+		return err
+	}
+	if row.BuiltAt < end {
+		// A snapshot built before its day ended is not final. While it is still
+		// today, retain the normal refresh throttle; after midnight, finalize it
+		// once so late-day users and usage are not lost permanently.
+		if date == utcToday(time.Now().UTC()) && time.Since(time.Unix(row.BuiltAt, 0)) < usageReportTodayFresh {
+			return nil
 		}
+		return computeUsageReportDate(date)
 	}
 	return nil
 }

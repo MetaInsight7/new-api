@@ -5,20 +5,18 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParseOpsAttributionPrefersFirstValidLanding(t *testing.T) {
 	agg := &opsUserAgg{user: &model.OpsUser{AdsAttribution: `{"utm_campaign":"spring","first_landing_path":"/spring","landing_path":"/oauth/google"}`}}
 	parseOpsAttribution(agg)
-	if agg.landing != "/spring" {
-		t.Fatalf("landing = %q, want /spring", agg.landing)
-	}
+	assert.Equal(t, "/spring", agg.landing)
 
 	agg = &opsUserAgg{user: &model.OpsUser{AdsAttribution: `{"landing_path":"/oauth/google"}`}}
 	parseOpsAttribution(agg)
-	if agg.landing != "" {
-		t.Fatalf("OAuth callback must not be reported as a landing page, got %q", agg.landing)
-	}
+	assert.Empty(t, agg.landing)
 }
 
 func TestOpsSubscriptionOrdersAsTopUpsPreservesSource(t *testing.T) {
@@ -26,16 +24,14 @@ func TestOpsSubscriptionOrdersAsTopUpsPreservesSource(t *testing.T) {
 		{UserId: 1, Money: 30, Status: common.TopUpStatusSuccess, CreateTime: 100, PaymentProvider: model.PaymentProviderStripe, PlanUSD: 30},
 	}
 	converted := opsSubscriptionOrdersAsTopUps(orders)
-	if len(converted) != 1 {
-		t.Fatalf("converted rows = %d, want 1", len(converted))
-	}
+	require.Len(t, converted, 1)
 	row := converted[0]
-	if row.Source != "subscription" || row.Money != 30 || row.PaymentProvider != model.PaymentProviderStripe {
-		t.Fatalf("converted subscription = %+v", row)
-	}
-	if value, ok := opsTopUpUSD(row); !ok || value != 30 {
-		t.Fatalf("subscription amount = %v, ok=%v; want 30", value, ok)
-	}
+	assert.Equal(t, "subscription", row.Source)
+	assert.Equal(t, 30.0, row.Money)
+	assert.Equal(t, model.PaymentProviderStripe, row.PaymentProvider)
+	value, ok := opsTopUpUSD(row)
+	require.True(t, ok)
+	assert.Equal(t, 30.0, value)
 }
 
 func TestOpsRegisteredUsersPaidOnlyFiltersNonPayers(t *testing.T) {
@@ -47,9 +43,8 @@ func TestOpsRegisteredUsersPaidOnlyFiltersNonPayers(t *testing.T) {
 		2: {user: &model.OpsUser{Id: 2, CreatedAt: 2, Username: "free"}},
 	}
 	rows := opsRegisteredUsers(aggs, map[int]int64{}, map[int]model.OpsUserSubscriptionSource{}, true)
-	if len(rows) != 1 || rows[0].UserId != 1 {
-		t.Fatalf("paid-only rows = %+v, want only payer", rows)
-	}
+	require.Len(t, rows, 1)
+	assert.Equal(t, 1, rows[0].UserId)
 }
 
 func TestOpsSubscriptionOriginLabel(t *testing.T) {
@@ -60,22 +55,34 @@ func TestOpsSubscriptionOriginLabel(t *testing.T) {
 		opsSubscriptionOriginLabel("", ""):        "-",
 	}
 	for got, want := range cases {
-		if got != want {
-			t.Fatalf("origin label = %q, want %q", got, want)
-		}
+		assert.Equal(t, want, got)
 	}
 }
 
 func TestOpsVisibleQuotaUSDPrefersSubscriptionRemaining(t *testing.T) {
 	a := &opsUserAgg{user: &model.OpsUser{Id: 11, Quota: 8000}}
 	remaining := map[int]int64{11: 2500}
-	if got := opsVisibleQuotaUSD(a, remaining); got != 2500.0/common.QuotaPerUnit {
-		t.Fatalf("subscription balance = %v, want subscription remaining", got)
-	}
+	assert.Equal(t, 2500.0/common.QuotaPerUnit, opsVisibleQuotaUSD(a, remaining))
 }
 
 func TestOpsUserCountryReturnsEmptyWhenBaseHasNoLocationData(t *testing.T) {
-	if got := opsUserCountry(&model.OpsUser{}); got != "" {
-		t.Fatalf("country = %q, want empty when no location data is available", got)
-	}
+	assert.Empty(t, opsUserCountry(&model.OpsUser{}))
+}
+
+func TestOpsStripeLocationUsesUserIdentitySignals(t *testing.T) {
+	row := opsStripePersonRow{LastIP: "203.0.113.20", IPCountry: "SG"}
+	user := &model.OpsUser{Id: 1, PayCountry: "US", LastLoginIp: "198.51.100.10"}
+
+	opsStripeApplyUserLocation(&row, user)
+
+	assert.Equal(t, user.LastLoginIp, row.LastIP)
+	assert.Equal(t, "US", row.IPCountry)
+}
+
+func TestOpsStripeLocationDoesNotUseAPIRequestIPFallback(t *testing.T) {
+	row := opsStripePersonRow{LastIP: "203.0.113.20", IPCountry: "SG"}
+	opsStripeApplyUserLocation(&row, &model.OpsUser{Id: 1})
+
+	assert.Empty(t, row.LastIP)
+	assert.Empty(t, row.IPCountry)
 }

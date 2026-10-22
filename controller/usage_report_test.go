@@ -2,12 +2,12 @@ package controller
 
 import (
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/model"
 
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestWriteUsageReportDailyCSV(t *testing.T) {
@@ -28,13 +28,9 @@ func TestWriteUsageReportDailyCSV(t *testing.T) {
 		},
 	})
 
-	if got := recorder.Header().Get("Content-Disposition"); !strings.Contains(got, "usage_report_daily.csv") {
-		t.Fatalf("content disposition = %q", got)
-	}
+	assert.Contains(t, recorder.Header().Get("Content-Disposition"), "usage_report_daily.csv")
 	want := "date,registered,activated_day,paid_day,paid_usd,calls,tokens\n2026-10-04,3,2,1,12.50,7,150\n"
-	if recorder.Body.String() != want {
-		t.Fatalf("csv = %q, want %q", recorder.Body.String(), want)
-	}
+	assert.Equal(t, want, recorder.Body.String())
 }
 
 func TestWriteUsageReportModelsCSV(t *testing.T) {
@@ -52,11 +48,7 @@ func TestWriteUsageReportModelsCSV(t *testing.T) {
 		},
 	})
 
-	if got := recorder.Header().Get("Content-Disposition"); !strings.Contains(got, "usage_report_models.csv") {
-		t.Fatalf("content disposition = %q", got)
-	}
+	assert.Contains(t, recorder.Header().Get("Content-Disposition"), "usage_report_models.csv")
 	want := "date,model,calls,tokens\n2026-10-04,gpt-test,4,100\n"
-	if recorder.Body.String() != want {
-		t.Fatalf("csv = %q, want %q", recorder.Body.String(), want)
-	}
+	assert.Equal(t, want, recorder.Body.String())
 }
