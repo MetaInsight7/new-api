@@ -117,6 +117,7 @@ export interface OpsReportData {
   paid_only: boolean
   stripe_configured: boolean
   ads_daily_configured: boolean
+  ads_sync_error: string
   daily: OpsDailyRow[]
   weekly_funnel: OpsFunnelRow[]
   campaign_funnel: OpsCampaignRow[]
@@ -293,5 +294,6 @@ export interface AdsDailyReport {
   days: number
   last_sync_at: number
   configured: boolean
+  sync_error: string
   days_list: AdsDailyDay[] | null
 }

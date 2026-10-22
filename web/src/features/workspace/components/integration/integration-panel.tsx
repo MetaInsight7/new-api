@@ -18,6 +18,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useCallback, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { getApiKeys } from '@/features/keys/api'
 import type { ApiKey } from '@/features/keys/types'
@@ -83,6 +84,7 @@ function getPreferredKey(keys: ApiKey[]): ApiKey | null {
 }
 
 export function IntegrationPanel() {
+  const { t } = useTranslation()
   const { status } = useStatus()
   const [openIntegration, setOpenIntegration] = useState<IntegrationId | null>(
     null
@@ -94,10 +96,15 @@ export function IntegrationPanel() {
     queryKey: ['workspace', 'integration', 'api-keys'],
     queryFn: async () => {
       const result = await getApiKeys({ p: 1, size: RECENT_KEY_LIMIT })
-      return result.success ? (result.data?.items ?? []) : []
+      if (!result.success) {
+        throw new Error(result.message || t('Failed to load API keys'))
+      }
+      return result.data?.items ?? []
     },
     enabled: openIntegration !== null,
     staleTime: 60 * 1000,
+    retry: false,
+    meta: { errorToast: false },
   })
 
   const apiKeys = apiKeysQuery.data ?? EMPTY_API_KEYS
@@ -117,10 +124,15 @@ export function IntegrationPanel() {
     queryKey: ['workspace', 'integration', 'models'],
     queryFn: async () => {
       const result = await getUserModels()
-      return result.success ? (result.data ?? []) : []
+      if (!result.success) {
+        throw new Error(result.message || t('Failed to load models'))
+      }
+      return result.data ?? []
     },
     enabled: openIntegration !== null,
     staleTime: 5 * 60 * 1000,
+    retry: false,
+    meta: { errorToast: false },
   })
 
   const pricingQuery = useQuery({
@@ -203,6 +215,22 @@ export function IntegrationPanel() {
     [apiEndpoint, classifyModel, exampleModel, selectedKey]
   )
 
+  let keysError = ''
+  if (apiKeysQuery.isError) {
+    keysError =
+      apiKeysQuery.error instanceof Error
+        ? apiKeysQuery.error.message
+        : t('Failed to load API keys')
+  }
+
+  let modelsError = ''
+  if (modelsQuery.isError) {
+    modelsError =
+      modelsQuery.error instanceof Error
+        ? modelsQuery.error.message
+        : t('Failed to load models')
+  }
+
   return (
     <>
       <IntegrationCards onSelect={setOpenIntegration} />
@@ -213,12 +241,16 @@ export function IntegrationPanel() {
         }}
         keys={apiKeys}
         keysLoading={apiKeysQuery.isPending}
+        keysError={keysError}
+        onRetryKeys={() => void apiKeysQuery.refetch()}
         selectedKeyId={selectedKey?.id ?? null}
         resolvedKeys={resolvedKeys}
         loadingKeys={loadingKeys}
         resolveKey={resolveKey}
         onSelectKey={setSelectedKeyId}
         models={availableModels}
+        modelsError={modelsError}
+        onRetryModels={() => void modelsQuery.refetch()}
         selectedModel={exampleModel}
         onSelectModel={setSelectedModel}
         snippetContext={snippetContext}

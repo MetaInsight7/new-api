@@ -21,6 +21,8 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { CopyButton } from '@/components/copy-button'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
@@ -102,9 +104,29 @@ function StepHint(props: { children: string }) {
 function ModelSelect(props: {
   models: string[]
   value: string
+  error?: string
+  onRetry?: () => void
   onChange: (model: string) => void
 }) {
   const { t } = useTranslation()
+
+  if (props.error) {
+    return (
+      <Alert variant='destructive' className='w-auto min-w-64'>
+        <AlertDescription>{props.error}</AlertDescription>
+        {props.onRetry && (
+          <Button
+            type='button'
+            variant='outline'
+            size='xs'
+            onClick={props.onRetry}
+          >
+            {t('Retry')}
+          </Button>
+        )}
+      </Alert>
+    )
+  }
 
   return (
     <div className='flex min-w-0 items-center gap-2'>
@@ -151,12 +173,16 @@ export interface IntegrationDialogProps {
   onOpenChange: (open: boolean) => void
   keys: ApiKey[]
   keysLoading: boolean
+  keysError?: string
+  onRetryKeys?: () => void
   selectedKeyId: number | null
   resolvedKeys: Record<number, string>
   loadingKeys: Record<number, boolean>
   resolveKey: (id: number) => Promise<string | null>
   onSelectKey: (keyId: number) => void
   models: string[]
+  modelsError?: string
+  onRetryModels?: () => void
   selectedModel: string
   onSelectModel: (model: string) => void
   snippetContext: SnippetContext
@@ -236,6 +262,8 @@ export function IntegrationDialog(props: IntegrationDialogProps) {
       <ApiKeyPicker
         keys={props.keys}
         loading={props.keysLoading}
+        error={props.keysError}
+        onRetry={props.onRetryKeys}
         selectedKeyId={props.selectedKeyId}
         resolvedKeys={props.resolvedKeys}
         loadingKeys={props.loadingKeys}
@@ -279,6 +307,8 @@ export function IntegrationDialog(props: IntegrationDialogProps) {
                 <ModelSelect
                   models={props.models}
                   value={props.selectedModel}
+                  error={props.modelsError}
+                  onRetry={props.onRetryModels}
                   onChange={props.onSelectModel}
                 />
               </div>
@@ -308,6 +338,8 @@ export function IntegrationDialog(props: IntegrationDialogProps) {
                 <ModelSelect
                   models={props.models}
                   value={props.selectedModel}
+                  error={props.modelsError}
+                  onRetry={props.onRetryModels}
                   onChange={props.onSelectModel}
                 />
               </div>

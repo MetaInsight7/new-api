@@ -116,6 +116,7 @@ export function useResolvedApiKeys(
           queryFn: () => fetchResolvedKey(requestedId),
           staleTime: TOKEN_KEY_STALE_TIME,
           gcTime: TOKEN_KEY_GC_TIME,
+          meta: { errorToast: false },
         })
         .then((resolvedValue) => {
           // The auth store is the source of truth here rather than the

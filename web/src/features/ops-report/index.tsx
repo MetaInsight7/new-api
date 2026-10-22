@@ -40,6 +40,7 @@ import { useTheme } from '@/context/theme-provider'
 import { countryLabel } from '@/lib/country'
 
 import { AdsDailyTab } from './ads-daily-tab'
+import { AdsSyncAlert } from './ads-sync-alert'
 import {
   getOpsAdsDailyReport,
   getOpsReport,
@@ -1158,6 +1159,10 @@ export function OpsReport() {
               )}{' '}
               {t('Generated at')}: {formatTimestamp(report.generated_at)}
             </p>
+
+            {activeTab !== 'ads-daily' && (
+              <AdsSyncAlert error={report.ads_sync_error} />
+            )}
 
             <Tabs value={activeTab} onValueChange={handleTabChange}>
               <TabsList>

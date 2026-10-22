@@ -21,6 +21,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Alert, AlertAction, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
@@ -110,6 +111,8 @@ function ApiKeyCopyButton(props: {
 export function ApiKeyPicker(props: {
   keys: ApiKey[]
   loading: boolean
+  error?: string
+  onRetry?: () => void
   selectedKeyId: number | null
   resolvedKeys: Record<number, string>
   loadingKeys: Record<number, boolean>
@@ -151,6 +154,24 @@ export function ApiKeyPicker(props: {
               <Skeleton className='h-11 w-full rounded-lg' />
             </div>
           )
+        } else if (props.error) {
+          content = (
+            <Alert variant='destructive'>
+              <AlertDescription>{props.error}</AlertDescription>
+              {props.onRetry && (
+                <AlertAction>
+                  <Button
+                    type='button'
+                    variant='outline'
+                    size='xs'
+                    onClick={props.onRetry}
+                  >
+                    {t('Retry')}
+                  </Button>
+                </AlertAction>
+              )}
+            </Alert>
+          )
         } else if (props.keys.length === 0) {
           content = (
             <p className='text-muted-foreground py-2 text-sm'>
@@ -172,14 +193,16 @@ export function ApiKeyPicker(props: {
                       selected && 'border-primary ring-primary/30 ring-1'
                     )}
                   >
-                    <button
+                    <Button
                       type='button'
+                      variant='ghost'
+                      size='xs'
                       onClick={() => props.onSelect(key.id)}
-                      className='min-w-0 shrink truncate text-left font-mono text-xs'
+                      className='h-auto min-w-0 shrink truncate rounded-none p-0 text-left font-mono text-xs hover:bg-transparent'
                       aria-pressed={selected}
                     >
                       {normalizeApiKey(key.key)}
-                    </button>
+                    </Button>
                     <ApiKeyCopyButton
                       keyId={key.id}
                       fullKey={fullKey}

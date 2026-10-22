@@ -40,7 +40,23 @@ export async function downloadUsageReportCSV(
     params: { days, format: 'csv', dim },
     responseType: 'blob',
   })
-  const url = URL.createObjectURL(res.data as Blob)
+  const blob = res.data as Blob
+  if (
+    blob.type &&
+    !blob.type.includes('text/csv') &&
+    !blob.type.includes('application/octet-stream')
+  ) {
+    const text = await blob.text()
+    let message = ''
+    try {
+      const parsed = JSON.parse(text) as { message?: string }
+      message = parsed.message ?? ''
+    } catch {
+      message = text.slice(0, 200)
+    }
+    throw new Error(message || 'Failed to export the report')
+  }
+  const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
   a.download =

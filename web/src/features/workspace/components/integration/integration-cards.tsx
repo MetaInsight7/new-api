@@ -23,6 +23,7 @@ import {
   CardStaggerContainer,
   CardStaggerItem,
 } from '@/components/page-transition'
+import { Button } from '@/components/ui/button'
 
 import type { IntegrationId } from './integration-snippets'
 
@@ -106,10 +107,11 @@ export function IntegrationCards(props: {
 
           return (
             <CardStaggerItem key={card.id}>
-              <button
+              <Button
                 type='button'
+                variant='ghost'
                 onClick={() => props.onSelect(card.id)}
-                className='group focus-visible:ring-ring hover:bg-muted/50 flex w-full items-center gap-3 px-4 py-3 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none sm:px-5'
+                className='group h-auto w-full justify-start gap-3 rounded-none px-4 py-3 text-left whitespace-normal sm:px-5'
               >
                 <span
                   className={`flex size-8 shrink-0 items-center justify-center rounded-lg ${getIconTone(card.tone)}`}
@@ -133,7 +135,7 @@ export function IntegrationCards(props: {
                   className='text-muted-foreground group-hover:text-foreground size-4 shrink-0 transition-colors'
                   aria-hidden='true'
                 />
-              </button>
+              </Button>
             </CardStaggerItem>
           )
         })}

@@ -34,6 +34,7 @@ import {
 import { toIntlLocale } from '@/i18n/languages'
 import { api } from '@/lib/api'
 
+import { AdsSyncAlert } from './ads-sync-alert'
 import type {
   AdsDailyCreativeRow,
   AdsDailyDay,
@@ -631,21 +632,25 @@ export function AdsDailyTab(props: { report: AdsDailyReport }) {
 
   if (days.length === 0) {
     return (
-      <Card>
-        <CardContent className='text-muted-foreground pt-6 text-sm'>
-          {props.report.configured
-            ? t('No ads data yet — the first sync runs when this tab loads.')
-            : t(
-                'Google Ads sync is not configured (GOOGLE_ADS_* environment variables).'
-              )}
-        </CardContent>
-      </Card>
+      <div className='space-y-3'>
+        <AdsSyncAlert error={props.report.sync_error} />
+        <Card>
+          <CardContent className='text-muted-foreground pt-6 text-sm'>
+            {props.report.configured
+              ? t('No ads data yet — the first sync runs when this tab loads.')
+              : t(
+                  'Google Ads sync is not configured (GOOGLE_ADS_* environment variables).'
+                )}
+          </CardContent>
+        </Card>
+      </div>
     )
   }
 
   return (
     <Card>
       <CardContent className='space-y-3 pt-4'>
+        <AdsSyncAlert error={props.report.sync_error} />
         <p className='text-muted-foreground text-sm'>
           {t(
             'One row per day: spend, clicks, CPC and conversions, plus counts of active keywords, creatives and landing pages. Click a row to drill into that day’s creatives, keyword CPCs and landing pages. Change badges compare against the previous synced day — bid, keyword, creative and landing page adjustments are tracked from the first sync onward.'
