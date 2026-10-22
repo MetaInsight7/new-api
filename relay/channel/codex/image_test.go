@@ -2,7 +2,10 @@ package codex
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -12,15 +15,24 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/model_setting"
+	hosttypes "github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type codexImageReadAfterCompleted struct{}
+
+func (codexImageReadAfterCompleted) Read([]byte) (int, error) {
+	return 0, errors.New("response body read after terminal event")
+}
 
 func TestBuildCodexImageBody(t *testing.T) {
 	n := uint(2)
@@ -158,6 +170,66 @@ func TestConvertImageRequestRejectsInvalidInputs(t *testing.T) {
 	assert.NoError(t, ValidateCodexImageRequest(dto.ImageRequest{ResponseFormat: "b64_json"}))
 }
 
+func TestReadCodexJSONEditImagesValidatesEntries(t *testing.T) {
+	validInline := "data:image/png;base64," + base64.StdEncoding.EncodeToString(make([]byte, 1024))
+	oversizedInline := "data:image/png;base64," + strings.Repeat("A", base64.StdEncoding.EncodedLen(codexImageInputSizeLimit+1))
+	tooMany := make([]string, codexImageInputCountLimit+1)
+	for index := range tooMany {
+		tooMany[index] = fmt.Sprintf("https://example.com/reference-%d.png", index)
+	}
+
+	testCases := []struct {
+		name          string
+		entries       []string
+		errorContains string
+	}{
+		{name: "empty", entries: []string{}, errorContains: "image is required"},
+		{name: "too many", entries: tooMany, errorContains: "at most 16 reference images"},
+		{name: "oversized inline image", entries: []string{oversizedInline}, errorContains: "exceeds the 50 MiB image limit"},
+		{name: "non image data URL", entries: []string{"data:text/plain;base64,SGVsbG8="}, errorContains: "image data URL"},
+		{name: "unsupported image MIME", entries: []string{"data:image/svg+xml;base64,PHN2Zy8+"}, errorContains: "unsupported image type"},
+		{name: "valid inline image", entries: []string{validInline}},
+		{name: "valid HTTPS image", entries: []string{"https://example.com/reference.png"}},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			raw, err := common.Marshal(testCase.entries)
+			require.NoError(t, err)
+			images, _, err := readCodexJSONEditImages(dto.ImageRequest{Images: json.RawMessage(raw)})
+			if testCase.errorContains != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), testCase.errorContains)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, testCase.entries, images)
+		})
+	}
+}
+
+func TestReadCodexEditImagesRejectsTooManyFiles(t *testing.T) {
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	for index := 0; index < codexImageInputCountLimit+1; index++ {
+		part, err := writer.CreateFormFile("image[]", fmt.Sprintf("reference-%d.png", index))
+		require.NoError(t, err)
+		_, err = part.Write([]byte("image"))
+		require.NoError(t, err)
+	}
+	require.NoError(t, writer.Close())
+
+	request := httptest.NewRequest(http.MethodPost, "/v1/images/edits", &body)
+	request.Header.Set("Content-Type", writer.FormDataContentType())
+	require.NoError(t, request.ParseMultipartForm(1<<20))
+	requestContext, _ := gin.CreateTestContext(httptest.NewRecorder())
+	requestContext.Request = request
+
+	_, _, err := readCodexEditImages(requestContext)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "at most 16 reference images")
+}
+
 func TestRelayImageOverCodexParsesImageAndUsage(t *testing.T) {
 	sse := strings.Join([]string{
 		`data: {"type":"response.output_item.done","item":{"type":"image_generation_call","result":"QUJD","revised_prompt":"a red circle"}}`,
@@ -183,6 +255,100 @@ func TestRelayImageOverCodexParsesImageAndUsage(t *testing.T) {
 	require.Len(t, imageResponse.Data, 1)
 	assert.Equal(t, "QUJD", imageResponse.Data[0].B64Json)
 	assert.Equal(t, "a red circle", imageResponse.Data[0].RevisedPrompt)
+}
+
+func TestRelayImageOverCodexUsesDeliveredImageCount(t *testing.T) {
+	requestedCount := 2
+	testCases := []struct {
+		name    string
+		newInfo func() *relaycommon.RelayInfo
+		verify  func(*testing.T, *relaycommon.RelayInfo)
+	}{
+		{
+			name: "tiered expression",
+			newInfo: func() *relaycommon.RelayInfo {
+				return &relaycommon.RelayInfo{TieredBillingSnapshot: &billingexpr.BillingSnapshot{EstimatedImageCount: &requestedCount}}
+			},
+			verify: func(t *testing.T, info *relaycommon.RelayInfo) {
+				require.NotNil(t, info.BillingImageCount)
+				assert.Equal(t, 1, *info.BillingImageCount)
+			},
+		},
+		{
+			name: "fixed price",
+			newInfo: func() *relaycommon.RelayInfo {
+				priceData := hosttypes.PriceData{UsePrice: true}
+				priceData.AddOtherRatio("n", 2)
+				return &relaycommon.RelayInfo{PriceData: priceData}
+			},
+			verify: func(t *testing.T, info *relaycommon.RelayInfo) {
+				assert.Nil(t, info.BillingImageCount)
+				assert.Equal(t, 1.0, info.PriceData.OtherRatios()["n"])
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			info := testCase.newInfo()
+			sse := "data: {\"type\":\"response.output_item.done\",\"item\":{\"type\":\"image_generation_call\",\"result\":\"QUJD\"}}\n\n" +
+				"data: {\"type\":\"response.completed\",\"response\":{\"created_at\":1700000000}}\n\n"
+			recorder := httptest.NewRecorder()
+			requestContext, _ := gin.CreateTestContext(recorder)
+			_, apiError := RelayImageOverCodex(requestContext, info, &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(sse)),
+			})
+			require.Nil(t, apiError)
+			testCase.verify(t, info)
+		})
+	}
+}
+
+func TestRelayImageOverCodexStopsAtCompleted(t *testing.T) {
+	payload := "data: {\"type\":\"response.output_item.done\",\"item\":{\"type\":\"image_generation_call\",\"result\":\"QUJD\"}}\n\n" +
+		"data: {\"type\":\"response.completed\",\"response\":{\"created_at\":1700000000}}\n\n"
+	recorder := httptest.NewRecorder()
+	requestContext, _ := gin.CreateTestContext(recorder)
+	_, apiError := RelayImageOverCodex(requestContext, &relaycommon.RelayInfo{}, &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(io.MultiReader(strings.NewReader(payload), codexImageReadAfterCompleted{})),
+	})
+	require.Nil(t, apiError)
+	assert.Equal(t, http.StatusOK, recorder.Code)
+}
+
+func TestRelayImageOverCodexRejectsBareErrorEvent(t *testing.T) {
+	payload := "data: {\"type\":\"response.output_item.done\",\"item\":{\"type\":\"image_generation_call\",\"result\":\"QUJD\"}}\n\n" +
+		"data: {\"type\":\"error\",\"code\":\"server_error\",\"message\":\"generation aborted\"}\n\n"
+	recorder := httptest.NewRecorder()
+	requestContext, _ := gin.CreateTestContext(recorder)
+	_, apiError := RelayImageOverCodex(requestContext, &relaycommon.RelayInfo{}, &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(strings.NewReader(payload)),
+	})
+	require.NotNil(t, apiError)
+	assert.False(t, requestContext.Writer.Written())
+}
+
+func TestRelayImageOverCodexIgnoresEventsAfterCompleted(t *testing.T) {
+	sse := strings.Join([]string{
+		`data: {"type":"response.output_item.done","item":{"type":"image_generation_call","result":"QUJD"}}`,
+		`data: {"type":"response.completed","response":{"created_at":1700000000}}`,
+		`data: {"type":"response.output_item.done","item":{"type":"image_generation_call","result":"REVG"}}`,
+		"",
+	}, "\n\n")
+	recorder := httptest.NewRecorder()
+	requestContext, _ := gin.CreateTestContext(recorder)
+	_, apiError := RelayImageOverCodex(requestContext, &relaycommon.RelayInfo{}, &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(strings.NewReader(sse)),
+	})
+	require.Nil(t, apiError)
+	var response dto.ImageResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	require.Len(t, response.Data, 1)
+	assert.Equal(t, "QUJD", response.Data[0].B64Json)
 }
 
 func TestRelayImageOverCodexDoesNotGuessUsage(t *testing.T) {
@@ -234,10 +400,13 @@ func TestGetRequestURLImageUsesResponsesEndpoint(t *testing.T) {
 
 func TestResolveImageCarrierModelFallsBackSafely(t *testing.T) {
 	original := model_setting.GetCodexSettings().ImageCarrierModel
-	t.Cleanup(func() { model_setting.GetCodexSettings().ImageCarrierModel = original })
-	model_setting.GetCodexSettings().ImageCarrierModel = ""
+	settings := config.GlobalConfig.Get("codex")
+	t.Cleanup(func() {
+		require.NoError(t, config.UpdateConfigFromMap(settings, map[string]string{"image_carrier_model": original}))
+	})
+	require.NoError(t, config.UpdateConfigFromMap(settings, map[string]string{"image_carrier_model": ""}))
 	assert.Equal(t, defaultImageCarrierModel, resolveImageCarrierModel(&relaycommon.RelayInfo{}))
-	model_setting.GetCodexSettings().ImageCarrierModel = "gpt-global"
+	require.NoError(t, config.UpdateConfigFromMap(settings, map[string]string{"image_carrier_model": "gpt-global"}))
 	assert.Equal(t, "gpt-global", resolveImageCarrierModel(&relaycommon.RelayInfo{}))
 }
 
@@ -253,4 +422,11 @@ func TestFileHeaderToDataURLRejectsUnsupportedType(t *testing.T) {
 	_, err := fileHeaderToDataURL(fh)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "unsupported image type")
+}
+
+func TestFileHeaderToDataURLRejectsOversizedFile(t *testing.T) {
+	fileHeader := &multipart.FileHeader{Filename: "oversized.png", Size: codexImageInputSizeLimit + 1}
+	_, err := fileHeaderToDataURL(fileHeader)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "exceeds the 50 MiB image limit")
 }

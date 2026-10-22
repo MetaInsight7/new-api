@@ -31,7 +31,10 @@ import (
 // 而不是静默截断后误报 "no image returned"（见 F8）。
 const codexImageStreamReadLimit = 256 << 20 // 256 MiB
 
-const codexImageInputSizeLimit = 50 << 20
+const (
+	codexImageInputSizeLimit  = 50 << 20
+	codexImageInputCountLimit = 16
+)
 
 // resolveImageCarrierModel：per-channel 覆盖 > 全局设置 > 代码默认 gpt-5.4。
 func resolveImageCarrierModel(info *relaycommon.RelayInfo) string {
@@ -164,6 +167,9 @@ func readCodexEditImages(c *gin.Context) (images []string, mask string, err erro
 	if len(files) == 0 {
 		return nil, "", errors.New("image is required")
 	}
+	if len(files) > codexImageInputCountLimit {
+		return nil, "", fmt.Errorf("at most %d reference images are supported", codexImageInputCountLimit)
+	}
 	for _, fh := range files {
 		u, e := fileHeaderToDataURL(fh)
 		if e != nil {
@@ -180,6 +186,9 @@ func readCodexEditImages(c *gin.Context) (images []string, mask string, err erro
 		}
 		mask = u
 	}
+	if err := validateCodexImageEntries(images); err != nil {
+		return nil, "", err
+	}
 	return images, mask, nil
 }
 
@@ -189,7 +198,7 @@ func readCodexEditImages(c *gin.Context) (images []string, mask string, err erro
 func readCodexJSONEditImages(request dto.ImageRequest) (images []string, mask string, err error) {
 	appendValue := func(raw json.RawMessage) error {
 		var value string
-		if err := json.Unmarshal(raw, &value); err == nil {
+		if err := common.Unmarshal(raw, &value); err == nil {
 			if strings.TrimSpace(value) != "" {
 				value = strings.TrimSpace(value)
 				if err := validateCodexImageReference(value); err != nil {
@@ -202,7 +211,7 @@ func readCodexJSONEditImages(request dto.ImageRequest) (images []string, mask st
 		var object struct {
 			URL string `json:"url"`
 		}
-		if err := json.Unmarshal(raw, &object); err != nil || strings.TrimSpace(object.URL) == "" {
+		if err := common.Unmarshal(raw, &object); err != nil || strings.TrimSpace(object.URL) == "" {
 			return errors.New("image entries must be URL strings or objects")
 		}
 		object.URL = strings.TrimSpace(object.URL)
@@ -215,7 +224,7 @@ func readCodexJSONEditImages(request dto.ImageRequest) (images []string, mask st
 
 	if len(request.Images) > 0 && string(request.Images) != "null" {
 		var values []json.RawMessage
-		if err := json.Unmarshal(request.Images, &values); err != nil {
+		if err := common.Unmarshal(request.Images, &values); err != nil {
 			return nil, "", fmt.Errorf("codex image: invalid images field: %w", err)
 		}
 		for _, value := range values {
@@ -229,10 +238,28 @@ func readCodexJSONEditImages(request dto.ImageRequest) (images []string, mask st
 			return nil, "", fmt.Errorf("codex image: invalid image field: %w", err)
 		}
 	}
-	if len(images) == 0 {
-		return nil, "", errors.New("image is required")
+	if err := validateCodexImageEntries(images); err != nil {
+		return nil, "", err
 	}
 	return images, "", nil
+}
+
+func validateCodexImageEntries(entries []string) error {
+	if len(entries) == 0 {
+		return errors.New("image is required")
+	}
+	if len(entries) > codexImageInputCountLimit {
+		return fmt.Errorf("at most %d reference images are supported", codexImageInputCountLimit)
+	}
+	for _, entry := range entries {
+		if err := validateCodexImageReference(entry); err != nil {
+			return err
+		}
+		if err := validateCodexInlineImage(entry); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func validateCodexImageReference(value string) error {
@@ -240,6 +267,42 @@ func validateCodexImageReference(value string) error {
 		return nil
 	}
 	return errors.New("image entries must use an image data URL or HTTP(S) URL")
+}
+
+func validateCodexInlineImage(value string) error {
+	if !strings.HasPrefix(value, "data:") {
+		return nil
+	}
+	separator := strings.IndexByte(value, ',')
+	if separator < 0 {
+		return errors.New("image data URL must contain base64 data")
+	}
+	metadata := strings.Split(value[len("data:"):separator], ";")
+	if len(metadata) != 2 || metadata[1] != "base64" {
+		return errors.New("image data URL must use base64 encoding")
+	}
+	switch strings.ToLower(metadata[0]) {
+	case "image/png", "image/jpeg", "image/webp", "image/gif":
+	default:
+		return fmt.Errorf("unsupported image type %q", metadata[0])
+	}
+
+	payload := value[separator+1:]
+	if len(payload) > base64.StdEncoding.EncodedLen(codexImageInputSizeLimit) {
+		return fmt.Errorf("inline image exceeds the %d MiB image limit", codexImageInputSizeLimit/(1<<20))
+	}
+	decodedSize := base64.StdEncoding.DecodedLen(len(payload))
+	padding := 0
+	if strings.HasSuffix(payload, "==") {
+		padding = 2
+	} else if strings.HasSuffix(payload, "=") {
+		padding = 1
+	}
+	decodedSize -= min(decodedSize, padding)
+	if decodedSize > codexImageInputSizeLimit {
+		return fmt.Errorf("inline image exceeds the %d MiB image limit", codexImageInputSizeLimit/(1<<20))
+	}
+	return nil
 }
 
 // imageIndexKeyLess 比较两个形如 "image[N]" 的键，优先按 N 的数值升序；
@@ -338,9 +401,10 @@ func RelayImageOverCodex(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 		hasUsage      bool
 		bytesRead     int64
 		limitHit      bool
+		terminal      bool
 	)
 
-	for {
+	for !terminal {
 		line, err := reader.ReadString('\n')
 		bytesRead += int64(len(line))
 		if bytesRead >= sentinel {
@@ -371,6 +435,7 @@ func RelayImageOverCodex(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 						if u := gjson.Get(payload, "response.tool_usage.image_gen"); u.Exists() {
 							imgUsage, hasUsage = u, true
 						}
+						terminal = true
 					case "response.failed":
 						// 白标：上游错误详情仅落服务端日志，绝不透传给客户端（可能泄露
 						// ChatGPT/OpenAI 品牌或内部模型名）。客户端只收到通用错误。
@@ -378,9 +443,21 @@ func RelayImageOverCodex(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 							common.SysError(fmt.Sprintf("codex image: upstream reported failure: %s", upstreamMsg))
 						}
 						return nil, types.NewError(errors.New("codex image generation failed"), types.ErrorCodeBadResponseBody)
+					case "error":
+						upstreamMessage := gjson.Get(payload, "message").String()
+						if upstreamMessage == "" {
+							upstreamMessage = gjson.Get(payload, "error.message").String()
+						}
+						if upstreamMessage != "" {
+							common.SysError(fmt.Sprintf("codex image: upstream reported error event: %s", upstreamMessage))
+						}
+						return nil, types.NewError(errors.New("codex image generation failed"), types.ErrorCodeBadResponseBody)
 					}
 				}
 			}
+		}
+		if terminal {
+			break
 		}
 		if err == io.EOF {
 			break
@@ -398,6 +475,7 @@ func RelayImageOverCodex(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	if len(data) == 0 {
 		return nil, types.NewError(errors.New("codex image: no image returned"), types.ErrorCodeBadResponseBody)
 	}
+	info.UpdateImageCount(int64(len(data)))
 	if created == 0 {
 		created = time.Now().Unix()
 	}
