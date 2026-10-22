@@ -221,6 +221,23 @@ func TestRestoreConnectionContextRejectsChangedAdvancedCustomRoute(t *testing.T)
 	assert.ErrorContains(t, apiErr, "upstream route changed")
 }
 
+func TestBindResponsesWSChannelSnapshotsCodexFingerprintSeed(t *testing.T) {
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodGet, "/v1/responses", nil)
+	common.SetContextKey(c, constant.ContextKeyChannelCodexFingerprintSeed, "new-channel-seed")
+	channel := &model.Channel{Id: 37, Name: "codex", Key: "sk-test", Type: constant.ChannelTypeCodex}
+	info := &relaycommon.RelayInfo{UsingGroup: "default", ChannelMeta: &relaycommon.ChannelMeta{ApiKey: "sk-test"}}
+	session := &responsesWSSession{}
+
+	session.bindResponsesWSChannel(c, channel, info, "gpt-5.1")
+	common.SetContextKey(c, constant.ContextKeyChannelCodexFingerprintSeed, "old-channel-seed")
+	for key, value := range session.lockedContext {
+		c.Set(string(key), value)
+	}
+
+	assert.Equal(t, "new-channel-seed", common.GetContextKeyString(c, constant.ContextKeyChannelCodexFingerprintSeed))
+}
+
 func TestResponsesWSChannelRoutingRequiresExplicitOptIn(t *testing.T) {
 	require.NoError(t, i18n.Init())
 	database := setupRelayChannelDB(t)

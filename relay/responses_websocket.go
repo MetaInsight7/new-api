@@ -724,12 +724,15 @@ func (s *responsesWSSession) bindResponsesWSChannel(c *gin.Context, channel *app
 	s.lockedKey, s.lockedKeyIndex = info.ApiKey, info.ChannelMultiKeyIndex
 	s.lockedRoute, _ = channel.GetOtherSettings().AdvancedCustom.MatchPathForModel(c.Request.URL.Path, modelName)
 	s.lockedContext = make(map[appconstant.ContextKey]any)
+	// Keep this list aligned with per-channel context read by relay attempts;
+	// otherwise rebinding can retain a value from the previous channel.
 	for _, key := range []appconstant.ContextKey{
 		appconstant.ContextKeyChannelId, appconstant.ContextKeyChannelName, appconstant.ContextKeyChannelType,
 		appconstant.ContextKeyChannelCreateTime, appconstant.ContextKeyChannelSetting, appconstant.ContextKeyChannelOtherSetting,
 		appconstant.ContextKeyChannelParamOverride, appconstant.ContextKeyChannelHeaderOverride, appconstant.ContextKeyChannelOrganization,
 		appconstant.ContextKeyChannelAutoBan, appconstant.ContextKeyChannelModelMapping, appconstant.ContextKeyChannelStatusCodeMapping,
 		appconstant.ContextKeyChannelIsMultiKey, appconstant.ContextKeyChannelMultiKeyIndex, appconstant.ContextKeyChannelKey, appconstant.ContextKeyChannelBaseUrl,
+		appconstant.ContextKeyChannelCodexFingerprintSeed,
 	} {
 		if value, ok := c.Get(string(key)); ok {
 			s.lockedContext[key] = value
