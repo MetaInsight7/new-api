@@ -279,7 +279,7 @@ func BuildPrometheusText(ctx context.Context) (string, error) {
 	fmt.Fprintf(&output, "# HELP newapi_perf_metrics_series Number of application metric series exposed by this endpoint.\n# TYPE newapi_perf_metrics_series gauge\nnewapi_perf_metrics_series %d\n", series)
 	output.WriteString("# HELP newapi_model_requests_total Total model requests by model and status.\n# TYPE newapi_model_requests_total counter\n")
 	for _, snapshot := range requestSnapshots {
-		fmt.Fprintf(&output, "newapi_model_requests_total{model=\"%s\",status=\"%s\"} %d\n", escapePrometheusLabelValue(snapshot.model), snapshot.status, snapshot.count)
+		fmt.Fprintf(&output, "newapi_model_requests_total{model=\"%s\",status=\"%s\"} %d\n", escapePrometheusLabel(snapshot.model), snapshot.status, snapshot.count)
 	}
 	if includeModelMetadata {
 		fmt.Fprintf(&output, "# HELP newapi_model_histogram_active_models Current admitted model performance groups.\n# TYPE newapi_model_histogram_active_models gauge\nnewapi_model_histogram_active_models %d\n", activeModels)
@@ -295,7 +295,7 @@ func BuildPrometheusText(ctx context.Context) (string, error) {
 			writeModelHistogram(&output, "newapi_model_request_duration_seconds", snapshot.model, snapshot.latency, modelLatencyBounds)
 			writeModelHistogram(&output, "newapi_model_ttft_seconds", snapshot.model, snapshot.ttft, modelTTFTBounds)
 			if snapshot.streamSuccess > 0 {
-				fmt.Fprintf(&output, "newapi_model_stream_success_total{model=\"%s\"} %d\n", escapePrometheusLabelValue(snapshot.model), snapshot.streamSuccess)
+				fmt.Fprintf(&output, "newapi_model_stream_success_total{model=\"%s\"} %d\n", escapePrometheusLabel(snapshot.model), snapshot.streamSuccess)
 			}
 			categories := make([]string, 0, len(snapshot.errors))
 			for category := range snapshot.errors {
@@ -303,7 +303,7 @@ func BuildPrometheusText(ctx context.Context) (string, error) {
 			}
 			sort.Strings(categories)
 			for _, category := range categories {
-				fmt.Fprintf(&output, "newapi_model_errors_total{model=\"%s\",error_category=\"%s\"} %d\n", escapePrometheusLabelValue(snapshot.model), category, snapshot.errors[category])
+				fmt.Fprintf(&output, "newapi_model_errors_total{model=\"%s\",error_category=\"%s\"} %d\n", escapePrometheusLabel(snapshot.model), category, snapshot.errors[category])
 			}
 		}
 	}
@@ -477,7 +477,7 @@ func formatPrometheusFloat(value float64) string {
 
 func escapePrometheusLabel(value string) string {
 	value = strings.Map(func(r rune) rune {
-		if unicode.IsControl(r) {
+		if r != '\n' && unicode.IsControl(r) {
 			return -1
 		}
 		return r
@@ -485,9 +485,5 @@ func escapePrometheusLabel(value string) string {
 	if runes := []rune(value); len(runes) > 256 {
 		value = string(runes[:256])
 	}
-	return strings.NewReplacer("\\", "\\\\", "\n", "\\n", "\"", "\\\"").Replace(value)
-}
-
-func escapePrometheusLabelValue(value string) string {
 	return strings.NewReplacer("\\", "\\\\", "\n", "\\n", "\"", "\\\"").Replace(value)
 }

@@ -171,7 +171,7 @@ func writeModelHistogram(output *strings.Builder, name, modelName string, histog
 	if histogram.count == 0 {
 		return
 	}
-	label := escapePrometheusLabelValue(modelName)
+	label := escapePrometheusLabel(modelName)
 	for index, bound := range bounds {
 		fmt.Fprintf(output, "%s_bucket{model=\"%s\",le=\"%s\"} %d\n", name, label, formatPrometheusFloat(bound), histogram.buckets[index])
 	}

@@ -63,6 +63,33 @@ func TestFinalModelRequestsCountSampledCancellations(testContext *testing.T) {
 	}
 }
 
+func TestFinalModelLabelsAreSanitizedAndParseable(testContext *testing.T) {
+	isolatePrometheusMetrics(testContext)
+	modelName := "model\"\\\n\x1f" + strings.Repeat("界", 300)
+	expectedModelName := "model\"\\\n" + strings.Repeat("界", 248)
+	RecordRelayResult(context.Background(), &relaycommon.RelayInfo{
+		OriginModelName: modelName,
+		StartTime:       time.Now().Add(-time.Second),
+	}, nil)
+
+	text, err := BuildPrometheusText(context.Background())
+	require.NoError(testContext, err)
+	require.NotContains(testContext, text, "\x1f")
+
+	parser := expfmt.TextParser{}
+	families, err := parser.TextToMetricFamilies(strings.NewReader(text))
+	require.NoError(testContext, err)
+	for _, familyName := range []string{
+		"newapi_model_requests_total",
+		"newapi_model_request_duration_seconds",
+	} {
+		metrics := families[familyName].GetMetric()
+		require.Len(testContext, metrics, 1)
+		require.Equal(testContext, expectedModelName, metrics[0].GetLabel()[0].GetValue())
+		require.Len(testContext, []rune(metrics[0].GetLabel()[0].GetValue()), 256)
+	}
+}
+
 func isolatePrometheusMetrics(testContext *testing.T) {
 	testContext.Helper()
 	testContext.Setenv("PROMETHEUS_MAX_SERIES_PER_SCRAPE", "5000")
