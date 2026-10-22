@@ -33,6 +33,10 @@ type CodexOAuthKey struct {
 
 var codexCredentialRefreshes singleflight.Group
 
+// codexCredentialPersistTimeout bounds the detached write so a stuck database
+// cannot pin the shared refresh goroutine forever.
+const codexCredentialPersistTimeout = 10 * time.Second
+
 type codexCredentialRefreshResult struct {
 	key     *CodexOAuthKey
 	channel *model.Channel
@@ -123,7 +127,11 @@ func RefreshCodexChannelCredential(ctx context.Context, channelID int, opts Code
 			return nil, err
 		}
 
-		updated := model.DB.WithContext(ctx).Model(&model.Channel{}).Where(map[string]any{"id": ch.Id, "type": constant.ChannelTypeCodex, "key": ch.Key}).Update("key", string(encoded))
+		// The upstream has already rotated the refresh token for every waiter in
+		// this singleflight call. One request cancellation must not discard it.
+		persistCtx, persistCancel := context.WithTimeout(context.WithoutCancel(ctx), codexCredentialPersistTimeout)
+		defer persistCancel()
+		updated := model.DB.WithContext(persistCtx).Model(&model.Channel{}).Where(map[string]any{"id": ch.Id, "type": constant.ChannelTypeCodex, "key": ch.Key}).Update("key", string(encoded))
 		if updated.Error != nil {
 			return nil, errors.New("failed to persist refreshed Codex credential")
 		}

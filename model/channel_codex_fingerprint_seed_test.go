@@ -1,14 +1,18 @@
 package model
 
 import (
+	"context"
 	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/glebarez/sqlite"
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
@@ -157,4 +161,60 @@ func TestUpdateCodexFingerprintModeByIdsIsAtomicAndPreservesSettings(t *testing.
 	var untouched Channel
 	require.NoError(t, DB.First(&untouched, second.Id).Error)
 	require.Empty(t, untouched.GetSetting().CodexFingerprintMode)
+}
+
+func TestUpdateCodexFingerprintModeByIdsPreservesConcurrentSettingEdit(t *testing.T) {
+	for _, dialect := range []string{"mysql", "postgres"} {
+		t.Run(dialect, func(t *testing.T) {
+			database := newCodexGovernanceTestDatabase(t, dialect)
+			require.NoError(t, database.AutoMigrate(&Channel{}))
+			channel := Channel{
+				Type: constant.ChannelTypeCodex, Status: common.ChannelStatusEnabled,
+				Name: "fingerprint-concurrent-setting-edit", Key: "unused-test-key",
+				CodexFingerprintSeed: "2e9bce53-8850-4ae9-8c70-a74d9cecb893",
+				Setting:              common.GetPointer(`{"proxy":"http://original-proxy.invalid:8080","codex_fingerprint_mode":"off"}`),
+			}
+			require.NoError(t, database.Create(&channel).Error)
+
+			var injected atomic.Bool
+			editDone := make(chan error, 1)
+			const callbackName = "test:fingerprint-concurrent-setting-edit"
+			require.NoError(t, database.Callback().Query().After("gorm:query").Register(callbackName, func(transaction *gorm.DB) {
+				if transaction.Statement.Table != "channels" || !injected.CompareAndSwap(false, true) {
+					return
+				}
+				go func() {
+					writeContext, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+					defer cancel()
+					editDone <- database.WithContext(writeContext).Transaction(func(tx *gorm.DB) error {
+						var current Channel
+						if err := lockForUpdate(tx).Select("id", "setting").First(&current, "id = ?", channel.Id).Error; err != nil {
+							return err
+						}
+						setting := current.GetSetting()
+						setting.Proxy = "http://new-proxy.invalid:8080"
+						current.SetSetting(setting)
+						return tx.Model(&Channel{}).Where("id = ?", channel.Id).Update("setting", current.Setting).Error
+					})
+				}()
+				select {
+				case editErr := <-editDone:
+					editDone <- editErr
+				case <-time.After(100 * time.Millisecond):
+				}
+			}))
+			t.Cleanup(func() { require.NoError(t, database.Callback().Query().Remove(callbackName)) })
+
+			updatedCount, err := UpdateCodexFingerprintModeByIds([]int{channel.Id}, dto.CodexFingerprintModeFull)
+			require.NoError(t, err)
+			require.Equal(t, 1, updatedCount)
+			require.True(t, injected.Load())
+			require.NoError(t, <-editDone)
+
+			var stored Channel
+			require.NoError(t, database.First(&stored, channel.Id).Error)
+			assert.Equal(t, dto.CodexFingerprintModeFull, stored.GetSetting().NormalizedCodexFingerprintMode())
+			assert.Equal(t, "http://new-proxy.invalid:8080", stored.GetSetting().Proxy)
+		})
+	}
 }

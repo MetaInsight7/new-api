@@ -656,6 +656,12 @@ func validCodexFingerprintSeed(seed string) bool {
 	return err == nil && parsed != uuid.Nil && trimmed == parsed.String()
 }
 
+// ValidCodexFingerprintSeed reports whether a channel already carries a usable
+// fingerprint seed. Request paths use it to avoid a repair query on every call.
+func ValidCodexFingerprintSeed(seed string) bool {
+	return validCodexFingerprintSeed(seed)
+}
+
 const codexFingerprintSeedBackfillBatchSize = 200
 
 func (channel *Channel) prepareCodexFingerprintSeedForInsert() {
@@ -977,9 +983,9 @@ func CleanupChannelPollingLocks() {
 	})
 }
 
-func handlerMultiKeyUpdate(channel *Channel, usingKey string, status int, reason string) {
+func handlerMultiKeyUpdate(channel *Channel, usingKey string, status int, reason string) bool {
 	if status == common.ChannelStatusBanned || channel.Status == common.ChannelStatusBanned {
-		return
+		return false
 	}
 	keys := channel.GetKeys()
 	if len(keys) == 0 {
@@ -995,14 +1001,14 @@ func handlerMultiKeyUpdate(channel *Channel, usingKey string, status int, reason
 		if keyIndex < 0 {
 			if usingKey != "" {
 				common.SysLog(fmt.Sprintf("failed to update multi-key status: channel_id=%d, using key not found", channel.Id))
-				return
+				return false
 			}
 			channel.Status = status
 			info := channel.GetOtherInfo()
 			info["status_reason"] = reason
 			info["status_time"] = common.GetTimestamp()
 			channel.SetOtherInfo(info)
-			return
+			return true
 		}
 		if channel.ChannelInfo.MultiKeyStatusList == nil {
 			channel.ChannelInfo.MultiKeyStatusList = make(map[int]int)
@@ -1030,6 +1036,7 @@ func handlerMultiKeyUpdate(channel *Channel, usingKey string, status int, reason
 			channel.Status = common.ChannelStatusEnabled
 		}
 	}
+	return true
 }
 
 func hasEnabledMultiKey(keys []string, statusList map[int]int) bool {
@@ -1092,14 +1099,18 @@ func updateChannelStatus(channelId int, usingKey string, status int, reason stri
 		}
 
 		beforeStatus := channel.Status
+		statusStateChanged := true
 		if channel.ChannelInfo.IsMultiKey && !manual {
-			handlerMultiKeyUpdate(channel, usingKey, status, reason)
+			statusStateChanged = handlerMultiKeyUpdate(channel, usingKey, status, reason)
 		} else {
 			info := channel.GetOtherInfo()
 			info["status_reason"] = reason
 			info["status_time"] = common.GetTimestamp()
 			channel.SetOtherInfo(info)
 			channel.Status = status
+		}
+		if !statusStateChanged {
+			return nil
 		}
 		if err := channel.saveStatusStateWithDB(tx); err != nil {
 			return err
@@ -1529,7 +1540,9 @@ func UpdateCodexFingerprintModeByIds(ids []int, mode string) (int, error) {
 	updatedCount := 0
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		var channels []Channel
-		if err := tx.Where("id IN ?", ids).Find(&channels).Error; err != nil {
+		// Serialize the read-modify-write cycle with other transactional channel
+		// editors so a stale settings snapshot cannot overwrite their changes.
+		if err := lockForUpdate(tx).Where("id IN ?", ids).Order("id").Find(&channels).Error; err != nil {
 			return err
 		}
 		for i := range channels {

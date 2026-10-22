@@ -60,6 +60,38 @@ func TestUpdateChannelStatusPersistsMultiKeyState(t *testing.T) {
 	assert.Equal(t, 1, stored.ChannelInfo.MultiKeyPollingIndex)
 }
 
+func TestUpdateChannelStatusRefreshesCacheOnlyForRealMultiKeyChanges(t *testing.T) {
+	setupChannelStatusTest(t)
+	common.MemoryCacheEnabled = true
+
+	channel := Channel{
+		Name:   "multi-key-cache-refresh",
+		Type:   constant.ChannelTypeOpenAI,
+		Key:    "key-a\nkey-b",
+		Status: common.ChannelStatusEnabled,
+		ChannelInfo: ChannelInfo{
+			IsMultiKey:   true,
+			MultiKeySize: 2,
+		},
+	}
+	require.NoError(t, DB.Create(&channel).Error)
+	InitChannelCache()
+
+	initialCached, err := CacheGetChannel(channel.Id)
+	require.NoError(t, err)
+	assert.False(t, UpdateChannelStatus(channel.Id, "missing-key", common.ChannelStatusAutoDisabled, "not selected from this channel"))
+	cachedAfterNoop, err := CacheGetChannel(channel.Id)
+	require.NoError(t, err)
+	assert.Same(t, initialCached, cachedAfterNoop, "a rejected key update must not rebuild the full channel cache")
+	assert.Empty(t, cachedAfterNoop.ChannelInfo.MultiKeyStatusList)
+
+	assert.True(t, UpdateChannelStatus(channel.Id, "key-a", common.ChannelStatusAutoDisabled, "provider rejected key"))
+	cachedAfterChange, err := CacheGetChannel(channel.Id)
+	require.NoError(t, err)
+	assert.NotSame(t, initialCached, cachedAfterChange, "a persisted key update must refresh the channel cache")
+	assert.Equal(t, common.ChannelStatusAutoDisabled, cachedAfterChange.ChannelInfo.MultiKeyStatusList[0])
+}
+
 func TestAutomaticChannelStatusPreservesPermanentUnavailability(t *testing.T) {
 	for _, cacheEnabled := range []bool{false, true} {
 		for _, multiKey := range []bool{false, true} {

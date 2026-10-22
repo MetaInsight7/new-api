@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/bytedance/gopkg/util/gopool"
+	"gorm.io/gorm"
 )
 
 const (
@@ -38,7 +40,10 @@ func SyncLatestStableCodexVersion(ctx context.Context) error {
 		return nil
 	}
 
-	stored := resolveSyncedCodexClientVersion()
+	stored, err := resolveSyncedCodexClientVersionFromDB()
+	if err != nil {
+		return err
+	}
 	if compareNormalizedCodexClientVersions(version, stored) <= 0 {
 		return nil
 	}
@@ -91,6 +96,23 @@ func resolveSyncedCodexClientVersion() string {
 		return version
 	}
 	return builtInCodexClientVersion
+}
+
+func resolveSyncedCodexClientVersionFromDB() (string, error) {
+	// Compare against persisted shared state. This node's option cache may not
+	// have observed a newer version written by another node yet.
+	var option model.Option
+	err := model.DB.Select("value").First(&option, "key = ?", OptionKeyCodexSyncedClientVersion).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return builtInCodexClientVersion, nil
+		}
+		return "", err
+	}
+	if version, ok := NormalizeCodexClientVersion(option.Value); ok {
+		return version, nil
+	}
+	return builtInCodexClientVersion, nil
 }
 
 func parseStableOfficialCodexReleaseVersion(tagName, name string, draft, prerelease bool) (string, error) {

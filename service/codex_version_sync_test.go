@@ -120,6 +120,25 @@ func TestSyncLatestStableCodexVersionPersistsOnlyNewerStableRelease(t *testing.T
 	require.NotEmpty(t, requireOptionValue(t, OptionKeyCodexSyncedClientVersionAt))
 }
 
+func TestSyncLatestStableCodexVersionDoesNotDowngradePersistedVersion(t *testing.T) {
+	setupCodexVersionSyncTest(t)
+	require.NoError(t, model.DB.Create(&model.Option{Key: OptionKeyCodexSyncedClientVersion, Value: "0.202.0"}).Error)
+	common.OptionMapRWMutex.Lock()
+	common.OptionMap[OptionKeyCodexSyncedClientVersion] = "0.199.0"
+	common.OptionMapRWMutex.Unlock()
+	codexVersionSyncHTTPClient = &http.Client{Transport: codexVersionSyncRoundTripper(func(request *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader(`{"tag_name":"rust-v0.200.0","draft":false,"prerelease":false}`)),
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Request:    request,
+		}, nil
+	})}
+
+	require.NoError(t, SyncLatestStableCodexVersion(context.Background()))
+	require.Equal(t, "0.202.0", requireOptionValue(t, OptionKeyCodexSyncedClientVersion))
+}
+
 func requireOptionValue(t *testing.T, key string) string {
 	t.Helper()
 	var option model.Option

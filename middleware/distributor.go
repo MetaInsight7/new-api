@@ -617,13 +617,19 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 	common.SetContextKey(c, constant.ContextKeyChannelOtherSetting, channel.GetOtherSettings())
 	if channel.Type == constant.ChannelTypeCodex &&
 		channelSetting.NormalizedCodexFingerprintMode() != dto.CodexFingerprintModeOff {
-		seed, err := model.EnsureCodexFingerprintSeed(channel.Id)
-		if err != nil || seed == "" {
-			return types.NewError(
-				errors.New("codex fingerprint seed is unavailable"),
-				types.ErrorCodeGetChannelFailed,
-				types.ErrOptionWithSkipRetry(),
-			)
+		seed := channel.CodexFingerprintSeed
+		if !model.ValidCodexFingerprintSeed(seed) {
+			// Historical channels can still lack a seed. Keep that one-time repair
+			// path without querying the database for already-migrated channels.
+			var err error
+			seed, err = model.EnsureCodexFingerprintSeed(channel.Id)
+			if err != nil || seed == "" {
+				return types.NewError(
+					errors.New("codex fingerprint seed is unavailable"),
+					types.ErrorCodeGetChannelFailed,
+					types.ErrOptionWithSkipRetry(),
+				)
+			}
 		}
 		common.SetContextKey(c, constant.ContextKeyChannelCodexFingerprintSeed, seed)
 	} else {

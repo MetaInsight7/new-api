@@ -125,6 +125,53 @@ func TestCodexGovernanceProbesUseBaseOptionsAndConfiguredModel(t *testing.T) {
 	assert.Equal(t, before, requests.Load())
 }
 
+func TestCodexGovernanceProbeBindsFailuresToChannelCredential(t *testing.T) {
+	database := setupCodexGovernanceControllerTest(t)
+	const originalKey = `{"access_token":"account-a-access","refresh_token":"account-a-refresh","account_id":"account-a"}`
+	const replacementKey = `{"access_token":"account-b-access","refresh_token":"account-b-refresh","account_id":"account-b"}`
+	channel := model.Channel{
+		Id: 32, Type: constant.ChannelTypeCodex, Status: common.ChannelStatusEnabled,
+		Name: "probe binding", Key: originalKey, Models: "gpt-5.4", Group: "default",
+	}
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if requests.Add(1) == 2 {
+			require.NoError(t, database.Model(&model.Channel{}).Where("id = ?", channel.Id).Update("key", replacementKey).Error)
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusBadRequest)
+		_, err := io.WriteString(writer, `{"error":{"message":"The 'gpt-5.4' model is not supported when using Codex with a ChatGPT account.","type":"invalid_request_error"}}`)
+		assert.NoError(t, err)
+	}))
+	t.Cleanup(server.Close)
+	channel.BaseURL = common.GetPointer(server.URL)
+	require.NoError(t, database.Create(&channel).Error)
+	require.NoError(t, channel.AddAbilities(nil))
+	if service.GetHttpClient() == nil {
+		service.InitHttpClient()
+	}
+	setting := operation_setting.GetCodexModelGovernanceSetting()
+	setting.Enabled, setting.ProbeEnabled = true, true
+
+	assertAbilityEnabled := func(expected bool) {
+		var ability model.Ability
+		require.NoError(t, database.First(&ability, "channel_id = ? AND model = ?", channel.Id, "gpt-5.4").Error)
+		assert.Equal(t, expected, ability.Enabled)
+	}
+	for probeNumber := 1; probeNumber <= 4; probeNumber++ {
+		processed, err := runCodexGovernanceProbes(context.Background(), nil)
+		require.NoError(t, err)
+		require.Equal(t, 1, processed)
+		if probeNumber < 4 {
+			assertAbilityEnabled(true)
+		}
+	}
+	assertAbilityEnabled(false)
+	var stored model.Channel
+	require.NoError(t, database.First(&stored, channel.Id).Error)
+	assert.Equal(t, replacementKey, stored.Key)
+}
+
 func TestCodexGovernanceReviewsBindActionAndRecordReviewer(t *testing.T) {
 	setupCodexGovernanceControllerTest(t)
 	record, err := model.UpsertCodexModelGovernancePending(model.CodexModelGovernancePendingInput{ModelName: "review-model", Source: model.CodexModelGovernanceSourceOfficialNotice})

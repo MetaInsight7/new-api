@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 const CodexModelGovernanceProbeTaskType = "codex_model_governance_probe"
@@ -153,6 +154,20 @@ func runCodexGovernanceProbes(ctx context.Context, report func(int, int)) (int, 
 			if !handler.Enabled() {
 				return processed, nil
 			}
+			bindingUnchanged, bindingErr := codexProbeBindingUnchanged(channel.Id, channel.Key)
+			if bindingErr != nil {
+				return processed, bindingErr
+			}
+			if !bindingUnchanged {
+				if err := model.ResetCodexModelGovernanceProbeFailure(modelName, channel.Id); err != nil {
+					return processed, err
+				}
+				processed++
+				if report != nil {
+					report(processed, total)
+				}
+				continue
+			}
 			if result.localErr == nil && result.newAPIError == nil {
 				err = model.ResetCodexModelGovernanceProbeFailure(modelName, channel.Id)
 				if err == nil {
@@ -195,6 +210,18 @@ func runCodexGovernanceProbes(ctx context.Context, report func(int, int)) (int, 
 		}
 	}
 	return processed, nil
+}
+
+func codexProbeBindingUnchanged(channelID int, probedKey string) (bool, error) {
+	var current model.Channel
+	err := model.DB.Select("id", "key").First(&current, "id = ?", channelID).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return current.Key == probedKey, nil
 }
 
 func runCodexGovernanceNoticeMonitor(ctx context.Context, report func(int, int)) (int, error) {
