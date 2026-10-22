@@ -35,6 +35,7 @@ import {
   useDebouncedColumnFilter,
   useDataTable,
 } from '@/components/data-table'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -313,8 +314,11 @@ export function ChannelsTable() {
 
   const totalCount = data?.data?.total || 0
   const typeCounts = data?.data?.type_counts
-  const { statusById: concurrencyStatusById } =
-    useChannelConcurrencySnapshots(channels)
+  const {
+    statusById: concurrencyStatusById,
+    snapshotStale,
+    snapshotReason,
+  } = useChannelConcurrencySnapshots(channels)
 
   // Columns configuration
   const columns = useChannelsColumns({
@@ -422,125 +426,142 @@ export function ChannelsTable() {
   ]
 
   return (
-    <DataTablePage
-      table={table}
-      columns={columns}
-      isLoading={isLoading}
-      isFetching={isFetching}
-      emptyTitle={t('No Channels Found')}
-      emptyDescription={t(
-        'No channels available. Create your first channel to get started.'
+    <div className='flex h-full min-h-0 flex-col gap-3'>
+      {snapshotStale && (
+        <Alert>
+          <AlertTitle>{t('Channel concurrency unavailable')}</AlertTitle>
+          <AlertDescription>
+            {snapshotReason === 'concurrency snapshot unavailable'
+              ? t(
+                  'The shared concurrency snapshot is unavailable. Load values are hidden until it recovers.'
+                )
+              : t(
+                  'Live channel concurrency data is unavailable. Load values are hidden to avoid presenting stale zeroes.'
+                )}
+          </AlertDescription>
+        </Alert>
       )}
-      skeletonKeyPrefix='channel-skeleton'
-      enableCardView
-      viewModeStorageKey={CHANNELS_VIEW_MODE_STORAGE_KEY}
-      renderCard={(row, { isSelected }) => {
-        const channel = row.original
-        const concurrencyStatus =
-          !isTagAggregateRow(channel) && channel.max_concurrency > 0
-            ? concurrencyStatusById.get(channel.id)
-            : undefined
-        return (
-          <ChannelCard
-            row={row}
-            isSelected={isSelected}
-            concurrencyStatus={concurrencyStatus}
-            showConcurrency={!isMobile}
-          />
-        )
-      }}
-      cardGridClassName='grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-3'
-      applyHeaderSize
-      getColumnClassName={(columnId) =>
-        isMobile && columnId === 'max_concurrency' ? 'hidden' : undefined
-      }
-      toolbarProps={{
-        collapsibleOnMobile: true,
-        searchPlaceholder: t('Filter by name, ID, or key...'),
-        searchDebounceMs: 500,
-        onReset: () => {
-          resetModelFilterInput()
-        },
-        additionalSearch: (
-          <Input
-            placeholder={t('Filter by model...')}
-            value={modelFilterInput}
-            onChange={onModelFilterInputChange}
-            onCompositionStart={onModelFilterCompositionStart}
-            onCompositionEnd={onModelFilterCompositionEnd}
-            className='w-full sm:w-[150px] lg:w-[180px]'
-          />
-        ),
-        filters: [
-          {
-            columnId: 'status',
-            title: t('Status'),
-            options: [...CHANNEL_STATUS_OPTIONS],
-            singleSelect: true,
-          },
-          {
-            columnId: 'type',
-            title: t('Type'),
-            options: typeFilterOptions,
-            singleSelect: true,
-          },
-          {
-            columnId: 'group',
-            title: t('Group'),
-            options: groupFilterOptions,
-            singleSelect: true,
-          },
-        ],
-        preActions: (
-          <>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    variant='ghost'
-                    size='icon'
-                    onClick={() => setSensitiveVisible(!sensitiveVisible)}
-                    aria-label={sensitiveVisible ? t('Hide') : t('Show')}
-                    className='text-muted-foreground hover:text-foreground size-8'
-                  />
-                }
-              >
-                {sensitiveVisible ? <Eye /> : <EyeOff />}
-              </TooltipTrigger>
-              <TooltipContent>
-                {sensitiveVisible ? t('Hide') : t('Show')}
-              </TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    variant='ghost'
-                    size='icon'
-                    onClick={() => void refetch()}
-                    aria-label={t('Refresh')}
-                    aria-busy={isFetching}
-                    className='text-muted-foreground hover:text-foreground size-8'
-                  />
-                }
-              >
-                <RefreshCw className={cn(isFetching && 'animate-spin')} />
-              </TooltipTrigger>
-              <TooltipContent>{t('Refresh')}</TooltipContent>
-            </Tooltip>
-          </>
-        ),
-      }}
-      getRowClassName={(row, { isMobile }) => {
-        if (!isDisabledChannelRow(row.original)) {
-          return undefined
+      <DataTablePage
+        table={table}
+        columns={columns}
+        isLoading={isLoading}
+        isFetching={isFetching}
+        emptyTitle={t('No Channels Found')}
+        emptyDescription={t(
+          'No channels available. Create your first channel to get started.'
+        )}
+        skeletonKeyPrefix='channel-skeleton'
+        enableCardView
+        viewModeStorageKey={CHANNELS_VIEW_MODE_STORAGE_KEY}
+        renderCard={(row, { isSelected }) => {
+          const channel = row.original
+          const concurrencyStatus =
+            !isTagAggregateRow(channel) && channel.max_concurrency > 0
+              ? concurrencyStatusById.get(channel.id)
+              : undefined
+          return (
+            <ChannelCard
+              row={row}
+              isSelected={isSelected}
+              concurrencyStatus={concurrencyStatus}
+              showConcurrency={!isMobile}
+            />
+          )
+        }}
+        cardGridClassName='grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-3'
+        applyHeaderSize
+        getColumnClassName={(columnId) =>
+          isMobile && columnId === 'max_concurrency' ? 'hidden' : undefined
         }
-        if (isMobile) {
-          return DISABLED_ROW_MOBILE
-        }
-        return DISABLED_ROW_DESKTOP
-      }}
-      bulkActions={batchMode ? <DataTableBulkActions table={table} /> : null}
-    />
+        toolbarProps={{
+          collapsibleOnMobile: true,
+          searchPlaceholder: t('Filter by name, ID, or key...'),
+          searchDebounceMs: 500,
+          onReset: () => {
+            resetModelFilterInput()
+          },
+          additionalSearch: (
+            <Input
+              placeholder={t('Filter by model...')}
+              value={modelFilterInput}
+              onChange={onModelFilterInputChange}
+              onCompositionStart={onModelFilterCompositionStart}
+              onCompositionEnd={onModelFilterCompositionEnd}
+              className='w-full sm:w-[150px] lg:w-[180px]'
+            />
+          ),
+          filters: [
+            {
+              columnId: 'status',
+              title: t('Status'),
+              options: [...CHANNEL_STATUS_OPTIONS],
+              singleSelect: true,
+            },
+            {
+              columnId: 'type',
+              title: t('Type'),
+              options: typeFilterOptions,
+              singleSelect: true,
+            },
+            {
+              columnId: 'group',
+              title: t('Group'),
+              options: groupFilterOptions,
+              singleSelect: true,
+            },
+          ],
+          preActions: (
+            <>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      variant='ghost'
+                      size='icon'
+                      onClick={() => setSensitiveVisible(!sensitiveVisible)}
+                      aria-label={sensitiveVisible ? t('Hide') : t('Show')}
+                      className='text-muted-foreground hover:text-foreground size-8'
+                    />
+                  }
+                >
+                  {sensitiveVisible ? <Eye /> : <EyeOff />}
+                </TooltipTrigger>
+                <TooltipContent>
+                  {sensitiveVisible ? t('Hide') : t('Show')}
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      variant='ghost'
+                      size='icon'
+                      onClick={() => void refetch()}
+                      aria-label={t('Refresh')}
+                      aria-busy={isFetching}
+                      className='text-muted-foreground hover:text-foreground size-8'
+                    />
+                  }
+                >
+                  <RefreshCw className={cn(isFetching && 'animate-spin')} />
+                </TooltipTrigger>
+                <TooltipContent>{t('Refresh')}</TooltipContent>
+              </Tooltip>
+            </>
+          ),
+        }}
+        getRowClassName={(row, { isMobile }) => {
+          if (!isDisabledChannelRow(row.original)) {
+            return undefined
+          }
+          if (isMobile) {
+            return DISABLED_ROW_MOBILE
+          }
+          return DISABLED_ROW_DESKTOP
+        }}
+        bulkActions={batchMode ? <DataTableBulkActions table={table} /> : null}
+        className='min-h-0 flex-1'
+      />
+    </div>
   )
 }

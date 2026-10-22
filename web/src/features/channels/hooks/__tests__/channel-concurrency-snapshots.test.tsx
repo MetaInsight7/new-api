@@ -108,6 +108,31 @@ test('requests the current page limited channels immediately with a stable sorte
   expect(get).toHaveBeenCalledTimes(1)
 })
 
+test('marks an unavailable authoritative snapshot stale without showing zero loads', async () => {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  vi.spyOn(api, 'get').mockResolvedValue({
+    data: {
+      success: true,
+      data: [],
+      stale: true,
+      reason: 'concurrency snapshot unavailable',
+    },
+  })
+
+  const hook = renderHook(
+    () => useChannelConcurrencySnapshots([channel(7, 2)]),
+    { wrapper: wrapper(client) }
+  )
+
+  await waitFor(() => expect(hook.result.current.snapshotStale).toBe(true))
+  expect(hook.result.current.snapshotReason).toBe(
+    'concurrency snapshot unavailable'
+  )
+  expect(hook.result.current.statusById.size).toBe(0)
+})
+
 test('polls every ten visible seconds, pauses while hidden, and stops after unmount', async () => {
   vi.useFakeTimers()
   const client = new QueryClient({

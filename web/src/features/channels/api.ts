@@ -59,14 +59,22 @@ export type ChannelConcurrencyStatus = {
   cooling_down: boolean
 }
 
+export type ChannelConcurrencySnapshot = {
+  data: ChannelConcurrencyStatus[]
+  stale: boolean
+  reason: string
+}
+
 export async function getChannelConcurrencyStatus(
   channelIds: readonly number[],
   signal?: AbortSignal
-): Promise<ChannelConcurrencyStatus[]> {
+): Promise<ChannelConcurrencySnapshot> {
   const response = await api.get<{
     success: boolean
     message?: string
     data: ChannelConcurrencyStatus[]
+    stale?: boolean
+    reason?: string
   }>(
     '/api/channel/concurrency',
     channelActionConfig({
@@ -75,7 +83,12 @@ export async function getChannelConcurrencyStatus(
       disableDuplicate: true,
     })
   )
-  return requireServerSuccess(response.data).data
+  const snapshot = requireServerSuccess(response.data)
+  return {
+    data: snapshot.data,
+    stale: snapshot.stale === true,
+    reason: snapshot.reason ?? '',
+  }
 }
 
 export async function getInferenceStatus(

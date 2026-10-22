@@ -30,6 +30,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { StatusBadge, type StatusVariant } from '@/components/status-badge'
+import { Button } from '@/components/ui/button'
 import {
   Popover,
   PopoverContent,
@@ -267,12 +268,14 @@ export function ChannelConcurrencyCell({
     >
       <PopoverTrigger
         render={
-          <button
+          <Button
             type='button'
+            variant='ghost'
+            size='xs'
             aria-label={triggerLabel}
             className={cn(
-              'rounded-sm underline decoration-dotted underline-offset-2',
-              'hover:text-foreground focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none'
+              'h-auto rounded-sm p-0 font-normal underline decoration-dotted underline-offset-2',
+              'hover:text-foreground hover:bg-transparent'
             )}
           />
         }

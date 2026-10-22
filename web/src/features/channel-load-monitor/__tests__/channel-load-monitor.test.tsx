@@ -272,9 +272,14 @@ test('renders full-filter summary and drives server pagination and URL filters',
   expect(
     within(table).getByText('alpha-channel').closest('.w-32')
   ).toBeVisible()
-  for (const filterName of ['Status', 'Type', 'Group', 'Priority']) {
+  for (const filterName of ['Status', 'Type', 'Group']) {
     expect(screen.getByRole('button', { name: filterName })).toBeVisible()
   }
+  expect(
+    screen.getByRole('button', {
+      name: /Priority.*Priority: high to low/,
+    })
+  ).toBeVisible()
   const filterCard = screen
     .getByRole('textbox', { name: 'Search channels' })
     .closest('[data-slot="card"]') as HTMLElement

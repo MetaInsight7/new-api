@@ -61,11 +61,17 @@ export function useChannelConcurrencySnapshots(channels: readonly Channel[]) {
 
   const statusById = useMemo(() => {
     const statuses = new Map<number, ChannelConcurrencyStatus>()
-    for (const status of query.data ?? []) {
+    for (const status of query.data?.data ?? []) {
       statuses.set(status.channel_id, status)
     }
     return statuses
   }, [query.data])
 
-  return { ...query, channelIds, statusById }
+  return {
+    ...query,
+    channelIds,
+    statusById,
+    snapshotStale: query.data?.stale ?? false,
+    snapshotReason: query.data?.reason ?? '',
+  }
 }
