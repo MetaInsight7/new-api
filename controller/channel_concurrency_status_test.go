@@ -27,6 +27,41 @@ type channelConcurrencyStatusResponse struct {
 	Success bool                       `json:"success"`
 	Message string                     `json:"message"`
 	Data    []channelConcurrencyStatus `json:"data"`
+	Stale   bool                       `json:"stale"`
+	Reason  string                     `json:"reason"`
+}
+
+func TestChannelConcurrencyStatusMarksUnavailableRedisSnapshotStale(t *testing.T) {
+	previousDB := model.DB
+	previousRDB := common.RDB
+	previousRedisEnabled := common.RedisEnabled
+	database, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, database.AutoMigrate(&model.Channel{}))
+	channel := &model.Channel{Id: 7510, Name: "limited", MaxConcurrency: 2}
+	require.NoError(t, database.Create(channel).Error)
+
+	miniRedis := miniredis.RunT(t)
+	address := miniRedis.Addr()
+	miniRedis.Close()
+	redisClient := redis.NewClient(&redis.Options{Addr: address})
+	model.DB = database
+	common.RDB = redisClient
+	common.RedisEnabled = true
+	t.Cleanup(func() {
+		model.DB = previousDB
+		common.RDB = previousRDB
+		common.RedisEnabled = previousRedisEnabled
+		require.NoError(t, redisClient.Close())
+	})
+
+	recorder, body := requestChannelConcurrencyStatus(t, "7510")
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.True(t, body.Success)
+	assert.True(t, body.Stale)
+	assert.Equal(t, "concurrency snapshot unavailable", body.Reason)
+	assert.Empty(t, body.Data, "an unavailable shared snapshot must not be represented as zero or process-local load")
 }
 
 func requestChannelConcurrencyStatus(t *testing.T, ids string) (*httptest.ResponseRecorder, channelConcurrencyStatusResponse) {
@@ -100,7 +135,7 @@ func TestChannelConcurrencyStatusReturnsOnlyExistingLimitedChannels(t *testing.T
 	}, body.Data[0])
 }
 
-func TestChannelConcurrencyStatusSharesBoundedLoadSnapshotWithoutAcquiringSlots(t *testing.T) {
+func TestChannelConcurrencyStatusBypassesWarmSnapshotWithoutAcquiringSlots(t *testing.T) {
 	previousDB := model.DB
 	previousRDB := common.RDB
 	previousRedisEnabled := common.RedisEnabled
@@ -143,7 +178,8 @@ func TestChannelConcurrencyStatusSharesBoundedLoadSnapshotWithoutAcquiringSlots(
 		MaxConcurrency: channel.MaxConcurrency,
 	}}, body.Data)
 	commandsAfterStatus := commandHook.Commands()
-	assert.Equal(t, commandsAfterWarm, commandsAfterStatus, "the management endpoint must reuse the shared warm snapshot")
+	require.Greater(t, len(commandsAfterStatus), len(commandsAfterWarm), "the management endpoint must read the shared source of truth again")
+	assert.Equal(t, commandsAfterWarm, commandsAfterStatus[len(commandsAfterWarm):])
 	for _, command := range commandsAfterStatus {
 		assert.NotEqual(t, "eval", command)
 		assert.NotEqual(t, "evalsha", command)

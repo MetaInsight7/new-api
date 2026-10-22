@@ -208,7 +208,7 @@ func TestAcquireChannelConcurrencyWithWaitNormalizesCanceledRedisRetry(t *testin
 func TestTryAcquireChannelConcurrencyCleansUncertainRedisResultOnce(t *testing.T) {
 	resetChannelConcurrencyForTest()
 	miniRedis := miniredis.RunT(t)
-	channel := &model.Channel{Id: 1203, MaxConcurrency: 1}
+	channel := &model.Channel{Id: 1203, MaxConcurrency: 2}
 	requestContext, cancelRequest := context.WithCancel(context.Background())
 	uncertainHook := &uncertainRedisAcquireHook{
 		key:       channelConcurrencyRedisKey(channel.Id),
@@ -237,10 +237,10 @@ func TestTryAcquireChannelConcurrencyCleansUncertainRedisResultOnce(t *testing.T
 		operation_setting.SetChannelConcurrencySettingForTest(previousSetting)
 	})
 
-	warmupLease, acquired, err := TryAcquireChannelConcurrency(context.Background(), &model.Channel{Id: 1298, MaxConcurrency: 1})
+	heldLease, acquired, err := TryAcquireChannelConcurrency(context.Background(), channel)
 	require.NoError(t, err)
 	require.True(t, acquired)
-	require.NoError(t, ReleaseChannelConcurrency(context.Background(), warmupLease))
+	t.Cleanup(func() { require.NoError(t, ReleaseChannelConcurrency(context.Background(), heldLease)) })
 	uncertainHook.Enable()
 
 	lease, acquired, err := TryAcquireChannelConcurrency(requestContext, channel)
@@ -250,7 +250,8 @@ func TestTryAcquireChannelConcurrencyCleansUncertainRedisResultOnce(t *testing.T
 	require.Error(t, requestContext.Err())
 
 	require.Eventually(t, func() bool {
-		return !miniRedis.Exists(channelConcurrencyRedisKey(channel.Id))
+		members, membersErr := miniRedis.ZMembers(channelConcurrencyRedisKey(channel.Id))
+		return membersErr == nil && len(members) == 1 && members[0] == heldLease.token
 	}, time.Second, 5*time.Millisecond)
 	require.Equal(t, int32(1), uncertainHook.ZRemCount())
 }

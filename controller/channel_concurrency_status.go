@@ -56,9 +56,15 @@ func GetChannelConcurrencyStatus(c *gin.Context) {
 		return
 	}
 
-	loads, err := service.GetChannelConcurrencyLoads(c.Request.Context(), limitedChannels)
+	loads, err := service.GetChannelConcurrencyLoadsAuthoritative(c.Request.Context(), limitedChannels)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"message": "",
+			"data":    []channelConcurrencyStatus{},
+			"stale":   true,
+			"reason":  "concurrency snapshot unavailable",
+		})
 		return
 	}
 	statuses := make([]channelConcurrencyStatus, 0, len(limitedChannels))
@@ -72,5 +78,5 @@ func GetChannelConcurrencyStatus(c *gin.Context) {
 			CoolingDown:    load.CoolingDown,
 		})
 	}
-	c.JSON(http.StatusOK, gin.H{"success": true, "data": statuses})
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": statuses, "stale": false, "reason": ""})
 }

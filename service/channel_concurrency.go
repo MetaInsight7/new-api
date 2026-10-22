@@ -276,6 +276,13 @@ func GetChannelConcurrencyLoadsFresh(ctx context.Context, channels []*model.Chan
 	return getChannelConcurrencyLoads(ctx, channels, false, true)
 }
 
+// GetChannelConcurrencyLoadsAuthoritative is reserved for accuracy-sensitive
+// management views. It bypasses the snapshot cache and never falls back to one
+// process's memory when Redis is the shared source of truth.
+func GetChannelConcurrencyLoadsAuthoritative(ctx context.Context, channels []*model.Channel) (map[int]ChannelConcurrencyLoad, error) {
+	return getChannelConcurrencyLoads(ctx, channels, false, false)
+}
+
 func getChannelConcurrencyLoadsFreshForConfirmation(ctx context.Context, channels []*model.Channel) (map[int]ChannelConcurrencyLoad, error) {
 	return getChannelConcurrencyLoads(ctx, channels, false, false)
 }
