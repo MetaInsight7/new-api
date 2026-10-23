@@ -196,12 +196,17 @@ func testStreamingRelayTimeout(test *testing.T, scenario streamingRelayScenario)
 			assert.Empty(test, recorder.Body.String())
 		} else if scenario.ping {
 			assert.Contains(test, recorder.Body.String(), ": PING")
-			assert.NotContains(test, recorder.Body.String(), `"error"`)
+			assert.Contains(test, recorder.Body.String(), `"error"`)
+			assert.Contains(test, recorder.Body.String(), "upstream_first_response_timeout")
 		} else {
 			assert.Contains(test, recorder.Body.String(), "chatcmpl-retry-success")
 		}
 		if !scenario.succeedOnRetry {
-			assert.NotContains(test, recorder.Body.String(), "[DONE]")
+			if scenario.ping {
+				assert.Contains(test, recorder.Body.String(), "[DONE]")
+			} else {
+				assert.NotContains(test, recorder.Body.String(), "[DONE]")
+			}
 		}
 		require.NotNil(test, policy)
 		assert.Equal(test, scenario.succeedOnRetry, policy.Successful)

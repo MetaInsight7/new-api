@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRelayDoesNotAppendJSONToCommittedStreamOnError(t *testing.T) {
+func TestRelayWritesProtocolErrorToCommittedStream(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
 	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader("{"))
@@ -22,7 +22,11 @@ func TestRelayDoesNotAppendJSONToCommittedStreamOnError(t *testing.T) {
 	_, err := ctx.Writer.WriteString(written)
 	require.NoError(t, err)
 	Relay(ctx, types.RelayFormatOpenAI)
-	assert.Equal(t, written, recorder.Body.String())
+	body := recorder.Body.String()
+	assert.True(t, strings.HasPrefix(body, written))
+	assert.Contains(t, body, `data: {"error":`)
+	assert.Contains(t, body, `"code":"invalid_request"`)
+	assert.True(t, strings.HasSuffix(body, "data: [DONE]\n\n"))
 	assert.Equal(t, "text/event-stream", recorder.Header().Get("Content-Type"))
 }
 

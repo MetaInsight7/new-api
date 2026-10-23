@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -77,8 +78,8 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 	if newAPIError != nil {
 		if info.GetChannelType() == constant.ChannelTypeCodex {
 			if usageDto, ok := usage.(*dto.Usage); ok && usageDto != nil && usageDto.TotalTokens > 0 {
-				if settleErr := service.PostTextConsumeQuotaOnError(c, info, usageDto, []string{"Codex terminal failure reported authoritative usage"}); settleErr != nil {
-					logger.LogError(c, "failed to settle Codex terminal usage: "+settleErr.Error())
+				if settleErr := service.PostTextConsumeQuotaOnError(c, info, usageDto, []*common.Message{common.NewMessage("Codex terminal failure reported authoritative usage")}); settleErr != nil {
+					logger.LogError(c, common.LogText("failed to settle Codex terminal usage: %s", settleErr.Error()))
 				}
 			}
 		}
@@ -113,7 +114,7 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 // WebSocket Responses usage. Compact requests keep their separate repricing.
 func ConsumeResponsesQuota(c *gin.Context, info *relaycommon.RelayInfo, usage *dto.Usage) {
 	if strings.HasPrefix(info.OriginModelName, "gpt-4o-audio") {
-		service.PostAudioConsumeQuota(c, info, usage, "")
+		service.PostAudioConsumeQuota(c, info, usage, nil)
 		return
 	}
 	service.PostTextConsumeQuota(c, info, usage, nil)

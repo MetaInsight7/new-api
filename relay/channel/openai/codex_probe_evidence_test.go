@@ -11,7 +11,6 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
-	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -96,7 +95,6 @@ func TestCodexProbeEvidenceKeepsPublicResponsesSanitized(test *testing.T) {
 
 func TestCodexProbeEvidenceCapturesTopLevelErrorsWithoutChangingPublicResponses(test *testing.T) {
 	gin.SetMode(gin.TestMode)
-	service.InitTokenEncoders()
 	previousTimeout := constant.StreamingTimeout
 	constant.StreamingTimeout = 30
 	test.Cleanup(func() { constant.StreamingTimeout = previousTimeout })

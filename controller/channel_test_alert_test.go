@@ -134,7 +134,7 @@ func TestChannelAlertTaskBatchesAndCooldownWithoutRetesting(t *testing.T) {
 		upstream.Add(1)
 		writer.Header().Set("Content-Type", "application/json")
 		writer.WriteHeader(http.StatusTooManyRequests)
-		_, _ = io.WriteString(writer, `{"error":{"message":"quota access_token=private-token api_key=sk-private-token at https://upstream.example/secret 192.0.2.1","type":"rate_limit_error","code":"rate_limit"}}`)
+		_, _ = io.WriteString(writer, `{"error":{"message":"quota access_token=private-token api_key=sk-private-token at https://upstream.example/secret via bare.upstream.example 192.0.2.1","type":"rate_limit_error","code":"rate_limit"}}`)
 	})
 	for channelID := range 6 {
 		channel := model.Channel{Id: channelID + 100, Name: fmt.Sprintf("alert-%d", channelID), Type: constant.ChannelTypeOpenAI, Status: common.ChannelStatusEnabled, BaseURL: &endpoint, Key: "fake-upstream-key", Models: "gpt-4o-mini", Group: "default"}

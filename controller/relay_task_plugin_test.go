@@ -60,6 +60,8 @@ func (b *taskSubmissionTestBilling) Reserve(int) error {
 	return b.reserveErr
 }
 
+func (b *taskSubmissionTestBilling) ReserveBeforeSubmit(quota int) error { return b.Reserve(quota) }
+
 func TestPresentTaskSubmissionUsesNativePresenterAfterPersistence(t *testing.T) {
 	plugin, err := pluginruntime.CompilePlugin(`
 export const meta = {apiVersion:1,key:"presenter-test",name:"Presenter",version:"1.0.0",author:{name:"Test"},models:["model"],fetchMode:"per_task",routes:[{method:"POST",path:"/vendor/jobs",type:"submit",decode:"decode",render:"created"}]};
@@ -821,7 +823,7 @@ func TestTaskCandidateExhaustionDoesNotReusePreviousSubmissionError(test *testin
 	assert.Equal(test, http.StatusInternalServerError, taskError.StatusCode)
 	assert.Equal(test, "get_channel_failed", taskError.Code)
 	assert.True(test, taskError.LocalError)
-	assert.Contains(test, taskError.Message, "可用渠道不存在")
+	assert.Contains(test, taskError.Message, "No available channel")
 	assert.NotContains(test, taskError.Message, "previous submission failed")
 	assert.Zero(test, submissions)
 	assert.Zero(test, service.RequestPolicy(requestContext).Attempts)

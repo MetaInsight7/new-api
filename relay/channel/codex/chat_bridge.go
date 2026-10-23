@@ -379,7 +379,6 @@ func (bridge *codexChatBridge) write(payload []byte) error {
 		return err
 	}
 	helper.SetEventStreamHeaders(bridge.context)
-	helper.ExtendWriteDeadline(bridge.context)
 	if _, err := bridge.context.Writer.WriteString("data: " + string(payload) + "\n\n"); err != nil {
 		return err
 	}
@@ -408,8 +407,8 @@ func (bridge *codexChatBridge) failWithAPIError(apiErr *types.NewAPIError) (*dto
 		}
 	}
 	if bridge.authoritative && bridge.usage.TotalTokens > 0 && bridge.info.Billing != nil {
-		if err := service.PostTextConsumeQuotaOnError(bridge.context, bridge.info, bridge.usage, []string{"Codex Chat failure reported authoritative usage"}); err != nil {
-			logger.LogError(bridge.context, "failed to settle Codex Chat authoritative usage: "+err.Error())
+		if err := service.PostTextConsumeQuotaOnError(bridge.context, bridge.info, bridge.usage, []*common.Message{common.NewMessage("Codex Chat failure reported authoritative usage")}); err != nil {
+			logger.LogError(bridge.context, common.LogText("failed to settle Codex Chat authoritative usage: %s", err.Error()))
 		}
 	}
 	return bridge.usage, apiErr

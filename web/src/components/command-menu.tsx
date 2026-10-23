@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useLocation, useNavigate } from '@tanstack/react-router'
+import { useNavigate } from '@tanstack/react-router'
 import { ArrowRight, ChevronRight, Laptop, Moon, Sun } from 'lucide-react'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
@@ -33,13 +33,8 @@ import {
 } from '@/components/ui/command'
 import { useSearch } from '@/context/search-context'
 import { useTheme } from '@/context/theme-provider'
-import { useSidebarConfig } from '@/hooks/use-sidebar-config'
-import { useSidebarData } from '@/hooks/use-sidebar-data'
-import { ROLE } from '@/lib/roles'
-import { useAuthStore } from '@/stores/auth-store'
+import { useSidebarView } from '@/hooks/use-sidebar-view'
 
-import { filterSidebarGroupsByRole } from './layout/lib/sidebar-filter'
-import { getNavGroupsForPath } from './layout/lib/sidebar-view-registry'
 import { ScrollArea } from './ui/scroll-area'
 
 export function CommandMenu() {
@@ -47,16 +42,9 @@ export function CommandMenu() {
   const navigate = useNavigate()
   const { setTheme } = useTheme()
   const { open, setOpen } = useSearch()
-  const pathname = useLocation({ select: (location) => location.pathname })
-  const sidebarData = useSidebarData()
-  const configFilteredRoot = useSidebarConfig(sidebarData.navGroups)
-  const userRole = useAuthStore((state) => state.auth.user?.role)
-  const navGroups = React.useMemo(
-    () =>
-      getNavGroupsForPath(pathname, t) ??
-      filterSidebarGroupsByRole(configFilteredRoot, userRole ?? ROLE.GUEST),
-    [configFilteredRoot, pathname, t, userRole]
-  )
+  // Offer the same pages as the sidebar, so search never lists pages the
+  // user's role or the sidebar settings hide.
+  const { navGroups } = useSidebarView()
 
   const runCommand = React.useCallback(
     (command: () => unknown) => {
@@ -79,7 +67,7 @@ export function CommandMenu() {
                   if (navItem.url) {
                     return (
                       <CommandItem
-                        key={navItem.url}
+                        key={`${navItem.title}-${navItem.url}`}
                         value={navItem.title}
                         onSelect={() => {
                           runCommand(() => navigate({ to: navItem.url }))

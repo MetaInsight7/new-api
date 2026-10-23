@@ -22,8 +22,8 @@ func GetCodexChannelUsage(c *gin.Context) {
 	fetchCodexChannelWhamData(
 		c,
 		service.FetchCodexWhamUsage,
-		"failed to fetch codex usage",
-		"获取用量信息失败，请稍后重试",
+		common.LogText("failed to fetch codex usage"),
+		"Failed to fetch usage. Please try again later",
 		false,
 	)
 }
@@ -32,8 +32,8 @@ func GetCodexChannelRateLimitResetCredits(c *gin.Context) {
 	fetchCodexChannelWhamData(
 		c,
 		service.FetchCodexWhamRateLimitResetCredits,
-		"failed to fetch codex reset credits",
-		"获取重置次数详情失败，请稍后重试",
+		common.LogText("failed to fetch codex reset credits"),
+		"Failed to fetch reset credit details. Please try again later",
 		false,
 	)
 }
@@ -45,8 +45,8 @@ func ResetCodexChannelUsage(c *gin.Context) {
 		func(ctx context.Context, client *http.Client, baseURL, accessToken, accountID string) (int, []byte, error) {
 			return service.ConsumeCodexWhamRateLimitResetCreditWithRequestID(ctx, client, baseURL, accessToken, accountID, requestID)
 		},
-		"failed to reset codex usage",
-		"无法确认上游是否已消费重置次数，请先刷新用量和重置次数，不要立即重复重置",
+		common.LogText("failed to reset codex usage"),
+		"Unable to confirm whether a reset credit was consumed. Refresh usage and reset credits before trying again",
 		true,
 	)
 }
@@ -92,8 +92,8 @@ func fetchCodexChannelWhamData(
 
 	oauthKey, err := codex.ParseOAuthKey(strings.TrimSpace(ch.Key))
 	if err != nil {
-		common.SysError("failed to parse oauth key: " + err.Error())
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "解析凭证失败，请检查渠道配置"})
+		common.SysError(common.LogText("failed to parse oauth key: %s", err.Error()))
+		common.ApiErrorT(c, "Failed to parse credentials. Please check the channel configuration")
 		return
 	}
 	accessToken := strings.TrimSpace(oauthKey.AccessToken)
@@ -107,7 +107,8 @@ func fetchCodexChannelWhamData(
 		return
 	}
 
-	client, err := service.GetHttpClientWithProxy(ch.GetSetting().Proxy)
+	setting := ch.GetSetting()
+	client, err := service.GetHttpClientWithProxySettings(setting.Proxy, setting)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -118,29 +119,34 @@ func fetchCodexChannelWhamData(
 
 	statusCode, body, err := fetch(ctx, client, ch.GetBaseURL(), accessToken, accountID)
 	if err != nil {
-		common.SysError(logPrefix + ": upstream request failed")
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": userMessage})
+		common.SysError(logPrefix + ": " + err.Error())
+		common.ApiErrorT(c, userMessage)
 		return
 	}
 
 	if (statusCode == http.StatusUnauthorized || statusCode == http.StatusForbidden) && strings.TrimSpace(oauthKey.RefreshToken) != "" {
-		refreshed, refreshedChannel, refreshErr := service.RefreshCodexChannelCredential(c.Request.Context(), ch.Id, service.CodexCredentialRefreshOptions{ResetCaches: true, ExpectedKey: ch.Key})
+		refreshCtx, refreshCancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
+		defer refreshCancel()
+		refreshed, refreshedChannel, refreshErr := service.RefreshCodexChannelCredential(refreshCtx, ch.Id, service.CodexCredentialRefreshOptions{ResetCaches: true, ExpectedKey: ch.Key})
 		if refreshErr != nil {
-			c.JSON(http.StatusOK, gin.H{"success": false, "message": "Codex credential refresh or persistence failed", "upstream_status": statusCode})
+			common.SysError(common.LogText("failed to refresh Codex credential: %s", refreshErr.Error()))
+			common.ApiErrorT(c, userMessage)
 			return
 		}
 		accessToken, accountID = refreshed.AccessToken, refreshed.AccountID
-		client, err = service.GetHttpClientWithProxy(refreshedChannel.GetSetting().Proxy)
+		refreshedSetting := refreshedChannel.GetSetting()
+		client, err = service.GetHttpClientWithProxySettings(refreshedSetting.Proxy, refreshedSetting)
 		if err != nil {
-			c.JSON(http.StatusOK, gin.H{"success": false, "message": "Invalid Codex proxy configuration"})
+			common.SysError(common.LogText("failed to create Codex HTTP client after refresh: %s", err.Error()))
+			common.ApiErrorT(c, userMessage)
 			return
 		}
 		ctx2, cancel2 := context.WithTimeout(c.Request.Context(), 15*time.Second)
 		defer cancel2()
 		statusCode, body, err = fetch(ctx2, client, refreshedChannel.GetBaseURL(), accessToken, accountID)
 		if err != nil {
-			common.SysError(logPrefix + " after refresh: upstream request failed")
-			c.JSON(http.StatusOK, gin.H{"success": false, "message": userMessage})
+			common.SysError(common.LogText("%s after refresh: %s", logPrefix, err.Error()))
+			common.ApiErrorT(c, userMessage)
 			return
 		}
 	}
@@ -156,7 +162,7 @@ func fetchCodexChannelWhamData(
 			WindowsReset *int `json:"windows_reset"`
 		}
 		if common.Unmarshal(body, &outcome) != nil || outcome.WindowsReset == nil || *outcome.WindowsReset <= 0 {
-			c.JSON(http.StatusOK, gin.H{"success": false, "message": "Upstream did not confirm any reset windows; refresh usage before trying again", "upstream_status": statusCode})
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": "Upstream did not confirm any reset windows.", "upstream_status": statusCode})
 			return
 		}
 	}

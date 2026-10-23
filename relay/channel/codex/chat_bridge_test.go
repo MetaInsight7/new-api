@@ -253,10 +253,10 @@ func TestRelayChatOverCodexCompletedUsageFallbackRequiresContent(test *testing.T
 			output     string
 			wantTokens int
 		}{
-			{name: "text delta", prelude: `data: {"type":"response.output_text.delta","delta":"hello"}` + "\n\n", wantTokens: 15},
-			{name: "terminal text", output: `,"output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"hello"}]}]`, wantTokens: 15},
-			{name: "reasoning delta", prelude: `data: {"type":"response.reasoning_text.delta","delta":"hello"}` + "\n\n", wantTokens: 15},
-			{name: "terminal reasoning", output: `,"output":[{"type":"reasoning","summary":[{"type":"summary_text","text":"hello"}]}]`, wantTokens: 15},
+			{name: "text delta", prelude: `data: {"type":"response.output_text.delta","delta":"hello"}` + "\n\n", wantTokens: 14},
+			{name: "terminal text", output: `,"output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"hello"}]}]`, wantTokens: 14},
+			{name: "reasoning delta", prelude: `data: {"type":"response.reasoning_text.delta","delta":"hello"}` + "\n\n", wantTokens: 14},
+			{name: "terminal reasoning", output: `,"output":[{"type":"reasoning","summary":[{"type":"summary_text","text":"hello"}]}]`, wantTokens: 14},
 			{name: "tool deltas", prelude: `data: {"type":"response.output_item.added","output_index":0,"item":{"type":"function_call","id":"fc_1","call_id":"call_1","name":"hello"}}` + "\n\n" + `data: {"type":"response.function_call_arguments.delta","output_index":0,"delta":"{}"}` + "\n\n", wantTokens: 15},
 			{name: "terminal tool", output: `,"output":[{"type":"function_call","id":"fc_1","call_id":"call_1","name":"hello","arguments":"{}"}]`, wantTokens: 15},
 			{name: "empty terminal"},
@@ -278,9 +278,9 @@ func TestRelayChatOverCodexCompletedUsageFallbackRequiresContent(test *testing.T
 				assert.Equal(test, scenario.wantTokens > 0, common.GetContextKeyBool(ctx, constant.ContextKeyLocalCountTokens))
 				if scenario.wantTokens > 0 {
 					assert.Equal(test, 13, usage.PromptTokens)
-					assert.Equal(test, 2, usage.CompletionTokens)
+					assert.Equal(test, scenario.wantTokens-13, usage.CompletionTokens)
 					assert.Contains(test, recorder.Body.String(), `"prompt_tokens":13`)
-					assert.Contains(test, recorder.Body.String(), `"completion_tokens":2`)
+					assert.Contains(test, recorder.Body.String(), fmt.Sprintf(`"completion_tokens":%d`, scenario.wantTokens-13))
 					assert.Contains(test, recorder.Body.String(), "hello")
 					if stream {
 						assert.Equal(test, 1, strings.Count(recorder.Body.String(), `"usage":{`))
@@ -384,6 +384,9 @@ func (billing *codexChatBillingFixture) Refund(*gin.Context)      {}
 func (billing *codexChatBillingFixture) NeedsRefund() bool        { return len(billing.settled) == 0 }
 func (billing *codexChatBillingFixture) GetPreConsumedQuota() int { return 100 }
 func (billing *codexChatBillingFixture) Reserve(int) error        { return nil }
+func (billing *codexChatBillingFixture) ReserveBeforeSubmit(int) error {
+	return nil
+}
 
 func TestRelayChatOverCodexSettlesOnlyAuthoritativeFailureUsage(t *testing.T) {
 	previousBatch, previousLogs := common.BatchUpdateEnabled, common.LogConsumeEnabled

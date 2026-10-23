@@ -37,6 +37,9 @@ func (billing *globalChatPolicyBilling) Refund(*gin.Context)      {}
 func (billing *globalChatPolicyBilling) NeedsRefund() bool        { return len(billing.settled) == 0 }
 func (billing *globalChatPolicyBilling) GetPreConsumedQuota() int { return 100 }
 func (billing *globalChatPolicyBilling) Reserve(int) error        { return nil }
+func (billing *globalChatPolicyBilling) ReserveBeforeSubmit(int) error {
+	return nil
+}
 
 func newGlobalChatPolicyFixture(test *testing.T, channelType int, stream bool, upstreamBody string) (*gin.Context, *httptest.ResponseRecorder, *relaycommon.RelayInfo, *globalChatPolicyBilling, <-chan globalChatPolicyUpstreamRequest) {
 	test.Helper()
@@ -155,22 +158,22 @@ func TestCodexGlobalChatResponsesPolicyPreservesChatContract(test *testing.T) {
 			{
 				name:       "completed without usage",
 				terminal:   `data: {"type":"response.completed","response":{"status":"completed"}}` + "\n\n",
-				wantPrompt: 13, wantCompletion: 2, wantFinish: "stop", wantEstimate: true, wantSettlement: true,
+				wantPrompt: 13, wantCompletion: 1, wantFinish: "stop", wantEstimate: true, wantSettlement: true,
 			},
 			{
 				name:       "completed without usage chunk",
 				terminal:   `data: {"type":"response.completed","response":{"status":"completed"}}` + "\n\n",
-				wantPrompt: 13, wantCompletion: 2, wantFinish: "stop", wantEstimate: true, wantSettlement: true, withoutUsage: true,
+				wantPrompt: 13, wantCompletion: 1, wantFinish: "stop", wantEstimate: true, wantSettlement: true, withoutUsage: true,
 			},
 			{
 				name:       "completed without stream marker",
 				terminal:   `data: {"type":"response.completed","response":{"status":"completed"}}` + "\n\n",
-				wantPrompt: 13, wantCompletion: 2, wantFinish: "stop", wantEstimate: true, wantSettlement: true, withoutMarker: true,
+				wantPrompt: 13, wantCompletion: 1, wantFinish: "stop", wantEstimate: true, wantSettlement: true, withoutMarker: true,
 			},
 			{
 				name:       "client marker overrides stale stream info",
 				terminal:   `data: {"type":"response.completed","response":{"status":"completed"}}` + "\n\n",
-				wantPrompt: 13, wantCompletion: 2, wantFinish: "stop", wantEstimate: true, wantSettlement: true, staleStream: true,
+				wantPrompt: 13, wantCompletion: 1, wantFinish: "stop", wantEstimate: true, wantSettlement: true, staleStream: true,
 			},
 			{
 				name:       "native zero never estimates",

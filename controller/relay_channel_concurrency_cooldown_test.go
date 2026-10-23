@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -198,6 +199,7 @@ func TestRelayHTTP429CooldownChangesSubsequentDistributionAndExpires(t *testing.
 
 func setupRelayRetryRouting(test *testing.T, extraModels ...any) *gorm.DB {
 	test.Helper()
+	require.NoError(test, i18n.Init())
 	gin.SetMode(gin.TestMode)
 	models := append([]any{&model.Channel{}, &model.Ability{}, &model.ModelAvailabilityState{}}, extraModels...)
 	database, dialect := openTaskDialectDatabase(test, models...)

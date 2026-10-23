@@ -34,6 +34,8 @@ var (
 	alertSKPattern               = regexp.MustCompile(`sk-[A-Za-z0-9_-]+`)
 	alertAWSKeyPattern           = regexp.MustCompile(`\b(?:AKIA|ASIA)[A-Z0-9]{16}\b`)
 	alertGoogleKeyPattern        = regexp.MustCompile(`\bAIza[0-9A-Za-z_-]{35}\b`)
+	alertURLPattern              = regexp.MustCompile(`(?i)(?:https?|wss?)://[^\s"<>{}]+`)
+	alertDomainPattern           = regexp.MustCompile(`(?i)\b(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}\b`)
 	channelAlertLocalCooldown    = struct {
 		sync.Mutex
 		records map[int]localChannelAlertCooldown
@@ -54,6 +56,8 @@ type channelAlertReservation struct {
 
 func sanitizeChannelAlertText(value string) string {
 	value = common.MaskSensitiveInfo(value)
+	value = alertURLPattern.ReplaceAllString(value, "***")
+	value = alertDomainPattern.ReplaceAllString(value, "***")
 	value = alertQuotedCredentialPattern.ReplaceAllString(value, `${1}"***"`)
 	value = alertCredentialPattern.ReplaceAllString(value, `${1}***`)
 	value = alertSKPattern.ReplaceAllString(value, "sk-***")

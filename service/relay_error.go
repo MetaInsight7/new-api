@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -73,17 +72,19 @@ func ProcessChannelError(c *gin.Context, channelError types.ChannelError, err *t
 	if err == nil {
 		return
 	}
-	logger.LogError(c, fmt.Sprintf("channel error (channel #%d, status code: %d): %s", channelError.ChannelId, err.StatusCode, common.LocalLogPreview(err.MaskSensitiveErrorWithStatusCode())))
+	upstreamURLs := common.UpstreamAddresses(c)
+	maskedError := err.MaskSensitiveErrorWithStatusCode(upstreamURLs...)
+	logger.LogError(c, common.LogText("channel error (channel #%d, status code: %d): %s", channelError.ChannelId, err.StatusCode, common.LocalLogPreview(maskedError)))
 	cooldownPolicy := operation_setting.GetChannelConcurrencyCooldownPolicy()
 	if shouldMarkChannelConcurrencyCooldown(err, cooldownPolicy) {
 		cooldownCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
-		if cooldownErr := markChannelConcurrencyCooldown(cooldownCtx, channelError.ChannelId, cooldownPolicy.Duration, err.MaskSensitiveErrorWithStatusCode()); cooldownErr != nil {
-			logger.LogError(c, fmt.Sprintf("mark channel concurrency cooldown failed: %s", cooldownErr.Error()))
+		if cooldownErr := markChannelConcurrencyCooldown(cooldownCtx, channelError.ChannelId, cooldownPolicy.Duration, maskedError); cooldownErr != nil {
+			logger.LogError(c, common.LogText("mark channel concurrency cooldown failed: %s", cooldownErr.Error()))
 		}
 	}
 	if ShouldDisableChannel(err) && channelError.AutoBan {
-		reason := err.MaskSensitiveErrorWithStatusCode()
+		reason := maskedError
 		gopool.Go(func() {
 			DisableChannel(channelError, reason)
 		})
@@ -110,7 +111,7 @@ func ProcessChannelError(c *gin.Context, channelError types.ChannelError, err *t
 			startTime = time.Now()
 		}
 		useTimeSeconds := int(time.Since(startTime).Seconds())
-		model.RecordErrorLog(c, userId, channelError.ChannelId, modelName, tokenName, err.MaskSensitiveErrorWithStatusCode(), tokenId, useTimeSeconds, common.GetContextKeyBool(c, constant.ContextKeyIsStream), userGroup, other)
+		model.RecordErrorLog(c, userId, channelError.ChannelId, modelName, tokenName, maskedError, tokenId, useTimeSeconds, common.GetContextKeyBool(c, constant.ContextKeyIsStream), userGroup, other)
 	}
 }
 

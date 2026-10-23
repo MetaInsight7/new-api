@@ -76,7 +76,7 @@ func SaveModelAvailabilityState(next *ModelAvailabilityState) error {
 
 func GetModelAvailabilityState(modelName string) (*ModelAvailabilityState, error) {
 	modelName = strings.TrimSpace(modelName)
-	if modelName == "" {
+	if modelName == "" || DB == nil {
 		return nil, nil
 	}
 	var state ModelAvailabilityState
@@ -92,7 +92,7 @@ func GetModelAvailabilityState(modelName string) (*ModelAvailabilityState, error
 func GetModelAvailabilityStateMap(modelNames []string) (map[string]ModelAvailabilityState, error) {
 	result := make(map[string]ModelAvailabilityState)
 	modelNames = normalizeLookupValues(modelNames)
-	if len(modelNames) == 0 {
+	if len(modelNames) == 0 || DB == nil {
 		return result, nil
 	}
 	var states []ModelAvailabilityState

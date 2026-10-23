@@ -65,13 +65,11 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 			info.CountBillableToolCall(dto.BuildInCallFunctionCall, output.Name)
 		}
 	}
+	info.ApplyVendorToolUsage(responseBody)
 
 	imageCounter := &relaycommon.ImageGenerationCallCounter{}
-	if !relaycommon.IsNonBillableResponsesStatus(responsesResponse.Status) {
-		for i := range responsesResponse.Output {
-			idx := i
-			imageCounter.Observe(&responsesResponse.Output[i], &idx)
-		}
+	for i := range responsesResponse.Output {
+		imageCounter.Observe(&responsesResponse.Output[i], &i)
 	}
 	imageCounter.Commit(info)
 
@@ -80,7 +78,7 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 
 func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	if resp == nil || resp.Body == nil {
-		logger.LogError(c, "invalid response or response body")
+		logger.LogError(c, common.LogText("invalid response or response body"))
 		return nil, types.NewError(fmt.Errorf("invalid response"), types.ErrorCodeBadResponse)
 	}
 
@@ -96,22 +94,24 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		// 检查当前数据是否包含 completed 状态和 usage 信息
 		var streamResponse dto.ResponsesStreamResponse
 		if err := common.UnmarshalJsonStr(data, &streamResponse); err != nil {
-			logger.LogError(c, "failed to unmarshal stream response: "+err.Error())
+			logger.LogError(c, common.LogText("failed to unmarshal stream response: %s", err.Error()))
 			sr.Error(err)
 			return
 		}
 		if streamResponse.Response != nil {
 			data = string(rewriteSGLangResponsesCreatedAt(info, []byte(data), "response.created_at", streamResponse.Response.CreatedAt))
 		}
+		accumulator.Observe(&streamResponse, common.StringToByteSlice(data))
 		if encryptedStateErr := newResponsesEncryptedReasoningStreamError(data, streamResponse); encryptedStateErr != nil {
 			responseWritten := c.Writer.Written()
-			accumulator.Observe(&streamResponse)
 			usageAuthoritative := codexResponsesUsageIsAuthoritative(streamResponse.Response)
 			if responseWritten || usageAuthoritative {
+				terminalData := data
 				if info.GetChannelType() == constant.ChannelTypeCodex {
-					sendResponsesStreamData(c, streamResponse, sanitizeCodexTerminalEvent(data, streamResponse.Type))
-				} else {
-					sendResponsesStreamData(c, streamResponse, data)
+					terminalData = sanitizeCodexTerminalEvent(data, streamResponse.Type)
+				}
+				if err := helper.ResponseChunkData(c, streamResponse, terminalData); err != nil {
+					logger.LogError(c, common.LogText("failed to send terminal Responses event: %s", err.Error()))
 				}
 				encryptedStateErr = types.WithOpenAIError(encryptedStateErr.ToOpenAIError(), encryptedStateErr.StatusCode, types.ErrOptionWithSkipRetry())
 			}
@@ -121,7 +121,6 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		}
 		if isCodexResponsesTerminalFailure(info, streamResponse) {
 			responseWritten := c.Writer.Written()
-			accumulator.Observe(&streamResponse)
 			if info.IsChannelTest {
 				capture, _ := c.Request.Context().Value(codexModelProbeErrorEvidenceKey{}).(func(string))
 				if capture != nil {
@@ -153,13 +152,21 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			)
 			logCodexResponsesTerminalFailure(c, streamResponse.Type, streamResponse.Response)
 			if responseWritten {
-				sendResponsesStreamData(c, streamResponse, sanitizeCodexTerminalEvent(data, streamResponse.Type))
+				if err := helper.ResponseChunkData(c, streamResponse, sanitizeCodexTerminalEvent(data, streamResponse.Type)); err != nil {
+					logger.LogError(c, common.LogText("failed to send Codex terminal Responses event: %s", err.Error()))
+				}
 			}
 			sr.Done()
 			return
 		}
-		sendResponsesStreamData(c, streamResponse, data)
-		accumulator.Observe(&streamResponse)
+		if err := helper.ResponseChunkData(c, streamResponse, data); err != nil {
+			sr.Stop(err)
+			return
+		}
+		if (streamResponse.Type == "response.completed" || streamResponse.Type == "response.done") &&
+			streamResponse.Response != nil && info.StreamStatus.ResponseOutcome() == string(relaycommon.ResponseOutcomeCompleted) {
+			sr.Done()
+		}
 	})
 
 	common.SetContextKey(c, constant.ContextKeyResponseStreamStatus, info.StreamStatus)
@@ -171,7 +178,7 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 				Message: scanErr.ToOpenAIError().Message,
 			}
 			if data, err := common.Marshal(streamResponse); err == nil {
-				sendResponsesStreamData(c, streamResponse, string(data))
+				_ = helper.ResponseChunkData(c, streamResponse, string(data))
 			}
 		}
 		return nil, scanErr

@@ -176,7 +176,7 @@ func TestGetPricingScopesOverridesToCallerAndEnabledModels(testContext *testing.
 		"member":  {"zz-pricing-all": 0.6},
 	}, member.GroupModelRatio)
 	assert.Equal(testContext, map[string]float64{"default": 0.8, "hidden": 0.9, "member": 1.2}, member.GroupRatio)
-	assert.Equal(testContext, map[string]string{"default": "Default", "hidden": "Private", "member": "用户分组"}, member.UsableGroup)
+	assert.Equal(testContext, map[string]string{"default": "Default", "hidden": "Private", "member": "User group"}, member.UsableGroup)
 	assert.Equal(testContext, []string{"default", "hidden"}, member.AutoGroups)
 	memberPricing := pricingByModelName(member.Data)
 	assert.Len(testContext, memberPricing, 4)
