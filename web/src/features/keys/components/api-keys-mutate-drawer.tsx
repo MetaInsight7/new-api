@@ -486,7 +486,10 @@ export function ApiKeysMutateDrawer({
               : t('Add a new API key by providing necessary info.')}
           </DialogDescription>
         </DialogHeader>
-        <div className='grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,30rem)]'>
+        <div
+          data-slot='api-key-editor-layout'
+          className='grid min-h-0 flex-1 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]'
+        >
           <div className='min-h-0 overflow-y-auto overscroll-contain'>
             <Form {...form}>
               <form
