@@ -149,6 +149,7 @@ func InitOptionMap() {
 	common.OptionMap["TurnstileSiteKey"] = ""
 	common.OptionMap["TurnstileSecretKey"] = ""
 	common.OptionMap["QuotaForNewUser"] = strconv.Itoa(common.QuotaForNewUser)
+	common.OptionMap[setting.DefaultUserMaxConcurrencyOptionKey] = strconv.Itoa(setting.GetDefaultUserMaxConcurrency())
 	common.OptionMap["QuotaForInviter"] = strconv.Itoa(common.QuotaForInviter)
 	common.OptionMap["QuotaForInvitee"] = strconv.Itoa(common.QuotaForInvitee)
 	common.OptionMap["QuotaRemindEnabled"] = strconv.FormatBool(common.QuotaRemindEnabled)
@@ -337,6 +338,9 @@ func validateOptionValue(key string, value string) error {
 	if key == "MaxTokenAutoGroups" {
 		return setting.ValidateMaxTokenAutoGroups(value)
 	}
+	if key == setting.DefaultUserMaxConcurrencyOptionKey {
+		return setting.ValidateDefaultUserMaxConcurrency(value)
+	}
 	return nil
 }
 
@@ -471,6 +475,11 @@ func updateOptionMap(key string, value string) (err error) {
 	}
 	if err := operation_setting.ValidateStreamingOption(key, value); err != nil {
 		return err
+	}
+	if key == setting.DefaultUserMaxConcurrencyOptionKey {
+		if err := setting.ValidateDefaultUserMaxConcurrency(value); err != nil {
+			return err
+		}
 	}
 	if key == retiredThemeOptionKey || key == legacyAccessTokenRetireAtKey {
 		common.OptionMapRWMutex.Lock()
@@ -747,6 +756,8 @@ func updateOptionMap(key string, value string) (err error) {
 		common.TurnstileSecretKey = value
 	case "QuotaForNewUser":
 		common.QuotaForNewUser, _ = strconv.Atoi(value)
+	case setting.DefaultUserMaxConcurrencyOptionKey:
+		err = setting.UpdateDefaultUserMaxConcurrency(value)
 	case "QuotaForInviter":
 		common.QuotaForInviter, _ = strconv.Atoi(value)
 	case "QuotaForInvitee":

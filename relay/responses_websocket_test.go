@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	appdto "github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
@@ -612,6 +614,36 @@ func TestResponsesWSShutdownInterruptsBusyWriter(t *testing.T) {
 	require.NoError(t, latePeer.SetReadDeadline(time.Now().Add(time.Second)))
 	_, _, err := latePeer.ReadMessage()
 	assert.True(t, websocket.IsCloseError(err, websocket.CloseNormalClosure), "want a 1000 close frame, got %v", err)
+}
+
+func TestRealtimeRequestCancellationClosesBothPeers(t *testing.T) {
+	client, server, cleanupClient := newTestWebSocketPair(t)
+	defer cleanupClient()
+	target, upstream, cleanupTarget := newTestWebSocketPair(t)
+	defer cleanupTarget()
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodGet, "/v1/realtime", nil).WithContext(ctx)
+	require.Nil(t, c.Done(), "the default Gin configuration does not forward request cancellation")
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_, _ = openai.OpenaiRealtimeHandler(c, &relaycommon.RelayInfo{ClientWs: server, TargetWs: target})
+	}()
+	cancel()
+	for _, peer := range []*websocket.Conn{client, upstream} {
+		require.NoError(t, peer.SetReadDeadline(time.Now().Add(2*time.Second)))
+		_, _, err := peer.ReadMessage()
+		assert.Error(t, err)
+		var netErr net.Error
+		assert.False(t, errors.As(err, &netErr) && netErr.Timeout(), "cancellation must close the socket, not leave its reader blocked")
+	}
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Realtime continued after request cancellation")
+	}
 }
 
 func TestResponsesWSPassthroughPreservesRawPricingParameters(t *testing.T) {

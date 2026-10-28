@@ -290,6 +290,7 @@ export type ModelSettings = {
 
 export type BillingSettings = {
   QuotaForNewUser: number
+  DefaultUserMaxConcurrency: number
   QuotaForInviter: number
   QuotaForInvitee: number
   TopUpLink: string

@@ -71,6 +71,7 @@ export const STATIC_I18N_KEYS = [
   'No changes to save',
   'Channel concurrency settings saved',
   'Some channel concurrency settings may already be active. Later changes were not saved; server values are being reloaded.',
+  'Maximum concurrency must be an integer between 0 and 2147483647',
   'The adjusted price is outside the supported range.',
   'This expression cannot be adjusted automatically. Keep the source price or edit it manually.',
   'Task usage metadata is unavailable. Pricing details cannot be displayed.',
