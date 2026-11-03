@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
 
@@ -12,7 +13,9 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
+	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
+	"gorm.io/gorm/schema"
 )
 
 type codexVersionSyncRoundTripper func(*http.Request) (*http.Response, error)
@@ -137,6 +140,36 @@ func TestSyncLatestStableCodexVersionDoesNotDowngradePersistedVersion(t *testing
 
 	require.NoError(t, SyncLatestStableCodexVersion(context.Background()))
 	require.Equal(t, "0.202.0", requireOptionValue(t, OptionKeyCodexSyncedClientVersion))
+}
+
+func TestResolveSyncedCodexClientVersionFromDBQuotesMySQLKeyColumn(t *testing.T) {
+	dsn := strings.TrimSpace(os.Getenv("TEST_MYSQL_DSN"))
+	if dsn == "" {
+		t.Skip("TEST_MYSQL_DSN is not configured")
+	}
+
+	database, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
+		NamingStrategy: schema.NamingStrategy{TablePrefix: "codex_version_sync_mysql_test_"},
+	})
+	require.NoError(t, err)
+	require.NoError(t, database.Migrator().DropTable(&model.Option{}))
+	require.NoError(t, database.AutoMigrate(&model.Option{}))
+
+	originalDB := model.DB
+	model.DB = database
+	t.Cleanup(func() {
+		model.DB = originalDB
+		require.NoError(t, database.Migrator().DropTable(&model.Option{}))
+	})
+
+	require.NoError(t, database.Create(&model.Option{
+		Key:   OptionKeyCodexSyncedClientVersion,
+		Value: "0.202.0",
+	}).Error)
+
+	version, err := resolveSyncedCodexClientVersionFromDB()
+	require.NoError(t, err)
+	require.Equal(t, "0.202.0", version)
 }
 
 func requireOptionValue(t *testing.T, key string) string {

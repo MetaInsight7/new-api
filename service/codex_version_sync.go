@@ -102,7 +102,7 @@ func resolveSyncedCodexClientVersionFromDB() (string, error) {
 	// Compare against persisted shared state. This node's option cache may not
 	// have observed a newer version written by another node yet.
 	var option model.Option
-	err := model.DB.Select("value").First(&option, "key = ?", OptionKeyCodexSyncedClientVersion).Error
+	err := model.DB.Select("value").Where(&model.Option{Key: OptionKeyCodexSyncedClientVersion}).First(&option).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return builtInCodexClientVersion, nil
