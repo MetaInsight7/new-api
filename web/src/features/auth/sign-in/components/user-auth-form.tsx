@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Link } from '@tanstack/react-router'
-import { Loader2, LogIn, KeyRound } from 'lucide-react'
+import { ArrowRight, KeyRound, Loader2, Lock, Mail } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -301,6 +301,14 @@ export function UserAuthForm({
 
   const alternativeLoginMethods = (
     <>
+      <OAuthProviders
+        status={status}
+        redirectTo={redirectTo}
+        disabled={isLoading || (requiresLegalConsent && !agreedToLegal)}
+        onWeChatLogin={hasWeChatLogin ? handleOpenWeChatDialog : undefined}
+        isWeChatLoading={isWeChatSubmitting}
+      />
+
       {passkeyLoginEnabled && (
         <div className='mt-2 space-y-1'>
           <Button
@@ -330,15 +338,6 @@ export function UserAuthForm({
           )}
         </div>
       )}
-
-      {/* OAuth Providers */}
-      <OAuthProviders
-        status={status}
-        redirectTo={redirectTo}
-        disabled={isLoading || (requiresLegalConsent && !agreedToLegal)}
-        onWeChatLogin={hasWeChatLogin ? handleOpenWeChatDialog : undefined}
-        isWeChatLoading={isWeChatSubmitting}
-      />
     </>
   )
 
@@ -359,13 +358,18 @@ export function UserAuthForm({
               name='username'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('Username or Email')}</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder={t('Enter your username or email')}
-                      {...field}
-                    />
-                  </FormControl>
+                  <FormLabel className='sr-only'>
+                    {t('Username or Email')}
+                  </FormLabel>
+                  <div className='auth-input-wrap'>
+                    <Mail className='auth-input-icon' aria-hidden='true' />
+                    <FormControl>
+                      <Input
+                        placeholder={t('Enter your username or email')}
+                        {...field}
+                      />
+                    </FormControl>
+                  </div>
                   <FormMessage />
                 </FormItem>
               )}
@@ -376,38 +380,30 @@ export function UserAuthForm({
               control={form.control}
               name='password'
               render={({ field }) => (
-                <FormItem className='relative'>
-                  <FormLabel>{t('Password')}</FormLabel>
-                  <FormControl>
-                    <PasswordInput
-                      placeholder={t('Enter password')}
-                      {...field}
-                    />
-                  </FormControl>
+                <FormItem>
+                  <FormLabel className='sr-only'>{t('Password')}</FormLabel>
+                  <div className='auth-input-wrap'>
+                    <Lock className='auth-input-icon' aria-hidden='true' />
+                    <FormControl>
+                      <PasswordInput
+                        placeholder={t('Enter password')}
+                        {...field}
+                      />
+                    </FormControl>
+                  </div>
                   <FormMessage />
-                  <Link
-                    to='/forgot-password'
-                    className='text-muted-foreground absolute end-0 -top-0.5 z-10 text-sm font-medium hover:opacity-75'
-                  >
-                    {t('Forgot password?')}
-                  </Link>
                 </FormItem>
               )}
             />
 
-            {/* Submit Button */}
-            <Button
-              type='submit'
-              className='mt-2 w-full justify-center gap-2'
-              disabled={isLoading}
-            >
-              {isLoading ? <Loader2 className='animate-spin' /> : <LogIn />}
-              {t('Sign in')}
-            </Button>
+            <div className='auth-field-action-row'>
+              <Link to='/forgot-password' className='auth-inline-action'>
+                {t('Forgot password?')}
+              </Link>
+            </div>
 
-            {/* Turnstile */}
             {isTurnstileEnabled && (
-              <div className='mt-2'>
+              <div className='auth-turnstile'>
                 <Turnstile
                   key={turnstileWidgetKey}
                   siteKey={turnstileSiteKey}
@@ -425,6 +421,19 @@ export function UserAuthForm({
           onCheckedChange={setAgreedToLegal}
           className='mt-1'
         />
+
+        {passwordLoginEnabled && (
+          <Button type='submit' disabled={isLoading}>
+            {isLoading ? (
+              <Loader2 className='animate-spin' />
+            ) : (
+              <>
+                {t('Start your Token Dazi journey')}
+                <ArrowRight className='ml-2 h-4 w-4' aria-hidden='true' />
+              </>
+            )}
+          </Button>
+        )}
 
         {!hasAlternativeLogin && alternativeLoginMethods}
       </form>

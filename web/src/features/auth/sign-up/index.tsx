@@ -17,8 +17,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Link } from '@tanstack/react-router'
+import { CheckCircle2, KeyRound, Sparkles } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import { TOKEN_DAZI_LOGO } from '@/components/brand/token-dazi-brand-logo'
 import { useStatus } from '@/hooks/use-status'
 
 import { AuthLayout } from '../auth-layout'
@@ -30,32 +32,56 @@ export function SignUp() {
   const { status } = useStatus()
 
   return (
-    <AuthLayout>
-      <div className='w-full space-y-8'>
-        <div className='space-y-2'>
-          <h2 className='text-center text-2xl font-semibold tracking-tight sm:text-left'>
-            {t('Create an account')}
-          </h2>
-          <p className='text-muted-foreground text-left text-sm sm:text-base'>
-            {t('Already have an account?')}{' '}
-            <Link
-              to='/sign-in'
-              className='hover:text-primary font-medium underline underline-offset-4'
-            >
-              {t('Sign in')}
-            </Link>
-            .
+    <AuthLayout compact>
+      <div className='auth-form-header'>
+        <img src={TOKEN_DAZI_LOGO} alt='' className='auth-brand-mark' />
+        <div className='auth-heading-copy'>
+          <h2 className='auth-title'>{t('Your copilot, always online')}</h2>
+          <p className='auth-subtitle'>
+            {t('One key, countless models. Ideas spark, code follows.')}
           </p>
         </div>
-
-        <SignUpForm />
-
-        <TermsFooter
-          variant='sign-up'
-          status={status}
-          className='text-center'
-        />
       </div>
+
+      <div className='auth-register-steps'>
+        <div className='auth-register-step'>
+          <span className='auth-register-step-icon auth-step-account'>
+            <KeyRound className='h-4 w-4' aria-hidden='true' />
+          </span>
+          <span className='auth-register-step-label'>{t('Create access')}</span>
+        </div>
+        <span className='auth-register-step-line' aria-hidden='true' />
+        <div className='auth-register-step'>
+          <span className='auth-register-step-icon auth-step-verify'>
+            <CheckCircle2 className='h-4 w-4' aria-hidden='true' />
+          </span>
+          <span className='auth-register-step-label'>
+            {t('Connect models')}
+          </span>
+        </div>
+        <span className='auth-register-step-line' aria-hidden='true' />
+        <div className='auth-register-step'>
+          <span className='auth-register-step-icon auth-step-ready'>
+            <Sparkles className='h-4 w-4' aria-hidden='true' />
+          </span>
+          <span className='auth-register-step-label'>
+            {t('Start creating')}
+          </span>
+        </div>
+      </div>
+
+      <SignUpForm />
+
+      <p className='auth-copy-row'>
+        {t('Already have Token Dazi?')}{' '}
+        <Link to='/sign-in'>{t('Sign in now')}</Link>
+      </p>
+
+      <TermsFooter
+        variant='sign-up'
+        status={status}
+        className='mt-4 text-center'
+      />
     </AuthLayout>
   )
 }

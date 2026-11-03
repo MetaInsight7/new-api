@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
-import { ArrowRight, Loader2 } from 'lucide-react'
+import { ArrowRight, Loader2, Mail } from 'lucide-react'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -109,34 +109,44 @@ export function ForgotPasswordForm({
           name='email'
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Email</FormLabel>
-              <FormControl>
-                <Input placeholder='name@example.com' {...field} />
-              </FormControl>
+              <FormLabel className='sr-only'>{t('Email')}</FormLabel>
+              <div className='auth-input-wrap'>
+                <Mail className='auth-input-icon' aria-hidden='true' />
+                <FormControl>
+                  <Input
+                    placeholder={t('Enter your registered email address')}
+                    type='email'
+                    {...field}
+                  />
+                </FormControl>
+              </div>
               <FormMessage />
             </FormItem>
           )}
         />
 
-        <Button
-          type='submit'
-          className='mt-2'
-          disabled={isLoading || isActive || !turnstileReady}
-        >
-          {isActive
-            ? t('Resend ({{seconds}}s)', { seconds: secondsLeft })
-            : t('Send reset email')}
-          {isLoading ? <Loader2 className='animate-spin' /> : <ArrowRight />}
-        </Button>
-
         {isTurnstileEnabled && (
-          <div className='mt-2'>
+          <div className='auth-turnstile'>
             <Turnstile
               siteKey={turnstileSiteKey}
               onVerify={setTurnstileToken}
             />
           </div>
         )}
+
+        <Button
+          type='submit'
+          disabled={isLoading || isActive || !turnstileReady}
+        >
+          {isActive
+            ? t('Resend ({{seconds}}s)', { seconds: secondsLeft })
+            : t('Send reset email')}
+          {isLoading ? (
+            <Loader2 className='animate-spin' />
+          ) : (
+            <ArrowRight aria-hidden='true' />
+          )}
+        </Button>
       </form>
     </Form>
   )

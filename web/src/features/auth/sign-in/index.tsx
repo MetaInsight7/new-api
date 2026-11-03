@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { Link, useSearch } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 
+import { TOKEN_DAZI_LOGO } from '@/components/brand/token-dazi-brand-logo'
 import { useStatus } from '@/hooks/use-status'
 
 import { AuthLayout } from '../auth-layout'
@@ -32,34 +33,30 @@ export function SignIn() {
 
   return (
     <AuthLayout>
-      <div className='w-full space-y-8'>
-        <div className='space-y-2'>
-          <h2 className='text-center text-2xl font-semibold tracking-tight sm:text-left'>
-            {t('Sign in')}
-          </h2>
-          {!status?.self_use_mode_enabled &&
-            status?.register_enabled !== false && (
-              <p className='text-muted-foreground text-left text-sm sm:text-base'>
-                {t("Don't have an account?")}{' '}
-                <Link
-                  to='/sign-up'
-                  className='hover:text-primary font-medium underline underline-offset-4'
-                >
-                  {t('Sign up')}
-                </Link>
-                .
-              </p>
-            )}
+      <div className='auth-form-header'>
+        <img src={TOKEN_DAZI_LOGO} alt='' className='auth-brand-mark' />
+        <div className='auth-heading-copy'>
+          <h2 className='auth-title'>{t('Welcome back to Token Dazi')}</h2>
+          <p className='auth-subtitle'>
+            {t('Models are connected. Turn your ideas into something real.')}
+          </p>
         </div>
-
-        <UserAuthForm redirectTo={redirect} />
-
-        <TermsFooter
-          variant='sign-in'
-          status={status}
-          className='text-center'
-        />
       </div>
+
+      <UserAuthForm redirectTo={redirect} />
+
+      {!status?.self_use_mode_enabled && status?.register_enabled !== false && (
+        <p className='auth-copy-row'>
+          {t('New to Token Dazi?')}{' '}
+          <Link to='/sign-up'>{t('Sign up now')}</Link>
+        </p>
+      )}
+
+      <TermsFooter
+        variant='sign-in'
+        status={status}
+        className='mt-4 text-center'
+      />
     </AuthLayout>
   )
 }

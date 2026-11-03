@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Loader2 } from 'lucide-react'
+import { ArrowRight, KeyRound, Loader2, Lock, Mail, User } from 'lucide-react'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -253,108 +253,127 @@ export function SignUpForm({
         className={cn('grid gap-4', className)}
         {...props}
       >
-        {/* Username Field */}
+        {oauthRegisterEnabled && (
+          <OAuthProviders
+            status={status}
+            disabled={isLoading || (requiresLegalConsent && !agreedToLegal)}
+            onWeChatLogin={hasWeChatLogin ? handleOpenWeChatDialog : undefined}
+            isWeChatLoading={isWeChatSubmitting}
+            className='pt-2'
+          />
+        )}
+
         <FormField
           control={form.control}
           name='username'
           render={({ field }) => (
             <FormItem>
-              <FormLabel>{t('Username')}</FormLabel>
-              <FormControl>
-                <Input placeholder={t('Enter your username')} {...field} />
-              </FormControl>
+              <FormLabel className='sr-only'>{t('Username')}</FormLabel>
+              <div className='auth-input-wrap'>
+                <User className='auth-input-icon' aria-hidden='true' />
+                <FormControl>
+                  <Input placeholder={t('Enter your username')} {...field} />
+                </FormControl>
+              </div>
               <FormMessage />
             </FormItem>
           )}
         />
 
-        {/* Password Field */}
         <FormField
           control={form.control}
           name='password'
           render={({ field }) => (
             <FormItem>
-              <FormLabel>{t('Password')}</FormLabel>
-              <FormControl>
-                <PasswordInput
-                  placeholder={t('Enter password (8–128 characters)')}
-                  {...field}
-                />
-              </FormControl>
+              <FormLabel className='sr-only'>{t('Password')}</FormLabel>
+              <div className='auth-input-wrap'>
+                <Lock className='auth-input-icon' aria-hidden='true' />
+                <FormControl>
+                  <PasswordInput
+                    placeholder={t('Enter password (8–128 characters)')}
+                    {...field}
+                  />
+                </FormControl>
+              </div>
               <FormMessage />
             </FormItem>
           )}
         />
 
-        {/* Confirm Password Field */}
         <FormField
           control={form.control}
           name='confirmPassword'
           render={({ field }) => (
             <FormItem>
-              <FormLabel>{t('Confirm password')}</FormLabel>
-              <FormControl>
-                <PasswordInput placeholder={t('Confirm password')} {...field} />
-              </FormControl>
+              <FormLabel className='sr-only'>{t('Confirm password')}</FormLabel>
+              <div className='auth-input-wrap'>
+                <Lock className='auth-input-icon' aria-hidden='true' />
+                <FormControl>
+                  <PasswordInput
+                    placeholder={t('Confirm password')}
+                    {...field}
+                  />
+                </FormControl>
+              </div>
               <FormMessage />
             </FormItem>
           )}
         />
 
-        {/* Email Verification Section */}
         {emailVerificationRequired && (
           <>
-            {/* Email Field */}
             <FormField
               control={form.control}
               name='email'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>
+                  <FormLabel className='sr-only'>
                     {t('Email (required for verification)')}
                   </FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder={t('name@example.com')}
-                      type='email'
-                      {...field}
-                    />
-                  </FormControl>
+                  <div className='auth-input-wrap'>
+                    <Mail className='auth-input-icon' aria-hidden='true' />
+                    <FormControl>
+                      <Input
+                        placeholder={t('name@example.com')}
+                        type='email'
+                        {...field}
+                      />
+                    </FormControl>
+                    <Button
+                      variant='outline'
+                      type='button'
+                      className='auth-code-btn'
+                      disabled={
+                        isLoading ||
+                        isSendingCode ||
+                        isActive ||
+                        !emailValue ||
+                        !turnstileReady
+                      }
+                      onClick={handleSendVerificationCode}
+                    >
+                      {verificationCodeAction}
+                    </Button>
+                  </div>
                   <FormMessage />
                 </FormItem>
               )}
             />
 
-            {/* Verification Code Field */}
-            <div className='flex items-end gap-2'>
-              <div className='flex-1'>
-                <Input
-                  placeholder={t('Verification code')}
-                  value={verificationCode}
-                  onChange={(e) => setVerificationCode(e.target.value)}
-                />
-              </div>
-              <Button
-                variant='outline'
-                type='button'
-                disabled={
-                  isLoading ||
-                  isSendingCode ||
-                  isActive ||
-                  !emailValue ||
-                  !turnstileReady
-                }
-                onClick={handleSendVerificationCode}
-              >
-                {verificationCodeAction}
-              </Button>
+            <div className='auth-input-wrap'>
+              <KeyRound className='auth-input-icon' aria-hidden='true' />
+              <Input
+                aria-label={t('Verification code')}
+                placeholder={t('Verification code')}
+                value={verificationCode}
+                onChange={(event) => setVerificationCode(event.target.value)}
+              />
             </div>
           </>
         )}
 
-        {/* Turnstile */}
         {isTurnstileEnabled && (
-          <div className='mt-2'>
+          <div className='auth-turnstile'>
             <Turnstile
               key={turnstileWidgetKey}
               siteKey={turnstileSiteKey}
@@ -370,29 +389,23 @@ export function SignUpForm({
           className='mt-1'
         />
 
-        {/* Submit Button */}
         <Button
           type='submit'
-          className='mt-2 w-full justify-center gap-2'
           disabled={
             isLoading ||
             (requiresLegalConsent && !agreedToLegal) ||
             !turnstileReady
           }
         >
-          {isLoading ? <Loader2 className='h-4 w-4 animate-spin' /> : null}
-          {t('Create account')}
+          {isLoading ? (
+            <Loader2 className='h-4 w-4 animate-spin' />
+          ) : (
+            <>
+              {t('Create your Token Dazi account')}
+              <ArrowRight className='ml-2 h-4 w-4' aria-hidden='true' />
+            </>
+          )}
         </Button>
-
-        {oauthRegisterEnabled && (
-          <OAuthProviders
-            status={status}
-            disabled={isLoading || (requiresLegalConsent && !agreedToLegal)}
-            onWeChatLogin={hasWeChatLogin ? handleOpenWeChatDialog : undefined}
-            isWeChatLoading={isWeChatSubmitting}
-            className='pt-2'
-          />
-        )}
       </form>
 
       {hasWeChatLogin && (
