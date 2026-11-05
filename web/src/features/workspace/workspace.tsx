@@ -155,37 +155,42 @@ export function Workspace() {
     setCustomOpen(false)
   }
 
+  const rangeSelector = (
+    <div className='bg-muted/60 flex max-w-full flex-nowrap justify-start gap-1 overflow-x-auto rounded-lg border p-0.5 md:justify-end'>
+      {RANGE_OPTIONS.map((option) => (
+        <Button
+          key={option.key}
+          type='button'
+          variant={range.key === option.key ? 'default' : 'ghost'}
+          size='sm'
+          className='h-7 px-3 text-xs'
+          onClick={() => setRange(option)}
+        >
+          {t(option.labelKey)}
+        </Button>
+      ))}
+      <Button
+        type='button'
+        variant={range.key === 'custom' ? 'default' : 'ghost'}
+        size='sm'
+        className='h-7 px-3 text-xs'
+        onClick={openCustomRange}
+      >
+        <Calendar data-icon='inline-start' />
+        {t('Custom Time Range')}
+      </Button>
+    </div>
+  )
+
   return (
     <SectionPageLayout>
       <SectionPageLayout.Title>{t('Workspace')}</SectionPageLayout.Title>
       <SectionPageLayout.Actions>
-        <div className='bg-muted/60 flex flex-wrap justify-end gap-1 rounded-lg border p-0.5'>
-          {RANGE_OPTIONS.map((option) => (
-            <Button
-              key={option.key}
-              type='button'
-              variant={range.key === option.key ? 'default' : 'ghost'}
-              size='sm'
-              className='h-7 px-3 text-xs'
-              onClick={() => setRange(option)}
-            >
-              {t(option.labelKey)}
-            </Button>
-          ))}
-          <Button
-            type='button'
-            variant={range.key === 'custom' ? 'default' : 'ghost'}
-            size='sm'
-            className='h-7 px-3 text-xs'
-            onClick={openCustomRange}
-          >
-            <Calendar data-icon='inline-start' />
-            {t('Custom Time Range')}
-          </Button>
-        </div>
+        <div className='hidden max-w-full md:block'>{rangeSelector}</div>
       </SectionPageLayout.Actions>
       <SectionPageLayout.Content>
         <div className='space-y-4'>
+          <div className='md:hidden'>{rangeSelector}</div>
           <div className='grid items-stretch gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_24rem]'>
             <WorkspaceSummary {...chartData} />
             <WorkspaceApiAccess />
