@@ -213,7 +213,7 @@ function matchesVendor(
 export function normalizeModelAvailabilityStatus(
   status: ModelAccessModel['availability_status']
 ): ModelAvailabilityStatus {
-  return status === 'unknown' ? 'unknown_failure' : status
+  return status
 }
 
 export function filterModelAccessModels(

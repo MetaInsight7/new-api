@@ -17,6 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 */
 import { describe, expect, test } from 'vitest'
 
+import { getModelAvailabilityConfig } from '@/lib/model-availability'
+
 import type { UserModelAccess } from '../types'
 import {
   ALL_MODEL_VENDORS,
@@ -89,9 +91,12 @@ describe('available model browser filtering', () => {
     )
   })
 
-  test('normalizes unknown status and endpoint labels', () => {
-    expect(normalizeModelAvailabilityStatus('unknown')).toBe('unknown_failure')
+  test('preserves unchecked status and resolves endpoint labels', () => {
+    expect(normalizeModelAvailabilityStatus('unknown')).toBe('unknown')
     const translate = ((key: string) => key) as unknown as TFunction
+    expect(getModelAvailabilityConfig(translate).unknown.label).toBe(
+      'Not checked'
+    )
     expect(getModelEndpointLabel('openai-responses', translate)).toBe(
       'OpenAI Compatible'
     )

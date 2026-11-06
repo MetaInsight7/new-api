@@ -24,6 +24,7 @@ export type ModelAvailabilityStatus =
   | 'available'
   | 'temporary_failure'
   | 'official_unsupported'
+  | 'unknown'
   | 'unknown_failure'
 
 export type ModelAvailabilityConfig = {
@@ -50,6 +51,11 @@ export function getModelAvailabilityConfig(
       label: t('Officially unsupported'),
       variant: 'danger',
       description: t('Upstream no longer supports this model'),
+    },
+    unknown: {
+      label: t('Not checked'),
+      variant: 'neutral',
+      description: t('No availability check has been recorded yet'),
     },
     unknown_failure: {
       label: t('Unknown failure'),

@@ -990,6 +990,8 @@ export const STATIC_I18N_KEYS = [
   'Temporary upstream failure',
   'Officially unsupported',
   'Upstream no longer supports this model',
+  'Not checked',
+  'No availability check has been recorded yet',
   'Unknown failure',
   'Availability check failed for an unknown reason',
   'Ad',
