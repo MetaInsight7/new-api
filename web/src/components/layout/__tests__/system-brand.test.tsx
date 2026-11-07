@@ -27,7 +27,8 @@ describe('console system branding', () => {
       'src',
       '/token-dazi-logo.svg'
     )
-    expect(screen.getByText('Token 搭子')).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'Logo' })).toHaveClass('size-7')
+    expect(screen.getByText('Token 搭子')).toHaveClass('text-xl')
   })
 
   it('preserves the configurable system identity, logo and version in the sidebar variant', () => {

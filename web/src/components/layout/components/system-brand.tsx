@@ -70,7 +70,9 @@ export function SystemBrand(props: SystemBrandProps) {
       >
         <TokenDaziBrandLogo
           alt={t('Logo')}
-          wordmarkClassName='max-[420px]:hidden'
+          className='gap-2'
+          markClassName='size-7 min-[901px]:size-7 min-[1481px]:size-7'
+          wordmarkClassName='text-xl max-[420px]:hidden min-[901px]:text-xl min-[1481px]:text-xl'
         />
         <span className='sr-only'>{name}</span>
       </a>
