@@ -78,3 +78,10 @@ export function sanitizeAuthRedirect(
 
   return `${redirectURL.pathname}${redirectURL.search}${redirectURL.hash}`
 }
+
+export function resolvePostLoginRedirect(
+  value: unknown,
+  origin: string
+): string {
+  return sanitizeAuthRedirect(value, origin) ?? '/workspace'
+}

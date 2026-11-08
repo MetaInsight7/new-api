@@ -20,11 +20,22 @@ import { describe, expect, test } from 'vitest'
 
 import type { AuthUser } from '@/stores/auth-store'
 
-import { getSavedLanguage, sanitizeAuthRedirect } from './auth-redirect'
+import {
+  getSavedLanguage,
+  resolvePostLoginRedirect,
+  sanitizeAuthRedirect,
+} from './auth-redirect'
 
 const origin = 'https://dashboard.example.com'
 
 describe('authentication redirect validation', () => {
+  test('uses the workspace by default while preserving a safe destination', () => {
+    expect(resolvePostLoginRedirect(undefined, origin)).toBe('/workspace')
+    expect(resolvePostLoginRedirect('/pricing?view=grid', origin)).toBe(
+      '/pricing?view=grid'
+    )
+  })
+
   test('preserves safe internal paths, search parameters, and fragments', () => {
     expect(sanitizeAuthRedirect('/console?tab=usage#recent', origin)).toBe(
       '/console?tab=usage#recent'

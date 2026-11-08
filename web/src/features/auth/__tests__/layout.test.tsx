@@ -75,7 +75,7 @@ describe('authentication layout', () => {
     )
     expect(
       screen.getByRole('link', { name: 'Free registration' })
-    ).toHaveAttribute('href', '/sign-up?redirect=/workspace')
+    ).toHaveAttribute('href', '/sign-up')
     expect(container.querySelector('.auth-visual-panel')).toHaveAttribute(
       'aria-hidden',
       'true'

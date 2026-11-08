@@ -590,10 +590,7 @@ export function AuthLayout({ children, compact }: AuthLayoutProps) {
           </div>
           <div className='auth-navbar-actions'>
             <a href='/sign-in'>{t('Login')}</a>
-            <a
-              className='auth-navbar-action-primary'
-              href='/sign-up?redirect=/workspace'
-            >
+            <a className='auth-navbar-action-primary' href='/sign-up'>
               {t('Free registration')}
             </a>
           </div>

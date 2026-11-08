@@ -17,7 +17,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { AuthUser } from '@/stores/auth-store'
-import { ROLE } from '@/lib/roles'
 
 type SelfResponse = {
   success?: boolean
@@ -25,7 +24,7 @@ type SelfResponse = {
 }
 
 type HomeRedirectResult = {
-  to: '/dashboard' | '/workspace' | '/sign-in'
+  to: '/workspace' | '/sign-in'
   user: AuthUser | null
 }
 
@@ -34,11 +33,7 @@ export async function resolveHomeRedirect(
 ): Promise<HomeRedirectResult> {
   const response = await getSelf().catch(() => null)
   if (response?.success && response.data) {
-    const to =
-      Number(response.data.role ?? 0) >= ROLE.ADMIN
-        ? '/dashboard'
-        : '/workspace'
-    return { to, user: response.data }
+    return { to: '/workspace', user: response.data }
   }
   return { to: '/sign-in', user: null }
 }

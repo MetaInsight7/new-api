@@ -33,13 +33,13 @@ describe('home redirect', () => {
     })
   })
 
-  test('routes administrators to the dashboard', async () => {
+  test('routes administrators to the workspace', async () => {
     const result = await resolveHomeRedirect(async () => ({
       success: true,
       data: { id: 2, username: 'admin', role: ROLE.ADMIN },
     }))
 
-    expect(result.to).toBe('/dashboard')
+    expect(result.to).toBe('/workspace')
     expect(result.user?.id).toBe(2)
   })
 
