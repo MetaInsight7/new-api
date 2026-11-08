@@ -392,7 +392,7 @@ export function ModelAccessList({
                             render={
                               <Badge
                                 variant='outline'
-                                className='border-warning bg-warning text-warning-foreground font-semibold'
+                                className='border-blue-200 bg-blue-50 font-semibold text-blue-700 dark:border-blue-400/40 dark:bg-blue-500/15 dark:text-blue-300'
                                 tabIndex={0}
                                 aria-label={`${exclusiveRatioLabel}. ${exclusiveRatioDescription}`}
                               />
