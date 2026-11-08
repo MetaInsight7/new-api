@@ -21,14 +21,14 @@ const pricingData = vi.hoisted(() => ({
     {
       id: 1,
       model_name: 'gpt-5',
-      vendor_id: 1,
+      vendor_id: -1005,
       vendor_name: 'OpenAI',
       enable_groups: ['vip'],
     },
     {
       id: 2,
       model_name: 'gpt-5-mini',
-      vendor_id: 1,
+      vendor_id: -1005,
       vendor_name: 'OpenAI',
       enable_groups: ['vip'],
     },
@@ -299,6 +299,11 @@ describe('model-specific ratio editor', () => {
     await user.type(search, 'gpt-')
     expect(within(drawer).queryByText('gpt-5')).not.toBeInTheDocument()
     expect(within(drawer).getByText('gpt-5-mini')).toBeVisible()
+    expect(
+      within(drawer)
+        .getByText('gpt-5-mini')
+        .closest('[data-slot="group-model-ratio-model-list"]')
+    ).toHaveClass('shrink-0')
 
     await user.click(
       within(drawer).getByRole('button', { name: 'Select all (filtered)' })
@@ -313,6 +318,45 @@ describe('model-specific ratio editor', () => {
     expect(JSON.parse(onChange.mock.lastCall?.[0] ?? 'null')).toEqual({
       vip: { 'gpt-5': 0.7, 'gpt-5-mini': 0.8 },
     })
+  })
+
+  it('shows translated labels instead of internal select values', async () => {
+    const user = userEvent.setup()
+    render(<Fixture initial='{"vip":{"gpt-5":0.7}}' onChange={vi.fn()} />)
+
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Batch configure model ratios for vip',
+      })
+    )
+    const drawer = await screen.findByRole('dialog')
+
+    const vendorSelect = within(drawer).getByRole('combobox', {
+      name: 'Vendor',
+    })
+    await user.click(vendorSelect)
+    await user.click(screen.getByRole('option', { name: 'OpenAI' }))
+    expect(vendorSelect).toHaveTextContent('OpenAI')
+    expect(vendorSelect).not.toHaveTextContent('-1005')
+    expect(vendorSelect).toHaveClass('w-full')
+
+    const configurationSelect = within(drawer).getByRole('combobox', {
+      name: 'Configuration status',
+    })
+    await user.click(configurationSelect)
+    await user.click(screen.getByRole('option', { name: 'Configured' }))
+    expect(configurationSelect).toHaveTextContent('Configured')
+    expect(configurationSelect).not.toHaveTextContent('configured')
+    expect(configurationSelect).toHaveClass('w-full')
+
+    const actionSelect = within(drawer).getByRole('combobox', {
+      name: 'Batch action',
+    })
+    await user.click(actionSelect)
+    await user.click(screen.getByRole('option', { name: 'Remove ratios' }))
+    expect(actionSelect).toHaveTextContent('Remove ratios')
+    expect(actionSelect).not.toHaveTextContent('remove')
+    expect(actionSelect).toHaveClass('w-full')
   })
 })
 

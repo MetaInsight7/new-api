@@ -22,6 +22,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -106,6 +107,18 @@ export function GroupModelRatioBatchSheet(
       left[1].localeCompare(right[1])
     )
   }, [models])
+  const vendorLabel =
+    vendor === 'all'
+      ? t('All vendors')
+      : (vendorOptions.find(([value]) => value === vendor)?.[1] ??
+        t('All vendors'))
+  const configurationLabels: Record<ConfigurationFilter, string> = {
+    all: t('All models'),
+    configured: t('Configured'),
+    unconfigured: t('Unconfigured'),
+  }
+  const configurationLabel = configurationLabels[configuration]
+  const modeLabel = mode === 'set' ? t('Set ratio') : t('Remove ratios')
 
   const isConfigured = (modelName: string) =>
     Object.hasOwn(currentGroup, formatBillingModelName(modelName))
@@ -179,65 +192,92 @@ export function GroupModelRatioBatchSheet(
           </SheetHeader>
 
           <div className={sideDrawerFormClassName('gap-4')}>
-            <div className='grid gap-3 sm:grid-cols-[minmax(0,1fr)_180px_180px]'>
-              <div className='relative'>
-                <Search
-                  aria-hidden='true'
-                  className='text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2'
-                />
-                <Input
-                  value={search}
-                  className='pl-9'
-                  aria-label={t('Search models')}
-                  placeholder={t('Search models...')}
-                  onChange={(event) => setSearch(event.target.value)}
-                />
+            <div className='grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(320px,400px)] lg:items-end'>
+              <div className='space-y-1.5'>
+                <Label htmlFor='group-model-ratio-search'>
+                  {t('Search models')}
+                </Label>
+                <div className='relative'>
+                  <Search
+                    aria-hidden='true'
+                    className='text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2'
+                  />
+                  <Input
+                    id='group-model-ratio-search'
+                    value={search}
+                    className='pl-9'
+                    placeholder={t('Search models...')}
+                    onChange={(event) => setSearch(event.target.value)}
+                  />
+                </div>
               </div>
-              <Select
-                value={vendor}
-                onValueChange={(value) => value && setVendor(value)}
-              >
-                <SelectTrigger aria-label={t('Vendor')}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent alignItemWithTrigger={false}>
-                  <SelectGroup>
-                    <SelectItem value='all'>{t('All vendors')}</SelectItem>
-                    {vendorOptions.map(([value, label]) => (
-                      <SelectItem key={value} value={value}>
-                        {label}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-              <Select
-                value={configuration}
-                onValueChange={(value) => {
-                  if (
-                    value === 'all' ||
-                    value === 'configured' ||
-                    value === 'unconfigured'
-                  ) {
-                    setConfiguration(value)
-                  }
-                }}
-              >
-                <SelectTrigger aria-label={t('Configuration status')}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent alignItemWithTrigger={false}>
-                  <SelectGroup>
-                    <SelectItem value='all'>{t('All models')}</SelectItem>
-                    <SelectItem value='configured'>
-                      {t('Configured')}
-                    </SelectItem>
-                    <SelectItem value='unconfigured'>
-                      {t('Unconfigured')}
-                    </SelectItem>
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
+              <div className='grid gap-3 sm:grid-cols-2'>
+                <div className='min-w-0 space-y-1.5'>
+                  <Label htmlFor='group-model-ratio-vendor'>
+                    {t('Vendor')}
+                  </Label>
+                  <Select
+                    value={vendor}
+                    onValueChange={(value) => value && setVendor(value)}
+                  >
+                    <SelectTrigger
+                      id='group-model-ratio-vendor'
+                      className='w-full min-w-0'
+                    >
+                      <SelectValue className='min-w-0 truncate'>
+                        {vendorLabel}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent alignItemWithTrigger={false}>
+                      <SelectGroup>
+                        <SelectItem value='all'>{t('All vendors')}</SelectItem>
+                        {vendorOptions.map(([value, label]) => (
+                          <SelectItem key={value} value={value}>
+                            {label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className='min-w-0 space-y-1.5'>
+                  <Label htmlFor='group-model-ratio-configuration'>
+                    {t('Configuration status')}
+                  </Label>
+                  <Select
+                    value={configuration}
+                    onValueChange={(value) => {
+                      if (
+                        value === 'all' ||
+                        value === 'configured' ||
+                        value === 'unconfigured'
+                      ) {
+                        setConfiguration(value)
+                      }
+                    }}
+                  >
+                    <SelectTrigger
+                      id='group-model-ratio-configuration'
+                      className='w-full min-w-0'
+                    >
+                      <SelectValue className='min-w-0 truncate'>
+                        {configurationLabel}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent alignItemWithTrigger={false}>
+                      <SelectGroup>
+                        <SelectItem value='all'>{t('All models')}</SelectItem>
+                        <SelectItem value='configured'>
+                          {t('Configured')}
+                        </SelectItem>
+                        <SelectItem value='unconfigured'>
+                          {t('Unconfigured')}
+                        </SelectItem>
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             </div>
 
             <div className='flex flex-wrap items-center gap-2'>
@@ -274,7 +314,10 @@ export function GroupModelRatioBatchSheet(
               </div>
             </div>
 
-            <div className='overflow-hidden rounded-lg border'>
+            <div
+              data-slot='group-model-ratio-model-list'
+              className='shrink-0 overflow-hidden rounded-lg border'
+            >
               <div className='bg-muted/40 flex items-center justify-between border-b px-3 py-2 text-xs'>
                 <span>
                   {t('{{count}} selected models', { count: selected.size })}
@@ -384,33 +427,46 @@ export function GroupModelRatioBatchSheet(
               </div>
             </div>
 
-            <div className='grid gap-3 rounded-lg border p-3 sm:grid-cols-[180px_160px_minmax(0,1fr)]'>
-              <Select
-                value={mode}
-                onValueChange={(value) => {
-                  if (value === 'set' || value === 'remove') {
-                    setModeAndDefaults(value)
-                  }
-                }}
-              >
-                <SelectTrigger aria-label={t('Batch action')}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent alignItemWithTrigger={false}>
-                  <SelectGroup>
-                    <SelectItem value='set'>{t('Set ratio')}</SelectItem>
-                    <SelectItem value='remove'>{t('Remove ratios')}</SelectItem>
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-              <div>
+            <div className='grid gap-3 rounded-lg border p-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(220px,1.2fr)]'>
+              <div className='min-w-0 space-y-1.5'>
+                <Label htmlFor='group-model-ratio-action'>
+                  {t('Batch action')}
+                </Label>
+                <Select
+                  value={mode}
+                  onValueChange={(value) => {
+                    if (value === 'set' || value === 'remove') {
+                      setModeAndDefaults(value)
+                    }
+                  }}
+                >
+                  <SelectTrigger
+                    id='group-model-ratio-action'
+                    className='w-full min-w-0'
+                  >
+                    <SelectValue className='min-w-0 truncate'>
+                      {modeLabel}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent alignItemWithTrigger={false}>
+                    <SelectGroup>
+                      <SelectItem value='set'>{t('Set ratio')}</SelectItem>
+                      <SelectItem value='remove'>
+                        {t('Remove ratios')}
+                      </SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className='space-y-1.5'>
+                <Label htmlFor='group-model-ratio-value'>{t('Ratio')}</Label>
                 <Input
+                  id='group-model-ratio-value'
                   type='number'
                   min={0}
                   step='any'
                   value={ratioDraft}
                   disabled={mode === 'remove'}
-                  aria-label={t('Ratio')}
                   aria-invalid={mode === 'set' && !ratioValid}
                   onChange={(event) => setRatioDraft(event.target.value)}
                 />
@@ -422,7 +478,10 @@ export function GroupModelRatioBatchSheet(
                   </p>
                 )}
               </div>
-              <label className='flex items-center gap-2 self-start pt-2 text-sm'>
+              <label
+                data-disabled={mode === 'remove'}
+                className='flex min-h-8 items-center gap-2 rounded-lg border px-3 py-1.5 text-sm data-[disabled=true]:cursor-not-allowed data-[disabled=true]:opacity-50 sm:col-span-2 lg:col-span-1 lg:mt-5'
+              >
                 <Checkbox
                   checked={overwrite}
                   disabled={mode === 'remove'}
