@@ -17,14 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
-import { FileWarning } from 'lucide-react'
+import { ExternalLink, FileWarning, Scale } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { PublicLayout } from '@/components/layout'
 import { RichContent } from '@/components/rich-content'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { AuthNavbar } from '@/features/auth/auth-navbar'
 import { isHttpUrl, isLikelyHtml } from '@/lib/content-format'
 
 import type { LegalDocumentResponse } from './types'
@@ -54,91 +53,80 @@ export function LegalDocument({
   const isUrl = hasContent && isHttpUrl(rawContent)
   const contentIsHtml = hasContent && isLikelyHtml(rawContent)
   const success = data?.success ?? false
+  const titleId = `${queryKey}-title`
+  let documentContent: ReactNode
 
   if (isLoading) {
-    return (
-      <PublicLayout>
-        <div className='mx-auto flex max-w-4xl flex-col gap-4 py-12'>
-          <Skeleton className='h-8 w-[45%]' />
-          <Skeleton className='h-4 w-full' />
-          <Skeleton className='h-4 w-[90%]' />
-          <Skeleton className='h-4 w-[80%]' />
-        </div>
-      </PublicLayout>
+    documentContent = (
+      <div className='legal-document-loading' aria-label={t('Loading')}>
+        <Skeleton className='h-4 w-full' />
+        <Skeleton className='h-4 w-[92%]' />
+        <Skeleton className='h-4 w-[84%]' />
+        <Skeleton className='h-4 w-[88%]' />
+      </div>
     )
-  }
-
-  if (!success || !hasContent) {
-    return (
-      <PublicLayout>
-        <div className='mx-auto max-w-2xl py-12'>
-          <Card className='border-dashed'>
-            <CardHeader className='flex flex-row items-center gap-4'>
-              <div className='bg-muted rounded-lg p-2'>
-                <FileWarning className='text-muted-foreground h-5 w-5' />
-              </div>
-              <div className='space-y-1'>
-                <CardTitle className='text-lg font-semibold'>{title}</CardTitle>
-                <p className='text-muted-foreground text-sm'>
-                  {data?.message || emptyMessage}
-                </p>
-              </div>
-            </CardHeader>
-          </Card>
+  } else if (!success || !hasContent) {
+    documentContent = (
+      <div className='legal-document-state' role='status'>
+        <span className='legal-document-state-icon' aria-hidden='true'>
+          <FileWarning />
+        </span>
+        <div>
+          <p>{data?.message || emptyMessage}</p>
         </div>
-      </PublicLayout>
+      </div>
     )
-  }
-
-  if (isUrl) {
-    return (
-      <PublicLayout>
-        <div className='mx-auto max-w-2xl py-12'>
-          <Card>
-            <CardHeader>
-              <CardTitle>{title}</CardTitle>
-            </CardHeader>
-            <CardContent className='space-y-4'>
-              <p className='text-muted-foreground text-sm'>
-                {t(
-                  'The administrator configured an external link for this document.'
-                )}
-              </p>
-              <Button
-                render={
-                  <a
-                    href={rawContent}
-                    target='_blank'
-                    rel='noopener noreferrer'
-                  />
-                }
-              >
-                {t('View document')}
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-      </PublicLayout>
+  } else if (isUrl) {
+    documentContent = (
+      <div className='legal-document-state'>
+        <p>
+          {t(
+            'The administrator configured an external link for this document.'
+          )}
+        </p>
+        <a
+          className='legal-document-action'
+          href={rawContent}
+          target='_blank'
+          rel='noopener noreferrer'
+        >
+          {t('View document')}
+          <ExternalLink aria-hidden='true' />
+        </a>
+      </div>
+    )
+  } else {
+    documentContent = (
+      <RichContent
+        mode={contentIsHtml ? 'html' : 'markdown'}
+        htmlVariant={contentIsHtml ? 'isolated' : undefined}
+        content={rawContent}
+        className='legal-document-content prose-neutral dark:prose-invert max-w-none'
+      />
     )
   }
 
   return (
-    <PublicLayout showMainContainer={!contentIsHtml}>
-      {contentIsHtml ? (
-        <RichContent mode='html' htmlVariant='isolated' content={rawContent} />
-      ) : (
-        <div className='mx-auto max-w-4xl space-y-6 py-12'>
-          <div className='space-y-2'>
-            <h1 className='text-3xl font-semibold tracking-tight'>{title}</h1>
+    <div className='auth-page legal-page'>
+      <AuthNavbar />
+      <main className='legal-main'>
+        <article
+          className='legal-document-card'
+          aria-labelledby={titleId}
+          aria-busy={isLoading}
+        >
+          <div className='legal-document-header'>
+            <span className='legal-document-mark' aria-hidden='true'>
+              <Scale />
+            </span>
+            <div>
+              <span className='legal-document-brand'>Token Dazi</span>
+              <h1 id={titleId}>{title}</h1>
+            </div>
           </div>
-
-          <RichContent
-            mode='markdown'
-            content={rawContent}
-            className='prose-neutral dark:prose-invert max-w-none'
-          />
-        </div>
-      )}
-    </PublicLayout>
+          <div className='legal-document-body'>{documentContent}</div>
+        </article>
+      </main>
+    </div>
   )
 }

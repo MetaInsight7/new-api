@@ -148,6 +148,162 @@ For commercial licensing, please contact support@quantumnous.com
   font-size: 23px;
 }
 
+/* ─── Legal Documents ─── */
+
+.legal-main {
+  width: min(100%, 1000px);
+  flex: 1;
+  margin: 0 auto;
+  padding: clamp(108px, 10vw, 136px) 24px 72px;
+}
+
+.legal-document-card {
+  overflow: hidden;
+  border: 2px solid var(--ink);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: var(--hard);
+}
+
+.legal-document-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border-bottom: 1px solid var(--line);
+  padding: 28px clamp(24px, 5vw, 48px);
+  background: linear-gradient(135deg, #fff 0%, #f3f7ee 100%);
+}
+
+.legal-document-mark {
+  display: inline-flex;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--ink);
+  border-radius: 12px;
+  background: var(--yellow);
+  color: var(--ink);
+  box-shadow: 4px 4px 0 #dfe5d7;
+}
+
+.legal-document-mark svg {
+  width: 22px;
+  height: 22px;
+  stroke-width: 2.2;
+}
+
+.legal-document-brand {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.legal-document-header h1 {
+  margin: 0;
+  color: var(--ink);
+  font-size: clamp(26px, 4vw, 38px);
+  font-weight: 950;
+  letter-spacing: -0.035em;
+  line-height: 1.08;
+}
+
+.legal-document-body {
+  min-height: 180px;
+  padding: clamp(28px, 5vw, 52px);
+  color: var(--ink-soft);
+}
+
+.legal-document-content {
+  color: var(--ink-soft);
+  font-size: 15px;
+}
+
+.legal-document-content :is(h1, h2, h3, h4, strong) {
+  color: var(--ink);
+}
+
+.legal-document-content a {
+  color: var(--blue);
+}
+
+.legal-document-loading {
+  display: grid;
+  gap: 14px;
+  padding: 8px 0;
+}
+
+.legal-document-state {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 18px;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.legal-document-state:has(.legal-document-state-icon) {
+  flex-direction: row;
+  align-items: center;
+}
+
+.legal-document-state p {
+  margin: 0;
+}
+
+.legal-document-state-icon {
+  display: inline-flex;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: rgba(240, 111, 70, 0.12);
+  color: var(--coral);
+}
+
+.legal-document-state-icon svg {
+  width: 21px;
+  height: 21px;
+}
+
+.legal-document-action {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  padding: 0 16px;
+  background: var(--action-bg);
+  color: var(--action-fg);
+  font-size: 14px;
+  font-weight: 900;
+  text-decoration: none;
+  box-shadow: 4px 4px 0 #dfe5d7;
+  transition:
+    transform 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.legal-document-action:hover {
+  box-shadow: 2px 2px 0 #dfe5d7;
+  transform: translate(2px, 2px);
+}
+
+.legal-document-action svg {
+  width: 16px;
+  height: 16px;
+}
+
 /* ─── Body (mascot + form) ─── */
 
 .auth-body {
@@ -451,6 +607,63 @@ For commercial licensing, please contact support@quantumnous.com
   display: flex;
   justify-content: center;
   width: 100%;
+}
+
+/* ─── Legal Consent ─── */
+
+.auth-legal-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 11px 12px;
+  background: #fbfcf8;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease;
+}
+
+.auth-legal-consent.is-checked {
+  border-color: rgba(21, 167, 122, 0.55);
+  background: rgba(21, 167, 122, 0.06);
+}
+
+.auth-page .auth-form-shell .auth-legal-checkbox {
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  border: 2px solid var(--ink);
+  border-radius: 5px;
+  background: #fff;
+  color: #fff;
+  box-shadow: none;
+}
+
+.auth-page .auth-form-shell .auth-legal-checkbox[data-checked] {
+  border-color: var(--green);
+  background: var(--green);
+}
+
+.auth-page .auth-form-shell .auth-legal-label {
+  display: block;
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.55;
+  text-align: left;
+}
+
+.auth-page .auth-form-shell .auth-legal-link {
+  color: var(--blue);
+  font-weight: 850;
+  text-decoration: none;
+}
+
+.auth-page .auth-form-shell .auth-legal-link:hover,
+.auth-page .auth-form-shell .auth-legal-link:focus-visible {
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 /* ─── Scoped overrides for shadcn components inside auth cards ─── */
@@ -760,6 +973,29 @@ For commercial licensing, please contact support@quantumnous.com
 }
 
 @media (max-width: 640px) {
+  .legal-main {
+    padding: 88px 16px 40px;
+  }
+
+  .legal-document-card {
+    border-radius: 13px;
+    box-shadow: 6px 6px 0 #dfe5d7;
+  }
+
+  .legal-document-header {
+    gap: 12px;
+    padding: 22px 20px;
+  }
+
+  .legal-document-mark {
+    width: 40px;
+    height: 40px;
+  }
+
+  .legal-document-body {
+    padding: 24px 20px 30px;
+  }
+
   .auth-visual-panel {
     min-height: 0;
     padding: 0;
@@ -825,6 +1061,28 @@ For commercial licensing, please contact support@quantumnous.com
     border-color: #3a3d42;
   }
 
+  .legal-document-card {
+    border-color: #3a3d42;
+    background: #1a1c1e;
+  }
+
+  .legal-document-header {
+    background: linear-gradient(135deg, #1a1c1e 0%, #18231f 100%);
+  }
+
+  .legal-document-mark,
+  .legal-document-action {
+    box-shadow: 4px 4px 0 #25272b;
+  }
+
+  .auth-legal-consent {
+    background: #202327;
+  }
+
+  .auth-page .auth-form-shell .auth-legal-checkbox {
+    background: #25272b;
+  }
+
   .auth-input-wrap,
   .auth-page .auth-form-shell input,
   .auth-page .auth-form-shell [data-slot='input'] {
@@ -856,6 +1114,28 @@ For commercial licensing, please contact support@quantumnous.com
 .dark .auth-form-shell {
   background: #1a1c1e;
   border-color: #3a3d42;
+}
+
+.dark .legal-document-card {
+  border-color: #3a3d42;
+  background: #1a1c1e;
+}
+
+.dark .legal-document-header {
+  background: linear-gradient(135deg, #1a1c1e 0%, #18231f 100%);
+}
+
+.dark .legal-document-mark,
+.dark .legal-document-action {
+  box-shadow: 4px 4px 0 #25272b;
+}
+
+.dark .auth-legal-consent {
+  background: #202327;
+}
+
+.dark .auth-page .auth-form-shell .auth-legal-checkbox {
+  background: #25272b;
 }
 
 .dark .auth-input-wrap,

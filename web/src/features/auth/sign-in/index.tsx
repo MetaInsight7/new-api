@@ -23,7 +23,6 @@ import { TOKEN_DAZI_LOGO } from '@/components/brand/token-dazi-brand-logo'
 import { useStatus } from '@/hooks/use-status'
 
 import { AuthLayout } from '../auth-layout'
-import { TermsFooter } from '../components/terms-footer'
 import { UserAuthForm } from './components/user-auth-form'
 
 export function SignIn() {
@@ -51,12 +50,6 @@ export function SignIn() {
           <Link to='/sign-up'>{t('Sign up now')}</Link>
         </p>
       )}
-
-      <TermsFooter
-        variant='sign-in'
-        status={status}
-        className='mt-4 text-center'
-      />
     </AuthLayout>
   )
 }

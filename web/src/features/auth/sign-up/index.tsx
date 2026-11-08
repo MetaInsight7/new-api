@@ -21,15 +21,12 @@ import { CheckCircle2, KeyRound, Sparkles } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { TOKEN_DAZI_LOGO } from '@/components/brand/token-dazi-brand-logo'
-import { useStatus } from '@/hooks/use-status'
 
 import { AuthLayout } from '../auth-layout'
-import { TermsFooter } from '../components/terms-footer'
 import { SignUpForm } from './components/sign-up-form'
 
 export function SignUp() {
   const { t } = useTranslation()
-  const { status } = useStatus()
 
   return (
     <AuthLayout compact>
@@ -76,12 +73,6 @@ export function SignUp() {
         {t('Already have Token Dazi?')}{' '}
         <Link to='/sign-in'>{t('Sign in now')}</Link>
       </p>
-
-      <TermsFooter
-        variant='sign-up'
-        status={status}
-        className='mt-4 text-center'
-      />
     </AuthLayout>
   )
 }
