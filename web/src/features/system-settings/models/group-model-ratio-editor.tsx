@@ -1,4 +1,4 @@
-import { ChevronDown, Plus } from 'lucide-react'
+import { ChevronDown, ListPlus, Plus } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -22,6 +22,7 @@ import { toIntlLocale } from '@/i18n/languages'
 import { formatNumber } from '@/lib/format'
 
 import { tryJsonParse } from '../utils/json-parser'
+import { GroupModelRatioBatchSheet } from './group-model-ratio-batch-sheet'
 import { GroupModelRatioRow } from './group-model-ratio-row'
 import {
   parseGroupModelRatios,
@@ -40,6 +41,7 @@ export function GroupModelRatioEditor(props: GroupModelRatioEditorProps) {
   const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
   const [newGroupName, setNewGroupName] = useState('')
+  const [batchGroup, setBatchGroup] = useState<string | null>(null)
   const onValidityChange = props.onValidityChange
   const [invalidRows, setInvalidRows] = useState<Set<string>>(new Set())
   const ratios = useMemo(
@@ -187,16 +189,37 @@ export function GroupModelRatioEditor(props: GroupModelRatioEditorProps) {
                         })}
                       </span>
                     </CollapsibleTrigger>
-                    <Button
-                      type='button'
-                      variant='ghost'
-                      size='sm'
-                      aria-label={t('Add model ratio for {{group}}', { group })}
-                      onClick={() => addModel(group)}
-                    >
-                      <Plus aria-hidden='true' />
-                      {t('Add')}
-                    </Button>
+                    <div className='flex items-center gap-1'>
+                      <Button
+                        type='button'
+                        variant='ghost'
+                        size='sm'
+                        aria-label={t(
+                          'Batch configure model ratios for {{group}}',
+                          {
+                            group,
+                          }
+                        )}
+                        onClick={() => setBatchGroup(group)}
+                      >
+                        <ListPlus aria-hidden='true' />
+                        <span className='hidden sm:inline'>
+                          {t('Batch configure')}
+                        </span>
+                      </Button>
+                      <Button
+                        type='button'
+                        variant='ghost'
+                        size='sm'
+                        aria-label={t('Add model ratio for {{group}}', {
+                          group,
+                        })}
+                        onClick={() => addModel(group)}
+                      >
+                        <Plus aria-hidden='true' />
+                        <span className='hidden sm:inline'>{t('Add')}</span>
+                      </Button>
+                    </div>
                   </div>
                   <CollapsibleContent keepMounted>
                     <div className='space-y-3 border-t p-3'>
@@ -252,6 +275,18 @@ export function GroupModelRatioEditor(props: GroupModelRatioEditorProps) {
             })}
         </CardContent>
       </Card>
+      {ratios !== null && batchGroup !== null && (
+        <GroupModelRatioBatchSheet
+          key={batchGroup}
+          open
+          group={batchGroup}
+          ratios={ratios}
+          onApply={emit}
+          onOpenChange={(open) => {
+            if (!open) setBatchGroup(null)
+          }}
+        />
+      )}
     </section>
   )
 }
