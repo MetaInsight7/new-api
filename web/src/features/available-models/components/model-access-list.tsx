@@ -56,22 +56,27 @@ import {
 import { useBillingTime } from '@/features/pricing/hooks/use-billing-time'
 import type { PricingModel } from '@/features/pricing/types'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
+import { toIntlLocale } from '@/i18n/languages'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { getModelAvailabilityConfig } from '@/lib/model-availability'
 import { cn } from '@/lib/utils'
 
+import { normalizeModelAvailabilityStatus } from '../lib/model-access-browser'
 import {
-  getModelEndpointLabel,
-  normalizeModelAvailabilityStatus,
-} from '../lib/model-access-browser'
-import { getModelAccessPricing } from '../lib/model-access-pricing'
+  getModelAccessPricing,
+  type ModelAccessPricing,
+} from '../lib/model-access-pricing'
 import type { ModelAccessModel } from '../types'
+import { ModelAccessRatioBadge } from './model-access-ratio-badge'
+
+type ModelAccessPricingPresentation = 'compact' | 'comparison'
 
 type ModelAccessListProps = {
   defaultRatio: number | null
   modelRatios: Readonly<Record<string, number>>
   pricingModels?: ReadonlyMap<string, PricingModel>
   pricingLoading?: boolean
+  pricingPresentation?: ModelAccessPricingPresentation
   models: ModelAccessModel[]
   scopeIsEmpty: boolean
   onClearFilters: () => void
@@ -85,27 +90,198 @@ type ModelAccessPaginationState = {
   visibleCount: number
 }
 
+type ModelAccessPriceSectionProps = {
+  kind: 'effective' | 'official'
+  meta: string
+  pricing: ModelAccessPricing | null
+  referencePricing: ModelAccessPricing
+  title: string
+  unavailableDescription?: string
+}
+
+function ModelAccessPriceSection({
+  kind,
+  meta,
+  pricing,
+  referencePricing,
+  title,
+  unavailableDescription,
+}: ModelAccessPriceSectionProps) {
+  const { t } = useTranslation()
+  const hasRequestPrice = referencePricing.requestPrice !== null
+  const valueClassName = cn(
+    'block truncate font-mono text-sm leading-5 font-semibold tabular-nums',
+    kind === 'official' && 'text-foreground/70'
+  )
+
+  return (
+    <section
+      data-price-kind={kind}
+      className={cn(
+        'min-w-0 px-3 py-2.5',
+        kind === 'effective' && 'bg-primary/[0.055] dark:bg-primary/[0.09]',
+        kind === 'official' &&
+          'border-border border-t @min-[35rem]:border-t-0 @min-[35rem]:border-l'
+      )}
+    >
+      <div className='mb-1.5 flex min-w-0 items-center justify-between gap-2'>
+        <span
+          className={cn(
+            'truncate text-[10px] font-semibold',
+            kind === 'effective' ? 'text-primary' : 'text-muted-foreground'
+          )}
+        >
+          {title}
+        </span>
+        <span className='text-muted-foreground shrink-0 text-[10px] font-medium'>
+          {meta}
+        </span>
+      </div>
+      {hasRequestPrice ? (
+        <div className='min-w-0'>
+          <span className='text-muted-foreground block text-[10px] leading-4'>
+            {t('Price')}
+          </span>
+          <strong className={valueClassName}>
+            {pricing?.requestPrice ?? '—'}
+          </strong>
+        </div>
+      ) : (
+        <div
+          data-slot='comparison-primary-price-metrics'
+          className='grid grid-cols-2'
+        >
+          <div className='min-w-0 pr-2.5'>
+            <span className='text-muted-foreground block text-[10px] leading-4'>
+              {t('Input')}
+            </span>
+            <strong className={valueClassName}>
+              {pricing?.inputPrice ?? '—'}
+            </strong>
+          </div>
+          <div className='border-border min-w-0 border-l pl-2.5'>
+            <span className='text-muted-foreground block text-[10px] leading-4'>
+              {t('Output')}
+            </span>
+            <strong className={valueClassName}>
+              {pricing?.outputPrice ?? '—'}
+            </strong>
+          </div>
+        </div>
+      )}
+      {referencePricing.cachePrices.length > 0 && (
+        <div
+          data-slot='comparison-cache-price-metrics'
+          className='text-muted-foreground mt-1.5 flex max-w-full min-w-0 flex-wrap gap-x-2.5 gap-y-0.5 overflow-hidden text-[10px] leading-4'
+        >
+          {referencePricing.cachePrices.map((referenceCachePrice) => {
+            const cachePrice = pricing?.cachePrices.find(
+              (candidate) => candidate.key === referenceCachePrice.key
+            )
+            return (
+              <span key={referenceCachePrice.key} className='min-w-0 truncate'>
+                {t(referenceCachePrice.label)}{' '}
+                <strong
+                  className={cn(
+                    'text-foreground font-mono text-[11px] font-semibold tabular-nums',
+                    kind === 'official' && 'text-foreground/70'
+                  )}
+                >
+                  {cachePrice?.price ?? '—'}
+                </strong>
+              </span>
+            )
+          })}
+        </div>
+      )}
+      {unavailableDescription && (
+        <p className='text-muted-foreground mt-1.5 truncate text-[10px] leading-4'>
+          {unavailableDescription}
+        </p>
+      )}
+    </section>
+  )
+}
+
 function ModelAccessPricingPanel({
+  effectiveRatio,
+  presentation,
   pricing,
   pricingLoading,
 }: {
+  effectiveRatio: number | null
+  presentation: ModelAccessPricingPresentation
   pricing?: PricingModel
   pricingLoading: boolean
 }) {
   const { t } = useTranslation()
-  const billingTime = useBillingTime(pricing?.billing_expr)
-  const modelPricing = useMemo(
+  const billingExpressions = useMemo(
+    () => [
+      pricing?.billing_expr,
+      ...(pricing?.billing_plugin_variants?.map(
+        (variant) => variant.billing_expr
+      ) ?? []),
+    ],
+    [pricing]
+  )
+  const billingTime = useBillingTime(billingExpressions)
+  const officialPricing = useMemo(
     () =>
       pricing
-        ? getModelAccessPricing(
-            pricing,
-            billingTime === undefined ? undefined : new Date(billingTime)
-          )
+        ? getModelAccessPricing(pricing, {
+            now: billingTime === undefined ? undefined : new Date(billingTime),
+          })
         : null,
     [billingTime, pricing]
   )
+  const effectivePricing = useMemo(
+    () =>
+      pricing && effectiveRatio !== null
+        ? getModelAccessPricing(pricing, {
+            now: billingTime === undefined ? undefined : new Date(billingTime),
+            ratio: effectiveRatio,
+          })
+        : null,
+    [billingTime, effectiveRatio, pricing]
+  )
 
   if (pricingLoading && !pricing) {
+    if (presentation === 'comparison') {
+      return (
+        <div className='border-border bg-muted/15 grid min-w-0 grow basis-[34rem] grid-cols-1 border-t @min-[35rem]:grid-cols-2 @min-[56rem]:border-t-0 @min-[56rem]:border-l'>
+          {[0, 1].map((sectionIndex) => (
+            <div
+              key={sectionIndex}
+              className={cn(
+                'min-w-0 px-3 py-2.5',
+                sectionIndex === 0 &&
+                  'bg-primary/[0.055] dark:bg-primary/[0.09]',
+                sectionIndex === 1 &&
+                  'border-border border-t @min-[35rem]:border-t-0 @min-[35rem]:border-l'
+              )}
+            >
+              <div className='mb-1.5 flex justify-between gap-3'>
+                <Skeleton className='h-3 w-24' />
+                <Skeleton className='h-3 w-14' />
+              </div>
+              <div className='grid grid-cols-2'>
+                {[0, 1].map((metricIndex) => (
+                  <div key={metricIndex} className='min-w-0 pr-2.5'>
+                    <Skeleton className='mb-1 h-3 w-10' />
+                    <Skeleton className='h-5 w-16 max-w-full' />
+                  </div>
+                ))}
+              </div>
+              <div className='mt-1.5 flex gap-2'>
+                <Skeleton className='mb-1 h-3 w-12' />
+                <Skeleton className='h-3 w-14' />
+              </div>
+            </div>
+          ))}
+        </div>
+      )
+    }
+
     return (
       <div className='bg-muted/25 border-border flex grow basis-44 items-center border-t px-3 py-2.5 @min-[33rem]:border-t-0 @min-[33rem]:border-l'>
         <div className='grid w-full grid-cols-2 gap-3'>
@@ -117,50 +293,153 @@ function ModelAccessPricingPanel({
     )
   }
 
-  if (!modelPricing) return null
+  if (!officialPricing) return null
 
-  const { inputPrice, isTimePricing, outputPrice, requestPrice } = modelPricing
-  const hasRequestPrice = requestPrice !== null
-  const hasTokenPrice = inputPrice !== null || outputPrice !== null
+  const hasPrice = (modelPricing: ModelAccessPricing) =>
+    modelPricing.requestPrice !== null ||
+    modelPricing.inputPrice !== null ||
+    modelPricing.outputPrice !== null ||
+    modelPricing.cachePrices.length > 0
+
+  if (!hasPrice(officialPricing)) return null
+
+  const priceUnit = officialPricing.requestPrice
+    ? t('Per Request')
+    : t('Per 1M tokens')
+  const priceUnitLabel = officialPricing.isTimePricing
+    ? `${priceUnit} · ${t('Current period price')}`
+    : priceUnit
+
+  if (presentation === 'comparison') {
+    return (
+      <div
+        data-slot='comparison-pricing-panel'
+        data-pricing-presentation='comparison'
+        className='border-border bg-muted/15 grid min-w-0 grow basis-[34rem] grid-cols-1 border-t @min-[35rem]:grid-cols-2 @min-[56rem]:border-t-0 @min-[56rem]:border-l'
+      >
+        <ModelAccessPriceSection
+          kind='effective'
+          meta={priceUnitLabel}
+          pricing={effectivePricing}
+          referencePricing={officialPricing}
+          title={t('Current effective price')}
+          unavailableDescription={
+            effectivePricing
+              ? undefined
+              : t('Billed by the group selected during routing')
+          }
+        />
+        <ModelAccessPriceSection
+          kind='official'
+          meta={priceUnitLabel}
+          pricing={officialPricing}
+          referencePricing={officialPricing}
+          title={t('Official base price')}
+        />
+      </div>
+    )
+  }
+
+  const hasRequestPrice = officialPricing.requestPrice !== null
+  const hasTokenPrice =
+    officialPricing.inputPrice !== null || officialPricing.outputPrice !== null
 
   if (!hasRequestPrice && !hasTokenPrice) return null
 
+  let compactPricingContent
+  if (!effectivePricing) {
+    compactPricingContent = (
+      <p className='text-muted-foreground text-xs leading-5'>
+        {t('Billed by the group selected during routing')}
+      </p>
+    )
+  } else if (hasRequestPrice) {
+    compactPricingContent = (
+      <span className='block truncate text-base font-semibold tabular-nums'>
+        {effectivePricing.requestPrice ?? '—'}
+      </span>
+    )
+  } else {
+    const compactPrimaryPrices = [
+      {
+        key: 'inputPrice',
+        label: t('Input'),
+        price: effectivePricing.inputPrice ?? '—',
+      },
+      {
+        key: 'outputPrice',
+        label: t('Output'),
+        price: effectivePricing.outputPrice ?? '—',
+      },
+    ]
+    const compactCachePrices = effectivePricing.cachePrices.map(
+      (cachePrice) => ({
+        key: cachePrice.key,
+        label: t(cachePrice.label),
+        price: cachePrice.price,
+      })
+    )
+
+    compactPricingContent = (
+      <div className='w-full min-w-0'>
+        <div
+          data-slot='compact-primary-price-metrics'
+          className='grid w-full grid-cols-2'
+        >
+          {compactPrimaryPrices.map((price, priceIndex) => (
+            <div
+              key={price.key}
+              className={cn(
+                'min-w-0 px-1.5 first:pl-0 last:pr-0',
+                priceIndex > 0 && 'border-border border-l'
+              )}
+            >
+              <span className='text-muted-foreground block truncate text-[10px] leading-4'>
+                {price.label}
+              </span>
+              <span className='block truncate font-mono text-sm leading-5 font-semibold tabular-nums'>
+                {price.price}
+              </span>
+            </div>
+          ))}
+        </div>
+        {compactCachePrices.length > 0 && (
+          <div
+            data-slot='compact-cache-price-metrics'
+            className='text-muted-foreground mt-1 flex max-w-full min-w-0 flex-wrap gap-x-2.5 gap-y-0.5 overflow-hidden text-[10px] leading-4'
+          >
+            {compactCachePrices.map((price) => (
+              <span key={price.key} className='min-w-0 truncate'>
+                {price.label}{' '}
+                <strong className='text-foreground font-mono text-[10px] font-semibold tabular-nums'>
+                  {price.price}
+                </strong>
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
-    <div className='bg-muted/25 border-border flex grow basis-44 items-center border-t px-3 py-2.5 @min-[33rem]:border-t-0 @min-[33rem]:border-l'>
-      {hasRequestPrice ? (
-        <div className='flex min-w-0 flex-col gap-1'>
-          <span className='text-muted-foreground text-xs'>
-            {t('Per Request')}
-            {isTimePricing && (
-              <span className='ml-1'>{`· ${t('Current period price')}`}</span>
-            )}
+    <div
+      data-slot='compact-pricing-panel'
+      data-pricing-presentation='compact'
+      data-price-kind='effective'
+      className='bg-primary/[0.055] border-border dark:bg-primary/[0.09] flex min-w-0 grow basis-full items-start border-t px-3 py-2.5 @min-[33rem]:w-[13.75rem] @min-[33rem]:shrink-0 @min-[33rem]:grow-0 @min-[33rem]:basis-[13.75rem] @min-[33rem]:border-t-0 @min-[33rem]:border-l @min-[33rem]:pl-[11px]'
+    >
+      <div className='w-full min-w-0'>
+        <div className='mb-1.5 flex min-w-0 items-center justify-between gap-2'>
+          <span className='text-primary truncate text-[10px] font-semibold'>
+            {t('Current effective price')}
           </span>
-          <span className='text-base font-semibold tabular-nums'>
-            {requestPrice}
+          <span className='text-muted-foreground shrink-0 text-[10px] font-medium'>
+            {priceUnitLabel}
           </span>
         </div>
-      ) : (
-        <div className='grid w-full grid-cols-2 gap-x-4 gap-y-1'>
-          <span className='text-muted-foreground col-span-2 text-xs'>
-            {t('Per 1M tokens')}
-            {isTimePricing && (
-              <span className='ml-1'>{`· ${t('Current period price')}`}</span>
-            )}
-          </span>
-          <div className='flex min-w-0 flex-col gap-0.5'>
-            <span className='text-muted-foreground text-xs'>{t('Input')}</span>
-            <span className='truncate text-sm font-semibold tabular-nums'>
-              {inputPrice ?? '—'}
-            </span>
-          </div>
-          <div className='border-border flex min-w-0 flex-col gap-0.5 border-l pl-4'>
-            <span className='text-muted-foreground text-xs'>{t('Output')}</span>
-            <span className='truncate text-sm font-semibold tabular-nums'>
-              {outputPrice ?? '—'}
-            </span>
-          </div>
-        </div>
-      )}
+        {compactPricingContent}
+      </div>
     </div>
   )
 }
@@ -193,11 +472,13 @@ export function ModelAccessList({
   modelRatios,
   pricingModels = new Map(),
   pricingLoading = false,
+  pricingPresentation = 'compact',
   models,
   scopeIsEmpty,
   onClearFilters,
 }: ModelAccessListProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const { copyToClipboard } = useCopyToClipboard()
   const availability = getModelAvailabilityConfig(t)
   const [pagination, setPagination] = useState<ModelAccessPaginationState>(
@@ -267,19 +548,29 @@ export function ModelAccessList({
               availability[
                 normalizeModelAvailabilityStatus(model.availability_status)
               ] || availability.unknown_failure
-            const endpointLabels = [
-              ...new Set(
-                model.supported_endpoint_types.map((endpoint) =>
-                  getModelEndpointLabel(endpoint, t)
-                )
-              ),
-            ]
             const hasExclusiveRatio = Object.hasOwn(modelRatios, model.id)
             const exclusiveRatio = modelRatios[model.id]
+            const effectiveRatio = hasExclusiveRatio
+              ? (exclusiveRatio ?? null)
+              : defaultRatio
             const pricing = pricingModels.get(model.id)
             const showPricingPanel = pricingLoading || pricing !== undefined
+            const exclusiveRatioText =
+              exclusiveRatio === undefined
+                ? ''
+                : exclusiveRatio.toLocaleString(locale, {
+                    maximumFractionDigits: 6,
+                  })
+            const defaultRatioText =
+              defaultRatio === null
+                ? ''
+                : defaultRatio.toLocaleString(locale, {
+                    maximumFractionDigits: 6,
+                  })
             const exclusiveRatioLabel = hasExclusiveRatio
-              ? t('Exclusive ratio {{ratio}}×', { ratio: exclusiveRatio })
+              ? t('Exclusive ratio {{ratio}}×', {
+                  ratio: exclusiveRatioText,
+                })
               : ''
             let exclusiveRatioDescription = ''
             if (hasExclusiveRatio && officiallyUnsupported) {
@@ -287,11 +578,14 @@ export function ModelAccessList({
                 defaultRatio === null
                   ? t(
                       'If this model becomes callable again, it will use the exclusive ratio {{ratio}}×, overriding the default ratio; the two are not multiplied.',
-                      { ratio: exclusiveRatio }
+                      { ratio: exclusiveRatioText }
                     )
                   : t(
                       'If this model becomes callable again, it will use the exclusive ratio {{ratio}}×, overriding the default ratio {{defaultRatio}}×; the two are not multiplied.',
-                      { ratio: exclusiveRatio, defaultRatio }
+                      {
+                        ratio: exclusiveRatioText,
+                        defaultRatio: defaultRatioText,
+                      }
                     )
             } else if (hasExclusiveRatio) {
               exclusiveRatioDescription =
@@ -301,7 +595,7 @@ export function ModelAccessList({
                     )
                   : t(
                       'This exclusive ratio overrides the default ratio {{defaultRatio}}×; the two are not multiplied.',
-                      { defaultRatio }
+                      { defaultRatio: defaultRatioText }
                     )
             }
 
@@ -320,7 +614,10 @@ export function ModelAccessList({
                 <div
                   className={cn(
                     'flex min-w-0 flex-1 flex-col justify-center gap-2.5 px-3 py-2.5',
-                    showPricingPanel && 'grow-[2] basis-[22rem]'
+                    showPricingPanel &&
+                      (pricingPresentation === 'comparison'
+                        ? 'grow-[2] basis-[22rem]'
+                        : 'grow-[2] basis-[20rem]')
                   )}
                 >
                   <div className='flex min-w-0 items-center gap-2.5'>
@@ -390,36 +687,36 @@ export function ModelAccessList({
                         <Tooltip>
                           <TooltipTrigger
                             render={
-                              <Badge
-                                variant='outline'
-                                className='border-blue-200 bg-blue-50 font-semibold text-blue-700 dark:border-blue-400/40 dark:bg-blue-500/15 dark:text-blue-300'
+                              <ModelAccessRatioBadge
+                                ratio={exclusiveRatio}
+                                label={exclusiveRatioLabel}
+                                tone='exclusive'
                                 tabIndex={0}
                                 aria-label={`${exclusiveRatioLabel}. ${exclusiveRatioDescription}`}
                               />
                             }
-                          >
-                            {exclusiveRatioLabel}
-                          </TooltipTrigger>
+                          />
                           <TooltipContent>
                             {exclusiveRatioDescription}
                           </TooltipContent>
                         </Tooltip>
                       )}
-                      {endpointLabels.length > 0 ? (
-                        endpointLabels.map((endpoint) => (
-                          <Badge key={endpoint} variant='outline'>
-                            {endpoint}
-                          </Badge>
-                        ))
-                      ) : (
-                        <Badge variant='outline'>
-                          {t('Endpoint not specified')}
-                        </Badge>
+                      {!hasExclusiveRatio && (
+                        <ModelAccessRatioBadge
+                          ratio={effectiveRatio}
+                          label={
+                            effectiveRatio === null
+                              ? t('Auto')
+                              : `${t('Group Ratio')} ${effectiveRatio.toLocaleString(locale, { maximumFractionDigits: 6 })}×`
+                          }
+                        />
                       )}
                     </div>
                   </ItemFooter>
                 </div>
                 <ModelAccessPricingPanel
+                  effectiveRatio={effectiveRatio}
+                  presentation={pricingPresentation}
                   pricing={pricing}
                   pricingLoading={pricingLoading}
                 />

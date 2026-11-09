@@ -24,7 +24,6 @@ import {
   ALL_MODEL_VENDORS,
   filterModelAccessModels,
   getCreateKeySearch,
-  getModelEndpointLabel,
   getModelVendorFilters,
   normalizeModelAvailabilityStatus,
   resolveModelAccessScope,
@@ -91,14 +90,11 @@ describe('available model browser filtering', () => {
     )
   })
 
-  test('preserves unchecked status and resolves endpoint labels', () => {
+  test('preserves unchecked status and resolves the selected scope', () => {
     expect(normalizeModelAvailabilityStatus('unknown')).toBe('unknown')
     const translate = ((key: string) => key) as unknown as TFunction
     expect(getModelAvailabilityConfig(translate).unknown.label).toBe(
       'Not checked'
-    )
-    expect(getModelEndpointLabel('openai-responses', translate)).toBe(
-      'OpenAI Compatible'
     )
     expect(resolveModelAccessScope(access, 'missing')).toBe('default')
   })

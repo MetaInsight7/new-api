@@ -25,6 +25,26 @@ const listeners = new Set<() => void>()
 let timestamp = Date.now()
 let timer: ReturnType<typeof setTimeout> | undefined
 
+type BillingTimeExpression =
+  | string
+  | null
+  | undefined
+  | readonly (string | null | undefined)[]
+
+export function hasTimeDependentBillingExpression(
+  expression: BillingTimeExpression
+): boolean {
+  const expressions = Array.isArray(expression) ? expression : [expression]
+  return expressions.some((candidate) => {
+    if (!candidate) return false
+    const compiled = compileBillingExpression(candidate)
+    return (
+      compiled.status === 'ready' &&
+      TIME_FUNCTIONS.some((name) => compiled.functions.has(name))
+    )
+  })
+}
+
 function refreshBillingTime(): void {
   timestamp = Date.now()
   listeners.forEach((listener) => listener())
@@ -62,14 +82,10 @@ function getNoTime(): undefined {
 
 /** One minute clock for active time-dependent previews; never used by settlement logs. */
 export function useBillingTime(
-  expression: string | null | undefined,
+  expression: BillingTimeExpression,
   enabled = true
 ): number | undefined {
-  const compiled =
-    expression && enabled ? compileBillingExpression(expression) : null
-  const needsTime =
-    compiled?.status === 'ready' &&
-    TIME_FUNCTIONS.some((name) => compiled.functions.has(name))
+  const needsTime = enabled && hasTimeDependentBillingExpression(expression)
   return useSyncExternalStore(
     needsTime ? subscribeBillingTime : subscribeWithoutTime,
     needsTime ? getBillingTime : getNoTime,

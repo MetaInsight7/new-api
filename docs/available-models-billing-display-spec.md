@@ -1,64 +1,86 @@
-# Available Models 首阶梯价格展示规格
+# Available Models 实付价与官方价对比展示规格
 
 ## Problem Statement
 
-`available-models` 当前只适配了传统的倍率/固定价格字段。对于使用动态计费表达式或分档计费的模型，页面仍可能展示旧的输入/输出倍率，导致用户看到的价格与实际结算规则不一致。页面也需要在分时段计费时明确提示当前展示的是哪个时段的价格。
+`available-models` 原有价格区只展示按 `1×` 计算的基础价格。用户选择访问分组后，无法直接看出模型专属倍率或分组倍率对应的实际支付价格，也无法确认模型专属倍率是否会与分组倍率相乘。
 
-用户不需要在模型列表中阅读完整计费表达式、所有阶梯或缓存价格；他们只需要在现有模型卡片中快速看到一个可理解的输入价格和输出价格。
+动态计费、分时段计费与缓存计费模型还需要继续复用统一的计费解析规则，避免页面展示与真实结算语义不一致。同时，创建 API 密钥弹窗空间有限，不能直接复用完整的价格对比布局。
 
 ## Solution
 
-保持 `available-models` 当前模型卡片、价格区域和响应式布局不变。价格展示按照以下优先级处理：
+在独立的 `/available-models` 页面中，将每个模型的价格区展示为并列的两部分：
 
-1. 普通模型继续使用现有输入/输出价格格式。
-2. 动态计费模型复用现有动态计费解析与格式化能力，选择要展示的价格阶梯。
-3. 普通分档计费选择配置顺序中的第一阶梯。
-4. 分时段计费先选择当前时间生效的时段，再选择该时段的第一阶梯。
-5. 最终只展示第一阶梯的输入和输出价格，不展示缓存读取、缓存写入、其他阶梯或原始表达式。
-6. 分时段计费在现有价格标题区域增加“当前时段价格”提示，并沿用已有的一分钟时间刷新机制。
+1. “当前实付价”按照当前访问分组的有效倍率计算。
+2. “官方基准价”固定按照 `1×` 计算，供用户横向比较。
+3. 模型名称下方显示当前生效倍率及其来源：模型专属倍率显示“专属倍率 `n×`”，否则显示“分组倍率 `n×`”。
+4. 模型专属倍率覆盖分组倍率，两者不相乘。
+5. `auto` 分组无法提前确定最终路由分组时，不推算实付价，改为提示“按实际路由命中的分组计费”；官方基准价仍正常展示。
+6. Token 模型同时展示输入、输出和已配置的缓存读取/写入价格；请求计费模型展示单次请求价格。
+7. 动态计费继续展示当前生效分支的首个阶梯，并在分时段计费时提示“当前时段价格”。
 
 ## User Stories
 
-1. As a model user, I want the Available Models card to keep its current layout, so that the pricing information remains familiar and compact.
-2. As a model user, I want a dynamically priced model to show its first configured input price, so that I can understand the model's starting price without reading an expression.
-3. As a model user, I want a dynamically priced model to show its first configured output price, so that input and output costs remain comparable with legacy models.
-4. As a model user, I want only one price tier shown, so that the model list does not become a pricing matrix.
-5. As a model user, I do not want cache read or cache write prices mixed into the initial compact display, so that the existing two-column layout remains stable.
-6. As a model user, I want a time-priced model to show the price for the currently active period, so that the displayed price matches the period that applies now.
-7. As a model user, I want a visible current-period hint for time-priced models, so that I understand why the displayed price may change later.
-8. As a model user, I want the displayed time-priced value to refresh at minute boundaries while the page is visible, so that an open page does not keep showing a stale period indefinitely.
-9. As a maintainer, I want existing dynamic pricing parsers and formatters reused, so that Available Models and the pricing management views share the same billing semantics.
-10. As a maintainer, I want legacy request-based and ratio-based models to keep their existing display behavior, so that this change does not alter unrelated pricing.
+1. As a model user, I want to see my current effective price beside the official base price, so that I can understand the actual price without calculating ratios manually.
+2. As a model user, I want to see whether a price comes from an exclusive model ratio or the group ratio, so that the billing source is unambiguous.
+3. As a model user, I want exclusive ratios to visibly replace rather than multiply group ratios, so that the page matches settlement behavior.
+4. As a model user, I want cache read and cache write prices to remain visible, so that cache-capable models can be compared completely.
+5. As an Auto-group user, I want the page to avoid showing a guessed effective price, so that a future routing decision is not presented as a guaranteed amount.
+6. As a mobile user, I want the comparison panels to stack without horizontal overflow, so that all prices remain readable.
+7. As an API-key creator, I want the compact model preview to show the selected key's effective price, so that I can confirm its billing without opening the full model page.
+8. As a maintainer, I want legacy, dynamic, time-dependent, request, token, and cache pricing to use shared pricing helpers, so that display semantics stay aligned.
 
-## Implementation Decisions
+## Pricing Semantics
 
-- Keep the existing Available Models card structure and responsive price panel. No pricing table, expansion control, expression text, or additional cache columns are introduced.
-- Reuse the shared dynamic pricing summary and the existing billing-time hook. Do not add a second expression parser or duplicate tier-selection rules.
-- For non-time dynamic token pricing, use the first parsed token tier in configuration order.
-- For time-dependent token pricing, resolve the active period using the timezone encoded by the expression, then use the first token tier in that period. The display refreshes through the existing minute-based billing clock while the document is visible.
-- Select only the dynamic entries representing input and output token prices. Cache read, cache write, image cache, media prices, and secondary tiers remain out of scope for this compact card.
-- Keep the official-price context used by the current page: no user-group surcharge or recharge-price transformation is added to this page.
-- Preserve the existing legacy formatter as the fallback for models without a usable dynamic summary. A dynamic expression that cannot expose input/output prices must not invent a value from unrelated fields.
-- Reuse the existing translated “Current period price” label for the time-pricing hint; no new translation key is required.
-- Remove the development-only billing prototype and its route switch after the real card behavior is implemented, so prototype query parameters cannot become an accidental product surface.
+- Official base price always uses ratio `1×`.
+- Effective ratio resolution follows the backend billing priority:
+  1. Use the exact model ratio when the selected scope defines one.
+  2. Otherwise use the selected scope's default group ratio.
+  3. If no deterministic ratio exists, do not calculate an effective price.
+- Exact model ratios and group ratios are alternatives, not multiplicative factors.
+- Fixed-account views use `account_model_ratios` and `account_default_ratio` rather than identity-level fallback values.
+- Legacy token and request prices use the existing `formatGroupPrice` and `formatFixedPrice` helpers.
+- Dynamic expressions use the existing dynamic-pricing parser with the resolved display ratio.
+- For a normal tiered expression, use the first parsed tier in configuration order.
+- If a normal expression mixes token and request tiers, display only that first tier's billing unit instead of merging both units into one card.
+- For a time-dependent expression, resolve the currently active time branch first, then use that branch's first tier.
+- Provider override collections retain the shared pricing summary's provider range; provider variants are not treated as later tiers of one expression.
+- The existing billing-time hook watches both the model expression and provider override expressions, refreshing time-dependent display values at minute boundaries while the page is visible.
+- Only configured cache fields are shown. Supported fields include cache read, generic cache write, and dynamic-expression cache write durations exposed by the shared parser.
+
+## Presentation Decisions
+
+- The desktop access-group rail is fixed at `15rem` (`240px`) so group names and statistics remain easy to scan.
+- Group cards reuse `GroupMultiplierBadge` and consistently display `n×` or “自动”.
+- The full comparison is enabled only through `pricingPresentation="comparison"` on `/available-models`.
+- The API-key model preview keeps the default compact presentation, but shows only the current effective price for that key configuration; it does not show the official base price.
+- At compact desktop widths, the API-key preview price column is fixed at `220px`; below the card breakpoint it stacks at full width.
+- Compact token pricing shows input, output, and configured cache prices, while compact request pricing shows the per-request price.
+- The compact preview shows the applied exclusive ratio, group ratio, or Auto state below the model identity. For Auto, it does not guess a price and instead states that billing follows the group selected during routing.
+- Effective and official prices use two compact sections inside the price area: the highlighted effective section appears first and the muted official base-price reference section appears second.
+- Both section headers show the same billing unit: per `1M tokens` for token pricing or per request for request pricing; the official section does not display a separate `1×` label.
+- Each section contains its own input, output, and configured cache values; narrow cards stack the two sections without changing their order.
+- The applied exclusive or group ratio badge stays below the model identity rather than inside the pricing area; protocol compatibility badges are omitted from model cards.
+- Model identity and pricing stay on the same row on wide desktop layouts; narrower desktop layouts may stack the pricing table below the model identity.
+- Long prices may truncate within their own cells but must not create page-level horizontal overflow.
+- Cache labels use secondary text while cache amounts retain readable, emphasized monospace text.
+- The page remains read-only; creating a key is linked through the selected scope and does not modify pricing.
 
 ## Testing Decisions
 
-- Add behavior coverage at the Available Models price-panel seam rather than testing private component state.
-- Verify a dynamic token model displays the first tier's input/output values and does not display cache entries or later tiers.
-- Verify a time-dependent expression selects different input/output values for different controlled times, shows the current-period hint, and updates through the existing billing-time mechanism.
-- Verify legacy token and request models retain their existing price labels and values.
-- Run the affected Vitest tests, TypeScript typecheck, targeted Oxlint/Oxfmt checks, and Playwright against the actual Available Models route. Browser verification must include a time-priced fixture or controlled response and confirm there are no console errors.
-- Do not use screenshot pixel comparison as the primary assertion; assert accessible labels and visible price text.
+- Verify legacy token, request, cache, dynamic-tier, and time-dependent price calculations.
+- Verify mixed token/request expressions keep only the first configured tier and provider time expressions retain current-period state.
+- Verify an exclusive model ratio is used instead of the group ratio for effective prices.
+- Verify the full page shows separate effective and official sections, and keeps the applied ratio badge below the model identity.
+- Verify the API-key preview keeps the compact presentation, renders effective token, request, and configured cache prices, omits the official price, and uses the Auto fallback when routing is not deterministic.
+- Verify fixed-account ratio fields are resolved correctly.
+- Run affected Vitest tests, TypeScript typecheck, targeted Oxlint/Oxfmt checks, and a production build.
+- Use browser checks at desktop, compact desktop, and mobile widths; confirm the `240px` rail, group switching, Auto-group fallback, absence of horizontal overflow, and absence of console errors.
+- Keep component-level layout contracts for the `220px` compact price column, two primary price columns, wrapping cache row, and narrow comparison stacking.
 
 ## Out of Scope
 
-- Showing cache read/write prices in Available Models.
-- Showing all pricing tiers, tier conditions, raw billing expressions, or a pricing breakdown dialog.
-- Changing backend pricing, settlement, model metadata, group ratios, or pricing APIs.
-- Changing pricing management pages or other model-card views.
-- Adding new billing expression syntax or changing how requests are actually charged.
-
-## Further Notes
-
-The first tier means the first tier returned by the shared parser for the selected pricing context. For time pricing, selecting the active time branch happens before selecting its first tier; the first branch in the raw expression is not always the current price.
+- Changing backend settlement, pricing APIs, model metadata, group ratios, or billing expressions.
+- Multiplying model-specific and group ratios.
+- Predicting which concrete group an Auto route will select.
+- Replacing the compact API-key creation preview with the full comparison layout.
+- Showing every tier, raw billing expressions, or a detailed pricing breakdown dialog.

@@ -16,8 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import type { TFunction } from 'i18next'
-
 import type { ModelAvailabilityStatus } from '@/lib/model-availability'
 
 import type { ModelAccessModel, UserModelAccess } from '../types'
@@ -51,14 +49,6 @@ export type ModelVendorFilterState = {
   filterSignature: string
   scopeKey: string | null
   value: ModelVendorFilter
-}
-
-export function getModelEndpointLabel(endpoint: string, t: TFunction): string {
-  if (endpoint.startsWith('openai')) return t('OpenAI Compatible')
-  if (endpoint === 'anthropic') return t('Anthropic Compatible')
-  if (endpoint === 'gemini') return t('Gemini Compatible')
-  if (endpoint === 'image-generation') return t('Image Generation')
-  return endpoint
 }
 
 export function isFixedModelAccessView(access: UserModelAccess): boolean {

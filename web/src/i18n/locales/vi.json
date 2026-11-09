@@ -7782,7 +7782,7 @@
     "Upstream no longer supports this model": "Upstream no longer supports this model",
     "Usage Documentation": "Usage Documentation",
     "Use this group to create an API key": "Use this group to create an API key",
-    "View models and compatible endpoints available to your account.": "View models and compatible endpoints available to your account.",
+    "View models available to your account.": "Xem các mô hình có sẵn cho tài khoản của bạn.",
     "Watch": "Watch",
     "Weighted observed success": "Weighted observed success",
     "Workspace": "Workspace",
@@ -7956,6 +7956,10 @@
     "{{count}} configured": "{{count}} đã cấu hình",
     "{{count}} exact model ratio overrides will be removed from the draft. Other models and groups stay unchanged.": "{{count}} hệ số mô hình chính xác sẽ bị xóa khỏi bản nháp. Các mô hình và nhóm khác không thay đổi.",
     "{{count}} duplicate model selections were merged into existing normalized billing keys.": "{{count}} lựa chọn mô hình trùng lặp đã được hợp nhất vào các khóa tính phí chuẩn hóa hiện có.",
+    "{{count}} exclusive prices": "{{count}} giá riêng",
+    "Current effective price": "Giá thực trả hiện tại",
+    "Billed by the group selected during routing": "Tính phí theo nhóm được chọn khi định tuyến",
+    "Official base price": "Giá chuẩn chính thức",
     "{{count}} unconfigured": "{{count}} chưa cấu hình"
   }
 }

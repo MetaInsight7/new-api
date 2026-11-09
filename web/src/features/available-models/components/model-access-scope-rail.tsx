@@ -28,6 +28,7 @@ import { cn } from '@/lib/utils'
 
 import { getCreateKeySearch } from '../lib/model-access-browser'
 import type { ModelAccessScope } from '../types'
+import { ModelAccessRatioBadge } from './model-access-ratio-badge'
 
 type ModelAccessScopeRailProps = {
   scopes: ModelAccessScope[]
@@ -72,28 +73,27 @@ export function ModelAccessScopeRail({
                   <span className='block truncate text-sm leading-5 font-semibold'>
                     {scope.label}
                   </span>
-                  <span className='text-muted-foreground mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] leading-4'>
+                  <span className='text-muted-foreground mt-0.5 block truncate text-[11px] leading-4'>
                     <span className='truncate'>
                       {t('Available Models')}{' '}
                       <strong className='text-foreground font-semibold tabular-nums'>
                         {modelCounts.get(scope.id) ?? 0}
                       </strong>
                     </span>
-                    <span aria-hidden='true'>·</span>
-                    <span className='truncate'>
-                      {t('Group Ratio')}{' '}
-                      <strong className='text-foreground font-semibold tabular-nums'>
-                        {scope.ratio === null ? '—' : `${scope.ratio}×`}
-                      </strong>
-                    </span>
                   </span>
                 </span>
-                <RadioGroupItem
-                  id={inputId}
-                  value={scope.id}
-                  aria-label={scope.label}
-                  className='shrink-0'
-                />
+                <span className='flex shrink-0 flex-col items-end gap-1'>
+                  <ModelAccessRatioBadge
+                    ratio={scope.ratio}
+                    label={scope.ratio === null ? t('Auto') : undefined}
+                  />
+                  <RadioGroupItem
+                    id={inputId}
+                    value={scope.id}
+                    aria-label={scope.label}
+                    className='shrink-0'
+                  />
+                </span>
               </Label>
               {selected && (
                 <Button

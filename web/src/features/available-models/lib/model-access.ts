@@ -29,6 +29,12 @@ export function resolveModelRatioContext(
   access: UserModelAccess,
   scopeId: string | null | undefined
 ): ModelRatioContext {
+  if (access.scope_mode === 'fixed_account') {
+    return {
+      modelRatios: access.account_model_ratios ?? EMPTY_MODEL_RATIOS,
+      defaultRatio: access.account_default_ratio ?? null,
+    }
+  }
   if (!scopeId) {
     return {
       modelRatios: access.identity_model_ratios ?? EMPTY_MODEL_RATIOS,

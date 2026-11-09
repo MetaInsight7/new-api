@@ -16,40 +16,52 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import type { ReactNode } from 'react'
+import type { ComponentProps, ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { toIntlLocale } from '@/i18n/languages'
 import { cn } from '@/lib/utils'
 
 import { StatusBadge, type StatusBadgeProps } from './status-badge'
 import { Badge } from './ui/badge'
 
-export function GroupMultiplierBadge(props: {
-  children?: ReactNode
-  className?: string
-  label?: string
-  ratio?: number | null
-}) {
+export function GroupMultiplierBadge(
+  props: Omit<ComponentProps<'span'>, 'children'> & {
+    children?: ReactNode
+    label?: string
+    ratio?: number | null
+  }
+) {
+  const { i18n } = useTranslation()
+  const { children, className, label, ratio, ...badgeProps } = props
+  const formattedRatio =
+    ratio == null
+      ? ''
+      : ratio.toLocaleString(
+          toIntlLocale(i18n.resolvedLanguage || i18n.language),
+          { maximumFractionDigits: 6 }
+        )
   let colorClassName =
     'border-muted-foreground/30 bg-muted text-muted-foreground'
-  if (props.ratio != null && props.ratio > 1) {
+  if (ratio != null && ratio > 1) {
     colorClassName = 'border-warning/30 bg-warning/10 text-warning'
-  } else if (props.ratio != null && props.ratio < 1) {
+  } else if (ratio != null && ratio < 1) {
     colorClassName = 'border-info/30 bg-info/10 text-info'
   }
 
   return (
     <Badge
+      {...badgeProps}
       variant='outline'
       className={cn(
         'relative h-5 min-w-12 rounded-full px-1.5 py-0 text-sm leading-none font-medium shadow-none',
-        !props.label && 'tabular-nums',
+        !label && 'tabular-nums',
         colorClassName,
-        props.className
+        className
       )}
     >
-      {props.children}
-      <span>{props.label ?? `${props.ratio}x`}</span>
+      {children}
+      <span>{label ?? `${formattedRatio}×`}</span>
     </Badge>
   )
 }

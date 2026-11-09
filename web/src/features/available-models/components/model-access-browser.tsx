@@ -42,6 +42,7 @@ import {
   ALL_MODEL_VENDORS,
   createModelVendorFilterState,
   filterModelAccessModels,
+  getCreateKeySearch,
   getModelAccessScopeModelCounts,
   getModelAccessScopeModels,
   getModelAccessUnavailableScopeModels,
@@ -54,6 +55,7 @@ import {
 } from '../lib/model-access-browser'
 import type { UserModelAccess } from '../types'
 import { ModelAccessList } from './model-access-list'
+import { ModelAccessRatioBadge } from './model-access-ratio-badge'
 import { ModelAccessScopeRail } from './model-access-scope-rail'
 
 type ModelAccessBrowserProps = {
@@ -119,7 +121,7 @@ export function ModelAccessBrowser({ access }: ModelAccessBrowserProps) {
     (scope) => scope.id === activeScopeId
   )
   const description = fixedView
-    ? t('View models and compatible endpoints available to your account.')
+    ? t('View models available to your account.')
     : null
 
   const clearFilters = () => {
@@ -184,35 +186,15 @@ export function ModelAccessBrowser({ access }: ModelAccessBrowserProps) {
             ))}
           </NativeSelect>
           {selectedScope && (
-            <div className='flex items-center justify-between gap-3'>
-              <div className='flex min-w-0 flex-wrap gap-1.5'>
-                <Badge variant='secondary'>
-                  {t('{{count}} models available', {
-                    count: scopeModelCounts.get(selectedScope.id) ?? 0,
-                  })}
-                </Badge>
-                {selectedScope.ratio !== null && (
-                  <Badge variant='outline'>
-                    {t('Group default ratio {{ratio}}×', {
-                      ratio: selectedScope.ratio,
-                    })}
-                  </Badge>
-                )}
-              </div>
-              <Button
-                size='sm'
-                variant='ghost'
-                className='text-primary hover:text-primary shrink-0'
-                render={<Link to='/keys' />}
-              >
-                {t('Create API Key')}
-                <HugeiconsIcon
-                  icon={ArrowRight01Icon}
-                  strokeWidth={2}
-                  data-icon='inline-end'
-                  aria-hidden='true'
-                />
-              </Button>
+            <div className='flex min-w-0 flex-wrap gap-1.5'>
+              <Badge variant='secondary'>
+                {t('{{count}} models available', {
+                  count: scopeModelCounts.get(selectedScope.id) ?? 0,
+                })}
+              </Badge>
+              {selectedScope.ratio !== null && (
+                <ModelAccessRatioBadge ratio={selectedScope.ratio} />
+              )}
             </div>
           )}
         </div>
@@ -228,53 +210,78 @@ export function ModelAccessBrowser({ access }: ModelAccessBrowserProps) {
         <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
           <div className='min-w-0'>
             {!fixedView && (
-              <div className='flex min-w-0 items-center gap-2'>
+              <div className='flex min-w-0 flex-wrap items-center gap-2'>
                 <h3 className='truncate text-sm font-semibold'>
                   {t('{{group}} available models', {
                     group: selectedScope?.label,
                   })}
                 </h3>
-                <Badge variant='secondary' className='shrink-0 text-[10px]'>
-                  {t('Selected')}
-                </Badge>
+                {selectedScope?.ratio !== null &&
+                  selectedScope?.ratio !== undefined && (
+                    <ModelAccessRatioBadge ratio={selectedScope.ratio} />
+                  )}
               </div>
             )}
-            <p className='text-muted-foreground text-xs' aria-live='polite'>
+            <p
+              className='text-muted-foreground mt-0.5 line-clamp-2 text-xs'
+              aria-live='polite'
+            >
+              {!fixedView && selectedScope?.description && (
+                <>{selectedScope.description} · </>
+              )}
               {t('{{count}} models available', {
                 count: scopeModels.length,
               })}
-              {!fixedView && selectedScope?.ratio != null && (
+              {!fixedView && selectedScope && (
                 <>
                   {' · '}
-                  {t('Group default ratio {{ratio}}×', {
-                    ratio: selectedScope.ratio,
+                  {t('{{count}} exclusive prices', {
+                    count: Object.keys(selectedScope.model_ratios).length,
                   })}
                 </>
               )}
             </p>
           </div>
-          <Input
-            className='w-full sm:w-64'
-            value={query}
-            aria-label={t('Search models')}
-            placeholder={t('Search models')}
-            onChange={(event) => setQuery(event.target.value)}
-          />
+          {!fixedView && selectedScope && (
+            <Button
+              size='sm'
+              className='w-full shrink-0 sm:w-auto lg:hidden'
+              render={
+                <Link
+                  to='/keys'
+                  search={getCreateKeySearch(selectedScope.id)}
+                />
+              }
+            >
+              {t('Use this group to create an API key')}
+              <HugeiconsIcon
+                icon={ArrowRight01Icon}
+                strokeWidth={2}
+                data-icon='inline-end'
+                aria-hidden='true'
+              />
+            </Button>
+          )}
         </div>
       </div>
 
       <div
         className={cn(
-          'flex flex-col gap-1.5',
+          'flex flex-col gap-2 lg:flex-row lg:items-center',
           fixedView
             ? 'bg-card rounded-xl border p-3 sm:p-4'
             : 'border-b px-3 py-2.5 sm:px-4'
         )}
       >
-        <span className='text-muted-foreground text-xs font-medium'>
-          {t('Model vendors')}
-        </span>
-        <div className='overflow-x-auto pb-0.5'>
+        <Input
+          className='w-full lg:w-64 lg:shrink-0'
+          value={query}
+          aria-label={t('Search models')}
+          placeholder={t('Search models')}
+          onChange={(event) => setQuery(event.target.value)}
+        />
+        <span className='sr-only'>{t('Model vendors')}</span>
+        <div className='min-w-0 overflow-x-auto pb-0.5 lg:flex-1'>
           <ToggleGroup
             value={[activeVendor]}
             variant='outline'
@@ -321,6 +328,7 @@ export function ModelAccessBrowser({ access }: ModelAccessBrowserProps) {
             modelRatios={ratioContext.modelRatios}
             pricingModels={pricingModels}
             pricingLoading={pricingQuery.isLoading}
+            pricingPresentation='comparison'
             models={visibleModels}
             scopeIsEmpty={scopeModels.length === 0}
             onClearFilters={clearFilters}
@@ -356,6 +364,7 @@ export function ModelAccessBrowser({ access }: ModelAccessBrowserProps) {
               modelRatios={ratioContext.modelRatios}
               pricingModels={pricingModels}
               pricingLoading={pricingQuery.isLoading}
+              pricingPresentation='comparison'
               models={visibleUnavailableModels}
               scopeIsEmpty={false}
               onClearFilters={clearFilters}
@@ -378,7 +387,7 @@ export function ModelAccessBrowser({ access }: ModelAccessBrowserProps) {
       {fixedView ? (
         catalog
       ) : (
-        <div className='bg-card grid min-w-0 overflow-hidden rounded-xl border lg:h-[calc(100dvh-12rem)] lg:min-h-[32rem] lg:grid-cols-[18rem_minmax(0,1fr)] lg:items-stretch'>
+        <div className='bg-card grid min-w-0 overflow-hidden rounded-xl border lg:h-[calc(100dvh-12rem)] lg:min-h-[32rem] lg:grid-cols-[15rem_minmax(0,1fr)] lg:items-stretch'>
           <aside className='bg-muted/20 hidden min-h-0 min-w-0 border-r lg:flex lg:flex-col'>
             <div className='flex min-h-[67px] shrink-0 flex-col justify-center border-b px-4 py-3'>
               <h3 className='text-sm font-semibold'>{t('Access groups')}</h3>

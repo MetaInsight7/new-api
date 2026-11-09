@@ -23,75 +23,139 @@ import {
   formatFixedPrice,
   formatGroupPrice,
 } from '@/features/pricing/lib/price'
-import type { PricingModel } from '@/features/pricing/types'
+import type { PriceType, PricingModel } from '@/features/pricing/types'
 
 export type ModelAccessPricing = {
   requestPrice: string | null
   inputPrice: string | null
   outputPrice: string | null
+  cachePrices: ModelAccessCachePrice[]
   isTimePricing: boolean
+}
+
+type ModelAccessCachePrice = {
+  key: string
+  label: string
+  price: string
+}
+
+type ModelAccessPricingOptions = {
+  now?: Date
+  ratio?: number
+}
+
+function hasConfiguredRatio(value: number | null | undefined): boolean {
+  return value !== null && value !== undefined && Number.isFinite(Number(value))
 }
 
 export function getModelAccessPricing(
   model: PricingModel,
-  now?: Date
+  options: ModelAccessPricingOptions = {}
 ): ModelAccessPricing {
+  const ratio = options.ratio ?? 1
   const dynamic = getDynamicPricingSummary(model, {
     tokenUnit: DEFAULT_TOKEN_UNIT,
     showCurrencySymbol: true,
-    groupRatioMultiplier: 1,
-    now,
+    groupRatioMultiplier: ratio,
+    now: options.now,
   })
 
   if (dynamic) {
+    const mixedBillingUnit =
+      dynamic.isMixedBilling && dynamic.tier && !('unitPrices' in dynamic.tier)
+        ? (dynamic.tier.billingUnit ?? 'token')
+        : null
+    const displayEntries =
+      mixedBillingUnit !== null
+        ? dynamic.entries.filter((entry) =>
+            mixedBillingUnit === 'request'
+              ? entry.unit === 'request' || entry.unit === 'image'
+              : entry.unit === 'token'
+          )
+        : dynamic.entries
+    const formattedPrice = (entry: (typeof dynamic.entries)[number]) =>
+      entry.formattedRange ?? entry.formatted
+    const requestEntry = displayEntries.find(
+      (entry) => entry.unit === 'request' || entry.unit === 'image'
+    )
+    const inputEntry = displayEntries.find(
+      (entry) => entry.field === 'inputPrice'
+    )
+    const outputEntry = displayEntries.find(
+      (entry) => entry.field === 'outputPrice'
+    )
+
     return {
-      requestPrice:
-        dynamic.primaryEntries.find(
-          (entry) => entry.unit === 'request' || entry.unit === 'image'
-        )?.formatted ?? null,
-      inputPrice:
-        dynamic.primaryEntries.find((entry) => entry.field === 'inputPrice')
-          ?.formatted ?? null,
-      outputPrice:
-        dynamic.primaryEntries.find((entry) => entry.field === 'outputPrice')
-          ?.formatted ?? null,
+      requestPrice: requestEntry ? formattedPrice(requestEntry) : null,
+      inputPrice: inputEntry ? formattedPrice(inputEntry) : null,
+      outputPrice: outputEntry ? formattedPrice(outputEntry) : null,
+      cachePrices: displayEntries
+        .filter(
+          (entry) =>
+            entry.unit === 'token' &&
+            (entry.field === 'cacheReadPrice' ||
+              entry.field === 'cacheCreatePrice' ||
+              entry.field === 'cacheCreate1hPrice' ||
+              entry.field === 'cacheCreate12hPrice')
+        )
+        .map((entry) => ({
+          key: entry.field,
+          label: entry.shortLabel,
+          price: formattedPrice(entry),
+        })),
       isTimePricing: dynamic.isTimePricing === true,
     }
+  }
+
+  const group = '__display__'
+  const groupRatios = { [group]: ratio }
+  const formatTokenPrice = (type: PriceType) =>
+    formatGroupPrice(
+      model,
+      group,
+      type,
+      DEFAULT_TOKEN_UNIT,
+      false,
+      1,
+      1,
+      groupRatios
+    )
+  const cachePrices: ModelAccessCachePrice[] = []
+  if (
+    model.quota_type === QUOTA_TYPE_VALUES.TOKEN &&
+    hasConfiguredRatio(model.cache_ratio)
+  ) {
+    cachePrices.push({
+      key: 'cacheReadPrice',
+      label: 'Cache Read',
+      price: formatTokenPrice('cache'),
+    })
+  }
+  if (
+    model.quota_type === QUOTA_TYPE_VALUES.TOKEN &&
+    hasConfiguredRatio(model.create_cache_ratio)
+  ) {
+    cachePrices.push({
+      key: 'cacheCreatePrice',
+      label: 'Cache Write',
+      price: formatTokenPrice('create_cache'),
+    })
   }
 
   return {
     requestPrice:
       model.quota_type === QUOTA_TYPE_VALUES.REQUEST
-        ? formatFixedPrice(model, '__official__', false, 1, 1, {
-            __official__: 1,
-          })
+        ? formatFixedPrice(model, group, false, 1, 1, groupRatios)
         : null,
     inputPrice:
       model.quota_type === QUOTA_TYPE_VALUES.TOKEN
-        ? formatGroupPrice(
-            model,
-            '__official__',
-            'input',
-            DEFAULT_TOKEN_UNIT,
-            false,
-            1,
-            1,
-            { __official__: 1 }
-          )
+        ? formatTokenPrice('input')
         : null,
     outputPrice:
       model.quota_type === QUOTA_TYPE_VALUES.TOKEN
-        ? formatGroupPrice(
-            model,
-            '__official__',
-            'output',
-            DEFAULT_TOKEN_UNIT,
-            false,
-            1,
-            1,
-            { __official__: 1 }
-          )
+        ? formatTokenPrice('output')
         : null,
+    cachePrices,
     isTimePricing: false,
   }
 }

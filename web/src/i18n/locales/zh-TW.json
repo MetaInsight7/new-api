@@ -7782,7 +7782,7 @@
     "Upstream no longer supports this model": "Upstream no longer supports this model",
     "Usage Documentation": "Usage Documentation",
     "Use this group to create an API key": "Use this group to create an API key",
-    "View models and compatible endpoints available to your account.": "View models and compatible endpoints available to your account.",
+    "View models available to your account.": "查看帳戶可用的模型。",
     "Watch": "Watch",
     "Weighted observed success": "Weighted observed success",
     "Workspace": "Workspace",
@@ -7956,6 +7956,10 @@
     "{{count}} configured": "{{count}} 個已設定",
     "{{count}} exact model ratio overrides will be removed from the draft. Other models and groups stay unchanged.": "將從草稿移除 {{count}} 個精確模型倍率覆寫；其他模型與分組維持不變。",
     "{{count}} duplicate model selections were merged into existing normalized billing keys.": "已將 {{count}} 個重複模型選擇合併至現有正規化計費鍵。",
+    "{{count}} exclusive prices": "{{count}} 個專屬價",
+    "Current effective price": "目前實付價",
+    "Billed by the group selected during routing": "依實際路由命中的分組計費",
+    "Official base price": "官方基準價",
     "{{count}} unconfigured": "{{count}} 個未設定"
   }
 }

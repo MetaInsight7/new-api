@@ -582,6 +582,31 @@ describe('task dynamic pricing', () => {
 })
 
 describe('shared plugin price summaries', () => {
+  test('preserves time-dependent state from provider overrides', () => {
+    const model = pricingModel({
+      billing_plugin_variants: [
+        {
+          plugin_key: 'alpha',
+          plugin_name: 'Alpha',
+          billing_mode: 'tiered_expr',
+          billing_expr:
+            'hour("Asia/Shanghai") < 12 ? tier("morning", fixed(0.4)) : tier("evening", fixed(0.8))',
+          billing_usage_schema: {},
+        },
+      ],
+    })
+    const summary = getDynamicPricingSummary(model, {
+      tokenUnit: 'M',
+      now: new Date('2026-09-07T10:00:00+08:00'),
+    })
+
+    expect(summary?.isTimePricing).toBe(true)
+    expect(summary?.entries[0]).toMatchObject({
+      unit: 'request',
+      value: 0.4,
+    })
+  })
+
   test('uses a single remaining provider override instead of the model price', () => {
     const model = pricingModel({
       billing_mode: 'tiered_expr',

@@ -488,6 +488,7 @@ export function getDynamicPricingSummary(
           entry.field !== 'modelPrice'
       ),
       isTaskUsage: true,
+      isTimePricing: summaries.some((summary) => summary.isTimePricing),
       providerCount: variants.length >= 2 ? variants.length : undefined,
       hasUnconfiguredProviders: variants.some((variant) =>
         variant.billing_mode === 'ratio'

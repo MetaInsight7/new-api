@@ -1,4 +1,4 @@
-import { InformationCircleIcon, PackageIcon } from '@hugeicons/core-free-icons'
+import { PackageIcon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 /*
 Copyright (C) 2023-2026 QuantumNous
@@ -21,7 +21,6 @@ For commercial licensing, please contact support@quantumnous.com
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import {
   Empty,
@@ -117,27 +116,6 @@ export function ModelAccessPreview(props: ModelAccessPreviewProps) {
             })}
         </Badge>
       </div>
-
-      <Alert>
-        <HugeiconsIcon
-          icon={InformationCircleIcon}
-          strokeWidth={2}
-          aria-hidden='true'
-        />
-        <AlertTitle>{t('Strict scope preview')}</AlertTitle>
-        <AlertDescription>
-          <p>
-            {t(
-              'Only models available in this API key scope are shown. Temporary failures remain listed.'
-            )}
-          </p>
-          <p>
-            {t(
-              'This shows the strict model scope for the current configuration. Actual requests may still be affected by API key status, quota, IP restrictions, and channel status.'
-            )}
-          </p>
-        </AlertDescription>
-      </Alert>
 
       <div className='bg-card flex flex-col gap-2.5 rounded-xl border p-3'>
         <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>

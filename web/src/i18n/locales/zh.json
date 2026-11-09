@@ -7782,7 +7782,7 @@
     "Upstream no longer supports this model": "上游已不再支持此模型",
     "Usage Documentation": "使用文档",
     "Use this group to create an API key": "使用此分组创建 API 密钥",
-    "View models and compatible endpoints available to your account.": "查看账户可用的模型和兼容端点。",
+    "View models available to your account.": "查看账户可用的模型。",
     "Watch": "观察",
     "Weighted observed success": "加权观测成功率",
     "Workspace": "工作区",
@@ -7956,6 +7956,10 @@
     "{{count}} configured": "{{count}} 个已配置",
     "{{count}} exact model ratio overrides will be removed from the draft. Other models and groups stay unchanged.": "将从草稿中移除 {{count}} 个精确模型倍率覆盖；其他模型和分组保持不变。",
     "{{count}} duplicate model selections were merged into existing normalized billing keys.": "已将 {{count}} 个重复模型选择合并到现有归一化计费键。",
+    "{{count}} exclusive prices": "{{count}} 个专属价",
+    "Current effective price": "当前实付价",
+    "Billed by the group selected during routing": "按实际路由命中的分组计费",
+    "Official base price": "官方基准价",
     "{{count}} unconfigured": "{{count}} 个未配置"
   }
 }

@@ -22,6 +22,7 @@ import {
   getScopeModels,
   getUnavailableScopeModels,
   resolveCreateScope,
+  resolveModelRatioContext,
 } from './model-access'
 
 const access: UserModelAccess = {
@@ -84,10 +85,16 @@ describe('available model access resolution', () => {
       ...access,
       scope_mode: 'fixed_account',
       account_model_ids: ['callable-model'],
+      account_model_ratios: { 'callable-model': 0.4 },
+      account_default_ratio: 0.8,
       groups: [],
     }
     expect(getAccountModels(fixedAccess).map((model) => model.id)).toEqual([
       'callable-model',
     ])
+    expect(resolveModelRatioContext(fixedAccess, null)).toEqual({
+      modelRatios: { 'callable-model': 0.4 },
+      defaultRatio: 0.8,
+    })
   })
 })

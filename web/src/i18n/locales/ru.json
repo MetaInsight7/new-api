@@ -7782,7 +7782,7 @@
     "Upstream no longer supports this model": "Upstream no longer supports this model",
     "Usage Documentation": "Usage Documentation",
     "Use this group to create an API key": "Use this group to create an API key",
-    "View models and compatible endpoints available to your account.": "View models and compatible endpoints available to your account.",
+    "View models available to your account.": "Просмотрите модели, доступные для вашей учетной записи.",
     "Watch": "Watch",
     "Weighted observed success": "Weighted observed success",
     "Workspace": "Workspace",
@@ -7956,6 +7956,10 @@
     "{{count}} configured": "Настроено: {{count}}",
     "{{count}} exact model ratio overrides will be removed from the draft. Other models and groups stay unchanged.": "Из черновика будет удалено {{count}} точных коэффициентов моделей. Остальные модели и группы останутся без изменений.",
     "{{count}} duplicate model selections were merged into existing normalized billing keys.": "Дублирующиеся выбранные модели ({{count}}) объединены с существующими нормализованными ключами тарификации.",
+    "{{count}} exclusive prices": "Эксклюзивных цен: {{count}}",
+    "Current effective price": "Текущая фактическая цена",
+    "Billed by the group selected during routing": "Оплата по группе, выбранной при маршрутизации",
+    "Official base price": "Официальная базовая цена",
     "{{count}} unconfigured": "Не настроено: {{count}}"
   }
 }

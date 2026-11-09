@@ -7782,7 +7782,7 @@
     "Upstream no longer supports this model": "Upstream no longer supports this model",
     "Usage Documentation": "Usage Documentation",
     "Use this group to create an API key": "Use this group to create an API key",
-    "View models and compatible endpoints available to your account.": "View models and compatible endpoints available to your account.",
+    "View models available to your account.": "Voir les modèles disponibles pour votre compte.",
     "Watch": "Watch",
     "Weighted observed success": "Weighted observed success",
     "Workspace": "Workspace",
@@ -7956,6 +7956,10 @@
     "{{count}} configured": "{{count}} configurés",
     "{{count}} exact model ratio overrides will be removed from the draft. Other models and groups stay unchanged.": "{{count}} multiplicateurs de modèle exacts seront supprimés du brouillon. Les autres modèles et groupes restent inchangés.",
     "{{count}} duplicate model selections were merged into existing normalized billing keys.": "{{count}} sélections de modèles en double ont été fusionnées dans les clés de facturation normalisées existantes.",
+    "{{count}} exclusive prices": "{{count}} tarifs exclusifs",
+    "Current effective price": "Prix effectif actuel",
+    "Billed by the group selected during routing": "Facturé selon le groupe sélectionné lors du routage",
+    "Official base price": "Tarif officiel de référence",
     "{{count}} unconfigured": "{{count}} non configurés"
   }
 }

@@ -56,7 +56,7 @@ export function getAvailableModelsViewState(options: {
 
 function ModelAccessSkeleton() {
   return (
-    <div className='mx-auto grid w-full max-w-7xl overflow-hidden rounded-xl border lg:grid-cols-[18rem_minmax(0,1fr)]'>
+    <div className='mx-auto grid w-full max-w-7xl overflow-hidden rounded-xl border lg:grid-cols-[15rem_minmax(0,1fr)]'>
       <div className='bg-muted/20 hidden border-r lg:flex lg:flex-col'>
         <div className='flex h-[67px] flex-col justify-center gap-1.5 border-b px-4'>
           <Skeleton className='h-4 w-24' />
