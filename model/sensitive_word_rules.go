@@ -4,24 +4,24 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"gorm.io/gorm"
 )
 
-const sensitiveWordBlockMessage = "你的请求因命中敏感词已被拦截，已记录 1 次；累计达到 {{threshold}} 次将立即封号，余额不退，如果有攻击破解别人网站等情节严重的情况将会直接报警。请勿使用当前分组进行违规对话；如有误判，请联系群主审核并清理你的记录。"
+const sensitiveWordBlockMessage = "你的请求因命中敏感词已被拦截，已记录 1 次；若平台开启自动封禁，累计达到 {{threshold}} 次将停用账号，余额不退。如果有攻击破解别人网站等情节严重的情况将会直接报警。请勿使用当前分组进行违规对话；如有误判，请联系群主审核并清理你的记录。"
 
 func normalizeSensitiveWord(word string) (string, error) {
 	word = strings.TrimSpace(word)
 	if word == "" {
-		return "", errors.New("敏感词不能为空")
+		return "", common.NewMessage("Sensitive word cannot be empty")
 	}
 	if len([]rune(word)) > SensitiveWordMaxRunes {
-		return "", fmt.Errorf("敏感词长度不能超过 %d", SensitiveWordMaxRunes)
+		return "", common.NewMessage("Sensitive word cannot exceed {{max}} characters", map[string]any{"max": SensitiveWordMaxRunes})
 	}
 	return word, nil
 }
@@ -50,10 +50,10 @@ func normalizeSensitiveWords(words []string) ([]string, error) {
 		result = append(result, word)
 	}
 	if len(result) == 0 {
-		return nil, errors.New("敏感词规则至少包含一个有效词条")
+		return nil, common.NewMessage("A sensitive-word rule must contain at least one valid entry")
 	}
 	if len(result) > SensitiveWordMaxRules {
-		return nil, fmt.Errorf("单条规则最多包含 %d 个敏感词", SensitiveWordMaxRules)
+		return nil, common.NewMessage("A single rule cannot contain more than {{max}} sensitive words", map[string]any{"max": SensitiveWordMaxRules})
 	}
 	return result, nil
 }
@@ -71,10 +71,10 @@ func validSensitiveGroups(groups []string) ([]string, error) {
 			continue
 		}
 		if group == "auto" {
-			return nil, errors.New("局部敏感词规则不能绑定自动分组")
+			return nil, common.NewMessage("Scoped sensitive-word rules cannot target the automatic group")
 		}
 		if _, exists := available[group]; !exists {
-			return nil, fmt.Errorf("分组 %s 不在分组定价中", group)
+			return nil, common.NewMessage("Group {{group}} is not configured for pricing", map[string]any{"group": group})
 		}
 		seen[group] = struct{}{}
 		result = append(result, group)
@@ -88,6 +88,7 @@ func defaultSensitiveWordPolicy() SensitiveWordPolicy {
 		ID:                      1,
 		Enabled:                 true,
 		CheckPrompt:             true,
+		AutoBanEnabled:          false,
 		RetainFullPrompt:        true,
 		BlockMessage:            sensitiveWordBlockMessage,
 		BanThreshold:            SensitiveWordBanThreshold,
@@ -119,32 +120,15 @@ func normalizeSensitiveWordPolicy(policy SensitiveWordPolicy) SensitiveWordPolic
 	return policy
 }
 
-// GetSensitiveWordPolicyWithError distinguishes an intentionally unavailable
-// runtime (before a one-way migration finishes) from an unexpected database
-// read error. Relay callers must fail closed for the latter.
+// GetSensitiveWordPolicyWithError reads the immutable process-local snapshot.
+// Initial snapshot failures are returned so request enforcement fails closed;
+// refresh failures retain the last valid snapshot.
 func GetSensitiveWordPolicyWithError() (SensitiveWordPolicy, error) {
-	policy := defaultSensitiveWordPolicy()
-	if sensitiveWordRuntimeUnavailable.Load() || DB == nil {
-		policy.Enabled = false
-		return policy, nil
+	snapshot, err := currentSensitiveRuntimeSnapshot()
+	if err != nil {
+		return SensitiveWordPolicy{}, err
 	}
-	// Slave nodes do not execute migrations. Require the durable marker as
-	// well as the new table so a node started while the master is importing
-	// legacy rows cannot enforce a partial rule set.
-	var marker Option
-	markerResult := DB.Select("key", "value").Where(&Option{Key: sensitiveWordMigrationKey}).Limit(1).Find(&marker)
-	if markerResult.Error != nil {
-		return policy, fmt.Errorf("%w: read migration marker: %v", ErrSensitiveWordPolicyUnavailable, markerResult.Error)
-	}
-	if markerResult.RowsAffected == 0 || marker.Value != sensitiveWordMigrationValue {
-		policy.Enabled = false
-		return policy, nil
-	}
-	var stored SensitiveWordPolicy
-	if err := DB.First(&stored, 1).Error; err != nil {
-		return policy, fmt.Errorf("%w: read policy: %v", ErrSensitiveWordPolicyUnavailable, err)
-	}
-	return normalizeSensitiveWordPolicy(stored), nil
+	return snapshot.policy, nil
 }
 
 // GetSensitiveWordPolicy is the non-critical convenience accessor used by UI
@@ -160,7 +144,7 @@ func GetSensitiveWordPolicy() SensitiveWordPolicy {
 
 func SaveSensitiveWordPolicy(policy SensitiveWordPolicy, actor int) error {
 	if DB == nil || !DB.Migrator().HasTable(&SensitiveWordPolicy{}) {
-		return errors.New("敏感词策略表不可用，请先完成数据库迁移")
+		return common.NewMessage("Sensitive-word policy storage is unavailable; complete the database migration first")
 	}
 	policy = normalizeSensitiveWordPolicy(policy)
 	if err := DB.Transaction(func(tx *gorm.DB) error {
@@ -181,6 +165,7 @@ func SaveSensitiveWordPolicy(policy SensitiveWordPolicy, actor int) error {
 		return tx.Model(&current).Updates(map[string]any{
 			"enabled":                    policy.Enabled,
 			"check_prompt":               policy.CheckPrompt,
+			"auto_ban_enabled":           policy.AutoBanEnabled,
 			"retain_full_prompt":         policy.RetainFullPrompt,
 			"block_message":              policy.BlockMessage,
 			"ban_threshold":              policy.BanThreshold,
@@ -193,16 +178,16 @@ func SaveSensitiveWordPolicy(policy SensitiveWordPolicy, actor int) error {
 	}); err != nil {
 		return err
 	}
-	invalidateSensitiveWordRuntime()
+	sensitiveWordRuntimeChanged()
 	return nil
 }
 
 // bumpSensitiveWordPolicyVersion is called in the same transaction as every
-// rule mutation. Other nodes read the policy on each request and rebuild their
-// local automaton when this durable generation changes.
+// rule mutation. Redis notification refreshes peers immediately and periodic
+// generation polling converges nodes that miss a notification.
 func bumpSensitiveWordPolicyVersion(tx *gorm.DB, actor int) error {
 	if tx == nil {
-		return errors.New("敏感词策略事务不可用")
+		return common.NewMessage("Sensitive-word policy transaction is unavailable")
 	}
 	result := tx.Model(&SensitiveWordPolicy{}).Where("id = ?", 1).Updates(map[string]any{
 		"version":    gorm.Expr("version + ?", 1),
@@ -319,20 +304,20 @@ func GetSensitiveWordRuleDetail(id int64) (*SensitiveWordRuleDetail, error) {
 func UpsertSensitiveWordRuleWithMode(id int64, name string, words []string, scope string, groups []string, actor int, mode string) (*SensitiveWordRuleDetail, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
-		return nil, errors.New("规则名称不能为空")
+		return nil, common.NewMessage("Rule name is required")
 	}
 	if len([]rune(name)) > 64 {
-		return nil, errors.New("规则名称不能超过 64 个字符")
+		return nil, common.NewMessage("Rule name cannot exceed 64 characters")
 	}
 	words, err := normalizeSensitiveWords(words)
 	if err != nil {
 		return nil, err
 	}
 	if len(words) == 0 {
-		return nil, errors.New("规则至少包含一个敏感词")
+		return nil, common.NewMessage("Rule must contain at least one sensitive word")
 	}
 	if scope != SensitiveWordScopeGlobal && scope != SensitiveWordScopeGroup {
-		return nil, errors.New("规则范围无效")
+		return nil, common.NewMessage("Invalid rule scope")
 	}
 	groups, err = validSensitiveGroups(groups)
 	if err != nil {
@@ -341,11 +326,11 @@ func UpsertSensitiveWordRuleWithMode(id int64, name string, words []string, scop
 	if scope == SensitiveWordScopeGlobal {
 		groups = nil
 	} else if len(groups) == 0 {
-		return nil, errors.New("局部规则至少选择一个分组")
+		return nil, common.NewMessage("Scoped rules must select at least one group")
 	}
 	mode = strings.ToLower(strings.TrimSpace(mode))
 	if mode != SensitiveWordModeBlock && mode != SensitiveWordModeObserve && mode != SensitiveWordModeOff {
-		return nil, errors.New("规则处理模式无效")
+		return nil, common.NewMessage("Invalid rule mode")
 	}
 
 	var rule SensitiveWordRule
@@ -392,14 +377,14 @@ func UpsertSensitiveWordRuleWithMode(id int64, name string, words []string, scop
 	if err != nil {
 		return nil, err
 	}
-	invalidateSensitiveWordRuntime()
+	sensitiveWordRuntimeChanged()
 	return GetSensitiveWordRuleDetail(rule.ID)
 }
 
 func SetSensitiveWordRuleMode(id int64, mode string, actor int) error {
 	mode = strings.ToLower(strings.TrimSpace(mode))
 	if mode != SensitiveWordModeBlock && mode != SensitiveWordModeObserve && mode != SensitiveWordModeOff {
-		return errors.New("规则处理模式无效")
+		return common.NewMessage("Invalid rule mode")
 	}
 	if err := DB.Transaction(func(tx *gorm.DB) error {
 		result := tx.Model(&SensitiveWordRule{}).Where("id = ?", id).Updates(map[string]any{
@@ -416,13 +401,13 @@ func SetSensitiveWordRuleMode(id int64, mode string, actor int) error {
 	}); err != nil {
 		return err
 	}
-	invalidateSensitiveWordRuntime()
+	sensitiveWordRuntimeChanged()
 	return nil
 }
 
 func DeleteSensitiveWordRule(id int64, actor int) error {
 	if id <= 0 {
-		return errors.New("规则 ID 无效")
+		return common.NewMessage("Invalid rule ID")
 	}
 	if err := DB.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("rule_id = ?", id).Delete(&SensitiveWordRuleWord{}).Error; err != nil {
@@ -442,7 +427,7 @@ func DeleteSensitiveWordRule(id int64, actor int) error {
 	}); err != nil {
 		return err
 	}
-	invalidateSensitiveWordRuntime()
+	sensitiveWordRuntimeChanged()
 	return nil
 }
 

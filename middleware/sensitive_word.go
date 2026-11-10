@@ -44,6 +44,13 @@ func CheckSensitiveWordBeforeChannelSelection(c *gin.Context, modelName string) 
 // relay DTO before channel selection. Responses WebSocket requests do not pass
 // through Distribute, so they call this shared path directly.
 func CheckSensitiveWordRequestBeforeChannelSelection(c *gin.Context, format types.RelayFormat, modelName string, request dto.Request) *types.NewAPIError {
+	if request == nil {
+		return nil
+	}
+	return checkSensitiveTextBeforeChannelSelection(c, string(format), modelName, dto.ExtractSensitiveText(request))
+}
+
+func checkSensitiveTextBeforeChannelSelection(c *gin.Context, protocol string, modelName string, fields []types.SensitiveTextField) *types.NewAPIError {
 	policy, policyErr := model.GetSensitiveWordPolicyWithError()
 	if policyErr != nil {
 		logger.LogWarn(c, "sensitive-word policy unavailable: "+policyErr.Error())
@@ -51,11 +58,10 @@ func CheckSensitiveWordRequestBeforeChannelSelection(c *gin.Context, format type
 			"敏感词审计暂时不可用，请稍后重试", types.ErrorCodeQueryDataError, http.StatusServiceUnavailable,
 		)
 	}
-	if !policy.Enabled || !policy.CheckPrompt || request == nil {
+	if !policy.Enabled || !policy.CheckPrompt {
 		return nil
 	}
-	meta := request.GetTokenCountMeta()
-	if meta == nil {
+	if len(fields) == 0 {
 		return nil
 	}
 
@@ -76,16 +82,23 @@ func CheckSensitiveWordRequestBeforeChannelSelection(c *gin.Context, format type
 		GroupName: usingGroup,
 		ModelName: modelName,
 		Endpoint:  c.Request.URL.Path,
-		Protocol:  string(format),
-		Prompt:    meta.CombineText,
+		Protocol:  protocol,
+		Fields:    fields,
 	}, candidateGroups)
+	if result != nil {
+		common.SetContextKey(c, constant.ContextKeySensitiveWordCheckResult, result)
+	}
 	if err != nil {
 		logger.LogWarn(c, "sensitive-word audit failed: "+err.Error())
-		return newSensitiveWordRequestError(
-			"敏感词审计暂时不可用，请稍后重试", types.ErrorCodeQueryDataError, http.StatusServiceUnavailable,
-		)
+		if !errors.Is(err, model.ErrSensitiveWordAuditPersistence) {
+			return newSensitiveWordRequestError(
+				"敏感词审计暂时不可用，请稍后重试", types.ErrorCodeQueryDataError, http.StatusServiceUnavailable,
+			)
+		}
+		if result == nil || !result.Blocked {
+			return nil
+		}
 	}
-	common.SetContextKey(c, constant.ContextKeySensitiveWordCheckResult, result)
 	if result == nil || !result.Matched || !result.Blocked {
 		return nil
 	}
@@ -99,7 +112,7 @@ func CheckSensitiveWordRequestBeforeChannelSelection(c *gin.Context, format type
 		Health: "unchanged",
 	})
 	logger.LogWarn(c, "sensitive-word policy matched")
-	return newSensitiveWordRequestError(result.Message, types.ErrorCodeSensitiveWordsDetected, http.StatusUnprocessableEntity)
+	return newSensitiveWordRequestError(result.Message, types.ErrorCodeSensitiveWordsDetected, http.StatusBadRequest)
 }
 
 func sensitiveWordRelayFormat(path string) (types.RelayFormat, bool) {

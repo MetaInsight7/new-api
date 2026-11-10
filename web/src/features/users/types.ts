@@ -134,6 +134,21 @@ export interface UserFormData {
   admin_permissions?: AdminPermissionMatrix
 }
 
+export interface SensitiveWordUserSafetyPatch {
+  violation_count?: number
+  whitelist?: boolean
+}
+
+export interface SensitiveWordUnbanResult {
+  user_id: number
+  status_before: number
+  status_after: number
+  violation_count_before: number
+  violation_count_after: number
+  status_changed: boolean
+  violation_count_reset: boolean
+}
+
 export type ManageUserAction =
   | 'promote'
   | 'demote'

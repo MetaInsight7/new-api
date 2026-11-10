@@ -529,6 +529,10 @@ const AUDIT_TEMPLATES: Record<string, string> = {
   'sensitive_word_rule.delete': 'Deleted sensitive-word rule {{rule_id}}',
   'sensitive_word.enable_reset':
     'Enabled user {{target_user_id}} and reset sensitive-word violations from {{violation_count_before}} to {{violation_count_after}}',
+  'sensitive_word.user_update':
+    'Updated sensitive-word safety state for user {{target_user_id}}',
+  'sensitive_word.unban':
+    'Unbanned user {{target_user_id}} and reset sensitive-word violations',
   // Custom OAuth
   'custom_oauth.create': 'Created a custom OAuth provider',
   'custom_oauth.update': 'Updated a custom OAuth provider',

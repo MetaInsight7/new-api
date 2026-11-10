@@ -166,15 +166,17 @@ var accessTokenRouteRules = map[string]accessTokenRouteRule{
 	"GET /api/option/waffo-pancake/subscription-product-options": accessTokenScopeRule("option:read"),
 
 	// router/api-router.go: /api/sensitive-words
-	"GET /api/sensitive-words/policy":           accessTokenScopeRule("option:read"),
-	"PUT /api/sensitive-words/policy":           accessTokenScopeRule("option:write"),
-	"GET /api/sensitive-words/groups":           accessTokenScopeRule("option:read"),
-	"GET /api/sensitive-words/rules":            accessTokenScopeRule("option:read"),
-	"POST /api/sensitive-words/rules":           accessTokenScopeRule("option:write"),
-	"GET /api/sensitive-words/rules/:id":        accessTokenScopeRule("option:read"),
-	"PUT /api/sensitive-words/rules/:id":        accessTokenScopeRule("option:write"),
-	"DELETE /api/sensitive-words/rules/:id":     accessTokenScopeRule("option:write"),
-	"PATCH /api/sensitive-words/rules/:id/mode": accessTokenScopeRule("option:write"),
+	"GET /api/sensitive-words/policy":           accessTokenScopeRule("sensitive_word:manage"),
+	"PUT /api/sensitive-words/policy":           accessTokenScopeRule("sensitive_word:manage"),
+	"GET /api/sensitive-words/groups":           accessTokenScopeRule("sensitive_word:manage"),
+	"GET /api/sensitive-words/rules":            accessTokenScopeRule("sensitive_word:manage"),
+	"POST /api/sensitive-words/rules":           accessTokenScopeRule("sensitive_word:manage"),
+	"GET /api/sensitive-words/rules/:id":        accessTokenScopeRule("sensitive_word:manage"),
+	"PUT /api/sensitive-words/rules/:id":        accessTokenScopeRule("sensitive_word:manage"),
+	"DELETE /api/sensitive-words/rules/:id":     accessTokenScopeRule("sensitive_word:manage"),
+	"PATCH /api/sensitive-words/rules/:id/mode": accessTokenScopeRule("sensitive_word:manage"),
+	"PATCH /api/sensitive-words/users/:id":      accessTokenScopeRule("sensitive_word:manage"),
+	"POST /api/sensitive-words/users/:id/unban": accessTokenScopeRule("sensitive_word:manage"),
 
 	// router/api-router.go: /api/custom-oauth-provider, /api/ratio_sync
 	"POST /api/custom-oauth-provider/discovery": accessTokenScopeRule("option:write"),
@@ -250,7 +252,7 @@ var accessTokenRouteRules = map[string]accessTokenRouteRule{
 	// router/api-router.go: /api/audit, /api/log, /api/data
 	"GET /api/audit/self":                       accessTokenScopeRule("usage:read"),
 	"GET /api/log/":                             accessTokenScopeRule("log:read"),
-	"GET /api/log/sensitive-word-audit/:id":     accessTokenScopeRule("audit:read"),
+	"GET /api/log/sensitive-word-audit/:id":     accessTokenScopeRule("sensitive_word:evidence_read"),
 	"GET /api/log/stat":                         accessTokenScopeRule("log:read"),
 	"GET /api/log/self/stat":                    accessTokenScopeRule("usage:read"),
 	"GET /api/log/channel_affinity_usage_cache": accessTokenScopeRule("log:read"),

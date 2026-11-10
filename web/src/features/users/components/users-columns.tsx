@@ -32,8 +32,14 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import {
+  ADMIN_PERMISSION_ACTIONS,
+  ADMIN_PERMISSION_RESOURCES,
+  hasPermission,
+} from '@/lib/admin-permissions'
 import { getCurrencyDisplay } from '@/lib/currency'
 import { formatQuota } from '@/lib/format'
+import { useAuthStore } from '@/stores/auth-store'
 import { useSystemConfigStore } from '@/stores/system-config-store'
 
 import {
@@ -49,6 +55,12 @@ import { UserQuotaCell } from './user-quota-cell'
 export function useUsersColumns(): ColumnDef<User>[] {
   const { t } = useTranslation()
   const currencyConfig = useSystemConfigStore((state) => state.config.currency)
+  const currentUser = useAuthStore((state) => state.auth.user)
+  const canManageSensitiveWords = hasPermission(
+    currentUser,
+    ADMIN_PERMISSION_RESOURCES.SENSITIVE_WORD,
+    ADMIN_PERMISSION_ACTIONS.MANAGE
+  )
   const { meta: currency } = getCurrencyDisplay()
   const quotaUnit = currency.kind === 'tokens' ? t('Tokens') : currency.symbol
   return useMemo<ColumnDef<User>[]>(
@@ -235,31 +247,35 @@ export function useUsersColumns(): ColumnDef<User>[] {
         size: 120,
         meta: { mobileOrder: 20 },
       },
-      {
-        accessorKey: 'sensitive_word_violation_count',
-        header: t('Sensitive-word violations'),
-        cell: ({ row }) => {
-          const user = row.original
-          const count = user.sensitive_word_violation_count ?? 0
-          return (
-            <div className='flex items-center gap-1.5'>
-              <span className='tabular-nums'>{count}</span>
-              {user.sensitive_word_whitelist && (
-                <StatusBadge
-                  label={t('Whitelist')}
-                  variant='info'
-                  copyable={false}
-                  className='font-normal'
-                />
-              )}
-            </div>
-          )
-        },
-        filterFn: (row, id, value) =>
-          Number(row.getValue(id) ?? 0) >= Number(value),
-        size: 150,
-        meta: { mobileOrder: 35 },
-      },
+      ...(canManageSensitiveWords
+        ? [
+            {
+              accessorKey: 'sensitive_word_violation_count',
+              header: t('Sensitive-word violations'),
+              cell: ({ row }) => {
+                const user = row.original
+                const count = user.sensitive_word_violation_count ?? 0
+                return (
+                  <div className='flex items-center gap-1.5'>
+                    <span className='tabular-nums'>{count}</span>
+                    {user.sensitive_word_whitelist && (
+                      <StatusBadge
+                        label={t('Whitelist')}
+                        variant='info'
+                        copyable={false}
+                        className='font-normal'
+                      />
+                    )}
+                  </div>
+                )
+              },
+              filterFn: (row, id, value) =>
+                Number(row.getValue(id) ?? 0) >= Number(value),
+              size: 150,
+              meta: { mobileOrder: 35 },
+            } satisfies ColumnDef<User>,
+          ]
+        : []),
       {
         id: 'invite_info',
         header: t('Invite Info'),
@@ -323,6 +339,6 @@ export function useUsersColumns(): ColumnDef<User>[] {
     ],
     // formatQuota reads the currency configuration from the store.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [t, quotaUnit, currencyConfig]
+    [t, quotaUnit, currencyConfig, canManageSensitiveWords]
   )
 }

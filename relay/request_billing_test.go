@@ -89,7 +89,7 @@ func TestPrepareRequestBillingBlocksBeforeEstimateAndReservation(t *testing.T) {
 
 	apiErr := PrepareRequestBilling(c, info)
 	require.NotNil(t, apiErr)
-	assert.Equal(t, http.StatusUnprocessableEntity, apiErr.StatusCode)
+	assert.Equal(t, http.StatusBadRequest, apiErr.StatusCode)
 	assert.Equal(t, types.ErrorCodeSensitiveWordsDetected, apiErr.GetErrorCode())
 	assert.True(t, types.IsSkipRetryError(apiErr))
 	assert.Zero(t, info.GetEstimatePromptTokens(), "estimation must not run after a local policy block")
@@ -137,7 +137,7 @@ func TestPrepareRequestBillingReusesPreChannelSensitiveDecision(t *testing.T) {
 	input := model.SensitiveCheckInput{
 		RequestID: "pre-channel-cache-request", UserID: user.Id, Username: user.Username,
 		GroupName: "default", ModelName: request.Model, Endpoint: c.Request.URL.Path,
-		Protocol: string(types.RelayFormatOpenAI), Prompt: request.GetTokenCountMeta().CombineText,
+		Protocol: string(types.RelayFormatOpenAI), Fields: dto.ExtractSensitiveText(request),
 	}
 	preChannelResult, err := model.CheckSensitiveRequest(input)
 	require.NoError(t, err)
@@ -150,7 +150,7 @@ func TestPrepareRequestBillingReusesPreChannelSensitiveDecision(t *testing.T) {
 	}
 	apiErr := PrepareRequestBilling(c, info)
 	require.NotNil(t, apiErr)
-	assert.Equal(t, http.StatusUnprocessableEntity, apiErr.StatusCode)
+	assert.Equal(t, http.StatusBadRequest, apiErr.StatusCode)
 	assert.Equal(t, types.ErrorCodeSensitiveWordsDetected, apiErr.GetErrorCode())
 	assert.Zero(t, info.GetEstimatePromptTokens())
 
@@ -163,7 +163,7 @@ func TestPrepareRequestBillingReusesPreChannelSensitiveDecision(t *testing.T) {
 	assert.Equal(t, 1, storedUser.SensitiveWordViolationCount)
 }
 
-func TestPrepareRequestBillingFailsClosedWhenObserveAuditCannotPersist(t *testing.T) {
+func TestPrepareRequestBillingContinuesWhenObserveAuditCannotPersist(t *testing.T) {
 	database := setupSensitiveBillingTest(t)
 	require.NoError(t, model.MigrateSensitiveWordData())
 	policy := model.GetSensitiveWordPolicy()
@@ -201,12 +201,11 @@ func TestPrepareRequestBillingFailsClosedWhenObserveAuditCannotPersist(t *testin
 	info := &relaycommon.RelayInfo{
 		Request: request, UserId: user.Id, UsingGroup: "default", UserGroup: "default", TokenGroup: "default",
 		OriginModelName: request.Model, RelayFormat: types.RelayFormatOpenAI,
+		UserSetting: dto.UserSetting{AcceptUnsetRatioModel: true},
 	}
 
 	apiErr := PrepareRequestBilling(c, info)
 	require.NotNil(t, apiErr)
-	assert.Equal(t, http.StatusServiceUnavailable, apiErr.StatusCode)
-	assert.True(t, types.IsSkipRetryError(apiErr))
-	assert.Zero(t, info.GetEstimatePromptTokens())
-	assert.Nil(t, info.Billing)
+	assert.NotEqual(t, http.StatusServiceUnavailable, apiErr.StatusCode)
+	assert.NotEqual(t, types.ErrorCodeSensitiveWordsDetected, apiErr.GetErrorCode())
 }

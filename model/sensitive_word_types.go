@@ -5,25 +5,28 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	relaytypes "github.com/QuantumNous/new-api/relaykit/types"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
 )
 
 const (
-	SensitiveWordScopeGlobal    = "global"
-	SensitiveWordScopeGroup     = "group"
-	SensitiveWordModeBlock      = "block"
-	SensitiveWordModeObserve    = "observe"
-	SensitiveWordModeOff        = "off"
-	SensitiveWordLogAction      = "sensitive_word_block"
-	SensitiveWordBanThreshold   = 50
-	SensitiveWordMaxRunes       = 200
-	SensitiveWordMaxPromptRunes = 65_536
-	SensitiveWordMaxPromptBytes = 512 * 1024
-	SensitiveWordMaxRules       = 10_000
+	SensitiveWordScopeGlobal           = "global"
+	SensitiveWordScopeGroup            = "group"
+	SensitiveWordModeBlock             = "block"
+	SensitiveWordModeObserve           = "observe"
+	SensitiveWordModeOff               = "off"
+	SensitiveWordLogAction             = "sensitive_word_block"
+	SensitiveWordBanThreshold          = 50
+	SensitiveWordMaxRunes              = 200
+	SensitiveWordMaxPromptRunes        = 65_536
+	SensitiveWordMaxPromptBytes        = 512 * 1024
+	SensitiveWordMaxMatches            = 256
+	SensitiveWordMaxRules              = 10_000
+	SensitiveWordAuditCleanupBatchSize = 500
 
 	sensitiveWordMigrationKey   = "SensitiveWordRulesMigrationVersion"
-	sensitiveWordMigrationValue = "2"
+	sensitiveWordMigrationValue = "3"
 )
 
 var (
@@ -35,6 +38,8 @@ var (
 // UTF-8 byte ceiling is intentionally larger than a TEXT column.
 type SensitiveWordAuditPrompt string
 
+type SensitiveWordAuditJSON string
+
 func sensitiveWordAuditPromptDBType(dialect string) string {
 	if dialect == string(common.DatabaseTypeMySQL) {
 		return "mediumtext"
@@ -43,6 +48,13 @@ func sensitiveWordAuditPromptDBType(dialect string) string {
 }
 
 func (SensitiveWordAuditPrompt) GormDBDataType(db *gorm.DB, _ *schema.Field) string {
+	if db != nil && db.Dialector != nil {
+		return sensitiveWordAuditPromptDBType(db.Dialector.Name())
+	}
+	return "text"
+}
+
+func (SensitiveWordAuditJSON) GormDBDataType(db *gorm.DB, _ *schema.Field) string {
 	if db != nil && db.Dialector != nil {
 		return sensitiveWordAuditPromptDBType(db.Dialector.Name())
 	}
@@ -107,6 +119,7 @@ type SensitiveWordPolicy struct {
 	// would corrupt an explicitly disabled legacy setting during migration.
 	Enabled                 bool      `json:"enabled" gorm:"not null"`
 	CheckPrompt             bool      `json:"check_prompt" gorm:"not null"`
+	AutoBanEnabled          bool      `json:"auto_ban_enabled" gorm:"not null;default:false"`
 	RetainFullPrompt        bool      `json:"retain_full_prompt" gorm:"not null"`
 	BlockMessage            string    `json:"block_message" gorm:"type:text;not null"`
 	BanThreshold            int       `json:"ban_threshold" gorm:"not null;default:50"`
@@ -122,8 +135,9 @@ func (SensitiveWordPolicy) TableName() string { return "sensitive_word_policy" }
 
 type SensitiveWordAuditEvent struct {
 	ID                int64                    `json:"id" gorm:"primaryKey"`
-	RequestID         string                   `json:"request_id" gorm:"type:varchar(128);index:idx_sensitive_word_audit_request"`
-	UserID            int                      `json:"user_id" gorm:"index"`
+	RequestID         string                   `json:"request_id" gorm:"type:varchar(128);index:idx_sensitive_word_audit_request;uniqueIndex:idx_sensitive_word_audit_identity,priority:2"`
+	UserID            int                      `json:"user_id" gorm:"index;uniqueIndex:idx_sensitive_word_audit_identity,priority:1"`
+	UserRole          int                      `json:"user_role" gorm:"index"`
 	UsernameSnapshot  string                   `json:"username_snapshot"`
 	TokenID           int                      `json:"token_id" gorm:"index"`
 	TokenNameSnapshot string                   `json:"token_name_snapshot"`
@@ -134,13 +148,17 @@ type SensitiveWordAuditEvent struct {
 	PromptHash        string                   `json:"prompt_hash" gorm:"type:char(64);index"`
 	RedactedPreview   string                   `json:"redacted_preview" gorm:"type:text"`
 	FullPrompt        SensitiveWordAuditPrompt `json:"full_prompt"`
-	MatchedRuleIDs    string                   `json:"matched_rule_ids" gorm:"type:text"`
-	MatchedRuleNames  string                   `json:"matched_rule_names" gorm:"type:text"`
-	MatchedWords      string                   `json:"matched_words" gorm:"type:text"`
-	MatchedSnippets   string                   `json:"matched_snippets" gorm:"type:text"`
+	Evidence          SensitiveWordAuditJSON   `json:"evidence"`
+	EvidenceTruncated bool                     `json:"evidence_truncated"`
+	MatchedRuleIDs    SensitiveWordAuditJSON   `json:"matched_rule_ids"`
+	MatchedRuleNames  SensitiveWordAuditJSON   `json:"matched_rule_names"`
+	MatchedWords      SensitiveWordAuditJSON   `json:"matched_words"`
+	MatchedSnippets   SensitiveWordAuditJSON   `json:"matched_snippets"`
 	MatchedScope      string                   `json:"matched_scope" gorm:"type:varchar(16);index"`
+	Disposition       string                   `json:"disposition" gorm:"type:varchar(32);index"`
 	WhitelistBypassed bool                     `json:"whitelist_bypassed" gorm:"index"`
 	Blocked           bool                     `json:"blocked" gorm:"index"`
+	Counted           bool                     `json:"counted" gorm:"index"`
 	ViolationCount    int                      `json:"violation_count"`
 	AutoBanned        bool                     `json:"auto_banned"`
 	ObserveOnly       bool                     `json:"observe_only"`
@@ -149,7 +167,31 @@ type SensitiveWordAuditEvent struct {
 	QuotaBefore       int                      `json:"quota_before"`
 	QuotaAfter        int                      `json:"quota_after"`
 	RuleVersion       int64                    `json:"rule_version"`
+	PolicyGeneration  int64                    `json:"policy_generation" gorm:"index"`
 	CreatedAt         time.Time                `json:"created_at" gorm:"index"`
+}
+
+type SensitiveWordMatch struct {
+	RuleID      int64                        `json:"rule_id"`
+	RuleName    string                       `json:"rule_name"`
+	RuleScope   string                       `json:"rule_scope"`
+	RuleMode    string                       `json:"rule_mode"`
+	RuleVersion int64                        `json:"rule_version"`
+	Word        string                       `json:"word"`
+	FieldOrder  int                          `json:"field_order"`
+	FieldRole   relaytypes.SensitiveTextRole `json:"field_role"`
+	FieldKind   relaytypes.SensitiveTextKind `json:"field_kind"`
+	FieldRound  int                          `json:"field_round"`
+	StartRune   int                          `json:"start_rune"`
+	EndRune     int                          `json:"end_rune"`
+	Snippet     string                       `json:"snippet"`
+}
+
+type SensitiveWordAuditEvidence struct {
+	Version   int                             `json:"version"`
+	Fields    []relaytypes.SensitiveTextField `json:"fields"`
+	Matches   []SensitiveWordMatch            `json:"matches"`
+	Truncated bool                            `json:"truncated"`
 }
 
 type SensitiveCheckInput struct {
@@ -163,11 +205,14 @@ type SensitiveCheckInput struct {
 	Endpoint  string
 	Protocol  string
 	Prompt    string
+	Fields    []relaytypes.SensitiveTextField
 }
 
 type SensitiveCheckResult struct {
 	Matched           bool
 	Blocked           bool
+	Counted           bool
+	Disposition       string
 	WhitelistBypassed bool
 	AutoBanned        bool
 	ViolationCount    int
@@ -183,6 +228,9 @@ type SensitiveCheckResult struct {
 	QuotaAfter        int
 	ObserveOnly       bool
 	MatchedRuleModes  []string
+	Matches           []SensitiveWordMatch
+	EvidenceTruncated bool
+	PolicyGeneration  int64
 }
 
 type SensitiveWordEnableResetResult struct {
@@ -206,6 +254,7 @@ type legacySensitiveWordConfig struct {
 	Enabled                 bool   `json:"enabled"`
 	CheckPrompt             *bool  `json:"check_prompt"`
 	AuditEnabled            bool   `json:"audit_enabled"`
+	AutoBanEnabled          bool   `json:"auto_ban_enabled"`
 	BlockMessage            string `json:"block_message"`
 	BanThreshold            int    `json:"ban_threshold"`
 	FullPromptRetentionDays int    `json:"full_prompt_retention_days"`

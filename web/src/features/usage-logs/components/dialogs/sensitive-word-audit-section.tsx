@@ -27,12 +27,19 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import {
+  ADMIN_PERMISSION_ACTIONS,
+  ADMIN_PERMISSION_RESOURCES,
+  hasPermission,
+} from '@/lib/admin-permissions'
+import { useAuthStore } from '@/stores/auth-store'
 
 import { getSensitiveWordAudit } from '../../api'
 import type { UsageLog } from '../../data/schema'
 import type {
   KeywordFilterLogData,
   LogOtherData,
+  SensitiveWordAuditEvidence,
   SensitiveWordAuditEvent,
 } from '../../types'
 import { DetailRow, DetailSection } from './log-detail-layout'
@@ -47,6 +54,27 @@ function parseSensitiveAuditList(value: string | undefined): string[] {
   }
 }
 
+function parseSensitiveAuditEvidence(
+  value: string | undefined
+): SensitiveWordAuditEvidence | null {
+  if (!value) return null
+  try {
+    const parsed = JSON.parse(value) as Partial<SensitiveWordAuditEvidence>
+    if (!parsed || !Array.isArray(parsed.fields)) return null
+    return {
+      version: Number(parsed.version) || 1,
+      fields: parsed.fields.filter(
+        (field) =>
+          !!field && typeof field === 'object' && typeof field.text === 'string'
+      ),
+      matches: Array.isArray(parsed.matches) ? parsed.matches : [],
+      truncated: parsed.truncated === true,
+    }
+  } catch {
+    return null
+  }
+}
+
 export function SensitiveWordAuditSection(props: {
   auditId?: number
   log: UsageLog
@@ -57,6 +85,14 @@ export function SensitiveWordAuditSection(props: {
   onCopy: (text: string) => void
 }) {
   const { t } = useTranslation()
+  const currentUser = useAuthStore((state) => state.auth.user)
+  const canReadEvidence =
+    props.isAdmin &&
+    hasPermission(
+      currentUser,
+      ADMIN_PERMISSION_RESOURCES.SENSITIVE_WORD,
+      ADMIN_PERMISSION_ACTIONS.EVIDENCE_READ
+    )
   const [event, setEvent] = useState<SensitiveWordAuditEvent | null>(null)
   const [loadFailed, setLoadFailed] = useState(false)
 
@@ -64,7 +100,7 @@ export function SensitiveWordAuditSection(props: {
     let cancelled = false
     setEvent(null)
     setLoadFailed(false)
-    if (!props.open || !props.isAdmin || !props.auditId) return
+    if (!props.open || !canReadEvidence || !props.auditId) return
     void getSensitiveWordAudit(props.auditId)
       .then((response) => {
         if (!cancelled) setEvent(response.data ?? null)
@@ -75,9 +111,9 @@ export function SensitiveWordAuditSection(props: {
     return () => {
       cancelled = true
     }
-  }, [props.auditId, props.isAdmin, props.open])
+  }, [canReadEvidence, props.auditId, props.open])
 
-  if (!props.isAdmin) return null
+  if (!canReadEvidence) return null
 
   const filter =
     props.other?.admin_info?.keyword_filter ??
@@ -116,6 +152,8 @@ export function SensitiveWordAuditSection(props: {
   const group = event?.group_name || filter?.group || props.log.group
   const model = event?.model_name || filter?.model || props.log.model_name
   const promptHash = event?.prompt_hash || filter?.prompt_hash
+  const evidence = parseSensitiveAuditEvidence(event?.evidence)
+  const evidenceCopyText = event?.evidence || event?.full_prompt || ''
 
   return (
     <>
@@ -206,6 +244,14 @@ export function SensitiveWordAuditSection(props: {
 
       <DetailSection label={t('Evidence')}>
         <DetailRow label={t('Prompt hash')} value={promptHash || '-'} mono />
+        <DetailRow
+          label={t('Evidence truncated')}
+          value={
+            event?.evidence_truncated || evidence?.truncated
+              ? t('Yes')
+              : t('No')
+          }
+        />
         {event?.redacted_preview && (
           <div className='space-y-1'>
             <Label className='text-xs font-semibold'>
@@ -225,13 +271,13 @@ export function SensitiveWordAuditSection(props: {
                   variant='ghost'
                   size='icon-sm'
                   className='absolute top-1 right-1'
-                  onClick={() => props.onCopy(event?.full_prompt || '')}
-                  disabled={!event?.full_prompt}
+                  onClick={() => props.onCopy(evidenceCopyText)}
+                  disabled={!evidenceCopyText}
                   aria-label={t('Copy to clipboard')}
                 />
               }
             >
-              {props.copiedText === event?.full_prompt ? (
+              {props.copiedText === evidenceCopyText ? (
                 <Check className='size-3 text-green-600' />
               ) : (
                 <Copy className='size-3' />
@@ -240,11 +286,39 @@ export function SensitiveWordAuditSection(props: {
             <TooltipContent>{t('Copy to clipboard')}</TooltipContent>
           </Tooltip>
           <Label className='mb-1 block text-xs font-semibold'>
-            {t('Full prompt')}
+            {t('Structured context')}
           </Label>
-          <pre className='max-h-72 overflow-y-auto pr-6 font-mono text-xs leading-relaxed whitespace-pre-wrap'>
-            {event?.full_prompt || t('Not retained or expired')}
-          </pre>
+          <div className='max-h-72 space-y-2 overflow-y-auto pr-6'>
+            {evidence?.fields.map((field) => (
+              <div
+                key={`${field.order}-${field.role}-${field.kind}`}
+                className='space-y-1'
+              >
+                <div className='text-muted-foreground flex flex-wrap gap-x-2 font-mono text-[11px]'>
+                  <span>{field.role}</span>
+                  <span>{field.kind}</span>
+                  <span>
+                    {field.round < 0
+                      ? t('Context')
+                      : t('Round {{round}}', { round: field.round + 1 })}
+                  </span>
+                </div>
+                <pre className='font-mono text-xs leading-relaxed whitespace-pre-wrap'>
+                  {field.text}
+                </pre>
+              </div>
+            ))}
+            {!evidence?.fields.length && event?.full_prompt && (
+              <pre className='font-mono text-xs leading-relaxed whitespace-pre-wrap'>
+                {event.full_prompt}
+              </pre>
+            )}
+            {!evidence?.fields.length && !event?.full_prompt && (
+              <p className='text-muted-foreground text-xs'>
+                {t('Not retained or expired')}
+              </p>
+            )}
+          </div>
         </div>
       </DetailSection>
     </>

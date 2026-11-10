@@ -815,7 +815,7 @@ func TestResponsesWebSocketSensitiveWordsBlockBeforeChannelSelection(t *testing.
 	require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(payload)))
 	event := readResponsesWSTestEvent(t, fixture.client)
 	assert.Equal(t, "error", event["type"])
-	assert.EqualValues(t, http.StatusUnprocessableEntity, event["status"])
+	assert.EqualValues(t, http.StatusBadRequest, event["status"])
 	errorBody, ok := event["error"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, string(types.ErrorCodeSensitiveWordsDetected), errorBody["code"])

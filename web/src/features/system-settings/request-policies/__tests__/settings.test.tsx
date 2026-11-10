@@ -150,6 +150,7 @@ beforeEach(() => {
     id: 1,
     enabled: true,
     check_prompt: true,
+    auto_ban_enabled: false,
     retain_full_prompt: true,
     block_message: 'Blocked by policy',
     ban_threshold: 50,
@@ -237,12 +238,20 @@ describe('request policy settings', () => {
 
   it('loads and saves the independent sensitive-word policy', async () => {
     await renderPolicies('/system-settings/request-policies/filtering')
+    const autoBan = await screen.findByRole('switch', {
+      name: /Automatically disable accounts at the violation threshold/,
+    })
+    expect(autoBan).not.toBeChecked()
+    await userEvent.click(autoBan)
     const save = await screen.findByRole('button', { name: 'Save policy' })
     await userEvent.click(save)
     await waitFor(() =>
       expect(api.put).toHaveBeenCalledExactlyOnceWith(
         '/api/sensitive-words/policy',
-        sensitiveWordPolicy
+        {
+          ...sensitiveWordPolicy,
+          auto_ban_enabled: true,
+        }
       )
     )
     expect(api.patch).not.toHaveBeenCalled()

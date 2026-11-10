@@ -201,9 +201,12 @@ it('root saving an administrator without changing permissions or password does n
   expect(get).not.toHaveBeenCalledWith('/api/verify/methods', expect.anything())
 })
 
-it('sends a sensitive-word field only after an administrator changes it', async () => {
+it('sends changed sensitive-word fields through the dedicated safety endpoint', async () => {
   const put = vi
     .spyOn(api, 'put')
+    .mockResolvedValue({ data: { success: true } })
+  const patch = vi
+    .spyOn(api, 'patch')
     .mockResolvedValue({ data: { success: true } })
   renderPermissions(100)
   await screen.findByDisplayValue('Managed admin')
@@ -214,12 +217,15 @@ it('sends a sensitive-word field only after an administrator changes it', async 
   await waitFor(() =>
     expect(put).toHaveBeenCalledWith(
       '/api/user/',
-      expect.objectContaining({
-        id: 2,
-        sensitive_word_whitelist: true,
-      }),
+      expect.objectContaining({ id: 2 }),
       {}
     )
+  )
+  expect(put.mock.calls[0][1]).not.toHaveProperty('sensitive_word_whitelist')
+  await waitFor(() =>
+    expect(patch).toHaveBeenCalledWith('/api/sensitive-words/users/2', {
+      whitelist: true,
+    })
   )
 })
 
@@ -227,6 +233,9 @@ it('admin cannot edit the audit permission even when the catalog is available', 
   renderPermissions(10)
   await screen.findByDisplayValue('Managed admin')
   expect(screen.queryByRole('button', { name: label })).not.toBeInTheDocument()
+  expect(
+    screen.queryByRole('switch', { name: 'Sensitive-word whitelist' })
+  ).not.toBeInTheDocument()
 })
 
 it.each([0, 5])(

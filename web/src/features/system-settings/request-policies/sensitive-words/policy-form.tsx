@@ -117,6 +117,26 @@ export function SensitiveWordPolicyForm({ policy, onSaved }: PolicyFormProps) {
         <label className='flex items-center justify-between gap-3 rounded-lg border p-3'>
           <span>
             <span className='block text-sm font-medium'>
+              {t('Automatically disable accounts at the violation threshold')}
+            </span>
+            <span className='text-muted-foreground block text-xs'>
+              {t(
+                'Disabled by default. Existing counts are preserved when this setting changes.'
+              )}
+            </span>
+          </span>
+          <Switch
+            checked={draft.auto_ban_enabled}
+            onCheckedChange={(value) => update('auto_ban_enabled', value)}
+            aria-label={t(
+              'Automatically disable accounts at the violation threshold'
+            )}
+          />
+        </label>
+
+        <label className='flex items-center justify-between gap-3 rounded-lg border p-3'>
+          <span>
+            <span className='block text-sm font-medium'>
               {t('Retain full prompt evidence')}
             </span>
             <span className='text-muted-foreground block text-xs'>

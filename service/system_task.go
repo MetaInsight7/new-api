@@ -114,10 +114,23 @@ func (sensitiveWordAuditCleanupHandler) Run(ctx context.Context, task *model.Sys
 		return
 	default:
 	}
-	cleared, err := model.CleanupSensitiveWordAudits()
-	if err != nil {
-		failSystemTask(task, runnerID, err)
-		return
+	var cleared int64
+	for {
+		batch, err := model.CleanupSensitiveWordAudits()
+		if err != nil {
+			failSystemTask(task, runnerID, err)
+			return
+		}
+		cleared += batch
+		if batch < model.SensitiveWordAuditCleanupBatchSize {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			failSystemTask(task, runnerID, ctx.Err())
+			return
+		default:
+		}
 	}
 	if err := model.FinishSystemTask(task.TaskID, runnerID, model.SystemTaskStatusSucceeded, SensitiveWordAuditCleanupResult{
 		ClearedEvidence: cleared,

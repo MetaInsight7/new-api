@@ -26,6 +26,7 @@ import {
   ArrowDown,
   KeyRound,
   ShieldAlert,
+  ShieldCheck,
   Link2,
   CreditCard,
 } from 'lucide-react'
@@ -48,10 +49,21 @@ import {
 } from '@/components/ui/tooltip'
 import type { AdminUserManageAction } from '@/features/auth/secure-verification'
 import { UserSubscriptionsDialog } from '@/features/subscriptions/components/dialogs/user-subscriptions-dialog'
+import {
+  ADMIN_PERMISSION_ACTIONS,
+  ADMIN_PERMISSION_RESOURCES,
+  hasPermission,
+} from '@/lib/admin-permissions'
 import { handleServerError } from '@/lib/handle-server-error'
 import { AuthOperationError } from '@/lib/secure-verification'
+import { useAuthStore } from '@/stores/auth-store'
 
-import { manageUser, resetUserPasskey, resetUserTwoFA } from '../api'
+import {
+  manageUser,
+  resetUserPasskey,
+  resetUserTwoFA,
+  unbanSensitiveWordUser,
+} from '../api'
 import {
   USER_STATUS,
   USER_ROLE,
@@ -77,6 +89,7 @@ interface DataTableRowActionsProps {
 export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   const { t } = useTranslation()
   const user = row.original
+  const currentUser = useAuthStore((state) => state.auth.user)
   const {
     setOpen,
     setCurrentRow,
@@ -86,8 +99,8 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   } = useUsers()
   const [resetPasskeyOpen, setResetPasskeyOpen] = useState(false)
   const [resetTwoFAOpen, setResetTwoFAOpen] = useState(false)
-  const [enableResetOpen, setEnableResetOpen] = useState(false)
-  const [isEnabling, setIsEnabling] = useState(false)
+  const [sensitiveUnbanOpen, setSensitiveUnbanOpen] = useState(false)
+  const [isSensitiveUnbanning, setIsSensitiveUnbanning] = useState(false)
   const [bindingDialogOpen, setBindingDialogOpen] = useState(false)
   const [subscriptionsDialogOpen, setSubscriptionsDialogOpen] = useState(false)
 
@@ -132,21 +145,21 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
     return false
   }
 
-  const handleEnableSelect = (event: { preventDefault: () => void }) => {
-    if ((user.sensitive_word_violation_count ?? 0) > 0) {
-      event.preventDefault()
-      setEnableResetOpen(true)
-      return
-    }
-    void handleManage('enable')
-  }
-
-  const handleConfirmEnable = async () => {
-    setIsEnabling(true)
+  const handleSensitiveWordUnban = async () => {
+    setIsSensitiveUnbanning(true)
     try {
-      if (await handleManage('enable')) setEnableResetOpen(false)
+      const result = await unbanSensitiveWordUser(user.id)
+      if (result.success) {
+        toast.success(t('Sensitive-word unban completed'))
+        setSensitiveUnbanOpen(false)
+        triggerRefresh()
+      } else {
+        handleServerError(result, t('Unable to unban sensitive-word account'))
+      }
+    } catch (error) {
+      handleServerError(error, t('Unable to unban sensitive-word account'))
     } finally {
-      setIsEnabling(false)
+      setIsSensitiveUnbanning(false)
     }
   }
 
@@ -211,6 +224,11 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   const isDisabled = user.status === USER_STATUS.DISABLED
   const isAdmin = user.role >= USER_ROLE.ADMIN
   const isRoot = user.role === USER_ROLE.ROOT
+  const canManageSensitiveWords = hasPermission(
+    currentUser,
+    ADMIN_PERMISSION_RESOURCES.SENSITIVE_WORD,
+    ADMIN_PERMISSION_ACTIONS.MANAGE
+  )
 
   if (isUserDeleted(user)) {
     return null
@@ -239,7 +257,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
         contentClassName='w-48'
       >
         {isDisabled ? (
-          <DropdownMenuItem onSelect={handleEnableSelect}>
+          <DropdownMenuItem onClick={() => handleManage('enable')}>
             {t('Enable')}
             <DropdownMenuShortcut>
               <Power size={16} />
@@ -256,6 +274,22 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
             </DropdownMenuShortcut>
           </DropdownMenuItem>
         )}
+
+        {canManageSensitiveWords &&
+          !isRoot &&
+          (user.sensitive_word_violation_count ?? 0) > 0 && (
+            <DropdownMenuItem
+              onSelect={(event) => {
+                event.preventDefault()
+                setSensitiveUnbanOpen(true)
+              }}
+            >
+              {t('Sensitive-word unban')}
+              <DropdownMenuShortcut>
+                <ShieldCheck size={16} />
+              </DropdownMenuShortcut>
+            </DropdownMenuItem>
+          )}
 
         {isAdmin && !isRoot && (
           <DropdownMenuItem onClick={() => handleManage('demote')}>
@@ -366,15 +400,15 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
       />
 
       <ConfirmDialog
-        open={enableResetOpen}
-        onOpenChange={setEnableResetOpen}
-        title={t('Enable account and reset violations')}
+        open={sensitiveUnbanOpen}
+        onOpenChange={setSensitiveUnbanOpen}
+        title={t('Sensitive-word unban')}
         desc={t(
-          'This user has sensitive-word violation records. Enabling the account will reset the current violation count, but historical audits, balance, and consumption records will not be deleted. Continue?'
+          'Enable this account and clear its sensitive-word violation count? Historical audits, balance, subscriptions, API keys, and usage records stay unchanged.'
         )}
-        confirmText={t('Enable and reset')}
-        handleConfirm={() => void handleConfirmEnable()}
-        isLoading={isEnabling}
+        confirmText={t('Unban and clear count')}
+        handleConfirm={() => void handleSensitiveWordUnban()}
+        isLoading={isSensitiveUnbanning}
       />
 
       <UserBindingDialog

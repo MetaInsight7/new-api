@@ -148,7 +148,7 @@ func TestSensitiveWordAuditCleanupHandlerClearsExpiredEvidence(t *testing.T) {
 	require.NoError(t, model.DB.First(&stored, event.ID).Error)
 	require.Empty(t, stored.FullPrompt)
 	require.Empty(t, stored.RedactedPreview)
-	require.Equal(t, "[]", stored.MatchedSnippets)
+	require.Equal(t, "[]", string(stored.MatchedSnippets))
 }
 
 func TestSystemTaskClaimPassDispatchesByType(t *testing.T) {

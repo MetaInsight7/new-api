@@ -359,6 +359,7 @@ func GetAllUsers(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	hideSensitiveWordUserSafetyState(c, users)
 
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(users)
@@ -389,6 +390,7 @@ func SearchUsers(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	hideSensitiveWordUserSafetyState(c, users)
 
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(users)
@@ -398,6 +400,16 @@ func SearchUsers(c *gin.Context) {
 
 func canManageTargetRole(myRole int, targetRole int) bool {
 	return myRole == common.RoleRootUser || myRole > targetRole
+}
+
+func hideSensitiveWordUserSafetyState(c *gin.Context, users []*model.User) {
+	if authz.Can(c.GetInt("id"), c.GetInt("role"), authz.SensitiveWordManage) {
+		return
+	}
+	for _, user := range users {
+		user.SensitiveWordViolationCount = 0
+		user.SensitiveWordWhitelist = false
+	}
 }
 
 func GetUser(c *gin.Context) {
@@ -416,6 +428,7 @@ func GetUser(c *gin.Context) {
 		common.ApiErrorT(c, "No permission to access users of same or higher level")
 		return
 	}
+	hideSensitiveWordUserSafetyState(c, []*model.User{user})
 	user.AdminPermissions = authz.Capabilities(user.Id, user.Role)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -683,6 +696,10 @@ func UpdateUser(c *gin.Context) {
 	}
 	sensitiveViolationCount := request.SensitiveWordViolationCount
 	sensitiveWhitelist := request.SensitiveWordWhitelist
+	if sensitiveViolationCount != nil || sensitiveWhitelist != nil {
+		common.ApiErrorT(c, "Use the sensitive-word safety API to update safety state")
+		return
+	}
 	updatedUser.Username = strings.TrimSpace(updatedUser.Username)
 	if updatedUser.Username == "" {
 		common.ApiErrorT(c, "Invalid parameters")
@@ -729,11 +746,6 @@ func UpdateUser(c *gin.Context) {
 	authzTouched := false
 	if err := model.DB.Transaction(func(tx *gorm.DB) error {
 		if err := updatedUser.EditWithTx(tx, updatePassword, request.MaxConcurrency); err != nil {
-			return err
-		}
-		if err := model.UpdateSensitiveWordUserFieldsWithTx(
-			tx, updatedUser.Id, sensitiveViolationCount, sensitiveWhitelist,
-		); err != nil {
 			return err
 		}
 		touched, err := updateAdminPermissionsForUserInTx(c, tx, updatedUser.Id, originUser.Role, updatedUser.AdminPermissions)
@@ -1165,34 +1177,7 @@ func ManageUser(c *gin.Context) {
 			return
 		}
 	case "enable":
-		reset, err := model.EnableUserAndResetSensitiveWordViolations(user.Id)
-		if err != nil {
-			common.ApiError(c, err)
-			return
-		}
-		recordManageAuditFor(c, user.Id, "sensitive_word.enable_reset", map[string]any{
-			"target_user_id": user.Id, "username": user.Username,
-			"status_before": reset.StatusBefore, "status_after": reset.StatusAfter,
-			"violation_count_before": reset.ViolationCountBefore,
-			"violation_count_after":  reset.ViolationCountAfter,
-			"auth_version_before":    reset.AuthVersionBefore,
-			"auth_version_after":     reset.AuthVersionAfter,
-			"quota_before":           reset.QuotaBefore, "quota_after": reset.QuotaAfter,
-			"used_quota_before": reset.UsedQuotaBefore,
-			"used_quota_after":  reset.UsedQuotaAfter,
-			"status_changed":    reset.StatusChanged,
-			"sessions_revoked":  reset.SessionsRevoked,
-			"balance_changed":   false,
-		})
-		c.JSON(http.StatusOK, gin.H{
-			"success": true, "message": "",
-			"data": model.User{
-				Role:                        user.Role,
-				Status:                      common.UserStatusEnabled,
-				SensitiveWordViolationCount: 0,
-			},
-		})
-		return
+		user.Status = common.UserStatusEnabled
 	case "delete":
 		if user.Role == common.RoleRootUser {
 			common.ApiErrorT(c, "Cannot delete super administrator account")

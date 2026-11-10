@@ -84,6 +84,7 @@ import { useAuthStore } from '@/stores/auth-store'
 import {
   createUser,
   updateUser,
+  updateSensitiveWordUserSafety,
   getUser,
   getGroups,
   getPermissionCatalog,
@@ -175,6 +176,11 @@ export function UsersMutateDrawer({
   const currentQuotaRaw = form.watch('quota_dollars') || 0
   const selectedRole = form.watch('role')
   const canEditAdminPermissions = currentUser?.role === ROLE.SUPER_ADMIN
+  const canManageSensitiveWords = hasPermission(
+    currentUser,
+    ADMIN_PERMISSION_RESOURCES.SENSITIVE_WORD,
+    ADMIN_PERMISSION_ACTIONS.MANAGE
+  )
   const targetIsAdmin = (selectedRole ?? currentRow?.role ?? 0) >= ROLE.ADMIN
 
   const onSubmit = async (data: UserFormValues) => {
@@ -211,19 +217,23 @@ export function UsersMutateDrawer({
       ) {
         delete payload.admin_permissions
       }
-      // Safety fields are intentionally patch-like. Sending their form defaults
-      // during an unrelated profile edit could overwrite violations recorded
-      // after this drawer loaded.
+      const safetyPatch: {
+        violation_count?: number
+        whitelist?: boolean
+      } = {}
       if (
         isUpdate &&
+        canManageSensitiveWords &&
         form.formState.dirtyFields.sensitive_word_violation_count
       ) {
-        payload.sensitive_word_violation_count =
-          data.sensitive_word_violation_count ?? 0
+        safetyPatch.violation_count = data.sensitive_word_violation_count ?? 0
       }
-      if (isUpdate && form.formState.dirtyFields.sensitive_word_whitelist) {
-        payload.sensitive_word_whitelist =
-          data.sensitive_word_whitelist === true
+      if (
+        isUpdate &&
+        canManageSensitiveWords &&
+        form.formState.dirtyFields.sensitive_word_whitelist
+      ) {
+        safetyPatch.whitelist = data.sensitive_word_whitelist === true
       }
       // Resetting a password, rewriting admin permissions, or creating an
       // administrator changes who can sign in or what they may do.
@@ -262,6 +272,19 @@ export function UsersMutateDrawer({
         : await createUser(payload, proofToken)
 
       if (result.success) {
+        if (isUpdate && currentRow && Object.keys(safetyPatch).length > 0) {
+          const safetyResult = await updateSensitiveWordUserSafety(
+            currentRow.id,
+            safetyPatch
+          )
+          if (!safetyResult.success) {
+            handleServerError(
+              safetyResult,
+              t('Unable to update sensitive-word safety state')
+            )
+            return
+          }
+        }
         toast.success(
           isUpdate
             ? t(SUCCESS_MESSAGES.USER_UPDATED)
@@ -572,7 +595,7 @@ export function UsersMutateDrawer({
                 </SideDrawerSection>
               )}
 
-              {isUpdate && (
+              {isUpdate && canManageSensitiveWords && (
                 <SideDrawerSection>
                   <h3 className='text-sm font-medium'>{t('Content Safety')}</h3>
                   <p className='text-muted-foreground text-xs'>
@@ -611,7 +634,7 @@ export function UsersMutateDrawer({
                         </div>
                         <FormDescription>
                           {t(
-                            'Enabling a banned account clears the current count but keeps historical audits, balance, and usage records.'
+                            'Clearing the count is independent. Ordinary account enablement preserves the current count.'
                           )}
                         </FormDescription>
                         <FormMessage />

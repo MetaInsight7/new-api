@@ -1,12 +1,12 @@
 # 敏感词风控与结构化审计重构
 
-Status: ready-for-agent
+Status: completed
 
 Type: task
 
 ## Problem Statement
 
-当前代码只有旧式请求关键词检查，缺少一套可运营、可审计、适合生产多实例部署的敏感词风控能力。官方 PR #7565 提供了全局／分组规则、观察与阻断模式、审计、违规计数、阈值停用和后台管理能力，但它基于更早的上游版本，不能机械合入当前二开分支，并且仍存在以下生产风险：达到阈值必然自动封禁、普通启用账号会隐式清零违规次数、每个请求读取数据库策略版本、审计证据是扁平 Prompt、权限粒度过宽、匹配结果可能重复放大、MySQL 大字段容量不足，以及视频和通用异步任务的标准提示词没有进入同一检查链路。
+当前代码只有旧式请求关键词检查，缺少一套可运营、可审计、适合生产多实例部署的敏感词风控能力。官方 PR #7565 提供了全局／分组规则、观察与阻断模式、审计、违规计数、阈值停用和后台管理能力，但它基于更早的上游版本，不能机械合入当前二开分支，并且仍存在以下生产风险：达到阈值必然自动封禁、普通启用账号会隐式清零违规次数、每个请求读取数据库策略版本、审计证据是扁平 Prompt、权限粒度过宽、匹配结果可能重复放大，以及 MySQL 大字段容量不足。
 
 运营人员需要在不改变计费、余额、订阅、API Key 持久状态和既有 Relay 行为的前提下，获得一套规则明确、故障边界清晰、证据受控、支持多实例且能安全迁移旧配置的敏感词风控系统。
 
@@ -14,7 +14,7 @@ Type: task
 
 以 PR #7565 的规则、后台和审计能力为基础，在当前代码上做适配式迁移而非整段 cherry-pick。系统提供全局／分组敏感词规则、`block / observe / off` 模式、显式白名单、持久敏感词违规次数、默认关闭的独立自动封禁开关、专用敏感词解封、结构化审计证据、细粒度风控与审计权限，以及适合多实例的本机策略快照和跨节点刷新机制。
 
-所有受支持请求在鉴权和协议解析成功后、渠道选择与额度预扣前完成检查。既有通用 Relay 协议继续检查本次请求中所有模型可见结构化文本；额外补充视频生成和通用异步任务的标准 `prompt` 字段。命中证据按字段扫描并形成有界唯一结果，审计证据保存 system/developer、当前命中项和此前三轮审计轮次，序列化后总量不超过 512 KiB。
+所有受支持请求在鉴权和协议解析成功后、渠道选择与额度预扣前完成检查。既有通用 Relay 协议继续检查本次请求中所有模型可见结构化文本。命中证据按字段扫描并形成有界唯一结果，审计证据保存 system/developer、当前命中项和此前三轮审计轮次，序列化后总量不超过 512 KiB。
 
 Root、管理员、普通用户和白名单的处置与 PR #7565 对齐：Root 被阻断、审计并累计，但永不自动封禁；非 Root 管理员与普通用户一致；只有显式白名单用户放行、审计且不累计。自动封禁由独立开关控制，封禁只改变账号状态和认证状态，不清余额、订阅或 Key。
 
@@ -51,8 +51,8 @@ Root、管理员、普通用户和白名单的处置与 PR #7565 对齐：Root �
 29. As an operator, I want a valid matched request audited even if it would later fail for no channel, unsupported model, or insufficient quota, so that downstream availability cannot bypass enforcement.
 30. As a risk-control administrator, I want model-visible system, developer, user, assistant, and tool text in the current request checked, so that moving text between roles does not bypass policy.
 31. As a risk-control administrator, I want Tool definitions, textual arguments, and textual Tool results checked without matching structural IDs or role labels, so that model-visible Tool content is covered without noisy metadata matches.
-32. As a risk-control administrator, I want video generation `prompt` checked, so that video requests cannot bypass a rule enforced on chat requests.
-33. As a risk-control administrator, I want the standard `prompt` on generic asynchronous tasks checked, so that the common task API cannot bypass policy.
+32. As an operator, I want video-generation prompts excluded from this policy, so that video task behavior remains unchanged.
+33. As an operator, I want generic asynchronous-task prompts excluded from this policy, so that task-plugin behavior remains unchanged.
 34. As an API user, I want images, audio, files, Base64 payloads, and ordinary metadata excluded from scanning, so that binary content and structural values do not create false positives or expensive parsing.
 35. As an operator, I want model output and remotely referenced conversation history excluded, so that request filtering does not become output moderation or an external history fetcher.
 36. As an operator, I want each structured text field scanned once and duplicate matches bounded, so that large requests cannot amplify CPU or memory through repeated whole-prompt passes.
@@ -88,8 +88,8 @@ Root、管理员、普通用户和白名单的处置与 PR #7565 对齐：Root �
 - Rules retain `global` and pricing-group scope and `block / observe / off` modes. New rules default to `observe`; if a request matches both `block` and `observe`, `block` wins.
 - Matching remains case-insensitive and uses an Aho-Corasick-style immutable runtime index. Rule mutations and policy mutations advance a durable generation in the same transaction.
 - The request scanner consumes ordered structured text fields rather than one concatenated `CombineText`. Each supported protocol extractor identifies role, field kind, audit round, original order, and text while excluding structural labels, IDs, ordinary metadata, URLs that are not model input, and binary payloads.
-- Existing supported Relay formats continue to contribute all model-visible current-request text, including system/developer/user/assistant content, Tool descriptions, textual arguments, and textual results. No remote `previous_response_id` history is fetched.
-- Outside existing common Relay formats, only video generation and generic asynchronous task submission add their standard `prompt` fields. Midjourney, Suno, arbitrary plugin-defined custom fields, and Realtime WebSocket events are not scanned in this scope.
+- Existing supported Relay formats continue to contribute all model-visible current-request text, including system/developer/user/assistant content, Tool descriptions, textual arguments, textual results, and textual structured-output Schema content. No remote `previous_response_id` history is fetched.
+- Video generation, generic asynchronous tasks, Midjourney, Suno, arbitrary plugin-defined custom fields, and Realtime WebSocket events are not scanned in this scope.
 - The scanner performs one automaton pass per text field, deduplicates matches by rule and normalized word, bounds retained match metadata and snippets, and records truncation. It must not concatenate an unbounded Prompt, retain every repeated occurrence, or rescan the full input once per matched word.
 - The feature introduces no sensitive-word-specific request-size rejection. Existing global body limits, rate limits, and user concurrency remain responsible for worst-case request size and throughput.
 - Enforcement occurs only after token authentication and successful protocol parsing and before channel selection, token estimation, quota reservation, billing, plugin execution, or upstream I/O. Malformed requests stay on their existing validation path.
@@ -118,7 +118,7 @@ Root、管理员、普通用户和白名单的处置与 PR #7565 对齐：Root �
 ## Testing Decisions
 
 - The primary and highest test seam is a route-level request-policy integration harness using real routing, authentication context, protocol parsing, policy persistence, and a fake channel/upstream boundary. Tests assert client response, audit fact, count/account state, and that channel selection, billing reservation, plugin execution, and upstream I/O were or were not reached. They do not assert internal helper call order.
-- The same primary seam covers ordinary users, non-Root administrators, Root, whitelisted users, `block / observe / off`, mixed rule modes, malformed bodies, no-channel requests, insufficient quota ordering, duplicate request IDs, protocol-compatible errors, video `prompt`, and generic task `prompt`.
+- The same primary seam covers ordinary users, non-Root administrators, Root, whitelisted users, `block / observe / off`, mixed rule modes, malformed bodies, no-channel requests, insufficient quota ordering, duplicate request IDs, and protocol-compatible errors; separate exclusion tests confirm video generation and generic asynchronous tasks do not enter this seam.
 - Structured extraction tests use representative protocol payloads and assert ordered model-visible fields, roles, audit rounds, Tool text coverage, and exclusion of IDs, ordinary metadata, URLs, Base64, files, images, and audio. Existing token-count metadata tests provide prior art, but assertions target sensitive-word extraction behavior rather than token-count implementation.
 - Matching tests exercise case folding, global and group scope, auto-group candidate order, mixed modes, unique bounded matches, repeated occurrences, long fields, multiple fields, and first-match evidence priority. Performance tests verify work scales with scanned text plus retained matches rather than text multiplied by matched-word count.
 - Database behavior tests cover transactional count increments, Root exclusion from automatic ban, whitelist count exemption, ordinary enable versus sensitive-word unban, unchanged quota/subscription/Key state, authentication invalidation, and actual unique idempotency under concurrent delivery.
@@ -137,7 +137,7 @@ Root、管理员、普通用户和白名单的处置与 PR #7565 对齐：Root �
 - Scanning or moderating model output.
 - Fetching remote Responses conversation history through `previous_response_id` or another provider API.
 - Parsing PDF/TXT attachments, OCR, audio transcription, image understanding, Base64, or other binary payloads.
-- Midjourney prompt checking, Suno prompt or lyrics checking, arbitrary task-plugin custom-field checking, and Realtime WebSocket event checking.
+- Video-generation prompt checking, generic asynchronous-task prompt checking, Midjourney prompt checking, Suno prompt or lyrics checking, arbitrary task-plugin custom-field checking, and Realtime WebSocket event checking.
 - Recursively scanning every unknown JSON string or ordinary metadata value.
 - A sensitive-word-specific 8 MiB request limit or another new request rejection size.
 - Rolling-window decay, automatic count expiry, per-group thresholds, per-rule thresholds, or role-based implicit whitelist.

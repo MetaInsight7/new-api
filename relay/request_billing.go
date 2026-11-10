@@ -32,7 +32,7 @@ func PrepareRequestBilling(c *gin.Context, info *relaycommon.RelayInfo) *types.N
 	}
 	needSensitiveCheck := policy.Enabled && policy.CheckPrompt
 	meta := &types.TokenCountMeta{TokenType: types.TokenTypeTokenizer}
-	if info.Request != nil && (needSensitiveCheck || constant.CountToken) {
+	if info.Request != nil && constant.CountToken {
 		meta = info.Request.GetTokenCountMeta()
 	} else {
 		// Avoid building CombineText when only the pricing quantities are needed.
@@ -48,7 +48,7 @@ func PrepareRequestBilling(c *gin.Context, info *relaycommon.RelayInfo) *types.N
 		}
 	}
 
-	if needSensitiveCheck && meta != nil {
+	if needSensitiveCheck {
 		result, checkedBeforeSelection := common.GetContextKeyType[*model.SensitiveCheckResult](c, constant.ContextKeySensitiveWordCheckResult)
 		if !checkedBeforeSelection {
 			candidateGroups := []string{info.UsingGroup}
@@ -61,15 +61,20 @@ func PrepareRequestBilling(c *gin.Context, info *relaycommon.RelayInfo) *types.N
 				Username: c.GetString("username"), TokenID: info.TokenId,
 				TokenName: c.GetString("token_name"), GroupName: info.UsingGroup,
 				ModelName: info.OriginModelName, Endpoint: c.Request.URL.Path,
-				Protocol: string(info.RelayFormat), Prompt: meta.CombineText,
+				Protocol: string(info.RelayFormat), Fields: dto.ExtractSensitiveText(info.Request),
 			}, candidateGroups)
+			if result != nil {
+				common.SetContextKey(c, constant.ContextKeySensitiveWordCheckResult, result)
+			}
 			if checkErr != nil {
 				logger.LogWarn(c, "sensitive-word audit failed: "+checkErr.Error())
-				return types.NewErrorWithStatusCode(
-					errors.New("敏感词审计暂时不可用，请稍后重试"),
-					types.ErrorCodeQueryDataError, http.StatusServiceUnavailable,
-					types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog(),
-				)
+				if !errors.Is(checkErr, model.ErrSensitiveWordAuditPersistence) {
+					return types.NewErrorWithStatusCode(
+						errors.New("敏感词审计暂时不可用，请稍后重试"),
+						types.ErrorCodeQueryDataError, http.StatusServiceUnavailable,
+						types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog(),
+					)
+				}
 			}
 		}
 		if result != nil && result.Matched && result.Blocked {
@@ -77,7 +82,7 @@ func PrepareRequestBilling(c *gin.Context, info *relaycommon.RelayInfo) *types.N
 			logger.LogWarn(c, "sensitive-word policy matched")
 			return types.NewOpenAIError(
 				errors.New(result.Message), types.ErrorCodeSensitiveWordsDetected,
-				http.StatusUnprocessableEntity,
+				http.StatusBadRequest,
 				types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog(),
 			)
 		}

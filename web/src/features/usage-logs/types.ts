@@ -153,6 +153,8 @@ export interface SensitiveWordAuditEvent {
   prompt_hash?: string
   redacted_preview?: string
   full_prompt?: string
+  evidence?: string
+  evidence_truncated?: boolean
   matched_rule_ids?: string
   matched_rule_names?: string
   matched_words?: string
@@ -169,6 +171,21 @@ export interface SensitiveWordAuditEvent {
   quota_after?: number
   rule_version?: number
   created_at?: string
+}
+
+export interface SensitiveWordEvidenceField {
+  role: 'system' | 'developer' | 'user' | 'assistant' | 'tool' | string
+  kind: string
+  round: number
+  order: number
+  text: string
+}
+
+export interface SensitiveWordAuditEvidence {
+  version: number
+  fields: SensitiveWordEvidenceField[]
+  matches: unknown[]
+  truncated: boolean
 }
 
 export interface LogOtherData {

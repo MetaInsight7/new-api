@@ -1,8 +1,6 @@
 package controller
 
 import (
-	"errors"
-	"fmt"
 	"net/http"
 	"strconv"
 
@@ -43,6 +41,7 @@ func UpdateSensitiveWordPolicy(c *gin.Context) {
 	recordManageAudit(c, "sensitive_word.policy_update", map[string]any{
 		"enabled_before": previous.Enabled, "enabled_after": updated.Enabled,
 		"check_prompt":          updated.CheckPrompt,
+		"auto_ban_enabled":      updated.AutoBanEnabled,
 		"retain_full_prompt":    updated.RetainFullPrompt,
 		"ban_threshold":         updated.BanThreshold,
 		"retention_days":        updated.FullPromptRetentionDays,
@@ -178,7 +177,7 @@ func DeleteSensitiveWordRule(c *gin.Context) {
 func GetSensitiveWordAudit(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil || id <= 0 {
-		common.ApiError(c, errors.New("审计 ID 无效"))
+		common.ApiErrorT(c, "Invalid audit ID")
 		return
 	}
 	var event model.SensitiveWordAuditEvent
@@ -186,13 +185,102 @@ func GetSensitiveWordAudit(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if c.GetInt("role") != common.RoleRootUser {
+		subjectRole := event.UserRole
+		if subjectRole == 0 {
+			var subject model.User
+			if err := model.DB.Select("role").First(&subject, event.UserID).Error; err != nil {
+				common.ApiErrorStatus(c, http.StatusForbidden, common.NewMessage("No permission to view this audit evidence"))
+				return
+			}
+			subjectRole = subject.Role
+		}
+		if subjectRole == common.RoleRootUser {
+			common.ApiErrorStatus(c, http.StatusForbidden, common.NewMessage("No permission to view this audit evidence"))
+			return
+		}
+	}
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": event})
+}
+
+func UpdateSensitiveWordUserSafety(c *gin.Context) {
+	userID, ok := sensitiveWordUserID(c)
+	if !ok {
+		return
+	}
+	var request struct {
+		ViolationCount *int  `json:"violation_count"`
+		Whitelist      *bool `json:"whitelist"`
+	}
+	if err := common.DecodeJson(c.Request.Body, &request); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if request.ViolationCount == nil && request.Whitelist == nil {
+		common.ApiErrorT(c, "At least one sensitive-word safety field is required")
+		return
+	}
+	user, err := model.GetUserById(userID, false)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if !canManageTargetRole(c.GetInt("role"), user.Role) {
+		common.ApiErrorStatus(c, http.StatusForbidden, common.NewMessage("No permission to update this user"))
+		return
+	}
+	if err := model.UpdateSensitiveWordUserFields(userID, request.ViolationCount, request.Whitelist); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	recordManageAuditFor(c, userID, "sensitive_word.user_update", map[string]any{
+		"target_user_id":    userID,
+		"count_updated":     request.ViolationCount != nil,
+		"whitelist_updated": request.Whitelist != nil,
+	})
+	c.JSON(http.StatusOK, gin.H{"success": true})
+}
+
+func UnbanSensitiveWordUser(c *gin.Context) {
+	userID, ok := sensitiveWordUserID(c)
+	if !ok {
+		return
+	}
+	user, err := model.GetUserById(userID, false)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if !canManageTargetRole(c.GetInt("role"), user.Role) {
+		common.ApiErrorStatus(c, http.StatusForbidden, common.NewMessage("No permission to update this user"))
+		return
+	}
+	result, err := model.EnableUserAndResetSensitiveWordViolations(userID)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	recordManageAuditFor(c, userID, "sensitive_word.unban", map[string]any{
+		"target_user_id": userID,
+		"status_changed": result.StatusChanged,
+		"count_reset":    result.ViolationCountReset,
+	})
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": result})
 }
 
 func sensitiveWordRuleID(c *gin.Context) (int64, bool) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil || id <= 0 {
-		common.ApiError(c, fmt.Errorf("规则 ID 无效"))
+		common.ApiErrorT(c, "Invalid rule ID")
+		return 0, false
+	}
+	return id, true
+}
+
+func sensitiveWordUserID(c *gin.Context) (int, bool) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil || id <= 0 {
+		common.ApiErrorT(c, "Invalid user ID")
 		return 0, false
 	}
 	return id, true

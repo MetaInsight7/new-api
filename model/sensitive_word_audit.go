@@ -5,11 +5,13 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
+	relaytypes "github.com/QuantumNous/new-api/relaykit/types"
 	"gorm.io/gorm"
 )
 
@@ -31,78 +33,114 @@ func decodeSensitiveAuditSlice[T any](value string) []T {
 
 func sensitiveCheckResultFromAudit(event SensitiveWordAuditEvent) *SensitiveCheckResult {
 	policy := GetSensitiveWordPolicy()
+	var evidence SensitiveWordAuditEvidence
+	if event.Evidence != "" {
+		_ = common.UnmarshalJsonStr(string(event.Evidence), &evidence)
+	}
+	modes := make([]string, 0, len(evidence.Matches))
+	seenModes := make(map[string]struct{}, len(evidence.Matches))
+	for _, match := range evidence.Matches {
+		if _, exists := seenModes[match.RuleMode]; exists {
+			continue
+		}
+		seenModes[match.RuleMode] = struct{}{}
+		modes = append(modes, match.RuleMode)
+	}
 	return &SensitiveCheckResult{
-		Matched: true, Blocked: event.Blocked,
+		Matched: true, Blocked: event.Blocked, Counted: event.Counted,
+		Disposition:       event.Disposition,
 		WhitelistBypassed: event.WhitelistBypassed,
 		AutoBanned:        event.AutoBanned, ViolationCount: event.ViolationCount,
-		MatchedWords:     decodeSensitiveAuditSlice[string](event.MatchedWords),
-		MatchedRuleIDs:   decodeSensitiveAuditSlice[int64](event.MatchedRuleIDs),
-		MatchedRuleNames: decodeSensitiveAuditSlice[string](event.MatchedRuleNames),
+		MatchedWords:     decodeSensitiveAuditSlice[string](string(event.MatchedWords)),
+		MatchedRuleIDs:   decodeSensitiveAuditSlice[int64](string(event.MatchedRuleIDs)),
+		MatchedRuleNames: decodeSensitiveAuditSlice[string](string(event.MatchedRuleNames)),
 		MatchedScope:     event.MatchedScope, AuditID: event.ID,
 		Message:          expandSensitiveWordMessage(policy.BlockMessage, policy.BanThreshold),
 		UserStatusBefore: event.UserStatusBefore, UserStatusAfter: event.UserStatusAfter,
 		QuotaBefore: event.QuotaBefore, QuotaAfter: event.QuotaAfter,
-		ObserveOnly: event.ObserveOnly,
+		ObserveOnly: event.ObserveOnly, MatchedRuleModes: modes,
+		Matches: evidence.Matches, EvidenceTruncated: event.EvidenceTruncated,
+		PolicyGeneration: event.PolicyGeneration,
 	}
+}
+
+func normalizeSensitiveCheckFields(input SensitiveCheckInput) []relaytypes.SensitiveTextField {
+	fields := input.Fields
+	if len(fields) == 0 && strings.TrimSpace(input.Prompt) != "" {
+		fields = []relaytypes.SensitiveTextField{{
+			Role: relaytypes.SensitiveTextRoleUser, Kind: relaytypes.SensitiveTextKindPrompt,
+			Round: 0, Order: 0, Text: input.Prompt,
+		}}
+	}
+	result := make([]relaytypes.SensitiveTextField, 0, len(fields))
+	for _, field := range fields {
+		field.Text = normalizeSensitivePrompt(field.Text)
+		if field.Text == "" {
+			continue
+		}
+		result = append(result, field)
+	}
+	return result
 }
 
 func CheckSensitiveRequest(input SensitiveCheckInput) (*SensitiveCheckResult, error) {
 	return CheckSensitiveRequestForGroups(input, []string{input.GroupName})
 }
 
-// CheckSensitiveRequestForGroups makes exactly one policy decision before any
-// token estimate, reservation, channel selection, or upstream request.
 func CheckSensitiveRequestForGroups(input SensitiveCheckInput, candidateGroups []string) (*SensitiveCheckResult, error) {
 	if strings.TrimSpace(input.RequestID) == "" {
 		input.RequestID = common.NewRequestId()
 	}
-	policy, err := GetSensitiveWordPolicyWithError()
+	snapshot, err := currentSensitiveRuntimeSnapshot()
 	if err != nil {
 		return nil, err
 	}
-	input.Prompt = normalizeSensitivePrompt(input.Prompt)
-	if !policy.Enabled || !policy.CheckPrompt || input.Prompt == "" {
+	policy := snapshot.policy
+	fields := normalizeSensitiveCheckFields(input)
+	if !policy.Enabled || !policy.CheckPrompt || len(fields) == 0 {
 		return &SensitiveCheckResult{}, nil
 	}
-	rules, words, matchedGroup, err := matchSensitiveRulesForGroups(
-		input.Prompt, candidateGroups, input.GroupName, policy.Version,
-	)
+	decision, err := matchSensitiveFieldsForGroups(snapshot, fields, candidateGroups, input.GroupName)
 	if err != nil {
 		return nil, err
 	}
-	if len(rules) == 0 {
+	if len(decision.Matches) == 0 {
 		return &SensitiveCheckResult{}, nil
 	}
-	if matchedGroup != "" {
-		input.GroupName = matchedGroup
+	if decision.MatchedGroup != "" {
+		input.GroupName = decision.MatchedGroup
 	}
 
-	ids := make([]int64, 0, len(rules))
-	names := make([]string, 0, len(rules))
-	modes := make([]string, 0, len(rules))
-	seenIDs := make(map[int64]struct{}, len(rules))
-	seenModes := make(map[string]struct{}, len(rules))
+	ids := make([]int64, 0, len(decision.Matches))
+	names := make([]string, 0, len(decision.Matches))
+	words := make([]string, 0, len(decision.Matches))
+	modes := make([]string, 0, 2)
+	seenIDs := make(map[int64]struct{}, len(decision.Matches))
+	seenNames := make(map[string]struct{}, len(decision.Matches))
+	seenWords := make(map[string]struct{}, len(decision.Matches))
+	seenModes := make(map[string]struct{}, 2)
 	scopes := make(map[string]bool, 2)
-	blockingRule := false
-	ruleVersion := int64(1)
-	for _, rule := range rules {
-		if _, exists := seenIDs[rule.ID]; !exists {
-			seenIDs[rule.ID] = struct{}{}
-			ids = append(ids, rule.ID)
-			if rule.Name != "" {
-				names = append(names, rule.Name)
+	for _, match := range decision.Matches {
+		if _, exists := seenIDs[match.RuleID]; !exists {
+			seenIDs[match.RuleID] = struct{}{}
+			ids = append(ids, match.RuleID)
+		}
+		if match.RuleName != "" {
+			if _, exists := seenNames[match.RuleName]; !exists {
+				seenNames[match.RuleName] = struct{}{}
+				names = append(names, match.RuleName)
 			}
 		}
-		scopes[rule.Scope] = true
-		mode := normalizeSensitiveWordRuleMode(rule.Mode)
-		blockingRule = blockingRule || mode == SensitiveWordModeBlock
-		if _, exists := seenModes[mode]; !exists {
-			seenModes[mode] = struct{}{}
-			modes = append(modes, mode)
+		wordKey := strings.ToLower(match.Word)
+		if _, exists := seenWords[wordKey]; !exists {
+			seenWords[wordKey] = struct{}{}
+			words = append(words, match.Word)
 		}
-		if rule.Version > ruleVersion {
-			ruleVersion = rule.Version
+		if _, exists := seenModes[match.RuleMode]; !exists {
+			seenModes[match.RuleMode] = struct{}{}
+			modes = append(modes, match.RuleMode)
 		}
+		scopes[match.RuleScope] = true
 	}
 	matchedScope := SensitiveWordScopeGlobal
 	if !scopes[SensitiveWordScopeGlobal] {
@@ -110,17 +148,45 @@ func CheckSensitiveRequestForGroups(input SensitiveCheckInput, candidateGroups [
 	} else if scopes[SensitiveWordScopeGroup] {
 		matchedScope = "global+group"
 	}
-	observeOnly := !blockingRule
+	observeOnly := !decision.Blocking
 	result := &SensitiveCheckResult{
 		Matched: true, ObserveOnly: observeOnly,
 		MatchedWords: words, MatchedRuleIDs: ids, MatchedRuleNames: names,
-		MatchedScope:     matchedScope,
-		Message:          expandSensitiveWordMessage(policy.BlockMessage, policy.BanThreshold),
-		MatchedRuleModes: modes,
+		MatchedScope: matchedScope, Message: expandSensitiveWordMessage(policy.BlockMessage, policy.BanThreshold),
+		MatchedRuleModes: modes, Matches: decision.Matches,
+		EvidenceTruncated: decision.MatchesTruncated, PolicyGeneration: policy.Version,
+	}
+
+	evidence, preview, snippets, evidenceTruncated, promptHash, evidenceErr := buildSensitiveAuditEvidence(fields, decision.Matches, policy, decision.MatchesTruncated)
+	if evidenceErr != nil {
+		result.Blocked = decision.Blocking
+		return result, fmt.Errorf("%w: %v", ErrSensitiveWordAuditPersistence, evidenceErr)
+	}
+	result.EvidenceTruncated = evidenceTruncated
+	idsRaw, err := marshalSensitiveAuditJSON(ids)
+	if err != nil {
+		result.Blocked = decision.Blocking
+		return result, err
+	}
+	namesRaw, err := marshalSensitiveAuditJSON(names)
+	if err != nil {
+		result.Blocked = decision.Blocking
+		return result, err
+	}
+	wordsRaw, err := marshalSensitiveAuditJSON(words)
+	if err != nil {
+		result.Blocked = decision.Blocking
+		return result, err
+	}
+	snippetsRaw, err := marshalSensitiveAuditJSON(snippets)
+	if err != nil {
+		result.Blocked = decision.Blocking
+		return result, err
 	}
 
 	var event SensitiveWordAuditEvent
 	var existingEvent *SensitiveWordAuditEvent
+	authStateChanged := false
 	err = DB.Transaction(func(tx *gorm.DB) error {
 		var user User
 		if err := lockForUpdate(tx).First(&user, input.UserID).Error; err != nil {
@@ -140,22 +206,28 @@ func CheckSensitiveRequestForGroups(input SensitiveCheckInput, candidateGroups [
 		result.QuotaBefore = user.Quota
 		result.QuotaAfter = user.Quota
 		result.WhitelistBypassed = user.SensitiveWordWhitelist
-		result.Blocked = !user.SensitiveWordWhitelist && !observeOnly
-		if result.Blocked {
+		result.Blocked = decision.Blocking && !user.SensitiveWordWhitelist
+		result.Counted = result.Blocked
+		result.Disposition = "observe"
+		if user.SensitiveWordWhitelist {
+			result.Disposition = "whitelist_bypass"
+		} else if result.Blocked {
+			result.Disposition = "block"
+		}
+		if result.Counted {
 			result.ViolationCount = user.SensitiveWordViolationCount + 1
-			updates := map[string]any{
-				"sensitive_word_violation_count": result.ViolationCount,
-			}
-			result.AutoBanned = result.ViolationCount >= policy.BanThreshold &&
+			updates := map[string]any{"sensitive_word_violation_count": result.ViolationCount}
+			result.AutoBanned = policy.AutoBanEnabled && result.ViolationCount >= policy.BanThreshold &&
 				user.Role != common.RoleRootUser && user.Status != common.UserStatusDisabled
 			if result.AutoBanned {
-				nextVersion, err := IncrementUserAuthVersionWithTx(tx, input.UserID)
-				if err != nil {
-					return err
+				nextVersion, versionErr := IncrementUserAuthVersionWithTx(tx, input.UserID)
+				if versionErr != nil {
+					return versionErr
 				}
 				updates["status"] = common.UserStatusDisabled
 				updates["auth_version"] = nextVersion
 				result.UserStatusAfter = common.UserStatusDisabled
+				authStateChanged = true
 			}
 			if err := tx.Model(&User{}).Where("id = ?", input.UserID).Updates(updates).Error; err != nil {
 				return err
@@ -164,45 +236,21 @@ func CheckSensitiveRequestForGroups(input SensitiveCheckInput, candidateGroups [
 			result.ViolationCount = user.SensitiveWordViolationCount
 		}
 
-		preview, fullPrompt := "", ""
-		snippets := make([]string, 0)
-		if policy.RetainFullPrompt {
-			preview = redactedSensitivePreview(input.Prompt)
-			fullPrompt = truncateSensitivePrompt(input.Prompt, policy.MaxPromptRunes)
-			snippets = sensitiveMatchSnippets(input.Prompt, words)
-		}
-		idsRaw, err := common.Marshal(ids)
-		if err != nil {
-			return fmt.Errorf("%w: %v", ErrSensitiveWordAuditPersistence, err)
-		}
-		namesRaw, err := common.Marshal(names)
-		if err != nil {
-			return fmt.Errorf("%w: %v", ErrSensitiveWordAuditPersistence, err)
-		}
-		wordsRaw, err := common.Marshal(words)
-		if err != nil {
-			return fmt.Errorf("%w: %v", ErrSensitiveWordAuditPersistence, err)
-		}
-		snippetsRaw, err := common.Marshal(snippets)
-		if err != nil {
-			return fmt.Errorf("%w: %v", ErrSensitiveWordAuditPersistence, err)
-		}
-		hash := sha256.Sum256([]byte(input.Prompt))
 		event = SensitiveWordAuditEvent{
-			RequestID: input.RequestID, UserID: input.UserID,
+			RequestID: input.RequestID, UserID: input.UserID, UserRole: user.Role,
 			UsernameSnapshot: input.Username, TokenID: input.TokenID,
 			TokenNameSnapshot: input.TokenName, GroupName: input.GroupName,
 			ModelName: input.ModelName, Endpoint: input.Endpoint, Protocol: input.Protocol,
-			PromptHash: hex.EncodeToString(hash[:]), RedactedPreview: preview,
-			FullPrompt:     SensitiveWordAuditPrompt(fullPrompt),
-			MatchedRuleIDs: string(idsRaw), MatchedRuleNames: string(namesRaw),
-			MatchedWords: string(wordsRaw), MatchedSnippets: string(snippetsRaw),
-			MatchedScope: matchedScope, WhitelistBypassed: user.SensitiveWordWhitelist,
-			Blocked: result.Blocked, ViolationCount: result.ViolationCount,
-			AutoBanned: result.AutoBanned, ObserveOnly: observeOnly,
+			PromptHash: promptHash, RedactedPreview: preview, Evidence: evidence,
+			EvidenceTruncated: evidenceTruncated,
+			MatchedRuleIDs:    idsRaw, MatchedRuleNames: namesRaw,
+			MatchedWords: wordsRaw, MatchedSnippets: snippetsRaw,
+			MatchedScope: matchedScope, Disposition: result.Disposition,
+			WhitelistBypassed: user.SensitiveWordWhitelist, Blocked: result.Blocked, Counted: result.Counted,
+			ViolationCount: result.ViolationCount, AutoBanned: result.AutoBanned, ObserveOnly: observeOnly,
 			UserStatusBefore: result.UserStatusBefore, UserStatusAfter: result.UserStatusAfter,
 			QuotaBefore: result.QuotaBefore, QuotaAfter: result.QuotaAfter,
-			RuleVersion: ruleVersion, CreatedAt: time.Now(),
+			RuleVersion: policy.Version, PolicyGeneration: policy.Version, CreatedAt: time.Now(),
 		}
 		if err := tx.Create(&event).Error; err != nil {
 			return fmt.Errorf("%w: %v", ErrSensitiveWordAuditPersistence, err)
@@ -210,25 +258,147 @@ func CheckSensitiveRequestForGroups(input SensitiveCheckInput, candidateGroups [
 		return nil
 	})
 	if err != nil {
-		result.Blocked = false
+		var prior SensitiveWordAuditEvent
+		if lookupErr := DB.Where("request_id = ? AND user_id = ?", input.RequestID, input.UserID).
+			Order("id asc").First(&prior).Error; lookupErr == nil {
+			return sensitiveCheckResultFromAudit(prior), nil
+		}
 		result.AutoBanned = false
+		result.Counted = false
 		result.ViolationCount = 0
+		result.AuditID = 0
+		result.Blocked = decision.Blocking
 		return result, err
 	}
 	if existingEvent != nil {
-		existing := sensitiveCheckResultFromAudit(*existingEvent)
-		if existing.AutoBanned {
-			refreshSensitiveWordAuthState(input.UserID, "sensitive_word_threshold")
-		}
-		return existing, nil
+		return sensitiveCheckResultFromAudit(*existingEvent), nil
 	}
 
 	result.AuditID = event.ID
-	if result.AutoBanned {
+	if authStateChanged {
 		refreshSensitiveWordAuthState(input.UserID, "sensitive_word_threshold")
 	}
-	writeSensitiveWordUsageLog(input, event, result, ids, names, words, modes, ruleVersion)
+	writeSensitiveWordUsageLog(input, event, result)
 	return result, nil
+}
+
+func marshalSensitiveAuditJSON(value any) (SensitiveWordAuditJSON, error) {
+	raw, err := common.Marshal(value)
+	if err != nil {
+		return "", fmt.Errorf("%w: %v", ErrSensitiveWordAuditPersistence, err)
+	}
+	return SensitiveWordAuditJSON(raw), nil
+}
+
+func sensitiveFieldsHash(fields []relaytypes.SensitiveTextField) (string, error) {
+	raw, err := common.Marshal(fields)
+	if err != nil {
+		return "", err
+	}
+	hash := sha256.Sum256(raw)
+	return hex.EncodeToString(hash[:]), nil
+}
+
+func buildSensitiveAuditEvidence(fields []relaytypes.SensitiveTextField, matches []SensitiveWordMatch, policy SensitiveWordPolicy, alreadyTruncated bool) (SensitiveWordAuditJSON, string, []string, bool, string, error) {
+	promptHash, err := sensitiveFieldsHash(fields)
+	if err != nil {
+		return "", "", nil, alreadyTruncated, "", err
+	}
+	snippets := make([]string, 0, len(matches))
+	seenSnippets := make(map[string]struct{}, len(matches))
+	for _, match := range matches {
+		if match.Snippet == "" {
+			continue
+		}
+		if _, exists := seenSnippets[match.Snippet]; exists {
+			continue
+		}
+		seenSnippets[match.Snippet] = struct{}{}
+		snippets = append(snippets, match.Snippet)
+	}
+	preview := ""
+	if len(snippets) > 0 {
+		preview = snippets[0]
+	}
+	if !policy.RetainFullPrompt {
+		return "", preview, snippets, alreadyTruncated, promptHash, nil
+	}
+
+	evidence := SensitiveWordAuditEvidence{Version: 1, Matches: append([]SensitiveWordMatch(nil), matches...), Truncated: alreadyTruncated}
+	for {
+		raw, marshalErr := common.Marshal(evidence)
+		if marshalErr != nil {
+			return "", "", nil, evidence.Truncated, "", marshalErr
+		}
+		if len(raw) <= SensitiveWordMaxPromptBytes {
+			break
+		}
+		if len(evidence.Matches) == 0 {
+			return "", "", nil, true, "", errors.New("sensitive-word evidence metadata exceeds limit")
+		}
+		evidence.Matches = evidence.Matches[:len(evidence.Matches)-1]
+		evidence.Truncated = true
+	}
+
+	matchedOrders := make(map[int]struct{}, len(matches))
+	matchedRounds := make(map[int]struct{}, len(matches))
+	for _, match := range matches {
+		matchedOrders[match.FieldOrder] = struct{}{}
+		matchedRounds[match.FieldRound] = struct{}{}
+	}
+	selected := make([]relaytypes.SensitiveTextField, 0, len(fields))
+	seenOrders := make(map[int]struct{}, len(fields))
+	appendField := func(field relaytypes.SensitiveTextField) {
+		if _, exists := seenOrders[field.Order]; exists {
+			return
+		}
+		seenOrders[field.Order] = struct{}{}
+		selected = append(selected, field)
+	}
+	for _, field := range fields {
+		if _, matched := matchedOrders[field.Order]; matched {
+			appendField(field)
+		}
+	}
+	for _, field := range fields {
+		if field.Role == relaytypes.SensitiveTextRoleSystem || field.Role == relaytypes.SensitiveTextRoleDeveloper {
+			appendField(field)
+			continue
+		}
+		for currentRound := range matchedRounds {
+			if currentRound >= 0 && field.Round >= max(0, currentRound-3) && field.Round <= currentRound {
+				appendField(field)
+				break
+			}
+		}
+	}
+
+	for _, field := range selected {
+		candidate := field
+		if policy.MaxPromptRunes > 0 && len([]rune(candidate.Text)) > policy.MaxPromptRunes {
+			candidate.Text = string([]rune(candidate.Text)[:policy.MaxPromptRunes]) + "…"
+			evidence.Truncated = true
+		}
+		evidence.Fields = append(evidence.Fields, candidate)
+		raw, marshalErr := common.Marshal(evidence)
+		if marshalErr != nil {
+			return "", "", nil, evidence.Truncated, "", marshalErr
+		}
+		if len(raw) <= SensitiveWordMaxPromptBytes {
+			continue
+		}
+		evidence.Fields = evidence.Fields[:len(evidence.Fields)-1]
+		evidence.Truncated = true
+		break
+	}
+	sort.SliceStable(evidence.Fields, func(left, right int) bool {
+		return evidence.Fields[left].Order < evidence.Fields[right].Order
+	})
+	raw, err := common.Marshal(evidence)
+	if err != nil {
+		return "", "", nil, evidence.Truncated, "", err
+	}
+	return SensitiveWordAuditJSON(raw), preview, snippets, evidence.Truncated, promptHash, nil
 }
 
 func refreshSensitiveWordAuthState(userID int, reason string) int64 {
@@ -245,31 +415,23 @@ func refreshSensitiveWordAuthState(userID int, reason string) int64 {
 	return revoked
 }
 
-func writeSensitiveWordUsageLog(input SensitiveCheckInput, event SensitiveWordAuditEvent, result *SensitiveCheckResult, ids []int64, names, words, modes []string, ruleVersion int64) {
+func writeSensitiveWordUsageLog(input SensitiveCheckInput, event SensitiveWordAuditEvent, result *SensitiveCheckResult) {
 	action := "blocked"
 	if result.WhitelistBypassed {
 		action = "whitelist_bypass"
 	} else if result.ObserveOnly {
 		action = "observe"
 	}
-	keywordFilter := map[string]any{
-		"audit_id": event.ID, "action": action, "request_id": input.RequestID,
-		"rule_ids": ids, "rule_names": names, "matched_words": words,
-		"scope": result.MatchedScope, "group": input.GroupName, "model": input.ModelName,
-		"endpoint": input.Endpoint, "protocol": input.Protocol,
-		"violation_count":    result.ViolationCount,
-		"whitelist_bypassed": result.WhitelistBypassed, "blocked": result.Blocked,
-		"auto_banned": result.AutoBanned, "observe_only": result.ObserveOnly,
-		"user_status_before": result.UserStatusBefore, "user_status_after": result.UserStatusAfter,
-		"balance_changed": false, "prompt_hash": event.PromptHash,
-		"rule_version": ruleVersion, "rule_modes": modes,
-	}
 	other := NewLogOther()
 	other.SetPublic("action", SensitiveWordLogAction)
-	other.SetAdmin("keyword_filter", keywordFilter)
+	other.SetAdmin("keyword_filter", map[string]any{
+		"audit_id": event.ID, "action": action,
+		"blocked": result.Blocked, "counted": result.Counted,
+		"auto_banned": result.AutoBanned, "balance_changed": false,
+	})
 	log := &Log{
 		UserId: input.UserID, Username: input.Username, CreatedAt: common.GetTimestamp(),
-		Type: LogTypeSensitiveWordBlock, Content: "关键词审计记录", TokenId: input.TokenID,
+		Type: LogTypeSensitiveWordBlock, Content: "Sensitive word audit", TokenId: input.TokenID,
 		TokenName: input.TokenName, ModelName: input.ModelName, Group: input.GroupName,
 		RequestId: input.RequestID, Other: other.JSONString(),
 	}
@@ -289,9 +451,17 @@ func CleanupSensitiveWordAudits() (int64, error) {
 		return 0, nil
 	}
 	cutoff := time.Now().AddDate(0, 0, -policy.FullPromptRetentionDays)
-	result := DB.Model(&SensitiveWordAuditEvent{}).
-		Where("created_at < ? AND (full_prompt <> '' OR redacted_preview <> '' OR matched_snippets <> ?)", cutoff, "[]").
-		Updates(map[string]any{"full_prompt": "", "redacted_preview": "", "matched_snippets": "[]"})
+	var ids []int64
+	if err := DB.Model(&SensitiveWordAuditEvent{}).
+		Where("created_at < ? AND (evidence <> '' OR full_prompt <> '' OR redacted_preview <> '' OR matched_snippets <> ?)", cutoff, "[]").
+		Order("id asc").Limit(SensitiveWordAuditCleanupBatchSize).Pluck("id", &ids).Error; err != nil {
+		return 0, err
+	}
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	result := DB.Model(&SensitiveWordAuditEvent{}).Where("id IN ?", ids).
+		Updates(map[string]any{"evidence": "", "full_prompt": "", "redacted_preview": "", "matched_snippets": "[]"})
 	return result.RowsAffected, result.Error
 }
 
@@ -337,7 +507,7 @@ func trimSensitivePromptBytes(value string, maxBytes int) string {
 // historical audit rows.
 func EnableUserAndResetSensitiveWordViolations(userID int) (*SensitiveWordEnableResetResult, error) {
 	if userID <= 0 {
-		return nil, errors.New("用户 ID 无效")
+		return nil, common.NewMessage("Invalid user ID")
 	}
 	result := &SensitiveWordEnableResetResult{UserID: userID}
 	err := DB.Transaction(func(tx *gorm.DB) error {
@@ -403,7 +573,7 @@ func UpdateSensitiveWordUserFieldsWithTx(tx *gorm.DB, userID int, violationCount
 		return nil
 	}
 	if violationCount != nil && *violationCount < 0 {
-		return errors.New("敏感词违规次数不能为负数")
+		return common.NewMessage("Sensitive-word violation count cannot be negative")
 	}
 	var current User
 	if err := lockForUpdate(tx).First(&current, userID).Error; err != nil {

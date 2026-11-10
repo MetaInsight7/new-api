@@ -125,7 +125,7 @@ func TestDistributeChecksSensitiveWordsBeforeMissingChannel(t *testing.T) {
 			request.Header.Set("Content-Type", "application/json")
 			engine.ServeHTTP(recorder, request)
 
-			require.Equal(t, http.StatusUnprocessableEntity, recorder.Code)
+			require.Equal(t, http.StatusBadRequest, recorder.Code)
 			assert.False(t, handlerCalled, "the relay handler and channel selection must not run")
 			assert.NotContains(t, recorder.Body.String(), "model_not_found")
 			assert.NotContains(t, recorder.Body.String(), "request id:")
@@ -154,4 +154,17 @@ func TestDistributeChecksSensitiveWordsBeforeMissingChannel(t *testing.T) {
 	var storedUser model.User
 	require.NoError(t, database.First(&storedUser, user.Id).Error)
 	assert.Equal(t, len(markers), storedUser.SensitiveWordViolationCount)
+}
+
+func TestSensitiveWordRelayFormatExcludesVideoAndAsyncTasks(t *testing.T) {
+	for _, path := range []string{
+		"/v1/video/generations",
+		"/v1/video/generations/task-1",
+		"/v1/videos",
+		"/v1/videos/video-1/remix",
+		"/v1/tasks/video-plugin",
+	} {
+		_, supported := sensitiveWordRelayFormat(path)
+		assert.False(t, supported, path)
+	}
 }

@@ -42,6 +42,51 @@ func normalizeLegacySensitiveWords(words []string) ([]string, bool) {
 	return result, complete
 }
 
+func prepareSensitiveWordAuditIdentityMigration(db *gorm.DB) error {
+	if db == nil || !db.Migrator().HasTable(&SensitiveWordAuditEvent{}) {
+		return nil
+	}
+	if db.Migrator().HasIndex(&SensitiveWordAuditEvent{}, "idx_sensitive_word_audit_identity") {
+		return nil
+	}
+
+	var missingIDs []int64
+	if err := db.Model(&SensitiveWordAuditEvent{}).
+		Where("request_id IS NULL OR request_id = ?", "").
+		Order("id asc").Pluck("id", &missingIDs).Error; err != nil {
+		return err
+	}
+	for _, id := range missingIDs {
+		requestID := fmt.Sprintf("legacy-sensitive-audit-%d", id)
+		if err := db.Model(&SensitiveWordAuditEvent{}).Where("id = ?", id).
+			Update("request_id", requestID).Error; err != nil {
+			return err
+		}
+	}
+
+	type duplicateIdentity struct {
+		UserID    int
+		RequestID string
+		KeepID    int64
+	}
+	var duplicates []duplicateIdentity
+	if err := db.Model(&SensitiveWordAuditEvent{}).
+		Select("user_id, request_id, MIN(id) AS keep_id").
+		Group("user_id, request_id").Having("COUNT(*) > 1").
+		Scan(&duplicates).Error; err != nil {
+		return err
+	}
+	for _, duplicate := range duplicates {
+		if err := db.Where(
+			"user_id = ? AND request_id = ? AND id <> ?",
+			duplicate.UserID, duplicate.RequestID, duplicate.KeepID,
+		).Delete(&SensitiveWordAuditEvent{}).Error; err != nil {
+			return err
+		}
+	}
+	return db.Migrator().CreateIndex(&SensitiveWordAuditEvent{}, "idx_sensitive_word_audit_identity")
+}
+
 // MigrateSensitiveWordData performs an idempotent, one-way import. Once the
 // marker is committed, legacy options and compatibility columns are never
 // consulted by request handling or future migrations.
@@ -53,6 +98,9 @@ func MigrateSensitiveWordData() (err error) {
 
 	if DB == nil {
 		return nil
+	}
+	if err := prepareSensitiveWordAuditIdentityMigration(DB); err != nil {
+		return err
 	}
 	var marker Option
 	markerErr := DB.Where(&Option{Key: sensitiveWordMigrationKey}).First(&marker).Error
@@ -111,6 +159,7 @@ func migrateSensitiveWordPolicy() error {
 		if config.CheckPrompt != nil {
 			policy.CheckPrompt = *config.CheckPrompt
 		}
+		policy.AutoBanEnabled = config.AutoBanEnabled
 		policy.RetainFullPrompt = config.AuditEnabled
 		policy.BlockMessage = config.BlockMessage
 		policy.BanThreshold = config.BanThreshold

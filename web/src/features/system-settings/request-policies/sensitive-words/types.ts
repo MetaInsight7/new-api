@@ -23,6 +23,7 @@ export type SensitiveWordPolicy = {
   id: number
   enabled: boolean
   check_prompt: boolean
+  auto_ban_enabled: boolean
   retain_full_prompt: boolean
   block_message: string
   ban_threshold: number
@@ -61,9 +62,10 @@ export const DEFAULT_SENSITIVE_WORD_POLICY: SensitiveWordPolicy = {
   id: 1,
   enabled: true,
   check_prompt: true,
+  auto_ban_enabled: false,
   retain_full_prompt: true,
   block_message:
-    'Your request was blocked because it matched a sensitive word. This has been recorded; reaching {{threshold}} violations disables the account.',
+    'Your request was blocked because it matched a sensitive word. This has been recorded; if automatic banning is enabled, reaching {{threshold}} violations disables the account.',
   ban_threshold: 50,
   full_prompt_retention_days: 180,
   max_prompt_runes: 65536,
