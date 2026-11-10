@@ -63,7 +63,7 @@ func TestUserAuthFenceRollbackExpiresAndRecovers(t *testing.T) {
 	assert.Greater(t, fenceTTL, cacheTTL)
 	require.NoError(t, tx.Rollback().Error)
 
-	server.FastForward(time.Duration(userAuthFenceTTLSeconds()+1) * time.Second)
+	server.FastForward(time.Duration(userCacheFenceTTLSeconds()+1) * time.Second)
 	assert.False(t, server.Exists(getUserAuthFenceKey(user.Id)))
 	committed, err := common.RDB.Get(t.Context(), getUserAuthVersionKey(user.Id)).Result()
 	require.NoError(t, err)
@@ -72,6 +72,121 @@ func TestUserAuthFenceRollbackExpiresAndRecovers(t *testing.T) {
 	cached, err := GetUserCache(user.Id)
 	require.NoError(t, err)
 	assert.EqualValues(t, 1, cached.AuthVersion)
+}
+
+func TestRestrictiveUserConcurrencyUpdateFailsWhenFenceCannotPublish(t *testing.T) {
+	truncateTables(t)
+	server := useUserCacheMiniRedis(t)
+
+	user := User{
+		Username:           "concurrency-fence-unavailable",
+		Password:           "password",
+		Role:               common.RoleCommonUser,
+		Status:             common.UserStatusEnabled,
+		Group:              "default",
+		AuthVersion:        1,
+		ConcurrencyVersion: 1,
+	}
+	require.NoError(t, DB.Create(&user).Error)
+	require.NoError(t, populateUserCache(user))
+
+	server.SetError("ERR concurrency fence unavailable")
+	user.MaxConcurrency = 3
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		return user.EditWithTx(tx, false, &user.MaxConcurrency)
+	})
+	server.SetError("")
+	require.Error(t, err)
+
+	stored, err := GetUserById(user.Id, false)
+	require.NoError(t, err)
+	assert.Zero(t, stored.MaxConcurrency)
+	assert.EqualValues(t, 1, stored.ConcurrencyVersion)
+
+	cached, err := GetUserCache(user.Id)
+	require.NoError(t, err)
+	assert.Zero(t, cached.MaxConcurrency)
+}
+
+func TestUserConcurrencyFenceRejectsStaleCacheAfterPublishFailure(t *testing.T) {
+	truncateTables(t)
+	server := useUserCacheMiniRedis(t)
+
+	user := User{
+		Username:           "concurrency-fence-publish",
+		Password:           "password",
+		Role:               common.RoleCommonUser,
+		Status:             common.UserStatusEnabled,
+		Group:              "default",
+		AuthVersion:        1,
+		ConcurrencyVersion: 1,
+	}
+	require.NoError(t, DB.Create(&user).Error)
+	require.NoError(t, populateUserCache(user))
+
+	user.MaxConcurrency = 3
+	require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+		return user.EditWithTx(tx, false, &user.MaxConcurrency)
+	}))
+	assert.Equal(t, "0", server.HGet(getUserCacheKey(user.Id), "MaxConcurrency"))
+
+	server.SetError("ERR user cache publish unavailable")
+	require.Error(t, PublishUserAuthCache(user.Id))
+	server.SetError("")
+
+	_, err := cacheGetUserBase(user.Id)
+	assert.ErrorIs(t, err, ErrUserConcurrencyCachePending)
+
+	cached, err := GetUserCache(user.Id)
+	require.NoError(t, err)
+	assert.Equal(t, 3, cached.MaxConcurrency)
+	assert.EqualValues(t, 2, cached.ConcurrencyVersion)
+	assert.False(t, server.Exists(getUserConcurrencyFenceKey(user.Id)))
+	committed, err := common.RDB.Get(t.Context(), getUserConcurrencyVersionKey(user.Id)).Result()
+	require.NoError(t, err)
+	assert.Equal(t, "2", committed)
+}
+
+func TestUserConcurrencyFenceRollbackExpiresAndRecovers(t *testing.T) {
+	truncateTables(t)
+	server := useUserCacheMiniRedis(t)
+
+	user := User{
+		Username:           "concurrency-fence-rollback",
+		Password:           "password",
+		Role:               common.RoleCommonUser,
+		Status:             common.UserStatusEnabled,
+		Group:              "default",
+		AuthVersion:        1,
+		ConcurrencyVersion: 1,
+	}
+	require.NoError(t, DB.Create(&user).Error)
+	require.NoError(t, populateUserCache(user))
+
+	tx := DB.Begin()
+	require.NoError(t, tx.Error)
+	user.MaxConcurrency = 3
+	require.NoError(t, user.EditWithTx(tx, false, &user.MaxConcurrency))
+
+	_, err := cacheGetUserBase(user.Id)
+	assert.ErrorIs(t, err, ErrUserConcurrencyCachePending)
+	cacheTTL, err := common.RDB.TTL(t.Context(), getUserCacheKey(user.Id)).Result()
+	require.NoError(t, err)
+	fenceTTL, err := common.RDB.TTL(t.Context(), getUserConcurrencyFenceKey(user.Id)).Result()
+	require.NoError(t, err)
+	assert.Greater(t, fenceTTL, cacheTTL)
+	require.NoError(t, tx.Rollback().Error)
+
+	server.FastForward(time.Duration(userCacheFenceTTLSeconds()+1) * time.Second)
+	assert.False(t, server.Exists(getUserConcurrencyFenceKey(user.Id)))
+	committed, err := common.RDB.Get(t.Context(), getUserConcurrencyVersionKey(user.Id)).Result()
+	require.NoError(t, err)
+	assert.Equal(t, "1", committed)
+
+	cached, err := GetUserCache(user.Id)
+	require.NoError(t, err)
+	assert.Zero(t, cached.MaxConcurrency)
+	assert.EqualValues(t, 1, cached.ConcurrencyVersion)
 }
 
 func TestUserConcurrencyCacheRefreshAndLegacySchema(t *testing.T) {
@@ -230,7 +345,7 @@ func TestCommittedUserAuthVersionPermanentlyRejectsDelayedCacheFill(t *testing.T
 	require.NoError(t, err)
 	assert.Equal(t, "2", committed)
 
-	server.FastForward(time.Duration(userAuthFenceTTLSeconds()+1) * time.Second)
+	server.FastForward(time.Duration(userCacheFenceTTLSeconds()+1) * time.Second)
 	require.NoError(t, common.RedisDelKey(getUserCacheKey(user.Id)))
 	err = writeUserCache(&stale, true)
 	assert.True(t, errors.Is(err, ErrUserAuthCachePending))

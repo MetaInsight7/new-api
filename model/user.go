@@ -914,7 +914,14 @@ func (user *User) EditWithTx(tx *gorm.DB, updatePassword bool, maxConcurrency *i
 		return err
 	}
 	if maxConcurrency != nil && current.MaxConcurrency != *maxConcurrency {
-		updates["concurrency_version"] = max(current.ConcurrencyVersion, 1) + 1
+		nextConcurrencyVersion := max(current.ConcurrencyVersion, 1) + 1
+		isMoreRestrictive := *maxConcurrency > 0 && (current.MaxConcurrency == 0 || *maxConcurrency < current.MaxConcurrency)
+		if isMoreRestrictive {
+			if err = SetUserConcurrencyVersionFence(user.Id, nextConcurrencyVersion); err != nil {
+				return err
+			}
+		}
+		updates["concurrency_version"] = nextConcurrencyVersion
 	}
 	authChanged := (updatePassword && current.Password != newUser.Password) || current.Group != newUser.Group
 	if authChanged {

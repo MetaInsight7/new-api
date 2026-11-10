@@ -11,13 +11,11 @@ import (
 	"gorm.io/gorm"
 )
 
-// User auth cache fencing uses three Redis keys per user: the cached user
-// hash, a short-lived pending fence published before a restrictive database
-// transaction, and a monotonic committed version floor published after
-// commit. Cache writes below either floor are rejected, readers below the
-// effective floor fall back to the database, and the pending fence outlives
-// every user-hash TTL so a rolled-back transaction heals without allowing a
-// stale snapshot to re-authorize the user.
+// User cache fencing protects authentication state and restrictive concurrency
+// updates with separate pending and committed version floors. Cache writes
+// below either effective floor are rejected, and pending fences outlive every
+// user-hash TTL so rolled-back transactions recover without reviving stale
+// authorization or unlimited-concurrency snapshots.
 
 var ErrUserAuthCachePending = errors.New("user authentication state update is pending")
 
@@ -27,6 +25,10 @@ var ErrUserConcurrencyCachePending = errors.New("user concurrency configuration 
 
 func getUserConcurrencyVersionKey(userId int) string {
 	return fmt.Sprintf("concurrency:user:version:%d", userId)
+}
+
+func getUserConcurrencyFenceKey(userId int) string {
+	return fmt.Sprintf("concurrency:user:fence:%d", userId)
 }
 
 func getUserAuthFenceKey(userId int) string {
@@ -42,7 +44,7 @@ func getUserAuthVersionKey(userId int) string {
 // TTL must outlive every user hash that could have been populated before the
 // fence, while still allowing an automatically rolled-back transaction to
 // recover without an operator repairing Redis.
-func userAuthFenceTTLSeconds() int {
+func userCacheFenceTTLSeconds() int {
 	cacheTTL := userCacheTTLSeconds()
 	extra := max(cacheTTL, 60)
 	return cacheTTL + extra
@@ -71,15 +73,19 @@ if pending > incoming or committed > incoming or current > incoming then
   return 0
 end
 local concurrencyIncoming = tonumber(ARGV[14])
-local concurrencyCommitted = tonumber(redis.call('GET', KEYS[4]) or '0')
+local concurrencyPending = tonumber(redis.call('GET', KEYS[4]) or '0')
+local concurrencyCommitted = tonumber(redis.call('GET', KEYS[5]) or '0')
 local concurrencyCurrent = tonumber(redis.call('HGET', KEYS[1], 'ConcurrencyVersion') or '0')
-if concurrencyIncoming < concurrencyCommitted or concurrencyIncoming < concurrencyCurrent then
+if concurrencyPending > concurrencyIncoming or concurrencyCommitted > concurrencyIncoming or concurrencyCurrent > concurrencyIncoming then
   return -1
 end
 -- Keep the floor beyond user-hash expiry: arbitrarily delayed profile fills
 -- must never restore an older limit, including a previous unlimited value.
 if concurrencyCommitted < concurrencyIncoming then
-  redis.call('SET', KEYS[4], ARGV[14])
+  redis.call('SET', KEYS[5], ARGV[14])
+end
+if concurrencyPending > 0 and concurrencyPending <= concurrencyIncoming then
+  redis.call('DEL', KEYS[4])
 end
 if committed < incoming then
   redis.call('SET', KEYS[3], ARGV[1])
@@ -101,7 +107,7 @@ end
 redis.call('EXPIRE', KEYS[1], ARGV[12])
 return 1`
 	result, err := common.RDB.Eval(context.Background(), script,
-		[]string{getUserCacheKey(user.Id), getUserAuthFenceKey(user.Id), getUserAuthVersionKey(user.Id), getUserConcurrencyVersionKey(user.Id)},
+		[]string{getUserCacheKey(user.Id), getUserAuthFenceKey(user.Id), getUserAuthVersionKey(user.Id), getUserConcurrencyFenceKey(user.Id), getUserConcurrencyVersionKey(user.Id)},
 		user.AuthVersion, user.Id, user.Group, user.Email, user.Status, user.Role,
 		user.Username, user.Setting, user.CacheSchema, includeQuotaArg, user.Quota, ttl,
 		user.MaxConcurrency, user.ConcurrencyVersion,
@@ -118,28 +124,54 @@ return 1`
 	return nil
 }
 
-func getUserAuthVersionFloor(userId int) (int64, error) {
+func getUserCacheVersionFloors(userId int) (int64, int64, error) {
 	if !common.RedisEnabled {
-		return 0, nil
+		return 0, 0, nil
 	}
-	values, err := common.RDB.MGet(context.Background(), getUserAuthFenceKey(userId), getUserAuthVersionKey(userId)).Result()
+	values, err := common.RDB.MGet(context.Background(),
+		getUserAuthFenceKey(userId),
+		getUserAuthVersionKey(userId),
+		getUserConcurrencyFenceKey(userId),
+		getUserConcurrencyVersionKey(userId),
+	).Result()
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
-	var floor int64
-	for _, value := range values {
+	var floors [2]int64
+	for index, value := range values {
 		if value == nil {
 			continue
 		}
 		parsed, err := strconv.ParseInt(fmt.Sprint(value), 10, 64)
 		if err != nil {
-			return 0, err
+			return 0, 0, err
 		}
-		if parsed > floor {
-			floor = parsed
+		floorIndex := index / 2
+		if parsed > floors[floorIndex] {
+			floors[floorIndex] = parsed
 		}
 	}
-	return floor, nil
+	return floors[0], floors[1], nil
+}
+
+func getUserAuthVersionFloor(userId int) (int64, error) {
+	authFloor, _, err := getUserCacheVersionFloors(userId)
+	return authFloor, err
+}
+
+func setUserCacheVersionFence(key string, version int64) error {
+	const script = `
+local current = tonumber(redis.call('GET', KEYS[1]) or '0')
+local incoming = tonumber(ARGV[1])
+if current < incoming then
+  redis.call('SET', KEYS[1], ARGV[1], 'EX', ARGV[2])
+elseif current == incoming then
+  redis.call('EXPIRE', KEYS[1], ARGV[2])
+elseif redis.call('TTL', KEYS[1]) < 0 then
+  redis.call('EXPIRE', KEYS[1], ARGV[2])
+end
+return 1`
+	return common.RDB.Eval(context.Background(), script, []string{key}, version, userCacheFenceTTLSeconds()).Err()
 }
 
 // SetUserAuthVersionFence publishes a fail-closed version before a restrictive
@@ -153,18 +185,19 @@ func SetUserAuthVersionFence(userId int, authVersion int64) error {
 	if userId <= 0 || authVersion <= 0 {
 		return fmt.Errorf("invalid user auth fence")
 	}
-	const script = `
-local current = tonumber(redis.call('GET', KEYS[1]) or '0')
-local incoming = tonumber(ARGV[1])
-if current < incoming then
-  redis.call('SET', KEYS[1], ARGV[1], 'EX', ARGV[2])
-elseif current == incoming then
-  redis.call('EXPIRE', KEYS[1], ARGV[2])
-elseif redis.call('TTL', KEYS[1]) < 0 then
-  redis.call('EXPIRE', KEYS[1], ARGV[2])
-end
-return 1`
-	return common.RDB.Eval(context.Background(), script, []string{getUserAuthFenceKey(userId)}, authVersion, userAuthFenceTTLSeconds()).Err()
+	return setUserCacheVersionFence(getUserAuthFenceKey(userId), authVersion)
+}
+
+// SetUserConcurrencyVersionFence prevents a less restrictive cached limit
+// from surviving a stricter database update when the post-commit refresh fails.
+func SetUserConcurrencyVersionFence(userId int, concurrencyVersion int64) error {
+	if !common.RedisEnabled {
+		return nil
+	}
+	if userId <= 0 || concurrencyVersion <= 0 {
+		return fmt.Errorf("invalid user concurrency fence")
+	}
+	return setUserCacheVersionFence(getUserConcurrencyFenceKey(userId), concurrencyVersion)
 }
 
 // publishCommittedUserAuthVersion records the durable lower bound used to

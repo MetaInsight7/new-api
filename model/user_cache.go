@@ -1,7 +1,6 @@
 package model
 
 import (
-	"context"
 	"errors"
 	"fmt"
 
@@ -10,7 +9,6 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/dto"
 
 	"github.com/gin-gonic/gin"
-	"github.com/go-redis/redis/v8"
 )
 
 const userCacheSchemaVersion = 4
@@ -98,16 +96,22 @@ func GetUserCache(userId int) (*UserBase, error) {
 	}
 
 	// Redis misses and read failures both fall back to the shared database. A
-	// version fence newer than the database is the one exception: allowing that
-	// snapshot would re-authorize a user while a restrictive update is pending.
+	// version fence newer than the database is the one exception: accepting that
+	// snapshot would revive stale authorization or concurrency policy while a
+	// restrictive update is pending.
 	user, err := GetUserById(userId, false)
 	if err != nil {
 		return nil, err
 	}
 	if common.RedisEnabled {
-		floor, floorErr := getUserAuthVersionFloor(userId)
-		if floorErr == nil && floor > user.AuthVersion {
-			return nil, ErrUserAuthCachePending
+		authFloor, concurrencyFloor, floorErr := getUserCacheVersionFloors(userId)
+		if floorErr == nil {
+			if authFloor > user.AuthVersion {
+				return nil, ErrUserAuthCachePending
+			}
+			if concurrencyFloor > user.ConcurrencyVersion {
+				return nil, ErrUserConcurrencyCachePending
+			}
 		}
 		if err := populateUserCache(*user); err != nil {
 			if errors.Is(err, ErrUserAuthCachePending) || errors.Is(err, ErrUserConcurrencyCachePending) {
@@ -132,16 +136,12 @@ func cacheGetUserBase(userId int) (*UserBase, error) {
 	if userCache.Id != userId || userCache.CacheSchema != userCacheSchemaVersion || userCache.AuthVersion <= 0 || userCache.ConcurrencyVersion <= 0 {
 		return nil, fmt.Errorf("user cache schema is stale")
 	}
-	floor, err := getUserAuthVersionFloor(userId)
+	authFloor, concurrencyFloor, err := getUserCacheVersionFloors(userId)
 	if err != nil {
 		return nil, err
 	}
-	if floor > userCache.AuthVersion {
+	if authFloor > userCache.AuthVersion {
 		return nil, ErrUserAuthCachePending
-	}
-	concurrencyFloor, err := common.RDB.Get(context.Background(), getUserConcurrencyVersionKey(userId)).Int64()
-	if err != nil && !errors.Is(err, redis.Nil) {
-		return nil, err
 	}
 	if concurrencyFloor > userCache.ConcurrencyVersion {
 		return nil, ErrUserConcurrencyCachePending
