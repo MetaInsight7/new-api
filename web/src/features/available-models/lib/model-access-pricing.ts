@@ -84,25 +84,37 @@ export function getModelAccessPricing(
     const outputEntry = displayEntries.find(
       (entry) => entry.field === 'outputPrice'
     )
+    const cacheReadEntry = displayEntries.find(
+      (entry) => entry.unit === 'token' && entry.field === 'cacheReadPrice'
+    )
+    const cacheWriteEntry = displayEntries.find(
+      (entry) =>
+        entry.unit === 'token' &&
+        (entry.field === 'cacheCreatePrice' ||
+          entry.field === 'cacheCreate1hPrice' ||
+          entry.field === 'cacheCreate12hPrice')
+    )
+    const cachePrices: ModelAccessCachePrice[] = []
+    if (cacheReadEntry) {
+      cachePrices.push({
+        key: cacheReadEntry.field,
+        label: cacheReadEntry.shortLabel,
+        price: formattedPrice(cacheReadEntry),
+      })
+    }
+    if (cacheWriteEntry) {
+      cachePrices.push({
+        key: cacheWriteEntry.field,
+        label: 'Cache Write',
+        price: formattedPrice(cacheWriteEntry),
+      })
+    }
 
     return {
       requestPrice: requestEntry ? formattedPrice(requestEntry) : null,
       inputPrice: inputEntry ? formattedPrice(inputEntry) : null,
       outputPrice: outputEntry ? formattedPrice(outputEntry) : null,
-      cachePrices: displayEntries
-        .filter(
-          (entry) =>
-            entry.unit === 'token' &&
-            (entry.field === 'cacheReadPrice' ||
-              entry.field === 'cacheCreatePrice' ||
-              entry.field === 'cacheCreate1hPrice' ||
-              entry.field === 'cacheCreate12hPrice')
-        )
-        .map((entry) => ({
-          key: entry.field,
-          label: entry.shortLabel,
-          price: formattedPrice(entry),
-        })),
+      cachePrices,
       isTimePricing: dynamic.isTimePricing === true,
     }
   }

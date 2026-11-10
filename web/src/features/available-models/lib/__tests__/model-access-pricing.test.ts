@@ -97,6 +97,30 @@ describe('Available Models price display', () => {
     )
   })
 
+  test('shows only the first cache-write price without its duration', () => {
+    const pricing = getModelAccessPricing(
+      pricingModel({
+        billing_mode: 'tiered_expr',
+        billing_expr:
+          'tier("standard", p * 3 + cr * 0.18 + cc * 2.25 + cc1h * 3.6 + c * 9)',
+      })
+    )
+
+    expect(pricing.cachePrices).toHaveLength(2)
+    expect(pricing.cachePrices[0]).toMatchObject({
+      key: 'cacheReadPrice',
+      label: 'Cache Read',
+    })
+    expect(pricing.cachePrices[1]).toMatchObject({
+      key: 'cacheCreatePrice',
+      label: 'Cache Write',
+      price: expect.stringMatching(/\$?2\.25$/),
+    })
+    expect(pricing.cachePrices).not.toContainEqual(
+      expect.objectContaining({ key: 'cacheCreate1hPrice' })
+    )
+  })
+
   test('uses the first tier in the active time period', () => {
     const model = pricingModel({
       billing_mode: 'tiered_expr',
