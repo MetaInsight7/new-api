@@ -12,6 +12,10 @@ import (
 )
 
 func abortWithOpenAiMessage(c *gin.Context, statusCode int, message string, code ...types.ErrorCode) {
+	abortWithOpenAiMessageType(c, statusCode, message, "new_api_error", code...)
+}
+
+func abortWithOpenAiMessageType(c *gin.Context, statusCode int, message string, errorType string, code ...types.ErrorCode) {
 	codeStr := ""
 	if len(code) > 0 {
 		codeStr = string(code[0])
@@ -26,7 +30,7 @@ func abortWithOpenAiMessage(c *gin.Context, statusCode int, message string, code
 		c.JSON(statusCode, gin.H{
 			"error": gin.H{
 				"message": common.MessageWithRequestId(message, c.GetString(common.RequestIdKey)),
-				"type":    "new_api_error",
+				"type":    errorType,
 				"code":    codeStr,
 			},
 		})
