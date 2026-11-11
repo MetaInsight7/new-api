@@ -57,6 +57,7 @@ func TestDistributeChecksSensitiveWordsBeforeMissingChannel(t *testing.T) {
 	markers := []string{
 		"distributor-chat-sensitive-marker",
 		"distributor-responses-sensitive-marker",
+		"distributor-tool-result-sensitive-marker",
 		"distributor-claude-sensitive-marker",
 		"distributor-gemini-sensitive-marker",
 		"distributor-image-sensitive-marker",
@@ -101,6 +102,7 @@ func TestDistributeChecksSensitiveWordsBeforeMissingChannel(t *testing.T) {
 		path       string
 		body       string
 		claudeBody bool
+		geminiBody bool
 	}{
 		{
 			name: "chat completions", path: "/v1/chat/completions",
@@ -111,11 +113,15 @@ func TestDistributeChecksSensitiveWordsBeforeMissingChannel(t *testing.T) {
 			body: `{"model":"no-channel-responses","input":"distributor-responses-sensitive-marker"}`,
 		},
 		{
+			name: "responses tool result without new user text", path: "/v1/responses",
+			body: `{"model":"no-channel-responses","input":[{"type":"function_call_output","call_id":"call-1","output":"distributor-tool-result-sensitive-marker"}]}`,
+		},
+		{
 			name: "claude messages", path: "/v1/messages", claudeBody: true,
 			body: `{"model":"no-channel-claude","max_tokens":1,"messages":[{"role":"user","content":"distributor-claude-sensitive-marker"}]}`,
 		},
 		{
-			name: "gemini", path: "/v1beta/models/no-channel-gemini:generateContent",
+			name: "gemini", path: "/v1beta/models/no-channel-gemini:generateContent", geminiBody: true,
 			body: `{"contents":[{"role":"user","parts":[{"text":"distributor-gemini-sensitive-marker"}]}]}`,
 		},
 		{
@@ -149,6 +155,20 @@ func TestDistributeChecksSensitiveWordsBeforeMissingChannel(t *testing.T) {
 				assert.Equal(t, "invalid_request_error", response.Error.Type)
 				assert.Equal(t, i18n.Translate(i18n.LangEn, i18n.MsgSensitiveWordBlocked), response.Error.Message)
 				assert.NotEmpty(t, response.RequestID)
+				return
+			}
+			if testCase.geminiBody {
+				var response struct {
+					Error struct {
+						Code    int    `json:"code"`
+						Message string `json:"message"`
+						Status  string `json:"status"`
+					} `json:"error"`
+				}
+				require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+				assert.Equal(t, http.StatusBadRequest, response.Error.Code)
+				assert.Equal(t, "INVALID_ARGUMENT", response.Error.Status)
+				assert.Equal(t, i18n.Translate(i18n.LangEn, i18n.MsgSensitiveWordBlocked), response.Error.Message)
 				return
 			}
 			var response struct {
@@ -286,5 +306,29 @@ func TestWriteSensitiveWordRequestErrorUsesClaudePermissionEnvelope(t *testing.T
 	assert.Equal(t, "error", response.Type)
 	assert.Equal(t, "req-sensitive-auto-ban", response.RequestID)
 	assert.Equal(t, "permission_error", response.Error.Type)
+	assert.Equal(t, "account disabled", response.Error.Message)
+}
+
+func TestWriteSensitiveWordRequestErrorUsesGeminiPermissionEnvelope(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	context, _ := gin.CreateTestContext(recorder)
+	apiErr := newSensitiveWordRequestError(
+		"account disabled", "permission_error", types.ErrorCodeUserBanned, http.StatusForbidden,
+	)
+
+	writeSensitiveWordRequestError(context, types.RelayFormatGemini, apiErr)
+
+	require.Equal(t, http.StatusForbidden, recorder.Code)
+	var response struct {
+		Error struct {
+			Code    int    `json:"code"`
+			Message string `json:"message"`
+			Status  string `json:"status"`
+		} `json:"error"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	assert.Equal(t, http.StatusForbidden, response.Error.Code)
+	assert.Equal(t, "PERMISSION_DENIED", response.Error.Status)
 	assert.Equal(t, "account disabled", response.Error.Message)
 }

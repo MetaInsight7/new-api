@@ -199,7 +199,9 @@ func bumpSensitiveWordPolicyVersion(tx *gorm.DB, actor int) error {
 		return result.Error
 	}
 	if result.RowsAffected == 0 {
-		return gorm.ErrRecordNotFound
+		policy := defaultSensitiveWordPolicy()
+		policy.UpdatedBy = actor
+		return tx.Create(&policy).Error
 	}
 	return nil
 }

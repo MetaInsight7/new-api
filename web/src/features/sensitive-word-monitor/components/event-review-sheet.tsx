@@ -149,7 +149,7 @@ export function SensitiveWordEventReviewSheet(props: {
   const username = user?.username || event?.username || ''
   let confirmTitle = t('Sensitive-word unban')
   let confirmDescription = t(
-    'Enable this account and clear its sensitive-word violation count? Historical audits, balance, subscriptions, API keys, and usage records stay unchanged.'
+    'Reverse this sensitive-word automatic ban and clear the violation count? Historical audits, balance, subscriptions, API keys, and usage records stay unchanged.'
   )
   if (pendingAction === 'add_whitelist') {
     confirmTitle = t('Add to sensitive-word whitelist')
@@ -224,6 +224,11 @@ export function SensitiveWordEventReviewSheet(props: {
                   {t('Sensitive-word whitelist')}
                 </Badge>
               ) : null}
+              {user.sensitive_word_auto_banned ? (
+                <Badge variant='destructive'>
+                  {t('Sensitive-word automatic ban')}
+                </Badge>
+              ) : null}
             </div>
           </div>
         </div>
@@ -256,7 +261,8 @@ export function SensitiveWordEventReviewSheet(props: {
                 {t('Clear count')}
               </Button>
             ) : null}
-            {(user.sensitive_word_violation_count ?? 0) > 0 ? (
+            {user.status === USER_STATUS.DISABLED &&
+            user.sensitive_word_auto_banned ? (
               <Button
                 type='button'
                 size='sm'

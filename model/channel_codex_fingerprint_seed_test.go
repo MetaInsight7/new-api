@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 func setupCodexFingerprintSeedTestDB(t *testing.T) {
@@ -110,6 +111,28 @@ func TestEnsureCodexFingerprintSeedConvergesConcurrentCallers(t *testing.T) {
 		}
 	}
 	require.NotEmpty(t, observed)
+}
+
+func TestEnsureCodexFingerprintSeedStopsAfterRepeatedConflicts(t *testing.T) {
+	setupCodexFingerprintSeedTestDB(t)
+	channel := insertFingerprintSeedTestChannel(t, constant.ChannelTypeCodex, common.ChannelStatusEnabled, "")
+
+	const callbackName = "test:codex-fingerprint-seed-conflict"
+	require.NoError(t, DB.Callback().Update().Before("gorm:update").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement.Table != "channels" {
+			return
+		}
+		tx.Statement.AddClause(clause.Where{Exprs: []clause.Expression{
+			clause.Expr{SQL: "1 = 0"},
+		}})
+	}))
+	t.Cleanup(func() { require.NoError(t, DB.Callback().Update().Remove(callbackName)) })
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	DB = DB.WithContext(ctx)
+	_, err := EnsureCodexFingerprintSeed(channel.Id)
+	require.ErrorContains(t, err, "codex fingerprint seed changed concurrently")
 }
 
 func TestCodexFingerprintSeedLifecycleDefaultsAndIsolation(t *testing.T) {

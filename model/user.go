@@ -88,6 +88,7 @@ type User struct {
 	Status                      int                        `json:"status" gorm:"type:int;default:1"` // enabled, disabled
 	SensitiveWordViolationCount int                        `json:"sensitive_word_violation_count" gorm:"type:int;not null;default:0;column:sensitive_word_violation_count"`
 	SensitiveWordWhitelist      bool                       `json:"sensitive_word_whitelist" gorm:"not null;default:false;column:sensitive_word_whitelist"`
+	SensitiveWordAutoBanned     bool                       `json:"sensitive_word_auto_banned" gorm:"not null;column:sensitive_word_auto_banned"`
 	Email                       string                     `json:"email" gorm:"index" validate:"max=50"`
 	GitHubId                    string                     `json:"github_id" gorm:"column:github_id;index"`
 	DiscordId                   string                     `json:"discord_id" gorm:"column:discord_id;index"`
@@ -823,6 +824,49 @@ func (user *User) Update(updatePassword bool) error {
 	return nil
 }
 
+// SetStatusByAdministrator records an explicit account-status decision. An
+// administrator choosing either status takes ownership away from any earlier
+// sensitive-word automatic ban, so the feature-specific unban path cannot
+// later override that decision.
+func (user *User) SetStatusByAdministrator(status int) error {
+	if status != common.UserStatusEnabled && status != common.UserStatusDisabled {
+		return common.NewMessage("Invalid parameters")
+	}
+	var authChanged bool
+	if err := DB.Transaction(func(tx *gorm.DB) error {
+		var current User
+		if err := lockForUpdate(tx).First(&current, user.Id).Error; err != nil {
+			return err
+		}
+		updates := map[string]any{
+			"status":                     status,
+			"sensitive_word_auto_banned": false,
+		}
+		authChanged = current.Status != status
+		if authChanged {
+			nextVersion, err := IncrementUserAuthVersionWithTx(tx, user.Id)
+			if err != nil {
+				return err
+			}
+			updates["auth_version"] = nextVersion
+		}
+		if err := tx.Model(&current).Updates(updates).Error; err != nil {
+			return err
+		}
+		return tx.First(user, user.Id).Error
+	}); err != nil {
+		return err
+	}
+	if err := updateUserCache(*user); err != nil {
+		return err
+	}
+	if authChanged {
+		_, err := RevokeAllUserSessions(user.Id, "user_security_changed")
+		return err
+	}
+	return nil
+}
+
 func (user *User) UpdateWithTx(tx *gorm.DB, updatePassword bool) error {
 	var err error
 	if updatePassword {
@@ -862,6 +906,7 @@ func (user *User) UpdateWithTx(tx *gorm.DB, updatePassword bool) error {
 		"concurrency_version",
 		"sensitive_word_violation_count",
 		"sensitive_word_whitelist",
+		"sensitive_word_auto_banned",
 	).Updates(newUser).Error; err != nil {
 		return err
 	}

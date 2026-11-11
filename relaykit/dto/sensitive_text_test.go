@@ -229,7 +229,7 @@ func TestClaudeSensitiveTextFieldsKeepToolActivityInUserRound(t *testing.T) {
     {"role":"user","content":[{"type":"text","text":"claude-user-one"},{"type":"image","source":{"type":"base64","media_type":"image/png","data":"claude-media-marker"}}]},
     {"role":"assistant","content":[{"type":"text","text":"claude-assistant"},{"type":"tool_use","id":"claude-tool-id","name":"structural-tool-name","input":{"query":"claude-tool-argument","id":"claude-argument-id"}}]},
     {"role":"user","content":[{"type":"tool_result","tool_use_id":"claude-tool-id","content":[{"type":"text","text":"claude-tool-result"},{"type":"image","source":{"type":"base64","data":"claude-result-media-marker"}}]}]},
-    {"role":"user","content":"claude-user-two"}
+	    {"role":"user","content":[{"type":"text","text":"claude-user-two"},{"type":"document","source":{"type":"text","data":"claude-document-text"}},{"type":"document","source":{"type":"base64","media_type":"application/pdf","data":"claude-document-base64-marker"}}]}
   ]
 }`)
 	var request ClaudeRequest
@@ -239,14 +239,14 @@ func TestClaudeSensitiveTextFieldsKeepToolActivityInUserRound(t *testing.T) {
 	for _, marker := range []string{
 		"claude-system", "claude-output-description", "claude-tool-description", "claude-parameter-description",
 		"claude-user-one", "claude-assistant", "claude-tool-argument",
-		"claude-tool-result", "claude-user-two",
+		"claude-tool-result", "claude-user-two", "claude-document-text",
 	} {
 		require.Contains(t, joined, marker)
 	}
 	for _, marker := range []string{
 		"claude-metadata-id", "structural-tool-name", "claude-media-marker",
 		"claude-structural-effort", "claude-structural-schema-name",
-		"claude-tool-id", "claude-argument-id", "claude-result-media-marker",
+		"claude-tool-id", "claude-argument-id", "claude-result-media-marker", "claude-document-base64-marker",
 	} {
 		require.NotContains(t, joined, marker)
 	}

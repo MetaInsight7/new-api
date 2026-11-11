@@ -277,7 +277,8 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
 
         {canManageSensitiveWords &&
           !isRoot &&
-          (user.sensitive_word_violation_count ?? 0) > 0 && (
+          isDisabled &&
+          user.sensitive_word_auto_banned === true && (
             <DropdownMenuItem
               onSelect={(event) => {
                 event.preventDefault()
@@ -404,7 +405,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
         onOpenChange={setSensitiveUnbanOpen}
         title={t('Sensitive-word unban')}
         desc={t(
-          'Enable this account and clear its sensitive-word violation count? Historical audits, balance, subscriptions, API keys, and usage records stay unchanged.'
+          'Reverse this sensitive-word automatic ban and clear the violation count? Historical audits, balance, subscriptions, API keys, and usage records stay unchanged.'
         )}
         confirmText={t('Unban and clear count')}
         handleConfirm={() => void handleSensitiveWordUnban()}

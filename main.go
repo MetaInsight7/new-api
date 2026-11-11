@@ -342,6 +342,12 @@ func InitResources() error {
 		if err := model.MigrateRetiredFrontendOptions(); err != nil {
 			common.SysError(common.LogText("failed to migrate retired frontend options: %s", err.Error()))
 		}
+		deleted, err := model.CleanupRetiredCodexModelGovernanceOptions()
+		if err != nil {
+			common.SysError(common.LogText("failed to clean up retired Codex model governance options: %s", err.Error()))
+		} else if deleted > 0 {
+			common.SysLog(common.LogText("cleaned up %d retired Codex model governance options", deleted))
+		}
 	}
 	model.InitOptionMap()
 

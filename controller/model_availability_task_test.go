@@ -181,18 +181,22 @@ func TestSaveModelAvailabilityProbeResultRequiresConsecutiveUnsupportedResults(t
 	require.Equal(t, model.ModelAvailabilityUnknownFailure, state.Status)
 	require.Equal(t, "official_model_unsupported_candidate", state.ReasonType)
 	require.Equal(t, 1, state.ConsecutiveFailures)
+	require.NotZero(t, state.FirstDetectedAt)
+	firstDetectedAt := state.FirstDetectedAt
 
 	require.NoError(t, saveModelAvailabilityProbeResult("model-under-test", first))
 	state, err = model.GetModelAvailabilityState("model-under-test")
 	require.NoError(t, err)
 	require.Equal(t, model.ModelAvailabilityOfficialUnsupported, state.Status)
 	require.Equal(t, 2, state.ConsecutiveFailures)
+	require.Equal(t, firstDetectedAt, state.FirstDetectedAt)
 
 	require.NoError(t, saveModelAvailabilityProbeResult("model-under-test", modelProbeOutcome{Class: modelProbeAvailable}))
 	state, err = model.GetModelAvailabilityState("model-under-test")
 	require.NoError(t, err)
 	require.Equal(t, model.ModelAvailabilityAvailable, state.Status)
 	require.Zero(t, state.ConsecutiveFailures)
+	require.Zero(t, state.FirstDetectedAt)
 }
 
 func TestModelAvailabilityProbeInterval(t *testing.T) {

@@ -171,5 +171,9 @@ func writeSensitiveWordRequestError(c *gin.Context, format types.RelayFormat, ap
 		c.JSON(apiErr.StatusCode, response)
 		return
 	}
+	if format == types.RelayFormatGemini {
+		c.JSON(apiErr.StatusCode, gin.H{"error": service.GeminiErrorFromNewAPIError(apiErr)})
+		return
+	}
 	c.JSON(apiErr.StatusCode, gin.H{"error": openAIError})
 }

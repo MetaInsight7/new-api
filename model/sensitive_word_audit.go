@@ -193,11 +193,14 @@ func CheckSensitiveRequestForGroups(input SensitiveCheckInput, candidateGroups [
 	var event SensitiveWordAuditEvent
 	var existingEvent *SensitiveWordAuditEvent
 	authStateChanged := false
+	whitelistStatusKnown := false
 	err = DB.Transaction(func(tx *gorm.DB) error {
 		var user User
 		if err := lockForUpdate(tx).First(&user, input.UserID).Error; err != nil {
 			return err
 		}
+		result.WhitelistBypassed = user.SensitiveWordWhitelist
+		whitelistStatusKnown = true
 		var prior SensitiveWordAuditEvent
 		if err := tx.Where("request_id = ? AND user_id = ?", input.RequestID, input.UserID).
 			Order("id asc").First(&prior).Error; err == nil {
@@ -212,14 +215,8 @@ func CheckSensitiveRequestForGroups(input SensitiveCheckInput, candidateGroups [
 		result.QuotaBefore = user.Quota
 		result.QuotaAfter = user.Quota
 		result.WhitelistBypassed = user.SensitiveWordWhitelist
-		result.Blocked = decision.Blocking && !user.SensitiveWordWhitelist
+		applySensitiveWordDisposition(result, decision.Blocking, true)
 		result.Counted = result.Blocked
-		result.Disposition = "observe"
-		if user.SensitiveWordWhitelist {
-			result.Disposition = "whitelist_bypass"
-		} else if result.Blocked {
-			result.Disposition = "block"
-		}
 		if result.Counted {
 			result.ViolationCount = user.SensitiveWordViolationCount + 1
 			updates := map[string]any{"sensitive_word_violation_count": result.ViolationCount}
@@ -232,6 +229,7 @@ func CheckSensitiveRequestForGroups(input SensitiveCheckInput, candidateGroups [
 				}
 				updates["status"] = common.UserStatusDisabled
 				updates["auth_version"] = nextVersion
+				updates["sensitive_word_auto_banned"] = true
 				result.UserStatusAfter = common.UserStatusDisabled
 				authStateChanged = true
 			}
@@ -273,7 +271,14 @@ func CheckSensitiveRequestForGroups(input SensitiveCheckInput, candidateGroups [
 		result.Counted = false
 		result.ViolationCount = 0
 		result.AuditID = 0
-		result.Blocked = decision.Blocking
+		if !whitelistStatusKnown {
+			var user User
+			if lookupErr := DB.Select("sensitive_word_whitelist").First(&user, input.UserID).Error; lookupErr == nil {
+				result.WhitelistBypassed = user.SensitiveWordWhitelist
+				whitelistStatusKnown = true
+			}
+		}
+		applySensitiveWordDisposition(result, decision.Blocking, whitelistStatusKnown)
 		return result, err
 	}
 	if existingEvent != nil {
@@ -286,6 +291,16 @@ func CheckSensitiveRequestForGroups(input SensitiveCheckInput, candidateGroups [
 	}
 	writeSensitiveWordUsageLog(input, event, result)
 	return result, nil
+}
+
+func applySensitiveWordDisposition(result *SensitiveCheckResult, blocking, whitelistStatusKnown bool) {
+	result.Blocked = blocking && (!whitelistStatusKnown || !result.WhitelistBypassed)
+	result.Disposition = "observe"
+	if result.WhitelistBypassed {
+		result.Disposition = "whitelist_bypass"
+	} else if result.Blocked {
+		result.Disposition = "block"
+	}
 }
 
 func marshalSensitiveAuditJSON(value any) (SensitiveWordAuditJSON, error) {
@@ -614,9 +629,9 @@ func trimSensitivePromptBytes(value string, maxBytes int) string {
 	return value
 }
 
-// EnableUserAndResetSensitiveWordViolations is the only unban path owned by
-// this feature. It never touches quota, usage, subscriptions, wallets, or
-// historical audit rows.
+// EnableUserAndResetSensitiveWordViolations only reverses an account disable
+// owned by sensitive-word automatic enforcement. It never touches quota,
+// usage, subscriptions, wallets, or historical audit rows.
 func EnableUserAndResetSensitiveWordViolations(userID int) (*SensitiveWordEnableResetResult, error) {
 	if userID <= 0 {
 		return nil, common.NewMessage("Invalid user ID")
@@ -626,6 +641,9 @@ func EnableUserAndResetSensitiveWordViolations(userID int) (*SensitiveWordEnable
 		var current User
 		if err := lockForUpdate(tx).First(&current, userID).Error; err != nil {
 			return err
+		}
+		if current.Status != common.UserStatusDisabled || !current.SensitiveWordAutoBanned {
+			return common.NewMessage("Only accounts disabled by sensitive-word automatic enforcement can be unbanned here")
 		}
 		result.StatusBefore = current.Status
 		result.StatusAfter = common.UserStatusEnabled
@@ -637,24 +655,20 @@ func EnableUserAndResetSensitiveWordViolations(userID int) (*SensitiveWordEnable
 		result.QuotaAfter = current.Quota
 		result.UsedQuotaBefore = current.UsedQuota
 		result.UsedQuotaAfter = current.UsedQuota
-		result.StatusChanged = current.Status != common.UserStatusEnabled
+		result.StatusChanged = true
 		result.ViolationCountReset = current.SensitiveWordViolationCount != 0
 
 		updates := map[string]any{
 			"status": common.UserStatusEnabled, "sensitive_word_violation_count": 0,
+			"sensitive_word_auto_banned": false,
 		}
-		if result.StatusChanged {
-			nextVersion, err := IncrementUserAuthVersionWithTx(tx, userID)
-			if err != nil {
-				return err
-			}
-			result.AuthVersionAfter = nextVersion
-			updates["auth_version"] = nextVersion
+		nextVersion, err := IncrementUserAuthVersionWithTx(tx, userID)
+		if err != nil {
+			return err
 		}
-		if result.StatusChanged || result.ViolationCountReset {
-			return tx.Model(&User{}).Where("id = ?", userID).Updates(updates).Error
-		}
-		return nil
+		result.AuthVersionAfter = nextVersion
+		updates["auth_version"] = nextVersion
+		return tx.Model(&User{}).Where("id = ?", userID).Updates(updates).Error
 	})
 	if err != nil {
 		return nil, err

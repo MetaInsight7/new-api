@@ -61,7 +61,10 @@ export function SensitiveWordMonitor() {
           <span>{t('Sensitive-word monitor')}</span>
           <span className='text-muted-foreground truncate text-xs font-normal'>
             {generatedAt
-              ? t('Generated {{time}} · Asia/Shanghai', { time: generatedAt })
+              ? t('Generated {{time}} · {{timezone}}', {
+                  time: generatedAt,
+                  timezone: dashboardQuery.data?.timezone,
+                })
               : t('Policy matches, enforcement, and audit traceability')}
           </span>
         </span>

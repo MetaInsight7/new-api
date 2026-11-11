@@ -64,9 +64,6 @@ func SaveModelAvailabilityState(next *ModelAvailabilityState) error {
 		}
 		return DB.Create(next).Error
 	}
-	if next.FirstDetectedAt == 0 {
-		next.FirstDetectedAt = existing.FirstDetectedAt
-	}
 	next.CreatedTime = existing.CreatedTime
 	return DB.Model(&ModelAvailabilityState{}).
 		Where("model_name = ?", next.ModelName).

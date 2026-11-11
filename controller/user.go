@@ -409,6 +409,7 @@ func hideSensitiveWordUserSafetyState(c *gin.Context, users []*model.User) {
 	for _, user := range users {
 		user.SensitiveWordViolationCount = 0
 		user.SensitiveWordWhitelist = false
+		user.SensitiveWordAutoBanned = false
 	}
 }
 
@@ -1257,6 +1258,11 @@ func ManageUser(c *gin.Context) {
 			return
 		}
 		if _, err := model.RevokeAllUserSessions(user.Id, "admin_demote"); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	} else if req.Action == "enable" || req.Action == "disable" {
+		if err := user.SetStatusByAdministrator(user.Status); err != nil {
 			common.ApiError(c, err)
 			return
 		}

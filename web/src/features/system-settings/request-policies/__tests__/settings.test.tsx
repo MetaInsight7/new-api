@@ -257,6 +257,62 @@ describe('request policy settings', () => {
     expect(api.patch).not.toHaveBeenCalled()
   })
 
+  it('confirms before changing a sensitive-word rule to blocking mode', async () => {
+    sensitiveWordRules = [
+      {
+        id: 7,
+        name: 'Observe first',
+        scope: 'global',
+        mode: 'observe',
+        groups: [],
+        word_count: 1,
+        created_by: 1,
+        version: 1,
+        created_at: '2026-11-11T00:00:00Z',
+        updated_at: '2026-11-11T00:00:00Z',
+      },
+    ]
+    await renderPolicies('/system-settings/request-policies/filtering')
+
+    await userEvent.click(await screen.findByRole('combobox'))
+    await userEvent.click(screen.getByRole('option', { name: 'Block' }))
+
+    expect(
+      await screen.findByRole('alertdialog', { name: 'Enable blocking mode' })
+    ).toBeVisible()
+    expect(api.patch).not.toHaveBeenCalled()
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Enable blocking' })
+    )
+    await waitFor(() =>
+      expect(api.patch).toHaveBeenCalledWith(
+        '/api/sensitive-words/rules/7/mode',
+        { mode: 'block' }
+      )
+    )
+  })
+
+  it('marks over-limit sensitive words invalid and prevents saving', async () => {
+    await renderPolicies('/system-settings/request-policies/filtering')
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Add rule' })
+    )
+
+    await userEvent.type(
+      await screen.findByRole('textbox', { name: 'Rule name' }),
+      'Over-limit rule'
+    )
+    const words = screen.getByRole('textbox', { name: 'Words' })
+    fireEvent.change(words, { target: { value: 'x'.repeat(201) } })
+
+    expect(words).toHaveAttribute('aria-invalid', 'true')
+    expect(
+      screen.getByText(/Sensitive word on line 1 exceeds 200 characters/)
+    ).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Save rule' })).toBeDisabled()
+  })
+
   it.each([
     [
       'health',

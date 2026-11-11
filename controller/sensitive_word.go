@@ -221,16 +221,12 @@ func GetSensitiveWordAudit(c *gin.Context) {
 		return
 	}
 	if c.GetInt("role") != common.RoleRootUser {
-		subjectRole := event.UserRole
-		if subjectRole == 0 {
-			var subject model.User
-			if err := model.DB.Select("role").First(&subject, event.UserID).Error; err != nil {
-				common.ApiErrorStatus(c, http.StatusForbidden, common.NewMessage("No permission to view this audit evidence"))
-				return
-			}
-			subjectRole = subject.Role
+		var subject model.User
+		if err := model.DB.Select("role").First(&subject, event.UserID).Error; err != nil {
+			common.ApiErrorStatus(c, http.StatusForbidden, common.NewMessage("No permission to view this audit evidence"))
+			return
 		}
-		if subjectRole == common.RoleRootUser {
+		if subject.Role == common.RoleRootUser {
 			common.ApiErrorStatus(c, http.StatusForbidden, common.NewMessage("No permission to view this audit evidence"))
 			return
 		}

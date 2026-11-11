@@ -178,6 +178,16 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 					response["request_id"] = requestId
 				}
 				c.JSON(newAPIError.StatusCode, response)
+			case types.RelayFormatGemini:
+				if sensitiveWordError {
+					c.JSON(newAPIError.StatusCode, gin.H{
+						"error": service.GeminiErrorFromNewAPIError(newAPIError),
+					})
+					break
+				}
+				openAIError := newAPIError.ToOpenAIError(upstreamURLs...)
+				openAIError.Message = common.MaskSensitiveInfo(newAPIError.Error(), upstreamURLs...)
+				c.JSON(newAPIError.StatusCode, gin.H{"error": openAIError})
 			default:
 				openAIError := newAPIError.ToOpenAIError(upstreamURLs...)
 				openAIError.Message = common.MaskSensitiveInfo(newAPIError.Error(), upstreamURLs...)

@@ -158,6 +158,7 @@ func withSensitiveWordMatrixDB(t *testing.T, db *gorm.DB, dialect common.Databas
 
 func migrateSensitiveWordCurrentSchema(t *testing.T, db *gorm.DB) {
 	t.Helper()
+	require.NoError(t, prepareSensitiveWordAutoBanOwnershipMigration(db))
 	require.NoError(t, db.AutoMigrate(
 		&Option{}, &User{}, &UserSession{}, &Log{},
 		&SensitiveWordRule{}, &SensitiveWordRuleWord{}, &SensitiveWordRuleGroup{},
@@ -182,6 +183,22 @@ func requireSensitiveWordPromptColumn(t *testing.T, db *gorm.DB, dialect string)
 		return
 	}
 	t.Fatalf("full_prompt column not found")
+}
+
+func requireSensitiveWordAutoBanColumnNotNull(t *testing.T, db *gorm.DB) {
+	t.Helper()
+	columns, err := db.Migrator().ColumnTypes(&User{})
+	require.NoError(t, err)
+	for _, column := range columns {
+		if !strings.EqualFold(column.Name(), "sensitive_word_auto_banned") {
+			continue
+		}
+		nullable, known := column.Nullable()
+		require.True(t, known)
+		require.False(t, nullable)
+		return
+	}
+	t.Fatal("sensitive_word_auto_banned column not found")
 }
 
 func TestSensitiveWordDatabaseMigrationMatrix(t *testing.T) {
@@ -214,6 +231,7 @@ func TestSensitiveWordDatabaseMigrationMatrix(t *testing.T) {
 				require.Equal(t, 180, policy.FullPromptRetentionDays)
 				require.Equal(t, SensitiveWordMaxPromptRunes, policy.MaxPromptRunes)
 				requireSensitiveWordPromptColumn(t, db, database.name)
+				requireSensitiveWordAutoBanColumnNotNull(t, db)
 			})
 
 			t.Run("dashboard_query", func(t *testing.T) {
@@ -249,14 +267,18 @@ func TestSensitiveWordDatabaseMigrationMatrix(t *testing.T) {
 					Status: common.UserStatusEnabled, Group: "default", AffCode: "rc40-aff",
 				}).Error)
 				migrateSensitiveWordCurrentSchema(t, db)
+				migrateSensitiveWordCurrentSchema(t, db)
 				require.NoError(t, MigrateSensitiveWordData())
 				require.NoError(t, MigrateSensitiveWordData())
 				require.True(t, db.Migrator().HasColumn(&User{}, "sensitive_word_violation_count"))
 				require.True(t, db.Migrator().HasColumn(&User{}, "sensitive_word_whitelist"))
+				require.True(t, db.Migrator().HasColumn(&User{}, "sensitive_word_auto_banned"))
 				var user User
 				require.NoError(t, db.First(&user, 1).Error)
 				require.Zero(t, user.SensitiveWordViolationCount)
 				require.False(t, user.SensitiveWordWhitelist)
+				require.False(t, user.SensitiveWordAutoBanned)
+				requireSensitiveWordAutoBanColumnNotNull(t, db)
 			})
 
 			t.Run("initial_p30_upgrade", func(t *testing.T) {

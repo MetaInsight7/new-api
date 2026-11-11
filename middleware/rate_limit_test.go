@@ -87,8 +87,6 @@ func TestPrometheusMetricsAuthentication(testContext *testing.T) {
 				assert.NotContains(testContext, recorder.Body.String(), "monitor-secret")
 				return recorder
 			}
-			assert.Equal(testContext, http.StatusNoContent, request("127.0.0.1:1234", "").Code)
-			assert.Equal(testContext, http.StatusNoContent, request("[::1]:1234", "").Code)
 			assert.Equal(testContext, http.StatusNoContent, request(address, "Bearer monitor-secret").Code)
 			assert.Equal(testContext, http.StatusNoContent, request(address, "bearer monitor-secret").Code)
 			for tokenIndex, token := range []string{"", "Basic monitor-secret", "Bearer monitor-secret extra"} {
@@ -100,8 +98,35 @@ func TestPrometheusMetricsAuthentication(testContext *testing.T) {
 			assert.Equal(testContext, http.StatusNoContent, request(address, "Bearer monitor-secret").Code)
 			testContext.Setenv(PrometheusMetricsTokenEnv, " ")
 			assert.Equal(testContext, http.StatusServiceUnavailable, request(address, "Bearer monitor-secret").Code)
-			assert.Equal(testContext, http.StatusNoContent, request("127.0.0.1:1234", "").Code)
 		})
+	}
+}
+
+func TestPrometheusMetricsAuthenticationRequiresTokenForLoopback(testContext *testing.T) {
+	gin.SetMode(gin.TestMode)
+	useRateLimitMiniRedis(testContext)
+	testContext.Setenv(PrometheusMetricsTokenEnv, "monitor-secret")
+	testContext.Setenv("PROMETHEUS_METRICS_RATE_LIMIT", "2")
+	testContext.Setenv("PROMETHEUS_METRICS_RATE_LIMIT_DURATION", "60")
+	router := gin.New()
+	require.NoError(testContext, router.SetTrustedProxies(nil))
+	router.GET("/metrics", PrometheusMetricsAuth(), func(c *gin.Context) { c.Status(http.StatusNoContent) })
+	request := func(address, token string) *httptest.ResponseRecorder {
+		recorder := httptest.NewRecorder()
+		incoming := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+		incoming.RemoteAddr = address
+		incoming.Header.Set("Authorization", token)
+		router.ServeHTTP(recorder, incoming)
+		return recorder
+	}
+
+	for _, address := range []string{"127.0.0.1:1234", "[::1]:1234"} {
+		assert.Equal(testContext, http.StatusUnauthorized, request(address, "").Code)
+		assert.Equal(testContext, http.StatusNoContent, request(address, "Bearer monitor-secret").Code)
+	}
+	testContext.Setenv(PrometheusMetricsTokenEnv, " ")
+	for _, address := range []string{"127.0.0.1:1234", "[::1]:1234"} {
+		assert.Equal(testContext, http.StatusServiceUnavailable, request(address, "").Code)
 	}
 }
 

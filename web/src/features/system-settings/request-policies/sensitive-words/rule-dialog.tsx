@@ -47,12 +47,13 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { handleServerError } from '@/lib/handle-server-error'
 
 import { saveSensitiveWordRule } from './api'
 import {
+  analyzeSensitiveWordDraft,
   findSensitiveWordMatches,
   getNextSensitiveWordMatchIndex,
-  parseSensitiveWordDraftWords,
 } from './draft-search'
 import {
   emptySensitiveWordRuleDraft,
@@ -104,11 +105,26 @@ export function SensitiveWordRuleDialog({
     )
   }, [rule, open])
 
-  const draftWords = useMemo(
-    () => parseSensitiveWordDraftWords(draft.wordsText),
+  const draftAnalysis = useMemo(
+    () => analyzeSensitiveWordDraft(draft.wordsText),
     [draft.wordsText]
   )
-  const wordCount = draftWords.length
+  const wordCount = draftAnalysis.words.length
+  let draftIssueMessage: string | null = null
+  if (draftAnalysis.issue?.kind === 'word_too_long') {
+    draftIssueMessage = t(
+      'Sensitive word on line {{line}} exceeds {{max}} characters',
+      {
+        line: draftAnalysis.issue.line,
+        max: draftAnalysis.issue.max,
+      }
+    )
+  } else if (draftAnalysis.issue?.kind === 'too_many_words') {
+    draftIssueMessage = t(
+      'A rule can contain at most {{max}} sensitive words after trimming and deduplication',
+      { max: draftAnalysis.issue.max }
+    )
+  }
   const searchMatches = useMemo(
     () => findSensitiveWordMatches(draft.wordsText, search),
     [draft.wordsText, search]
@@ -228,6 +244,7 @@ export function SensitiveWordRuleDialog({
     if (
       !draft.name.trim() ||
       wordCount === 0 ||
+      draftAnalysis.issue !== null ||
       (draft.scope === 'group' && draft.groups.length === 0)
     ) {
       return
@@ -237,8 +254,8 @@ export function SensitiveWordRuleDialog({
       await saveSensitiveWordRule(draft)
       await onSaved()
       onOpenChange(false)
-    } catch {
-      toast.error(t('Unable to save sensitive-word rule'))
+    } catch (error) {
+      handleServerError(error, t('Unable to save sensitive-word rule'))
     } finally {
       setSaving(false)
     }
@@ -269,6 +286,7 @@ export function SensitiveWordRuleDialog({
               saving ||
               !draft.name.trim() ||
               wordCount === 0 ||
+              draftAnalysis.issue !== null ||
               (draft.scope === 'group' && draft.groups.length === 0)
             }
           >
@@ -391,6 +409,8 @@ export function SensitiveWordRuleDialog({
             ref={wordsTextarea}
             rows={8}
             value={draft.wordsText}
+            aria-invalid={draftAnalysis.issue !== null}
+            aria-describedby='sensitive-rule-words-help'
             onChange={(event) =>
               setDraft((current) => ({
                 ...current,
@@ -399,10 +419,18 @@ export function SensitiveWordRuleDialog({
             }
             placeholder={t('One word per line')}
           />
-          <p className='text-muted-foreground text-xs'>
+          <p
+            id='sensitive-rule-words-help'
+            className={
+              draftIssueMessage
+                ? 'text-destructive text-xs'
+                : 'text-muted-foreground text-xs'
+            }
+          >
             {t('{{count}} words after trimming and deduplication', {
               count: wordCount,
             })}
+            {draftIssueMessage ? ` · ${draftIssueMessage}` : null}
           </p>
         </div>
         <div className='grid gap-4 sm:grid-cols-2'>

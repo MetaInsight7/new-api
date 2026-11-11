@@ -107,9 +107,10 @@ export function affectedSensitiveWordUser() {
     id: 7,
     username: 'alice',
     role: ROLE.USER,
-    status: 1,
+    status: 2,
     sensitive_word_violation_count: 3,
     sensitive_word_whitelist: false,
+    sensitive_word_auto_banned: true,
   }
 }
 

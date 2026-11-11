@@ -667,7 +667,10 @@ func ValidCodexFingerprintSeed(seed string) bool {
 	return validCodexFingerprintSeed(seed)
 }
 
-const codexFingerprintSeedBackfillBatchSize = 200
+const (
+	codexFingerprintSeedBackfillBatchSize = 200
+	codexFingerprintSeedRepairAttempts    = 3
+)
 
 func (channel *Channel) prepareCodexFingerprintSeedForInsert() {
 	if channel.Type != constant.ChannelTypeCodex || channel.Status != common.ChannelStatusEnabled {
@@ -702,7 +705,7 @@ func repairCodexFingerprintSeed(db *gorm.DB, channel *Channel) (bool, error) {
 }
 
 func ensureCodexFingerprintSeedTx(tx *gorm.DB, channelID int) (string, error) {
-	for attempt := 0; attempt < 3; attempt++ {
+	for range codexFingerprintSeedRepairAttempts {
 		var channel Channel
 		if err := tx.Select("codex_fingerprint_seed").First(&channel, "id = ?", channelID).Error; err != nil {
 			return "", err
@@ -728,7 +731,7 @@ func ensureCodexFingerprintSeedTx(tx *gorm.DB, channelID int) (string, error) {
 // EnsureCodexFingerprintSeed repairs one enabled Codex channel using a
 // compare-and-swap update, so concurrent requests converge on one seed.
 func EnsureCodexFingerprintSeed(channelID int) (string, error) {
-	for {
+	for range codexFingerprintSeedRepairAttempts {
 		var channel Channel
 		if err := DB.Select("id", "type", "status", "codex_fingerprint_seed").
 			First(&channel, "id = ?", channelID).Error; err != nil {
@@ -751,6 +754,7 @@ func EnsureCodexFingerprintSeed(channelID int) (string, error) {
 			return channel.CodexFingerprintSeed, nil
 		}
 	}
+	return "", errors.New("codex fingerprint seed changed concurrently")
 }
 
 // BackfillCodexFingerprintSeeds repairs only enabled Codex channels. It is

@@ -341,9 +341,11 @@ func waitPerfCounters(t *testing.T, wantRequests int64) (requests, successes int
 func responsesPrometheusCounters(testContext *testing.T) (requests, successes int64) {
 	testContext.Helper()
 	testContext.Setenv("PROMETHEUS_MAX_SERIES_PER_SCRAPE", "0")
+	testContext.Setenv(middleware.PrometheusMetricsTokenEnv, "monitor-secret")
 	router := gin.New()
 	router.GET("/metrics", middleware.PrometheusMetricsAuth(), GetPrometheusMetrics)
 	request := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	request.Header.Set("Authorization", "Bearer monitor-secret")
 	request.RemoteAddr = "127.0.0.1:1234"
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, request)

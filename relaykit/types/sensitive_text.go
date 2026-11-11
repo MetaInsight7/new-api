@@ -30,11 +30,11 @@ const SensitiveTextContextRound = -1
 
 // SensitiveTextField is one ordered piece of model-visible request text.
 // Conversation is zero for ordinary requests and separates independent items
-// in a batch. Round starts at zero for each conversation's first user input;
-// system and developer context use SensitiveTextContextRound and tool activity
-// stays in its user round. Turn-boundary fields carry no request text; they
-// preserve text-free user turns for latest-round selection and are never
-// scanned or retained as audit evidence.
+// in a batch. Round starts at zero for each conversation's first input;
+// system and developer context use SensitiveTextContextRound and tool results
+// stay in the user round that caused them. Turn-boundary fields carry no
+// request text; they preserve text-free user turns for latest-round selection
+// and are never scanned or retained as audit evidence.
 type SensitiveTextField struct {
 	Role         SensitiveTextRole `json:"role"`
 	Kind         SensitiveTextKind `json:"kind"`

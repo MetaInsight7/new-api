@@ -22,6 +22,7 @@ import (
 
 func setupSensitiveBillingTest(t *testing.T) *gorm.DB {
 	t.Helper()
+	require.NoError(t, i18n.Init())
 	previousDB, previousLogDB := model.DB, model.LOG_DB
 	previousMainType, previousLogType := common.MainDatabaseType(), common.LogDatabaseType()
 	previousCountToken := constant.CountToken

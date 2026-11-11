@@ -25,6 +25,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { handleServerError } from '@/lib/handle-server-error'
 
 import { SettingsCard } from '../../components/settings-card'
 import { saveSensitiveWordPolicy } from './api'
@@ -69,8 +70,8 @@ export function SensitiveWordPolicyForm({ policy, onSaved }: PolicyFormProps) {
     try {
       onSaved(await saveSensitiveWordPolicy(draft))
       toast.success(t('Saved successfully'))
-    } catch {
-      toast.error(t('Unable to save sensitive-word policy'))
+    } catch (error) {
+      handleServerError(error, t('Unable to save sensitive-word policy'))
     } finally {
       setSaving(false)
     }
@@ -205,7 +206,7 @@ export function SensitiveWordPolicyForm({ policy, onSaved }: PolicyFormProps) {
             />
             <p className='text-muted-foreground text-xs leading-relaxed'>
               {t(
-                'Block and observe rules inspect only the latest user input. Earlier conversation and non-user roles are retained only as audit context. Each selected field is stored once, with up to 256 unique matches and 512 KiB of evidence per request.'
+                'Block and observe rules inspect user text and tool results in the latest input round. Earlier rounds and other roles are retained only as audit context. Each selected field is stored once, with up to 256 unique matches and 512 KiB of evidence per request.'
               )}
             </p>
           </div>

@@ -522,6 +522,10 @@ func (request *ClaudeRequest) GetSensitiveTextFields() []types.SensitiveTextFiel
 			switch part.Type {
 			case ContentTypeText:
 				collector.append(role, types.SensitiveTextKindContent, round, part.GetText())
+			case "document":
+				if part.Source != nil && part.Source.Type == "text" {
+					appendSensitiveAnyStrings(collector, role, types.SensitiveTextKindDocument, round, part.Source.Data)
+				}
 			case "tool_use", "server_tool_use":
 				appendSensitiveTextLeaves(collector, types.SensitiveTextRoleAssistant, types.SensitiveTextKindToolArgument, round, part.Input)
 			case "tool_result", "web_search_tool_result":

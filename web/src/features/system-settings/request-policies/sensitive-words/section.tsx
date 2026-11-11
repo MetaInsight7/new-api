@@ -19,9 +19,10 @@ For commercial licensing, please contact support@quantumnous.com
 import { Loader2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { handleServerError } from '@/lib/handle-server-error'
+import { getServerErrorMessage } from '@/lib/server-error-message'
 
 import { SettingsSection } from '../../components/settings-section'
 import {
@@ -63,8 +64,13 @@ export function SensitiveWordsSection() {
       setRules(nextRules)
       setGroups(nextGroups)
       setLoaded(true)
-    } catch {
-      setError(t('Unable to load sensitive-word settings'))
+    } catch (error) {
+      setError(
+        getServerErrorMessage(
+          error,
+          t('Unable to load sensitive-word settings')
+        )
+      )
     } finally {
       setLoading(false)
     }
@@ -77,9 +83,9 @@ export function SensitiveWordsSection() {
   async function loadRule(id: number): Promise<SensitiveWordRuleDetail> {
     try {
       return await getSensitiveWordRule(id)
-    } catch {
-      toast.error(t('Unable to load rule details'))
-      throw new Error('rule load failed')
+    } catch (error) {
+      handleServerError(error, t('Unable to load rule details'))
+      throw error
     }
   }
 

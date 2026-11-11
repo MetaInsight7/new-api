@@ -8,7 +8,11 @@ import {
   transformFormDataToCreatePayload,
   transformFormDataToUpdatePayload,
 } from '../channel-form'
-import { parseGroupPriority } from '../group-priority'
+import {
+  parseGroupPriority,
+  parseGroupPriorityDocument,
+  setGroupPriorityOverride,
+} from '../group-priority'
 
 describe('group priority overrides', () => {
   test('parses valid partial overrides and ignores malformed entries', () => {
@@ -26,6 +30,35 @@ describe('group priority overrides', () => {
     expect(parseGroupPriority('')).toEqual({})
     expect(parseGroupPriority('{"vip":')).toEqual({})
     expect(parseGroupPriority('[]')).toEqual({})
+    expect(parseGroupPriorityDocument('{"vip":')).toBeNull()
+    expect(parseGroupPriorityDocument('[]')).toBeNull()
+  })
+
+  test('preserves unrecognized entries while editing known overrides', () => {
+    const raw =
+      '{"vip":{"priority":10,"route":"fast"},"empty":{},"invalid":null,"negative":{"weight":-1}}'
+
+    const updated = setGroupPriorityOverride(raw, 'vip', { weight: 2 })
+    expect(JSON.parse(updated ?? '')).toEqual({
+      vip: { priority: 10, route: 'fast', weight: 2 },
+      empty: {},
+      invalid: null,
+      negative: { weight: -1 },
+    })
+
+    const removed = setGroupPriorityOverride(updated, 'vip', null)
+    expect(JSON.parse(removed ?? '')).toEqual({
+      empty: {},
+      invalid: null,
+      negative: { weight: -1 },
+    })
+
+    expect(setGroupPriorityOverride('{"vip":', 'vip', { weight: 2 })).toBeNull()
+
+    const special = setGroupPriorityOverride('{}', '__proto__', { priority: 1 })
+    const parsedSpecial = JSON.parse(special ?? '')
+    expect(Object.hasOwn(parsedSpecial, '__proto__')).toBe(true)
+    expect(parsedSpecial.__proto__).toEqual({ priority: 1 })
   })
 
   test('round-trips group priority through channel form defaults and payloads', () => {

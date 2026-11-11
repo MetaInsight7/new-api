@@ -19,10 +19,11 @@ For commercial licensing, please contact support@quantumnous.com
 import { describe, expect, it } from 'vitest'
 
 import {
+  analyzeSensitiveWordDraft,
   findSensitiveWordMatches,
   getNextSensitiveWordMatchIndex,
   parseSensitiveWordDraftWords,
-} from './draft-search'
+} from '../draft-search'
 
 describe('sensitive-word draft search', () => {
   it('finds all case-insensitive matches and ignores blank queries', () => {
@@ -51,5 +52,24 @@ describe('sensitive-word draft search', () => {
       'Alpha',
       'Beta',
     ])
+  })
+
+  it('reports backend word and rule limits with the source line', () => {
+    const longWord = '\u{1F600}'.repeat(201)
+    expect(analyzeSensitiveWordDraft(`safe\n${longWord}`)).toMatchObject({
+      issue: { kind: 'word_too_long', line: 2, max: 200 },
+    })
+
+    const tooManyWords = Array.from(
+      { length: 10_001 },
+      (_, index) => `word-${index}`
+    ).join('\n')
+    const analysis = analyzeSensitiveWordDraft(tooManyWords)
+    expect(analysis.words).toHaveLength(10_001)
+    expect(analysis.issue).toEqual({
+      kind: 'too_many_words',
+      line: 10_001,
+      max: 10_000,
+    })
   })
 })

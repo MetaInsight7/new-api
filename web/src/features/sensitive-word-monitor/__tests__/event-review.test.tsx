@@ -79,6 +79,38 @@ describe('sensitive-word event account review', () => {
     ).toBe(false)
   })
 
+  it('does not offer sensitive-word unban for another disable source', async () => {
+    setSensitiveWordManager({ evidenceRead: false })
+    vi.spyOn(api, 'get').mockImplementation(async (url) => {
+      if (url === '/api/sensitive-words/dashboard') {
+        return { data: { success: true, data: sensitiveWordDashboard(24) } }
+      }
+      if (url === '/api/user/7') {
+        return {
+          data: {
+            success: true,
+            data: {
+              ...affectedSensitiveWordUser(),
+              sensitive_word_auto_banned: false,
+            },
+          },
+        }
+      }
+      throw new Error(`Unexpected GET ${url}`)
+    })
+
+    await renderSensitiveWordMonitor()
+    await userEvent.click(
+      (await screen.findAllByRole('button', { name: 'Review and handle' }))[0]
+    )
+
+    expect(await screen.findByText('Account handling')).toBeVisible()
+    expect(
+      screen.queryByRole('button', { name: 'Unban and clear count' })
+    ).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Clear count' })).toBeVisible()
+  })
+
   it('shows an inline error when the affected user cannot be loaded', async () => {
     setSensitiveWordManager({ evidenceRead: false })
     vi.spyOn(api, 'get').mockImplementation(async (url) => {

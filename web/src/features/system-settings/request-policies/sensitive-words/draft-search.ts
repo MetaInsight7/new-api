@@ -18,6 +18,18 @@ For commercial licensing, please contact support@quantumnous.com
 */
 export type SensitiveWordTextMatch = { start: number; end: number }
 
+export const SENSITIVE_WORD_MAX_CHARACTERS = 200
+export const SENSITIVE_WORD_MAX_WORDS = 10_000
+
+export type SensitiveWordDraftIssue =
+  | { kind: 'word_too_long'; line: number; max: number }
+  | { kind: 'too_many_words'; line: number; max: number }
+
+export type SensitiveWordDraftAnalysis = {
+  words: string[]
+  issue: SensitiveWordDraftIssue | null
+}
+
 type NormalizedText = {
   value: string
   starts: number[]
@@ -73,18 +85,41 @@ export function findSensitiveWordMatches(
   return matches
 }
 
-export function parseSensitiveWordDraftWords(text: string): string[] {
+export function analyzeSensitiveWordDraft(
+  text: string
+): SensitiveWordDraftAnalysis {
   const words: string[] = []
   const seen = new Set<string>()
-  for (const raw of text.split(/\r?\n/)) {
+  let issue: SensitiveWordDraftIssue | null = null
+  const lines = text.split(/\r?\n/)
+  for (let index = 0; index < lines.length; index += 1) {
+    const raw = lines[index]
     const word = raw.trim()
     if (!word) continue
+    if (issue === null && [...word].length > SENSITIVE_WORD_MAX_CHARACTERS) {
+      issue = {
+        kind: 'word_too_long',
+        line: index + 1,
+        max: SENSITIVE_WORD_MAX_CHARACTERS,
+      }
+    }
     const key = word.toLowerCase()
     if (seen.has(key)) continue
     seen.add(key)
     words.push(word)
+    if (issue === null && words.length > SENSITIVE_WORD_MAX_WORDS) {
+      issue = {
+        kind: 'too_many_words',
+        line: index + 1,
+        max: SENSITIVE_WORD_MAX_WORDS,
+      }
+    }
   }
-  return words
+  return { words, issue }
+}
+
+export function parseSensitiveWordDraftWords(text: string): string[] {
+  return analyzeSensitiveWordDraft(text).words
 }
 
 export function getNextSensitiveWordMatchIndex(

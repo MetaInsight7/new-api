@@ -56,6 +56,7 @@ export const userSchema = z.object({
   role: userRoleSchema,
   sensitive_word_violation_count: z.number().optional(),
   sensitive_word_whitelist: z.boolean().optional(),
+  sensitive_word_auto_banned: z.boolean().optional(),
   created_at: z.number().optional(),
   updated_at: z.number().optional(),
   last_login_at: z.number().optional(),
@@ -131,6 +132,7 @@ export interface UserFormData {
   remark?: string // Only used when updating user
   sensitive_word_violation_count?: number // Admin-only content-safety counter
   sensitive_word_whitelist?: boolean // Admin-only content-safety bypass
+  sensitive_word_auto_banned?: boolean // Admin-only automatic-ban ownership
   admin_permissions?: AdminPermissionMatrix
 }
 

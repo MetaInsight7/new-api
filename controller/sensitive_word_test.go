@@ -91,7 +91,8 @@ func setupSensitiveWordControllerAuthorization(t *testing.T) (*gin.Engine, *mode
 	target := &model.User{
 		Username: "sensitive-target", Password: "password", Role: common.RoleCommonUser,
 		Status: common.UserStatusDisabled, Group: "default", AuthVersion: 3,
-		SensitiveWordViolationCount: 7, Quota: 8_000, UsedQuota: 900,
+		SensitiveWordViolationCount: 7, SensitiveWordAutoBanned: true,
+		Quota: 8_000, UsedQuota: 900,
 	}
 	require.NoError(t, database.Create(target).Error)
 	return newSensitiveWordAuthorizationEngine(), target
@@ -226,6 +227,7 @@ func TestSensitiveWordManagementPermissionAndDedicatedUnban(t *testing.T) {
 	require.NoError(t, model.DB.First(&updated, target.Id).Error)
 	assert.Equal(t, common.UserStatusEnabled, updated.Status)
 	assert.Zero(t, updated.SensitiveWordViolationCount)
+	assert.False(t, updated.SensitiveWordAutoBanned)
 	assert.True(t, updated.SensitiveWordWhitelist, "unban is independent from whitelist state")
 	assert.Equal(t, 8_000, updated.Quota)
 	assert.Equal(t, 900, updated.UsedQuota)
@@ -290,6 +292,13 @@ func TestSensitiveWordEvidencePermissionIsIndependentAndProtectsRoot(t *testing.
 	)
 	require.Equal(t, http.StatusOK, readCommon.Code, readCommon.Body.String())
 	assert.Contains(t, readCommon.Body.String(), "common-secret-hash")
+	require.NoError(t, model.DB.Model(target).Update("role", common.RoleRootUser).Error)
+	readPromotedRoot := performSensitiveWordAdminRequest(
+		engine, http.MethodGet, fmt.Sprintf("/api/log/sensitive-word-audit/%d", commonEvent.ID),
+		"", readerID, common.RoleAdminUser,
+	)
+	assert.Equal(t, http.StatusForbidden, readPromotedRoot.Code)
+	assert.NotContains(t, readPromotedRoot.Body.String(), "common-secret-hash")
 
 	manageDenied := performSensitiveWordAdminRequest(
 		engine, http.MethodPatch, fmt.Sprintf("/api/sensitive-words/users/%d", target.Id),
@@ -329,6 +338,7 @@ func TestUserSafetyStateProjectionRequiresManagementPermission(t *testing.T) {
 	require.Equal(t, http.StatusOK, visible.Code, visible.Body.String())
 	assert.Contains(t, visible.Body.String(), `"sensitive_word_violation_count":7`)
 	assert.Contains(t, visible.Body.String(), `"sensitive_word_whitelist":false`)
+	assert.Contains(t, visible.Body.String(), `"sensitive_word_auto_banned":true`)
 
 	require.NoError(t, authz.SetUserPermissions(actorID, authz.PermissionsMap{
 		authz.ResourceSensitiveWord: {authz.ActionManage: false},
@@ -339,7 +349,9 @@ func TestUserSafetyStateProjectionRequiresManagementPermission(t *testing.T) {
 	require.Equal(t, http.StatusOK, hidden.Code, hidden.Body.String())
 	assert.Contains(t, hidden.Body.String(), `"sensitive_word_violation_count":0`)
 	assert.Contains(t, hidden.Body.String(), `"sensitive_word_whitelist":false`)
+	assert.Contains(t, hidden.Body.String(), `"sensitive_word_auto_banned":false`)
 	assert.NotContains(t, hidden.Body.String(), `"sensitive_word_violation_count":7`)
+	assert.NotContains(t, hidden.Body.String(), `"sensitive_word_auto_banned":true`)
 }
 
 func TestSensitiveWordManagementErrorsExposeTranslationKeys(t *testing.T) {

@@ -40,8 +40,9 @@ var sensitiveRuntime struct {
 var sensitiveRuntimeRefreshMu sync.Mutex
 var sensitiveRuntimeSyncOnce sync.Once
 
-// The migration can intentionally leave legacy data unresolved. Keep request
-// handling disabled until the one-way migration has completed successfully.
+// Request handling stays disabled until the one-way migration has completed.
+// Invalid legacy entries are skipped without blocking valid imported rules,
+// while infrastructure or schema failures keep the runtime unavailable.
 var sensitiveWordRuntimeUnavailable atomic.Bool
 
 var sensitiveSecretPattern = regexp.MustCompile(`(?i)(sk-[a-z0-9_-]{12,}|bearer\s+[a-z0-9._-]{12,}|https?://[^\s]+)`)
@@ -301,7 +302,7 @@ func StartSensitiveWordRuntimeSync(ctx context.Context, frequency int) {
 func normalizeSensitiveGroups(groups []string, fallback string) []string {
 	seen := make(map[string]struct{}, len(groups)+1)
 	result := make([]string, 0, len(groups)+1)
-	for _, group := range append(groups, fallback) {
+	for _, group := range groups {
 		group = strings.TrimSpace(group)
 		if group == "" {
 			continue
@@ -311,6 +312,12 @@ func normalizeSensitiveGroups(groups []string, fallback string) []string {
 		}
 		seen[group] = struct{}{}
 		result = append(result, group)
+	}
+	fallback = strings.TrimSpace(fallback)
+	if fallback != "" {
+		if _, exists := seen[fallback]; !exists {
+			result = append(result, fallback)
+		}
 	}
 	return result
 }
@@ -331,7 +338,7 @@ func matchSensitiveFieldsForGroups(snapshot *sensitiveRuntimeSnapshot, fields []
 	if snapshot == nil {
 		return decision, ErrSensitiveWordPolicyUnavailable
 	}
-	if snapshot == nil || snapshot.machine == nil {
+	if snapshot.machine == nil {
 		return decision, nil
 	}
 
@@ -339,24 +346,29 @@ func matchSensitiveFieldsForGroups(snapshot *sensitiveRuntimeSnapshot, fields []
 	for index, group := range candidates {
 		candidateIndex[group] = index
 	}
-	latestUserRounds := make(map[int]int)
+	latestInputRounds := make(map[int]int)
 	for _, field := range fields {
-		if field.Role != relaytypes.SensitiveTextRoleUser {
+		if field.Role != relaytypes.SensitiveTextRoleUser && field.Kind != relaytypes.SensitiveTextKindToolResult {
 			continue
 		}
-		latestRound, exists := latestUserRounds[field.Conversation]
+		latestRound, exists := latestInputRounds[field.Conversation]
 		if !exists || field.Round > latestRound {
-			latestUserRounds[field.Conversation] = field.Round
+			latestInputRounds[field.Conversation] = field.Round
 		}
 	}
-	seenMatches := make(map[string]struct{})
+	type sensitiveMatchKey struct {
+		ruleID int64
+		word   string
+	}
+	seenMatches := make(map[sensitiveMatchKey]struct{})
 	matchedGroup := ""
 	matchedGroupIndex := len(candidates)
 
 scanFields:
 	for _, field := range fields {
-		latestRound, hasUserRound := latestUserRounds[field.Conversation]
-		if !hasUserRound || field.Role != relaytypes.SensitiveTextRoleUser || field.Round != latestRound {
+		latestRound, hasInputRound := latestInputRounds[field.Conversation]
+		isScannableInput := field.Role == relaytypes.SensitiveTextRoleUser || field.Kind == relaytypes.SensitiveTextKindToolResult
+		if !hasInputRound || !isScannableInput || field.Round != latestRound {
 			continue
 		}
 		if field.Kind == relaytypes.SensitiveTextKindTurnBoundary {
@@ -386,7 +398,7 @@ scanFields:
 					}
 				}
 				blockingMatch := mode == SensitiveWordModeBlock
-				key := fmt.Sprintf("%d:%s", metadata.ID, word)
+				key := sensitiveMatchKey{ruleID: metadata.ID, word: word}
 				if _, exists := seenMatches[key]; exists {
 					continue
 				}

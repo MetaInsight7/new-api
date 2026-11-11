@@ -259,7 +259,12 @@ it('a sensitive-word manager can use the dedicated unban action', async () => {
     <DataTableRowActions
       row={
         {
-          original: { ...target, sensitive_word_violation_count: 3 },
+          original: {
+            ...target,
+            status: 2,
+            sensitive_word_violation_count: 3,
+            sensitive_word_auto_banned: true,
+          },
         } as Row<User>
       }
     />
@@ -278,6 +283,36 @@ it('a sensitive-word manager can use the dedicated unban action', async () => {
   )
 })
 
+it('hides sensitive-word unban for a manual account disable', async () => {
+  useAuthStore.getState().auth.setUser({
+    id: 1,
+    username: 'risk-manager',
+    role: 10,
+    permissions: {
+      admin_permissions: { sensitive_word: { manage: true } },
+    },
+  })
+  renderInProvider(
+    <DataTableRowActions
+      row={
+        {
+          original: {
+            ...target,
+            status: 2,
+            sensitive_word_violation_count: 3,
+            sensitive_word_auto_banned: false,
+          },
+        } as Row<User>
+      }
+    />
+  )
+
+  await userEvent.click(screen.getByRole('button', { name: 'Open menu' }))
+  expect(
+    screen.queryByRole('menuitem', { name: 'Sensitive-word unban' })
+  ).not.toBeInTheDocument()
+})
+
 it('hides sensitive-word unban without the management permission', async () => {
   useAuthStore.getState().auth.setUser({
     id: 1,
@@ -289,7 +324,12 @@ it('hides sensitive-word unban without the management permission', async () => {
     <DataTableRowActions
       row={
         {
-          original: { ...target, sensitive_word_violation_count: 3 },
+          original: {
+            ...target,
+            status: 2,
+            sensitive_word_violation_count: 3,
+            sensitive_word_auto_banned: true,
+          },
         } as Row<User>
       }
     />

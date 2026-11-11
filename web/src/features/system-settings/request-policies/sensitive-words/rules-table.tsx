@@ -19,7 +19,6 @@ For commercial licensing, please contact support@quantumnous.com
 import { Pencil, Plus, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { Badge } from '@/components/ui/badge'
@@ -45,6 +44,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { formatDateTimeStr } from '@/lib/format'
+import { handleServerError } from '@/lib/handle-server-error'
 
 import { deleteSensitiveWordRule, setSensitiveWordRuleMode } from './api'
 import { SensitiveWordRuleDialog } from './rule-dialog'
@@ -74,6 +74,10 @@ export function SensitiveWordRulesTable({
     null
   )
   const [changingModeID, setChangingModeID] = useState<number | null>(null)
+  const [pendingModeChange, setPendingModeChange] = useState<{
+    rule: SensitiveWordRuleSummary
+    mode: SensitiveWordMode
+  } | null>(null)
 
   async function edit(rule: SensitiveWordRuleSummary) {
     try {
@@ -89,10 +93,11 @@ export function SensitiveWordRulesTable({
     try {
       await setSensitiveWordRuleMode(id, mode)
       await onReload()
-    } catch {
-      toast.error(t('Unable to update rule mode'))
+    } catch (error) {
+      handleServerError(error, t('Unable to update rule mode'))
     } finally {
       setChangingModeID(null)
+      setPendingModeChange(null)
     }
   }
 
@@ -102,8 +107,8 @@ export function SensitiveWordRulesTable({
       await deleteSensitiveWordRule(deleting.id)
       setDeleting(null)
       await onReload()
-    } catch {
-      toast.error(t('Unable to delete sensitive-word rule'))
+    } catch (error) {
+      handleServerError(error, t('Unable to delete sensitive-word rule'))
     }
   }
 
@@ -174,7 +179,12 @@ export function SensitiveWordRulesTable({
                       disabled={changingModeID === rule.id}
                       onValueChange={(value) => {
                         if (value) {
-                          void changeMode(rule.id, value as SensitiveWordMode)
+                          const mode = value as SensitiveWordMode
+                          if (mode === 'block' && rule.mode !== 'block') {
+                            setPendingModeChange({ rule, mode })
+                          } else {
+                            void changeMode(rule.id, mode)
+                          }
                         }
                       }}
                     >
@@ -240,6 +250,24 @@ export function SensitiveWordRulesTable({
         groups={groups}
         rule={editing}
         onSaved={onReload}
+      />
+      <ConfirmDialog
+        open={pendingModeChange !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingModeChange(null)
+        }}
+        title={t('Enable blocking mode')}
+        desc={t(
+          'Enable blocking for {{name}}? Matching requests will be rejected immediately.',
+          { name: pendingModeChange?.rule.name ?? '' }
+        )}
+        confirmText={t('Enable blocking')}
+        isLoading={changingModeID === pendingModeChange?.rule.id}
+        handleConfirm={() => {
+          if (pendingModeChange) {
+            void changeMode(pendingModeChange.rule.id, pendingModeChange.mode)
+          }
+        }}
       />
       <ConfirmDialog
         open={deleting !== null}

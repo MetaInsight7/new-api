@@ -9,6 +9,34 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type GeminiError struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+	Status  string `json:"status"`
+}
+
+func GeminiErrorFromNewAPIError(apiErr *types.NewAPIError) GeminiError {
+	openAIError := apiErr.ToOpenAIError()
+	status := "UNKNOWN"
+	switch apiErr.StatusCode {
+	case http.StatusBadRequest:
+		status = "INVALID_ARGUMENT"
+	case http.StatusUnauthorized:
+		status = "UNAUTHENTICATED"
+	case http.StatusForbidden:
+		status = "PERMISSION_DENIED"
+	case http.StatusNotFound:
+		status = "NOT_FOUND"
+	case http.StatusTooManyRequests:
+		status = "RESOURCE_EXHAUSTED"
+	case http.StatusServiceUnavailable:
+		status = "UNAVAILABLE"
+	case http.StatusInternalServerError:
+		status = "INTERNAL"
+	}
+	return GeminiError{Code: apiErr.StatusCode, Message: openAIError.Message, Status: status}
+}
+
 // NewSensitiveWordRequestError builds the public error contract shared by
 // pre-routing enforcement and the billing fallback.
 func NewSensitiveWordRequestError(c *gin.Context, result *model.SensitiveCheckResult) *types.NewAPIError {

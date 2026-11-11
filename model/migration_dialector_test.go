@@ -114,6 +114,7 @@ func TestMigrationSchemaStability(t *testing.T) {
 						}
 						for pass := range 2 {
 							recorder.reset()
+							require.NoError(t, prepareSensitiveWordAutoBanOwnershipMigration(tableDB))
 							require.NoError(t, tableDB.AutoMigrate(&User{}))
 							if pass == 1 {
 								assert.Empty(t, recorder.schemaMutations(), "second startup must not alter the schema")
@@ -133,6 +134,7 @@ func TestMigrationSchemaStability(t *testing.T) {
 						assert.Equal(t, "preserved", user.Username)
 						assert.Equal(t, "stored-hash", user.Password)
 						assert.Equal(t, "{}", user.Setting)
+						assert.False(t, user.SensitiveWordAutoBanned)
 						for i, limit := range []int{5, 0} {
 							update := user
 							update.MaxConcurrency = limit

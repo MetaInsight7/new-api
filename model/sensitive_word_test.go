@@ -196,6 +196,31 @@ func TestSensitiveWordPolicyVersionIsServerOwned(t *testing.T) {
 	require.Equal(t, before.BanThreshold+1, after.BanThreshold)
 }
 
+func TestSensitiveWordPolicyRowSelfHealsOnColdStartAndRuleMutation(t *testing.T) {
+	setupSensitiveWordTest(t)
+	require.NoError(t, MigrateSensitiveWordData())
+	require.NoError(t, DB.Save(&Option{Key: "SensitiveWordConfig", Value: `{invalid`}).Error)
+	require.NoError(t, DB.Delete(&SensitiveWordPolicy{}, 1).Error)
+	invalidateSensitiveWordRuntime()
+
+	require.NoError(t, MigrateSensitiveWordData())
+	policy := GetSensitiveWordPolicy()
+	require.Equal(t, int64(1), policy.Version)
+	require.True(t, policy.Enabled)
+	var legacy Option
+	require.NoError(t, DB.Where(&Option{Key: "SensitiveWordConfig"}).First(&legacy).Error)
+	require.Equal(t, `{invalid`, legacy.Value)
+
+	require.NoError(t, DB.Delete(&SensitiveWordPolicy{}, 1).Error)
+	_, err := UpsertSensitiveWordRuleWithMode(
+		0, "policy repair", []string{"policy repair marker"},
+		SensitiveWordScopeGlobal, nil, 7, SensitiveWordModeObserve,
+	)
+	require.NoError(t, err)
+	require.NoError(t, DB.First(&policy, 1).Error)
+	require.Equal(t, int64(1), policy.Version)
+}
+
 func TestSensitiveWordPolicyReadFailureIsNotSilentlyDisabled(t *testing.T) {
 	previousDB, previousLogDB := DB, LOG_DB
 	previousMain, previousLog := common.MainDatabaseType(), common.LogDatabaseType()
@@ -301,7 +326,7 @@ func TestSensitiveWordCollectsObserveMatchesUntilFirstBlock(t *testing.T) {
 	require.Len(t, evidence.Matches, 3)
 }
 
-func TestSensitiveWordChecksOnlyLatestUserRound(t *testing.T) {
+func TestSensitiveWordChecksLatestInputRound(t *testing.T) {
 	setupSensitiveWordTest(t)
 	require.NoError(t, MigrateSensitiveWordData())
 	saveSensitiveWordTestPolicy(t, true, SensitiveWordBanThreshold)
@@ -324,6 +349,8 @@ func TestSensitiveWordChecksOnlyLatestUserRound(t *testing.T) {
 		{Role: relaytypes.SensitiveTextRoleTool, Kind: relaytypes.SensitiveTextKindToolResult, Round: 0, Order: 4, Text: "block marker from tool"},
 		{Role: relaytypes.SensitiveTextRoleUser, Kind: relaytypes.SensitiveTextKindContent, Round: 1, Order: 5, Text: "latest clean input"},
 		{Role: relaytypes.SensitiveTextRoleUser, Kind: relaytypes.SensitiveTextKindContent, Round: 1, Order: 6, Text: "latest clean second text block"},
+		{Role: relaytypes.SensitiveTextRoleAssistant, Kind: relaytypes.SensitiveTextKindToolArgument, Round: 1, Order: 7, Text: "block marker in assistant tool arguments"},
+		{Role: relaytypes.SensitiveTextRoleTool, Kind: relaytypes.SensitiveTextKindToolResult, Round: 1, Order: 8, Text: "latest clean tool result"},
 	}
 	result, err := CheckSensitiveRequest(input)
 	require.NoError(t, err)
@@ -343,6 +370,25 @@ func TestSensitiveWordChecksOnlyLatestUserRound(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, result.Blocked)
 	require.Equal(t, []int64{blockRule.ID}, result.MatchedRuleIDs)
+
+	input.RequestID = "latest-tool-result-block"
+	input.Fields[6].Text = "latest clean second text block"
+	input.Fields[8].Text = "block marker in latest tool result"
+	result, err = CheckSensitiveRequest(input)
+	require.NoError(t, err)
+	require.True(t, result.Blocked)
+	require.Equal(t, relaytypes.SensitiveTextKindToolResult, result.Matches[0].FieldKind)
+
+	input.RequestID = "tool-result-only"
+	input.Fields = []relaytypes.SensitiveTextField{{
+		Role: relaytypes.SensitiveTextRoleTool, Kind: relaytypes.SensitiveTextKindToolResult,
+		Round: 0, Order: 0, Text: "observe marker from a tool-only request",
+	}}
+	result, err = CheckSensitiveRequest(input)
+	require.NoError(t, err)
+	require.True(t, result.Matched)
+	require.True(t, result.ObserveOnly)
+	require.Equal(t, []int64{observeRule.ID}, result.MatchedRuleIDs)
 }
 
 func TestSensitiveWordTextFreeLatestUserRoundDoesNotRescanHistory(t *testing.T) {
@@ -783,6 +829,7 @@ func TestSensitiveWordThresholdBanAndEnableResetPreserveAccounting(t *testing.T)
 	require.NoError(t, DB.First(&banned, user.Id).Error)
 	require.Equal(t, common.UserStatusDisabled, banned.Status)
 	require.Equal(t, 3, banned.SensitiveWordViolationCount)
+	require.True(t, banned.SensitiveWordAutoBanned)
 	require.Equal(t, 88_800_000, banned.Quota)
 	require.Equal(t, 123_456, banned.UsedQuota)
 	require.Equal(t, int64(2), banned.AuthVersion)
@@ -812,20 +859,18 @@ func TestSensitiveWordThresholdBanAndEnableResetPreserveAccounting(t *testing.T)
 	require.NoError(t, DB.First(&enabled, user.Id).Error)
 	require.Equal(t, common.UserStatusEnabled, enabled.Status)
 	require.Zero(t, enabled.SensitiveWordViolationCount)
+	require.False(t, enabled.SensitiveWordAutoBanned)
 	require.Equal(t, banned.Quota, enabled.Quota)
 	require.Equal(t, banned.UsedQuota, enabled.UsedQuota)
 	var evidenceAfter int64
 	require.NoError(t, DB.Model(&SensitiveWordAuditEvent{}).Where("user_id = ?", user.Id).Count(&evidenceAfter).Error)
 	require.Equal(t, evidenceBefore, evidenceAfter)
 
-	second, err := EnableUserAndResetSensitiveWordViolations(user.Id)
-	require.NoError(t, err)
-	require.False(t, second.StatusChanged)
-	require.False(t, second.ViolationCountReset)
-	require.Equal(t, enabled.AuthVersion, second.AuthVersionAfter)
+	_, err = EnableUserAndResetSensitiveWordViolations(user.Id)
+	require.ErrorContains(t, err, "Only accounts disabled by sensitive-word automatic enforcement can be unbanned here")
 }
 
-func TestSensitiveWordCountResetKeepsEnabledUserAuthentication(t *testing.T) {
+func TestSensitiveWordDedicatedUnbanRejectsEnabledUserAndCountResetStaysIndependent(t *testing.T) {
 	setupSensitiveWordTest(t)
 	user := createSensitiveWordTestUser(t, 2_000_000, false)
 	require.NoError(t, DB.Model(&User{}).Where("id = ?", user.Id).
@@ -839,12 +884,10 @@ func TestSensitiveWordCountResetKeepsEnabledUserAuthentication(t *testing.T) {
 	}
 	require.NoError(t, DB.Create(&session).Error)
 
-	reset, err := EnableUserAndResetSensitiveWordViolations(user.Id)
-	require.NoError(t, err)
-	require.False(t, reset.StatusChanged)
-	require.True(t, reset.ViolationCountReset)
-	require.Equal(t, user.AuthVersion, reset.AuthVersionAfter)
-	require.Zero(t, reset.SessionsRevoked)
+	_, err := EnableUserAndResetSensitiveWordViolations(user.Id)
+	require.ErrorContains(t, err, "Only accounts disabled by sensitive-word automatic enforcement can be unbanned here")
+	count := 0
+	require.NoError(t, UpdateSensitiveWordUserFields(user.Id, &count, nil))
 
 	var stored User
 	require.NoError(t, DB.First(&stored, user.Id).Error)
@@ -855,6 +898,26 @@ func TestSensitiveWordCountResetKeepsEnabledUserAuthentication(t *testing.T) {
 	require.NoError(t, DB.First(&active, "sid = ?", session.SID).Error)
 	require.Equal(t, UserSessionStatusActive, active.Status)
 	require.Empty(t, active.RevokedReason)
+}
+
+func TestSensitiveWordAdministratorStatusDecisionSupersedesAutomaticBanSource(t *testing.T) {
+	setupSensitiveWordTest(t)
+	user := createSensitiveWordTestUser(t, 2_100_000, false)
+	require.NoError(t, DB.Model(&User{}).Where("id = ?", user.Id).Updates(map[string]any{
+		"status": common.UserStatusDisabled, "sensitive_word_violation_count": 4,
+		"sensitive_word_auto_banned": true,
+	}).Error)
+	require.NoError(t, DB.First(user, user.Id).Error)
+
+	require.NoError(t, user.SetStatusByAdministrator(common.UserStatusDisabled))
+	require.False(t, user.SensitiveWordAutoBanned)
+	_, err := EnableUserAndResetSensitiveWordViolations(user.Id)
+	require.ErrorContains(t, err, "Only accounts disabled by sensitive-word automatic enforcement can be unbanned here")
+
+	var stored User
+	require.NoError(t, DB.First(&stored, user.Id).Error)
+	require.Equal(t, common.UserStatusDisabled, stored.Status)
+	require.Equal(t, 4, stored.SensitiveWordViolationCount)
 }
 
 func TestSensitiveWordAuditFailurePreservesBlockingDecision(t *testing.T) {
@@ -881,6 +944,29 @@ func TestSensitiveWordAuditFailurePreservesBlockingDecision(t *testing.T) {
 	var stored User
 	require.NoError(t, DB.First(&stored, user.Id).Error)
 	require.Zero(t, stored.SensitiveWordViolationCount)
+}
+
+func TestSensitiveWordAuditFailurePreservesWhitelistBypass(t *testing.T) {
+	setupSensitiveWordTest(t)
+	require.NoError(t, MigrateSensitiveWordData())
+	saveSensitiveWordTestPolicy(t, true, SensitiveWordBanThreshold)
+	addSensitiveWordTestRule(t, "whitelist audit failure", []string{"whitelist failure marker"}, SensitiveWordScopeGlobal, nil, SensitiveWordModeBlock)
+	user := createSensitiveWordTestUser(t, 4_250_000, true)
+
+	triggerName := fmt.Sprintf("sensitive_whitelist_failure_%d", time.Now().UnixNano())
+	require.NoError(t, DB.Exec(fmt.Sprintf(
+		"CREATE TRIGGER %s BEFORE INSERT ON sensitive_word_audit_events BEGIN SELECT RAISE(ABORT, 'forced audit failure'); END",
+		triggerName,
+	)).Error)
+	t.Cleanup(func() { _ = DB.Exec("DROP TRIGGER " + triggerName).Error })
+
+	result, err := CheckSensitiveRequest(sensitiveWordTestInput(user, "whitelist-audit-failure", "whitelist failure marker"))
+	require.ErrorIs(t, err, ErrSensitiveWordAuditPersistence)
+	require.NotNil(t, result)
+	require.True(t, result.Matched)
+	require.True(t, result.WhitelistBypassed)
+	require.False(t, result.Blocked)
+	require.Equal(t, "whitelist_bypass", result.Disposition)
 }
 
 func TestSensitiveWordObserveAuditFailureIsTyped(t *testing.T) {
@@ -1232,19 +1318,26 @@ func TestSensitiveWordAuditIdentityMigrationDeduplicatesBeforeUniqueIndex(t *tes
 	require.Error(t, database.Create(&conflict).Error)
 }
 
-func TestSensitiveWordMigrationLeavesMarkerUnsetForInvalidLegacyWord(t *testing.T) {
+func TestSensitiveWordMigrationImportsValidLegacyWordsAndRetainsInvalidSource(t *testing.T) {
 	setupSensitiveWordTest(t)
 	legacyWord := strings.Repeat("超长旧词", 80)
 	require.Greater(t, len([]rune(legacyWord)), SensitiveWordMaxRunes)
-	require.NoError(t, DB.Create(&Option{Key: "SensitiveWords", Value: legacyWord}).Error)
+	legacyValue := "legacy-valid-one\n" + legacyWord + "\nlegacy-valid-two"
+	require.NoError(t, DB.Create(&Option{Key: "SensitiveWords", Value: legacyValue}).Error)
 	require.NoError(t, MigrateSensitiveWordData())
-	var markerCount int64
-	require.NoError(t, DB.Model(&Option{}).Where(&Option{Key: sensitiveWordMigrationKey}).Count(&markerCount).Error)
-	require.Zero(t, markerCount)
-	require.False(t, GetSensitiveWordPolicy().Enabled, "incomplete migration must fail open")
+	var marker Option
+	require.NoError(t, DB.Where(&Option{Key: sensitiveWordMigrationKey}).First(&marker).Error)
+	require.Equal(t, sensitiveWordMigrationValue, marker.Value)
+	require.True(t, GetSensitiveWordPolicy().Enabled)
 	rules, err := ListSensitiveWordRules()
 	require.NoError(t, err)
-	require.Empty(t, rules)
+	require.Len(t, rules, 1)
+	detail, err := GetSensitiveWordRuleDetail(rules[0].ID)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []string{"legacy-valid-one", "legacy-valid-two"}, detail.Words)
+	var legacy Option
+	require.NoError(t, DB.Where(&Option{Key: "SensitiveWords"}).First(&legacy).Error)
+	require.Equal(t, legacyValue, legacy.Value)
 }
 
 func TestSensitiveWordMigratesInitialP30Schema(t *testing.T) {

@@ -3,6 +3,7 @@ package model
 import (
 	"errors"
 	"fmt"
+	"iter"
 	"strings"
 	"time"
 
@@ -10,16 +11,14 @@ import (
 	"gorm.io/gorm"
 )
 
-func normalizeLegacySensitiveWords(words []string) ([]string, bool) {
-	result := make([]string, 0, min(len(words), SensitiveWordMaxRules))
-	seen := make(map[string]struct{}, len(words))
-	complete := true
+func normalizeLegacySensitiveWords(words iter.Seq[string]) []string {
+	result := make([]string, 0)
+	seen := make(map[string]struct{})
 	invalidCount := 0
-	for _, raw := range words {
+	for raw := range words {
 		word, err := normalizeSensitiveWord(raw)
 		if err != nil {
 			if strings.TrimSpace(raw) != "" {
-				complete = false
 				invalidCount++
 			}
 			continue
@@ -30,16 +29,56 @@ func normalizeLegacySensitiveWords(words []string) ([]string, bool) {
 		}
 		seen[key] = struct{}{}
 		if len(result) >= SensitiveWordMaxRules {
-			complete = false
 			invalidCount++
 			continue
 		}
 		result = append(result, word)
 	}
 	if invalidCount > 0 {
-		common.SysLog(fmt.Sprintf("sensitive-word migration retained %d legacy entries outside the new rule limits", invalidCount))
+		common.SysLog(common.LogText("sensitive-word migration skipped %d over-limit legacy entries; the legacy source remains unchanged and valid entries were imported normally", invalidCount))
 	}
-	return result, complete
+	return result
+}
+
+func prepareSensitiveWordAutoBanOwnershipMigration(db *gorm.DB) error {
+	if db == nil {
+		return nil
+	}
+	statement := &gorm.Statement{DB: db}
+	if err := statement.Parse(&User{}); err != nil {
+		return err
+	}
+	tableName := statement.Table
+	if db.Statement != nil && db.Statement.Table != "" {
+		tableName = db.Statement.Table
+	}
+	if !db.Migrator().HasTable(tableName) {
+		return nil
+	}
+
+	columnName := "sensitive_word_auto_banned"
+	if !db.Migrator().HasColumn(tableName, columnName) {
+		if err := db.Exec("ALTER TABLE " + statement.Quote(tableName) + " ADD COLUMN sensitive_word_auto_banned BOOLEAN").Error; err != nil {
+			return err
+		}
+	} else {
+		columns, err := db.Migrator().ColumnTypes(tableName)
+		if err != nil {
+			return err
+		}
+		for _, column := range columns {
+			if !strings.EqualFold(column.Name(), columnName) {
+				continue
+			}
+			if nullable, known := column.Nullable(); known && !nullable {
+				return nil
+			}
+			break
+		}
+	}
+
+	return db.Table(tableName).Where("sensitive_word_auto_banned IS NULL").
+		UpdateColumn("sensitive_word_auto_banned", false).Error
 }
 
 func prepareSensitiveWordAuditIdentityMigration(db *gorm.DB) error {
@@ -105,6 +144,15 @@ func MigrateSensitiveWordData() (err error) {
 	var marker Option
 	markerErr := DB.Where(&Option{Key: sensitiveWordMigrationKey}).First(&marker).Error
 	if markerErr == nil && marker.Value == sensitiveWordMigrationValue {
+		var policy SensitiveWordPolicy
+		policyErr := DB.First(&policy, 1).Error
+		if errors.Is(policyErr, gorm.ErrRecordNotFound) {
+			policy = defaultSensitiveWordPolicy()
+			policyErr = DB.Create(&policy).Error
+		}
+		if policyErr != nil {
+			return policyErr
+		}
 		completed = true
 		return nil
 	}
@@ -115,24 +163,16 @@ func MigrateSensitiveWordData() (err error) {
 	if err := migrateSensitiveWordPolicy(); err != nil {
 		return err
 	}
-	complete, err := migrateSensitiveWordRules()
-	if err != nil {
+	if err := migrateSensitiveWordRules(); err != nil {
 		return err
 	}
-	legacyComplete, err := migrateLegacySensitiveWordOption()
-	if err != nil {
+	if err := migrateLegacySensitiveWordOption(); err != nil {
 		return err
 	}
-	complete = complete && legacyComplete
-
-	if complete {
-		if err := DB.Save(&Option{Key: sensitiveWordMigrationKey, Value: sensitiveWordMigrationValue}).Error; err != nil {
-			return err
-		}
-		completed = true
-	} else if err := DB.Where(&Option{Key: sensitiveWordMigrationKey}).Delete(&Option{}).Error; err != nil {
+	if err := DB.Save(&Option{Key: sensitiveWordMigrationKey, Value: sensitiveWordMigrationValue}).Error; err != nil {
 		return err
 	}
+	completed = true
 	return nil
 }
 
@@ -173,11 +213,10 @@ func migrateSensitiveWordPolicy() error {
 	return DB.Create(&policy).Error
 }
 
-func migrateSensitiveWordRules() (bool, error) {
-	complete := true
+func migrateSensitiveWordRules() error {
 	var rules []SensitiveWordRule
 	if err := DB.Find(&rules).Error; err != nil {
-		return false, err
+		return err
 	}
 	for _, rule := range rules {
 		mode := migrateSensitiveWordRuleMode(rule.Mode, rule.Enabled)
@@ -194,20 +233,19 @@ func migrateSensitiveWordRules() (bool, error) {
 		}
 		if len(updates) > 0 {
 			if err := DB.Model(&SensitiveWordRule{}).Where("id = ?", rule.ID).Updates(updates).Error; err != nil {
-				return false, err
+				return err
 			}
 		}
 
 		var count int64
 		if err := DB.Model(&SensitiveWordRuleWord{}).Where("rule_id = ?", rule.ID).Count(&count).Error; err != nil {
-			return false, err
+			return err
 		}
 		if count > 0 || strings.TrimSpace(rule.Word) == "" {
 			continue
 		}
-		words, importedAll := normalizeLegacySensitiveWords(strings.Split(rule.Word, "\n"))
-		if !importedAll {
-			complete = false
+		words := normalizeLegacySensitiveWords(strings.SplitSeq(rule.Word, "\n"))
+		if len(words) == 0 {
 			continue
 		}
 		if err := DB.Transaction(func(tx *gorm.DB) error {
@@ -222,37 +260,37 @@ func migrateSensitiveWordRules() (bool, error) {
 			}
 			return nil
 		}); err != nil {
-			return false, err
+			return err
 		}
 	}
-	return complete, nil
+	return nil
 }
 
-func migrateLegacySensitiveWordOption() (bool, error) {
+func migrateLegacySensitiveWordOption() error {
 	var legacy Option
 	err := DB.Where(&Option{Key: "SensitiveWords"}).First(&legacy).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return true, nil
+		return nil
 	}
 	if err != nil {
-		return false, err
+		return err
 	}
-	words, complete := normalizeLegacySensitiveWords(strings.Split(legacy.Value, "\n"))
-	if !complete || len(words) == 0 {
-		return complete, nil
+	words := normalizeLegacySensitiveWords(strings.SplitSeq(legacy.Value, "\n"))
+	if len(words) == 0 {
+		return nil
 	}
 	var importedCount int64
 	if err := DB.Model(&SensitiveWordRule{}).
 		Where("name = ? AND scope = ? AND created_by = ?", "旧配置导入", SensitiveWordScopeGlobal, 0).
 		Count(&importedCount).Error; err != nil {
-		return false, err
+		return err
 	}
 	if importedCount == 0 {
 		if _, err := UpsertSensitiveWordRuleWithMode(
 			0, "旧配置导入", words, SensitiveWordScopeGlobal, nil, 0, SensitiveWordModeBlock,
 		); err != nil {
-			return false, err
+			return err
 		}
 	}
-	return true, nil
+	return nil
 }

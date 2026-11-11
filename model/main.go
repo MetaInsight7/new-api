@@ -341,6 +341,9 @@ func migrateDB() error {
 	if err := prepareSensitiveWordAuditIdentityMigration(DB); err != nil {
 		return err
 	}
+	if err := prepareSensitiveWordAutoBanOwnershipMigration(DB); err != nil {
+		return err
+	}
 
 	err := DB.AutoMigrate(
 		&Channel{},

@@ -190,6 +190,8 @@ import {
   findMissingModelsInMapping,
   validateModelMappingJson,
   parseGroupPriority,
+  parseGroupPriorityDocument,
+  setGroupPriorityOverride,
   type GroupPriorityOverrides,
 } from '../../lib'
 import {
@@ -5325,6 +5327,10 @@ function GroupPriorityInline({
     () => parseGroupPriority(groupPriority),
     [groupPriority]
   )
+  const document = useMemo(
+    () => parseGroupPriorityDocument(groupPriority),
+    [groupPriority]
+  )
   const defaultPriority = form.watch('priority') ?? 0
   const defaultWeight = form.watch('weight') ?? 0
   const [selectKey, setSelectKey] = useState(0)
@@ -5334,33 +5340,31 @@ function GroupPriorityInline({
     field: 'priority' | 'weight',
     value: number
   ) => {
-    const next = {
-      ...overrides,
-      [group]: {
-        ...overrides[group],
-        [field]: value,
-      },
-    }
-    form.setValue('group_priority', JSON.stringify(next), {
+    const next = setGroupPriorityOverride(groupPriority, group, {
+      [field]: value,
+    })
+    if (next === null) return
+    form.setValue('group_priority', next, {
       shouldDirty: true,
       shouldValidate: true,
     })
   }
 
   const remove = (group: string) => {
-    const next = { ...overrides }
-    delete next[group]
-    form.setValue(
-      'group_priority',
-      Object.keys(next).length > 0 ? JSON.stringify(next) : '{}',
-      { shouldDirty: true, shouldValidate: true }
-    )
+    const next = setGroupPriorityOverride(groupPriority, group, null)
+    if (next === null) return
+    form.setValue('group_priority', next, {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
   }
 
   const configuredGroups = Object.keys(overrides)
-  const availableGroups = groups.filter(
-    (group) => group.trim() && !overrides[group]
-  )
+  const storedGroups = new Set(Object.keys(document ?? {}))
+  const availableGroups =
+    document === null
+      ? []
+      : groups.filter((group) => group.trim() && !storedGroups.has(group))
 
   if (groups.length === 0) return null
 
@@ -5450,14 +5454,12 @@ function GroupPriorityInline({
           onValueChange={(value) => {
             const group = typeof value === 'string' ? value : ''
             if (!group) return
-            const next = {
-              ...overrides,
-              [group]: {
-                priority: defaultPriority,
-                weight: defaultWeight,
-              },
-            }
-            form.setValue('group_priority', JSON.stringify(next), {
+            const next = setGroupPriorityOverride(groupPriority, group, {
+              priority: defaultPriority,
+              weight: defaultWeight,
+            })
+            if (next === null) return
+            form.setValue('group_priority', next, {
               shouldDirty: true,
               shouldValidate: true,
             })
