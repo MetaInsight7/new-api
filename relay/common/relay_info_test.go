@@ -346,6 +346,8 @@ func TestInitChannelMetaResetsPerAttemptStreamStateAndPreservesRequestState(t *t
 	info.SendResponseCount = 3
 	info.ClaudeToChatStreamState = claudeState
 	info.ChatToGeminiStreamState = geminiState
+	common.SetContextKey(ctx, constant.ContextKeyLocalCountTokens, true)
+	common.SetContextKey(ctx, constant.ContextKeyNonStreamEmptyResponse, true)
 	info.LastError = types.NewError(assert.AnError, types.ErrorCodeBadResponseBody)
 	info.StreamStatus = NewStreamStatus()
 	info.StreamStatus.RecordError("attempt 1 soft error")
@@ -362,6 +364,8 @@ func TestInitChannelMetaResetsPerAttemptStreamStateAndPreservesRequestState(t *t
 	assert.Zero(t, info.SendResponseCount)
 	assert.Nil(t, info.ClaudeToChatStreamState)
 	assert.Nil(t, info.ChatToGeminiStreamState)
+	assert.False(t, common.GetContextKeyBool(ctx, constant.ContextKeyLocalCountTokens))
+	assert.False(t, common.GetContextKeyBool(ctx, constant.ContextKeyNonStreamEmptyResponse))
 
 	require.NotNil(t, info.StreamStatus)
 	assert.True(t, info.StreamStatus.HasErrors())

@@ -313,6 +313,10 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 
 	usageModified := false
 	if simpleResponse.Usage.PromptTokens == 0 {
+		common.SetContextKey(c, constant.ContextKeyLocalCountTokens, true)
+		if len(simpleResponse.Choices) == 0 {
+			common.SetContextKey(c, constant.ContextKeyNonStreamEmptyResponse, true)
+		}
 		completionTokens := simpleResponse.Usage.CompletionTokens
 		if completionTokens == 0 {
 			for _, choice := range simpleResponse.Choices {

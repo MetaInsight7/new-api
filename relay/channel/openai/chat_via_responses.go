@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
@@ -154,6 +155,9 @@ func convertResponsesResponseForClient(c *gin.Context, info *relaycommon.RelayIn
 
 	usage := relayconvert.UsageFromResponsesUsage(response.Usage)
 	if usage == nil || usage.TotalTokens == 0 {
+		if len(response.Output) == 0 {
+			common.SetContextKey(c, constant.ContextKeyNonStreamEmptyResponse, true)
+		}
 		text := service.ExtractOutputTextFromResponses(response)
 		usage = service.ResponseText2Usage(c, text, info.UpstreamModelName, info.GetEstimatePromptTokens())
 		response.Usage = relayconvert.UsageFromChatUsage(usage)

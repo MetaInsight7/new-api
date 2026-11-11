@@ -420,7 +420,7 @@ func TestCalculateTextQuotaSummaryUnifiedForClaudeSemantic(t *testing.T) {
 	require.Equal(t, 1488, chatSummary.Quota)
 }
 
-func TestShouldZeroLocalUsageOnlyWithoutRealStreamOutput(t *testing.T) {
+func TestShouldZeroLocalUsageOnlyWithoutBillableOutput(t *testing.T) {
 	newContext := func() *gin.Context {
 		context, _ := gin.CreateTestContext(httptest.NewRecorder())
 		common.SetContextKey(context, constant.ContextKeyLocalCountTokens, true)
@@ -449,7 +449,7 @@ func TestShouldZeroLocalUsageOnlyWithoutRealStreamOutput(t *testing.T) {
 		assert.False(t, shouldZeroLocalUsage(newContext(), info, &dto.Usage{CompletionTokens: 1}))
 	})
 
-	t.Run("does not apply to non-stream requests or upstream usage", func(t *testing.T) {
+	t.Run("requires an explicit non-stream marker and local usage", func(t *testing.T) {
 		info := newRelayInfo()
 		info.IsStream = false
 		assert.False(t, shouldZeroLocalUsage(newContext(), info, nil))
@@ -459,6 +459,68 @@ func TestShouldZeroLocalUsageOnlyWithoutRealStreamOutput(t *testing.T) {
 		info.IsStream = true
 		assert.False(t, shouldZeroLocalUsage(context, info, nil))
 	})
+
+}
+
+func TestPostTextConsumeQuotaWaivesLocallyEstimatedEmptyNonStreamResponses(t *testing.T) {
+	previousBatchUpdateEnabled := common.BatchUpdateEnabled
+	previousLogConsumeEnabled := common.LogConsumeEnabled
+	common.BatchUpdateEnabled = true
+	common.LogConsumeEnabled = false
+	t.Cleanup(func() {
+		common.BatchUpdateEnabled = previousBatchUpdateEnabled
+		common.LogConsumeEnabled = previousLogConsumeEnabled
+	})
+
+	for _, testCase := range []struct {
+		name     string
+		price    hosttypes.PriceData
+		tierExpr string
+	}{
+		{
+			name: "token pricing",
+			price: hosttypes.PriceData{
+				ModelRatio: 1, CompletionRatio: 1,
+				GroupRatioInfo: hosttypes.GroupRatioInfo{GroupRatio: 1},
+			},
+		},
+		{
+			name: "fixed request pricing",
+			price: hosttypes.PriceData{
+				UsePrice: true, ModelPrice: 0.01,
+				GroupRatioInfo: hosttypes.GroupRatioInfo{GroupRatio: 1},
+			},
+		},
+		{
+			name:     "tiered fixed pricing",
+			price:    hosttypes.PriceData{GroupRatioInfo: hosttypes.GroupRatioInfo{GroupRatio: 1}},
+			tierExpr: `tier("request", fixed(0.01))`,
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+			ctx.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+			common.SetContextKey(ctx, constant.ContextKeyLocalCountTokens, true)
+			common.SetContextKey(ctx, constant.ContextKeyNonStreamEmptyResponse, true)
+
+			billing := &terminalUsageBillingSettler{preConsumed: 100, needsRefund: true}
+			info := &relaycommon.RelayInfo{
+				StartTime:       time.Now(),
+				OriginModelName: "compatible-model",
+				PriceData:       testCase.price,
+				Billing:         billing,
+				ChannelMeta:     &relaycommon.ChannelMeta{},
+			}
+			if testCase.tierExpr != "" {
+				info.TieredBillingSnapshot = makeSnapshot(testCase.tierExpr, 1, 37, 0)
+			}
+
+			PostTextConsumeQuota(ctx, info, &dto.Usage{PromptTokens: 37, TotalTokens: 37}, nil)
+
+			require.Equal(t, []int{0}, billing.settled)
+			assert.False(t, billing.NeedsRefund())
+		})
+	}
 }
 
 func TestCalculateTextQuotaSummaryUsesSplitClaudeCacheCreationRatios(t *testing.T) {

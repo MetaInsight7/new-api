@@ -66,6 +66,10 @@ const (
 	ContextKeyUserName           ContextKey = "username"
 
 	ContextKeyLocalCountTokens ContextKey = "local_count_tokens"
+	// ContextKeyNonStreamEmptyResponse marks a parsed non-stream response that
+	// contains no protocol output. Settlement combines it with locally estimated
+	// usage; the marker alone never overrides authoritative upstream usage.
+	ContextKeyNonStreamEmptyResponse ContextKey = "non_stream_empty_response"
 
 	ContextKeySystemPromptOverride ContextKey = "system_prompt_override"
 

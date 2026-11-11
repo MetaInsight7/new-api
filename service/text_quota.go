@@ -399,7 +399,7 @@ func usageSemanticFromUsage(relayInfo *relaycommon.RelayInfo, usage *dto.Usage) 
 }
 
 func shouldZeroLocalUsage(ctx *gin.Context, info *relaycommon.RelayInfo, usage *dto.Usage) bool {
-	if info == nil || !info.IsStream {
+	if info == nil {
 		return false
 	}
 	if !common.GetContextKeyBool(ctx, constant.ContextKeyLocalCountTokens) {
@@ -407,6 +407,9 @@ func shouldZeroLocalUsage(ctx *gin.Context, info *relaycommon.RelayInfo, usage *
 	}
 	if usage != nil && usage.CompletionTokens > 0 {
 		return false
+	}
+	if !info.IsStream {
+		return common.GetContextKeyBool(ctx, constant.ContextKeyNonStreamEmptyResponse)
 	}
 	return !info.HasSendResponse()
 }
