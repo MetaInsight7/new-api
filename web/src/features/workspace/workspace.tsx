@@ -18,7 +18,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -27,11 +27,17 @@ import { Dialog } from '@/components/dialog'
 import { SectionPageLayout } from '@/components/layout'
 import { Button } from '@/components/ui/button'
 import { AnnouncementsPanel } from '@/features/dashboard/components/overview/announcements-panel'
+import { getSelf } from '@/lib/api'
+import {
+  createServerError,
+  requireServerSuccess,
+} from '@/lib/server-error-message'
 import {
   getRollingDateRange,
   getStartOfDay,
   type TimeGranularity,
 } from '@/lib/time'
+import { useAuthStore, type AuthUser } from '@/stores/auth-store'
 
 import { getWorkspaceUsage } from './api'
 import { IntegrationPanel } from './components/integration/integration-panel'
@@ -75,6 +81,8 @@ function getCustomGranularity(start: Date, end: Date): TimeGranularity {
 
 export function Workspace() {
   const { t } = useTranslation()
+  const userId = useAuthStore((state) => state.auth.user?.id)
+  const setUser = useAuthStore((state) => state.auth.setUser)
   const [range, setRange] = useState<WorkspaceRange>(RANGE_OPTIONS[0])
   const [customOpen, setCustomOpen] = useState(false)
   const initialCustomRange = getRollingDateRange(7)
@@ -86,25 +94,34 @@ export function Workspace() {
   )
   const [customDraftStart, setCustomDraftStart] = useState<Date | undefined>()
   const [customDraftEnd, setCustomDraftEnd] = useState<Date | undefined>()
-  const filters = useMemo(() => {
-    const { start, end } =
-      range.key === 'custom' && customStart && customEnd
-        ? { start: customStart, end: customEnd }
-        : getRangeDates(range as WorkspacePreset)
-    return {
-      start_timestamp: start,
-      end_timestamp: end,
-      time_granularity:
-        range.key === 'custom'
-          ? getCustomGranularity(start, end)
-          : range.timeGranularity,
-    }
-  }, [customEnd, customStart, range])
+  const timeGranularity =
+    range.key === 'custom' && customStart && customEnd
+      ? getCustomGranularity(customStart, customEnd)
+      : range.timeGranularity
+  const usageRangeKey =
+    range.key === 'custom'
+      ? [
+          range.key,
+          customStart?.getTime() ?? null,
+          customEnd?.getTime() ?? null,
+          timeGranularity,
+        ]
+      : [range.key, timeGranularity]
   const usageQuery = useQuery({
-    queryKey: ['workspace', 'usage', filters],
-    queryFn: () => getWorkspaceUsage(filters),
+    queryKey: ['workspace', 'usage', ...usageRangeKey],
+    queryFn: () => {
+      const { start, end } =
+        range.key === 'custom' && customStart && customEnd
+          ? { start: customStart, end: customEnd }
+          : getRangeDates(range as WorkspacePreset)
+      return getWorkspaceUsage({
+        start_timestamp: start,
+        end_timestamp: end,
+        time_granularity: timeGranularity,
+      })
+    },
     placeholderData: keepPreviousData,
-    staleTime: 60 * 1000,
+    refetchOnMount: 'always',
   })
   const recentTokensQuery = useQuery({
     queryKey: ['workspace', 'recent-tokens'],
@@ -116,8 +133,31 @@ export function Workspace() {
         time_granularity: 'week',
       })
     },
-    staleTime: 60 * 1000,
+    refetchOnMount: 'always',
   })
+  const currentUserQuery = useQuery({
+    queryKey: ['workspace', 'current-user', userId ?? null],
+    queryFn: async () => {
+      const result = requireServerSuccess(await getSelf())
+      if (!result?.data) {
+        throw createServerError(result, t('Failed to fetch user information'))
+      }
+      return result.data as AuthUser
+    },
+    enabled: userId !== undefined,
+    refetchOnMount: 'always',
+  })
+
+  useEffect(() => {
+    const refreshedUser = currentUserQuery.data
+    if (
+      currentUserQuery.isFetchedAfterMount &&
+      refreshedUser &&
+      useAuthStore.getState().auth.user?.id === refreshedUser.id
+    ) {
+      setUser(refreshedUser)
+    }
+  }, [currentUserQuery.data, currentUserQuery.isFetchedAfterMount, setUser])
 
   const chartData = {
     data: usageQuery.data?.data ?? [],
@@ -127,7 +167,7 @@ export function Workspace() {
     totalTokens: usageQuery.data?.totalTokens ?? 0,
     recentTokens: recentTokensQuery.data?.totalTokens ?? 0,
     rangeKey: range.key,
-    timeGranularity: filters.time_granularity,
+    timeGranularity,
   }
 
   const openCustomRange = () => {

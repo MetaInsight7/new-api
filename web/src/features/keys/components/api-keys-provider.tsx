@@ -77,7 +77,12 @@ export function ApiKeysProvider({
   const [resolvedKeys, setResolvedKeys] = useState<Record<number, string>>({})
   const [loadingKeys, setLoadingKeys] = useState<Record<number, boolean>>({})
   const pendingRequests = useRef<Record<number, Promise<string | null>>>({})
-  const modelAccessQuery = useModelAccess()
+  const modelAccessQuery = useModelAccess({
+    enabled:
+      createDialogRequested ||
+      dialogOpen === 'create' ||
+      dialogOpen === 'update',
+  })
   const deepLinkActiveRef = useRef(false)
   const didOpenDeepLinkRef = useRef(false)
   const deepLinkRequestKeyRef = useRef<string | null>(null)

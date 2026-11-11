@@ -32,16 +32,21 @@ export function createModelAccessQueryOptions(userId?: number) {
   return {
     queryKey: modelAccessQueryKeys.detail(userId),
     queryFn: getUserModelAccess,
-    staleTime: 5 * 60 * 1000,
     enabled: userId !== undefined,
   }
 }
 
-export function useModelAccess(enabled = true) {
+interface UseModelAccessOptions {
+  enabled?: boolean
+  refetchOnMount?: boolean | 'always'
+}
+
+export function useModelAccess(options: UseModelAccessOptions = {}) {
   const userId = useAuthStore((state) => state.auth.user?.id)
-  const options = createModelAccessQueryOptions(userId)
+  const queryOptions = createModelAccessQueryOptions(userId)
   return useQuery({
-    ...options,
-    enabled: enabled && options.enabled,
+    ...queryOptions,
+    enabled: (options.enabled ?? true) && queryOptions.enabled,
+    refetchOnMount: options.refetchOnMount,
   })
 }

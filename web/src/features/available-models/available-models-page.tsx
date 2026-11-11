@@ -93,7 +93,7 @@ function ModelAccessSkeleton() {
 
 export function AvailableModels() {
   const { t } = useTranslation()
-  const modelAccessQuery = useModelAccess()
+  const modelAccessQuery = useModelAccess({ refetchOnMount: 'always' })
   const viewState = getAvailableModelsViewState({
     hasData: modelAccessQuery.data !== undefined,
     isError: modelAccessQuery.isError,
