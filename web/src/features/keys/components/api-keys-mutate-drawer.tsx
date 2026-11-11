@@ -625,7 +625,10 @@ export function ApiKeysMutateDrawer({
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>{t('Expiration Time')}</FormLabel>
-                        <div className='grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
+                        <div
+                          data-slot='api-key-expiry-controls'
+                          className='grid grid-cols-1 gap-2'
+                        >
                           <FormControl>
                             <DateTimePicker
                               value={field.value}
@@ -634,7 +637,10 @@ export function ApiKeysMutateDrawer({
                               className='min-w-0 [&_input[type=time]]:w-24 sm:[&_input[type=time]]:w-32'
                             />
                           </FormControl>
-                          <div className='grid grid-cols-4 gap-2 sm:flex'>
+                          <div
+                            data-slot='api-key-expiry-shortcuts'
+                            className='grid grid-cols-4 gap-2'
+                          >
                             <Button
                               type='button'
                               variant='outline'

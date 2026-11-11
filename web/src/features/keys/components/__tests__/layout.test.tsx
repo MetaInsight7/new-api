@@ -82,4 +82,27 @@ describe('API key editor layout', () => {
       'lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]'
     )
   })
+
+  it('keeps expiration shortcuts below the date-time picker on desktop', async () => {
+    renderCreateDialog()
+    await waitFor(() => {
+      expect(
+        screen.getByRole('dialog', { name: 'Create API Key' })
+      ).toBeVisible()
+    })
+
+    const controls = document.querySelector(
+      '[data-slot="api-key-expiry-controls"]'
+    )
+    const shortcuts = document.querySelector(
+      '[data-slot="api-key-expiry-shortcuts"]'
+    )
+
+    expect(controls).toBeInTheDocument()
+    expect(controls).toHaveClass('grid-cols-1')
+    expect(controls).not.toHaveClass('sm:grid-cols-[minmax(0,1fr)_auto]')
+    expect(shortcuts).toBeInTheDocument()
+    expect(shortcuts).toHaveClass('grid-cols-4')
+    expect(shortcuts).not.toHaveClass('sm:flex')
+  })
 })
