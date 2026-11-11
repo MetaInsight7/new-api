@@ -41,6 +41,7 @@ var responsesWSTestUserSequence atomic.Int64
 
 func setupResponsesWSRequestTest(t *testing.T) (*model.User, *model.Token) {
 	t.Helper()
+	require.NoError(t, i18n.Init())
 	previousDB := model.DB
 	previousLogDB := model.LOG_DB
 	previousType := common.MainDatabaseType()
@@ -811,13 +812,14 @@ func TestResponsesWebSocketSensitiveWordsBlockBeforeChannelSelection(t *testing.
 	)
 	require.NoError(t, err)
 
-	payload := `{"type":"response.create","model":"ws-billing","input":[{"type":"function_call_output","call_id":"call_1","output":"responses-ws-sensitive-marker"}]}`
+	payload := `{"type":"response.create","model":"ws-billing","input":"responses-ws-sensitive-marker"}`
 	require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(payload)))
 	event := readResponsesWSTestEvent(t, fixture.client)
 	assert.Equal(t, "error", event["type"])
 	assert.EqualValues(t, http.StatusBadRequest, event["status"])
 	errorBody, ok := event["error"].(map[string]any)
 	require.True(t, ok)
+	assert.Equal(t, "invalid_request_error", errorBody["type"])
 	assert.Equal(t, string(types.ErrorCodeSensitiveWordsDetected), errorBody["code"])
 	assert.Zero(t, fixture.connections.Load(), "a local block must precede channel selection and the upstream handshake")
 

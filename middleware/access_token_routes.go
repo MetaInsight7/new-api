@@ -166,6 +166,7 @@ var accessTokenRouteRules = map[string]accessTokenRouteRule{
 	"GET /api/option/waffo-pancake/subscription-product-options": accessTokenScopeRule("option:read"),
 
 	// router/api-router.go: /api/sensitive-words
+	"GET /api/sensitive-words/dashboard":        accessTokenScopeRule("sensitive_word:manage"),
 	"GET /api/sensitive-words/policy":           accessTokenScopeRule("sensitive_word:manage"),
 	"PUT /api/sensitive-words/policy":           accessTokenScopeRule("sensitive_word:manage"),
 	"GET /api/sensitive-words/groups":           accessTokenScopeRule("sensitive_word:manage"),

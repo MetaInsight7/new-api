@@ -216,6 +216,30 @@ func TestSensitiveWordDatabaseMigrationMatrix(t *testing.T) {
 				requireSensitiveWordPromptColumn(t, db, database.name)
 			})
 
+			t.Run("dashboard_query", func(t *testing.T) {
+				db := openSensitiveWordMatrixDB(t, database.name, database.dsn)
+				withSensitiveWordMatrixDB(t, db, database.dialect)
+				migrateSensitiveWordCurrentSchema(t, db)
+				require.NoError(t, MigrateSensitiveWordData())
+				ruleIDs, err := marshalSensitiveAuditJSON([]int64{7})
+				require.NoError(t, err)
+				ruleNames, err := marshalSensitiveAuditJSON([]string{"matrix rule"})
+				require.NoError(t, err)
+				require.NoError(t, db.Create(&SensitiveWordAuditEvent{
+					RequestID: "matrix-dashboard", UserID: 11, UsernameSnapshot: "matrix-user",
+					ModelName: "matrix-model", GroupName: "default", Disposition: "block",
+					MatchedRuleIDs: ruleIDs, MatchedRuleNames: ruleNames,
+					Blocked: true, Counted: true, ViolationCount: 1, CreatedAt: time.Now(),
+				}).Error)
+				dashboard, err := GetSensitiveWordDashboard(24)
+				require.NoError(t, err)
+				require.Equal(t, int64(1), dashboard.Summary.MatchedRequests)
+				require.Equal(t, int64(1), dashboard.Summary.BlockedRequests)
+				require.Equal(t, "matrix rule", dashboard.TopRules[0].RuleName)
+				require.Equal(t, "matrix-model", dashboard.TopModels[0].Name)
+				require.Equal(t, "matrix-dashboard", dashboard.RecentEvents[0].RequestID)
+			})
+
 			t.Run("rc40_upgrade", func(t *testing.T) {
 				db := openSensitiveWordMatrixDB(t, database.name, database.dsn)
 				withSensitiveWordMatrixDB(t, db, database.dialect)

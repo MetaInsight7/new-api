@@ -80,11 +80,7 @@ func PrepareRequestBilling(c *gin.Context, info *relaycommon.RelayInfo) *types.N
 		if result != nil && result.Matched && result.Blocked {
 			service.RequestPolicy(c).AddEvent(service.PolicyEvent{ErrorCode: string(types.ErrorCodeSensitiveWordsDetected), ErrorSource: "local", Decision: service.PolicyDecision{Action: "stop", Reason: "local_rejection", Source: "global"}, Health: "unchanged"})
 			logger.LogWarn(c, "sensitive-word policy matched")
-			return types.NewOpenAIError(
-				errors.New(result.Message), types.ErrorCodeSensitiveWordsDetected,
-				http.StatusBadRequest,
-				types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog(),
-			)
+			return service.NewSensitiveWordRequestError(c, result)
 		}
 	}
 

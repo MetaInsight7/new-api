@@ -15,12 +15,11 @@ import (
 	"gorm.io/gorm"
 )
 
-func expandSensitiveWordMessage(message string, threshold int) string {
-	message = strings.TrimSpace(message)
-	if message == "" {
-		message = sensitiveWordBlockMessage
+func sensitiveWordResponseMessage(message string) string {
+	if strings.TrimSpace(message) == "" {
+		return sensitiveWordBlockMessage
 	}
-	return strings.ReplaceAll(message, "{{threshold}}", fmt.Sprintf("%d", threshold))
+	return message
 }
 
 func decodeSensitiveAuditSlice[T any](value string) []T {
@@ -55,8 +54,9 @@ func sensitiveCheckResultFromAudit(event SensitiveWordAuditEvent) *SensitiveChec
 		MatchedRuleIDs:   decodeSensitiveAuditSlice[int64](string(event.MatchedRuleIDs)),
 		MatchedRuleNames: decodeSensitiveAuditSlice[string](string(event.MatchedRuleNames)),
 		MatchedScope:     event.MatchedScope, AuditID: event.ID,
-		Message:          expandSensitiveWordMessage(policy.BlockMessage, policy.BanThreshold),
-		UserStatusBefore: event.UserStatusBefore, UserStatusAfter: event.UserStatusAfter,
+		Message:            sensitiveWordResponseMessage(policy.BlockMessage),
+		UsesDefaultMessage: policy.BlockMessage == sensitiveWordBlockMessage,
+		UserStatusBefore:   event.UserStatusBefore, UserStatusAfter: event.UserStatusAfter,
 		QuotaBefore: event.QuotaBefore, QuotaAfter: event.QuotaAfter,
 		ObserveOnly: event.ObserveOnly, MatchedRuleModes: modes,
 		Matches: evidence.Matches, EvidenceTruncated: event.EvidenceTruncated,
@@ -74,6 +74,10 @@ func normalizeSensitiveCheckFields(input SensitiveCheckInput) []relaytypes.Sensi
 	}
 	result := make([]relaytypes.SensitiveTextField, 0, len(fields))
 	for _, field := range fields {
+		if field.Kind == relaytypes.SensitiveTextKindTurnBoundary {
+			result = append(result, field)
+			continue
+		}
 		field.Text = normalizeSensitivePrompt(field.Text)
 		if field.Text == "" {
 			continue
@@ -152,8 +156,10 @@ func CheckSensitiveRequestForGroups(input SensitiveCheckInput, candidateGroups [
 	result := &SensitiveCheckResult{
 		Matched: true, ObserveOnly: observeOnly,
 		MatchedWords: words, MatchedRuleIDs: ids, MatchedRuleNames: names,
-		MatchedScope: matchedScope, Message: expandSensitiveWordMessage(policy.BlockMessage, policy.BanThreshold),
-		MatchedRuleModes: modes, Matches: decision.Matches,
+		MatchedScope:       matchedScope,
+		Message:            sensitiveWordResponseMessage(policy.BlockMessage),
+		UsesDefaultMessage: policy.BlockMessage == sensitiveWordBlockMessage,
+		MatchedRuleModes:   modes, Matches: decision.Matches,
 		EvidenceTruncated: decision.MatchesTruncated, PolicyGeneration: policy.Version,
 	}
 
@@ -299,6 +305,66 @@ func sensitiveFieldsHash(fields []relaytypes.SensitiveTextField) (string, error)
 	return hex.EncodeToString(hash[:]), nil
 }
 
+func centeredSensitiveEvidenceWindow(text string, match SensitiveWordMatch, maxRunes int) string {
+	runes := []rune(text)
+	if maxRunes <= 0 || len(runes) <= maxRunes {
+		return text
+	}
+	matchStart := min(max(match.StartRune, 0), len(runes)-1)
+	matchEnd := min(max(match.EndRune, matchStart+1), len(runes))
+	windowStart, windowEnd := 0, 0
+	markerCount := 0
+	for range 3 {
+		contentLimit := maxRunes - markerCount
+		if contentLimit < 1 {
+			contentLimit = 1
+		}
+		matchLength := matchEnd - matchStart
+		if matchLength >= contentLimit {
+			center := matchStart + matchLength/2
+			windowStart = center - contentLimit/2
+			windowEnd = windowStart + contentLimit
+		} else {
+			remaining := contentLimit - matchLength
+			windowStart = matchStart - remaining/2
+			windowEnd = matchEnd + remaining - remaining/2
+		}
+		if windowStart < 0 {
+			windowEnd = min(len(runes), windowEnd-windowStart)
+			windowStart = 0
+		}
+		if windowEnd > len(runes) {
+			windowStart = max(0, windowStart-(windowEnd-len(runes)))
+			windowEnd = len(runes)
+		}
+		if maxRunes < 3 {
+			markerCount = 0
+			break
+		}
+		actualMarkerCount := 0
+		if windowStart > 0 {
+			actualMarkerCount++
+		}
+		if windowEnd < len(runes) {
+			actualMarkerCount++
+		}
+		if actualMarkerCount == markerCount {
+			break
+		}
+		markerCount = actualMarkerCount
+	}
+
+	var result strings.Builder
+	if windowStart > 0 && maxRunes >= 3 {
+		result.WriteRune('…')
+	}
+	result.WriteString(string(runes[windowStart:windowEnd]))
+	if windowEnd < len(runes) && maxRunes >= 3 {
+		result.WriteRune('…')
+	}
+	return result.String()
+}
+
 func buildSensitiveAuditEvidence(fields []relaytypes.SensitiveTextField, matches []SensitiveWordMatch, policy SensitiveWordPolicy, alreadyTruncated bool) (SensitiveWordAuditJSON, string, []string, bool, string, error) {
 	promptHash, err := sensitiveFieldsHash(fields)
 	if err != nil {
@@ -340,15 +406,26 @@ func buildSensitiveAuditEvidence(fields []relaytypes.SensitiveTextField, matches
 		evidence.Truncated = true
 	}
 
-	matchedOrders := make(map[int]struct{}, len(matches))
-	matchedRounds := make(map[int]struct{}, len(matches))
-	for _, match := range matches {
+	type conversationRound struct {
+		conversation int
+		round        int
+	}
+	matchedOrders := make(map[int]struct{}, len(evidence.Matches))
+	matchedRounds := make(map[conversationRound]struct{}, len(evidence.Matches))
+	matchedConversations := make(map[int]struct{}, len(evidence.Matches))
+	matchesByOrder := make(map[int][]SensitiveWordMatch, len(evidence.Matches))
+	for _, match := range evidence.Matches {
 		matchedOrders[match.FieldOrder] = struct{}{}
-		matchedRounds[match.FieldRound] = struct{}{}
+		matchedRounds[conversationRound{conversation: match.FieldConversation, round: match.FieldRound}] = struct{}{}
+		matchedConversations[match.FieldConversation] = struct{}{}
+		matchesByOrder[match.FieldOrder] = append(matchesByOrder[match.FieldOrder], match)
 	}
 	selected := make([]relaytypes.SensitiveTextField, 0, len(fields))
 	seenOrders := make(map[int]struct{}, len(fields))
 	appendField := func(field relaytypes.SensitiveTextField) {
+		if field.Kind == relaytypes.SensitiveTextKindTurnBoundary {
+			return
+		}
 		if _, exists := seenOrders[field.Order]; exists {
 			return
 		}
@@ -362,34 +439,69 @@ func buildSensitiveAuditEvidence(fields []relaytypes.SensitiveTextField, matches
 	}
 	for _, field := range fields {
 		if field.Role == relaytypes.SensitiveTextRoleSystem || field.Role == relaytypes.SensitiveTextRoleDeveloper {
-			appendField(field)
+			if _, matched := matchedConversations[field.Conversation]; matched {
+				appendField(field)
+			}
 			continue
 		}
-		for currentRound := range matchedRounds {
-			if currentRound >= 0 && field.Round >= max(0, currentRound-3) && field.Round <= currentRound {
+		for current := range matchedRounds {
+			if field.Conversation == current.conversation && current.round >= 0 &&
+				field.Round >= max(0, current.round-3) && field.Round <= current.round {
 				appendField(field)
 				break
 			}
 		}
 	}
 
-	for _, field := range selected {
-		candidate := field
-		if policy.MaxPromptRunes > 0 && len([]rune(candidate.Text)) > policy.MaxPromptRunes {
-			candidate.Text = string([]rune(candidate.Text)[:policy.MaxPromptRunes]) + "…"
-			evidence.Truncated = true
-		}
+	appendCandidate := func(candidate relaytypes.SensitiveTextField) (bool, error) {
 		evidence.Fields = append(evidence.Fields, candidate)
 		raw, marshalErr := common.Marshal(evidence)
 		if marshalErr != nil {
-			return "", "", nil, evidence.Truncated, "", marshalErr
+			return false, marshalErr
 		}
 		if len(raw) <= SensitiveWordMaxPromptBytes {
-			continue
+			return true, nil
 		}
 		evidence.Fields = evidence.Fields[:len(evidence.Fields)-1]
 		evidence.Truncated = true
-		break
+		return false, nil
+	}
+
+	limitReached := false
+	for _, field := range selected {
+		fieldRunes := []rune(field.Text)
+		fieldMatches := matchesByOrder[field.Order]
+		if policy.MaxPromptRunes > 0 && len(fieldRunes) > policy.MaxPromptRunes && len(fieldMatches) > 0 {
+			evidence.Truncated = true
+			primaryMatch := fieldMatches[0]
+			for _, match := range fieldMatches {
+				if match.RuleMode == SensitiveWordModeBlock {
+					primaryMatch = match
+					break
+				}
+			}
+			candidate := field
+			candidate.Text = centeredSensitiveEvidenceWindow(field.Text, primaryMatch, policy.MaxPromptRunes)
+			retained, appendErr := appendCandidate(candidate)
+			if appendErr != nil {
+				return "", "", nil, evidence.Truncated, "", appendErr
+			}
+			limitReached = !retained
+		} else {
+			candidate := field
+			if policy.MaxPromptRunes > 0 && len(fieldRunes) > policy.MaxPromptRunes {
+				candidate.Text = string(fieldRunes[:policy.MaxPromptRunes]) + "…"
+				evidence.Truncated = true
+			}
+			retained, appendErr := appendCandidate(candidate)
+			if appendErr != nil {
+				return "", "", nil, evidence.Truncated, "", appendErr
+			}
+			limitReached = !retained
+		}
+		if limitReached {
+			break
+		}
 	}
 	sort.SliceStable(evidence.Fields, func(left, right int) bool {
 		return evidence.Fields[left].Order < evidence.Fields[right].Order

@@ -23,6 +23,8 @@ const (
 	MsgConcurrencyLimitReached     = "rate_limit.concurrency_reached"
 	MsgConcurrencyLimitUnavailable = "rate_limit.concurrency_unavailable"
 	MsgRateLimitTotalReached       = "rate_limit.total_reached"
+	MsgSensitiveWordBlocked        = "sensitive_word.blocked"
+	MsgSensitiveWordAutoBanned     = "sensitive_word.auto_banned"
 
 	MsgDistributorInvalidRequest               = "distributor.invalid_request"
 	MsgDistributorInvalidChannelId             = "distributor.invalid_channel_id"

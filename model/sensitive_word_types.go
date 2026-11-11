@@ -172,19 +172,20 @@ type SensitiveWordAuditEvent struct {
 }
 
 type SensitiveWordMatch struct {
-	RuleID      int64                        `json:"rule_id"`
-	RuleName    string                       `json:"rule_name"`
-	RuleScope   string                       `json:"rule_scope"`
-	RuleMode    string                       `json:"rule_mode"`
-	RuleVersion int64                        `json:"rule_version"`
-	Word        string                       `json:"word"`
-	FieldOrder  int                          `json:"field_order"`
-	FieldRole   relaytypes.SensitiveTextRole `json:"field_role"`
-	FieldKind   relaytypes.SensitiveTextKind `json:"field_kind"`
-	FieldRound  int                          `json:"field_round"`
-	StartRune   int                          `json:"start_rune"`
-	EndRune     int                          `json:"end_rune"`
-	Snippet     string                       `json:"snippet"`
+	RuleID            int64                        `json:"rule_id"`
+	RuleName          string                       `json:"rule_name"`
+	RuleScope         string                       `json:"rule_scope"`
+	RuleMode          string                       `json:"rule_mode"`
+	RuleVersion       int64                        `json:"rule_version"`
+	Word              string                       `json:"word"`
+	FieldOrder        int                          `json:"field_order"`
+	FieldRole         relaytypes.SensitiveTextRole `json:"field_role"`
+	FieldKind         relaytypes.SensitiveTextKind `json:"field_kind"`
+	FieldConversation int                          `json:"field_conversation,omitempty"`
+	FieldRound        int                          `json:"field_round"`
+	StartRune         int                          `json:"start_rune"`
+	EndRune           int                          `json:"end_rune"`
+	Snippet           string                       `json:"snippet"`
 }
 
 type SensitiveWordAuditEvidence struct {
@@ -209,28 +210,29 @@ type SensitiveCheckInput struct {
 }
 
 type SensitiveCheckResult struct {
-	Matched           bool
-	Blocked           bool
-	Counted           bool
-	Disposition       string
-	WhitelistBypassed bool
-	AutoBanned        bool
-	ViolationCount    int
-	MatchedWords      []string
-	MatchedRuleIDs    []int64
-	MatchedRuleNames  []string
-	MatchedScope      string
-	AuditID           int64
-	Message           string
-	UserStatusBefore  int
-	UserStatusAfter   int
-	QuotaBefore       int
-	QuotaAfter        int
-	ObserveOnly       bool
-	MatchedRuleModes  []string
-	Matches           []SensitiveWordMatch
-	EvidenceTruncated bool
-	PolicyGeneration  int64
+	Matched            bool
+	Blocked            bool
+	Counted            bool
+	Disposition        string
+	WhitelistBypassed  bool
+	AutoBanned         bool
+	ViolationCount     int
+	MatchedWords       []string
+	MatchedRuleIDs     []int64
+	MatchedRuleNames   []string
+	MatchedScope       string
+	AuditID            int64
+	Message            string
+	UsesDefaultMessage bool
+	UserStatusBefore   int
+	UserStatusAfter    int
+	QuotaBefore        int
+	QuotaAfter         int
+	ObserveOnly        bool
+	MatchedRuleModes   []string
+	Matches            []SensitiveWordMatch
+	EvidenceTruncated  bool
+	PolicyGeneration   int64
 }
 
 type SensitiveWordEnableResetResult struct {

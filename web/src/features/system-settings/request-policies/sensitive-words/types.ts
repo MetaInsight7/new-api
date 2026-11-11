@@ -65,7 +65,7 @@ export const DEFAULT_SENSITIVE_WORD_POLICY: SensitiveWordPolicy = {
   auto_ban_enabled: false,
   retain_full_prompt: true,
   block_message:
-    'Your request was blocked because it matched a sensitive word. This has been recorded; if automatic banning is enabled, reaching {{threshold}} violations disables the account.',
+    'Your request was rejected and recorded because it violates the platform content policy. Revise the content before retrying; repeated violations may disable the account. Contact the administrator if you believe this was a mistake.',
   ban_threshold: 50,
   full_prompt_retention_days: 180,
   max_prompt_runes: 65536,

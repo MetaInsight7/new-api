@@ -39,6 +39,22 @@ func abortWithOpenAiMessageType(c *gin.Context, statusCode int, message string, 
 	logger.LogError(c.Request.Context(), common.LogText("user %d | %s", userId, message))
 }
 
+func abortWithClaudeMessageType(c *gin.Context, statusCode int, message string, errorType string) {
+	response := gin.H{
+		"type": "error",
+		"error": types.ClaudeError{
+			Type:    errorType,
+			Message: message,
+		},
+	}
+	if requestID := c.GetString(common.RequestIdKey); requestID != "" {
+		response["request_id"] = requestID
+	}
+	c.JSON(statusCode, response)
+	c.Abort()
+	logger.LogError(c.Request.Context(), common.LogText("user %d | %s", c.GetInt("id"), message))
+}
+
 // invalidRequestStatus is the status of a request whose body could not be
 // read or parsed: 413 when the body exceeds MAX_REQUEST_BODY_MB, else 400.
 func invalidRequestStatus(err error) int {

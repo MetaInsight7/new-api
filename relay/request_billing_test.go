@@ -8,6 +8,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -48,6 +49,7 @@ func setupSensitiveBillingTest(t *testing.T) *gorm.DB {
 
 func TestPrepareRequestBillingBlocksBeforeEstimateAndReservation(t *testing.T) {
 	database := setupSensitiveBillingTest(t)
+	require.NoError(t, i18n.Init())
 	require.NoError(t, model.MigrateSensitiveWordData())
 	policy := model.GetSensitiveWordPolicy()
 	policy.Enabled = true
@@ -74,6 +76,7 @@ func TestPrepareRequestBillingBlocksBeforeEstimateAndReservation(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	c.Request.Header.Set("Accept-Language", "en")
 	c.Set(common.RequestIdKey, "billing-boundary-request")
 	c.Set("username", user.Username)
 	c.Set("token_name", token.Name)
@@ -92,6 +95,9 @@ func TestPrepareRequestBillingBlocksBeforeEstimateAndReservation(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, apiErr.StatusCode)
 	assert.Equal(t, types.ErrorCodeSensitiveWordsDetected, apiErr.GetErrorCode())
 	assert.True(t, types.IsSkipRetryError(apiErr))
+	openAIError := apiErr.ToOpenAIError()
+	assert.Equal(t, "invalid_request_error", openAIError.Type)
+	assert.Equal(t, i18n.Translate(i18n.LangEn, i18n.MsgSensitiveWordBlocked), openAIError.Message)
 	assert.Zero(t, info.GetEstimatePromptTokens(), "estimation must not run after a local policy block")
 	assert.Nil(t, info.Billing, "reservation must not run after a local policy block")
 
@@ -103,6 +109,38 @@ func TestPrepareRequestBillingBlocksBeforeEstimateAndReservation(t *testing.T) {
 	assert.Equal(t, user.UsedQuota, storedUser.UsedQuota)
 	assert.Equal(t, token.RemainQuota, storedToken.RemainQuota)
 	assert.Equal(t, 1, storedUser.SensitiveWordViolationCount)
+}
+
+func TestPrepareRequestBillingReturnsPermissionErrorForAutomaticBan(t *testing.T) {
+	setupSensitiveBillingTest(t)
+	require.NoError(t, i18n.Init())
+	require.NoError(t, model.MigrateSensitiveWordData())
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	c.Request.Header.Set("Accept-Language", "en")
+	common.SetContextKey(c, constant.ContextKeySensitiveWordCheckResult, &model.SensitiveCheckResult{
+		Matched: true, Blocked: true, AutoBanned: true, UsesDefaultMessage: true,
+	})
+	info := &relaycommon.RelayInfo{
+		Request: &dto.GeneralOpenAIRequest{
+			Model:    "unpriced-model-must-not-be-reached",
+			Messages: []dto.Message{{Role: "user", Content: "blocked"}},
+		},
+		UsingGroup: "default", UserGroup: "default", TokenGroup: "default",
+		RelayFormat: types.RelayFormatOpenAI,
+	}
+
+	apiErr := PrepareRequestBilling(c, info)
+	require.NotNil(t, apiErr)
+	assert.Equal(t, http.StatusForbidden, apiErr.StatusCode)
+	assert.Equal(t, types.ErrorCodeUserBanned, apiErr.GetErrorCode())
+	assert.True(t, types.IsSkipRetryError(apiErr))
+	openAIError := apiErr.ToOpenAIError()
+	assert.Equal(t, "permission_error", openAIError.Type)
+	assert.Equal(t, i18n.Translate(i18n.LangEn, i18n.MsgSensitiveWordAutoBanned), openAIError.Message)
 }
 
 func TestPrepareRequestBillingReusesPreChannelSensitiveDecision(t *testing.T) {

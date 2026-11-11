@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/stretchr/testify/require"
 )
@@ -31,6 +32,16 @@ func findSensitiveField(t *testing.T, fields []types.SensitiveTextField, text st
 	return types.SensitiveTextField{}
 }
 
+func sensitiveTurnBoundaries(fields []types.SensitiveTextField) []types.SensitiveTextField {
+	boundaries := make([]types.SensitiveTextField, 0)
+	for _, field := range fields {
+		if field.Kind == types.SensitiveTextKindTurnBoundary {
+			boundaries = append(boundaries, field)
+		}
+	}
+	return boundaries
+}
+
 func TestOpenAISensitiveTextFieldsPreserveRoundsAndExcludeStructure(t *testing.T) {
 	raw := []byte(`{
   "model":"gpt-test",
@@ -46,8 +57,8 @@ func TestOpenAISensitiveTextFieldsPreserveRoundsAndExcludeStructure(t *testing.T
   ]
 }`)
 	var request GeneralOpenAIRequest
-	require.NoError(t, json.Unmarshal(raw, &request))
-	beforeWire, err := json.Marshal(request)
+	require.NoError(t, kitutil.Unmarshal(raw, &request))
+	beforeWire, err := kitutil.Marshal(request)
 	require.NoError(t, err)
 	beforeTokens := request.GetTokenCountMeta().CombineText
 
@@ -78,10 +89,68 @@ func TestOpenAISensitiveTextFieldsPreserveRoundsAndExcludeStructure(t *testing.T
 	require.Equal(t, types.SensitiveTextKindToolResult, toolResult.Kind)
 	require.Equal(t, 1, findSensitiveField(t, fields, "second-user-marker").Round)
 
-	afterWire, err := json.Marshal(request)
+	afterWire, err := kitutil.Marshal(request)
 	require.NoError(t, err)
 	require.JSONEq(t, string(beforeWire), string(afterWire))
 	require.Equal(t, beforeTokens, request.GetTokenCountMeta().CombineText)
+}
+
+func TestSensitiveTextFieldsPreserveTextFreeLatestUserTurns(t *testing.T) {
+	tests := []struct {
+		name    string
+		raw     string
+		request Request
+	}{
+		{
+			name: "openai chat image-only turn",
+			raw: `{"messages":[
+  {"role":"user","content":"historical-sensitive-marker"},
+  {"role":"assistant","content":"assistant-marker"},
+  {"role":"user","content":[{"type":"image_url","image_url":{"url":"data:image/png;base64,latest-media-marker"}}]}
+]}`,
+			request: &GeneralOpenAIRequest{},
+		},
+		{
+			name: "openai responses image-only turn",
+			raw: `{"input":[
+  {"type":"message","role":"user","content":[{"type":"input_text","text":"historical-sensitive-marker"}]},
+  {"type":"message","role":"assistant","content":[{"type":"output_text","text":"assistant-marker"}]},
+  {"type":"message","role":"user","content":[{"type":"input_image","image_url":"data:image/png;base64,latest-media-marker"}]}
+]}`,
+			request: &OpenAIResponsesRequest{},
+		},
+		{
+			name: "claude image-only turn",
+			raw: `{"messages":[
+  {"role":"user","content":"historical-sensitive-marker"},
+  {"role":"assistant","content":"assistant-marker"},
+  {"role":"user","content":[{"type":"image","source":{"type":"base64","media_type":"image/png","data":"latest-media-marker"}}]}
+]}`,
+			request: &ClaudeRequest{},
+		},
+		{
+			name: "gemini inline-data-only turn",
+			raw: `{"contents":[
+  {"role":"user","parts":[{"text":"historical-sensitive-marker"}]},
+  {"role":"model","parts":[{"text":"assistant-marker"}]},
+  {"role":"user","parts":[{"inlineData":{"mimeType":"image/png","data":"latest-media-marker"}}]}
+]}`,
+			request: &GeminiChatRequest{},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.NoError(t, kitutil.Unmarshal([]byte(test.raw), test.request))
+			fields := ExtractSensitiveText(test.request)
+			boundaries := sensitiveTurnBoundaries(fields)
+			require.Len(t, boundaries, 2)
+			require.Equal(t, 1, boundaries[1].Round)
+			require.Empty(t, boundaries[1].Text)
+			require.Greater(t, boundaries[1].Order, findSensitiveField(t, fields, "historical-sensitive-marker").Order)
+			require.NotContains(t, strings.Join(sensitiveFieldTexts(fields), "\n"), "latest-media-marker")
+		})
+	}
 }
 
 func TestSensitiveToolArgumentWithTrailingTextIsScannedWhole(t *testing.T) {
@@ -115,7 +184,7 @@ func TestResponsesSensitiveTextFieldsUseCurrentRequestOnly(t *testing.T) {
   ]
 }`)
 	var request OpenAIResponsesRequest
-	require.NoError(t, json.Unmarshal(raw, &request))
+	require.NoError(t, kitutil.Unmarshal(raw, &request))
 	fields := ExtractSensitiveText(&request)
 	joined := strings.Join(sensitiveFieldTexts(fields), "\n")
 	for _, marker := range []string{
@@ -164,7 +233,7 @@ func TestClaudeSensitiveTextFieldsKeepToolActivityInUserRound(t *testing.T) {
   ]
 }`)
 	var request ClaudeRequest
-	require.NoError(t, json.Unmarshal(raw, &request))
+	require.NoError(t, kitutil.Unmarshal(raw, &request))
 	fields := ExtractSensitiveText(&request)
 	joined := strings.Join(sensitiveFieldTexts(fields), "\n")
 	for _, marker := range []string{
@@ -183,6 +252,7 @@ func TestClaudeSensitiveTextFieldsKeepToolActivityInUserRound(t *testing.T) {
 	}
 	require.Equal(t, 0, findSensitiveField(t, fields, "claude-tool-result").Round)
 	require.Equal(t, 1, findSensitiveField(t, fields, "claude-user-two").Round)
+	require.Len(t, sensitiveTurnBoundaries(fields), 2, "a pure tool-result message must stay in the active user round")
 }
 
 func TestGeminiSensitiveTextFieldsKeepFunctionResponseInUserRound(t *testing.T) {
@@ -198,7 +268,7 @@ func TestGeminiSensitiveTextFieldsKeepFunctionResponseInUserRound(t *testing.T) 
   ]
 }`)
 	var request GeminiChatRequest
-	require.NoError(t, json.Unmarshal(raw, &request))
+	require.NoError(t, kitutil.Unmarshal(raw, &request))
 	fields := ExtractSensitiveText(&request)
 	joined := strings.Join(sensitiveFieldTexts(fields), "\n")
 	for _, marker := range []string{
@@ -216,6 +286,44 @@ func TestGeminiSensitiveTextFieldsKeepFunctionResponseInUserRound(t *testing.T) 
 	}
 	require.Equal(t, 0, findSensitiveField(t, fields, "gemini-tool-result").Round)
 	require.Equal(t, 1, findSensitiveField(t, fields, "gemini-user-two").Round)
+	require.Len(t, sensitiveTurnBoundaries(fields), 2, "a pure function response must stay in the active user round")
+}
+
+func TestGeminiBatchSensitiveTextFieldsKeepIndependentConversations(t *testing.T) {
+	request := &GeminiChatRequest{Requests: []GeminiChatRequest{
+		{Contents: []GeminiChatContent{
+			{Role: "user", Parts: []GeminiPart{{Text: "batch-one-history"}}},
+			{Role: "model", Parts: []GeminiPart{{Text: "batch-one-response"}}},
+			{Role: "user", Parts: []GeminiPart{{Text: "batch-one-latest"}}},
+		}},
+		{Contents: []GeminiChatContent{
+			{Role: "user", Parts: []GeminiPart{{Text: "batch-two-latest"}}},
+		}},
+	}}
+
+	fields := ExtractSensitiveText(request)
+	firstHistory := findSensitiveField(t, fields, "batch-one-history")
+	firstLatest := findSensitiveField(t, fields, "batch-one-latest")
+	secondLatest := findSensitiveField(t, fields, "batch-two-latest")
+	require.Equal(t, firstHistory.Conversation, firstLatest.Conversation)
+	require.NotEqual(t, firstLatest.Conversation, secondLatest.Conversation)
+	require.Equal(t, 0, firstHistory.Round)
+	require.Equal(t, 1, firstLatest.Round)
+	require.Equal(t, 0, secondLatest.Round)
+}
+
+func TestGeminiBatchEmbeddingSensitiveTextFieldsKeepIndependentConversations(t *testing.T) {
+	request := &GeminiBatchEmbeddingRequest{Requests: []*GeminiEmbeddingRequest{
+		{Content: GeminiChatContent{Parts: []GeminiPart{{Text: "embedding-one"}}}},
+		{Content: GeminiChatContent{Parts: []GeminiPart{{Text: "embedding-two"}}}},
+	}}
+
+	fields := ExtractSensitiveText(request)
+	first := findSensitiveField(t, fields, "embedding-one")
+	second := findSensitiveField(t, fields, "embedding-two")
+	require.NotEqual(t, first.Conversation, second.Conversation)
+	require.Equal(t, 0, first.Round)
+	require.Equal(t, 0, second.Round)
 }
 
 func TestSensitiveTextFieldsCoverPromptProtocolsWithoutMedia(t *testing.T) {

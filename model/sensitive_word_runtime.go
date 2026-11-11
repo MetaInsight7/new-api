@@ -11,7 +11,6 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	relaytypes "github.com/QuantumNous/new-api/relaykit/types"
-	goahocorasick "github.com/anknown/ahocorasick"
 	"gorm.io/gorm"
 )
 
@@ -25,7 +24,7 @@ type sensitiveRuntimeRule struct {
 }
 
 type sensitiveRuntimeSnapshot struct {
-	machine           *goahocorasick.Machine
+	machine           *sensitiveWordAutomaton
 	words             map[string][]sensitiveRuntimeRule
 	policy            SensitiveWordPolicy
 	policyVersion     int64
@@ -123,15 +122,7 @@ func buildSensitiveRuntimeSnapshot(db *gorm.DB, policy SensitiveWordPolicy) (*se
 	if len(words) == 0 {
 		return snapshot, nil
 	}
-	keywords := make([][]rune, 0, len(words))
-	for _, word := range words {
-		keywords = append(keywords, []rune(word))
-	}
-	machine := new(goahocorasick.Machine)
-	if err := machine.Build(keywords); err != nil {
-		return nil, err
-	}
-	snapshot.machine = machine
+	snapshot.machine = newSensitiveWordAutomaton(words)
 	return snapshot, nil
 }
 
@@ -348,19 +339,37 @@ func matchSensitiveFieldsForGroups(snapshot *sensitiveRuntimeSnapshot, fields []
 	for index, group := range candidates {
 		candidateIndex[group] = index
 	}
+	latestUserRounds := make(map[int]int)
+	for _, field := range fields {
+		if field.Role != relaytypes.SensitiveTextRoleUser {
+			continue
+		}
+		latestRound, exists := latestUserRounds[field.Conversation]
+		if !exists || field.Round > latestRound {
+			latestUserRounds[field.Conversation] = field.Round
+		}
+	}
 	seenMatches := make(map[string]struct{})
-	retainedBlockingMatch := false
 	matchedGroup := ""
 	matchedGroupIndex := len(candidates)
+
+scanFields:
 	for _, field := range fields {
+		latestRound, hasUserRound := latestUserRounds[field.Conversation]
+		if !hasUserRound || field.Role != relaytypes.SensitiveTextRoleUser || field.Round != latestRound {
+			continue
+		}
+		if field.Kind == relaytypes.SensitiveTextKindTurnBoundary {
+			continue
+		}
 		text := normalizeSensitivePrompt(field.Text)
 		if text == "" {
 			continue
 		}
 		originalRunes := []rune(text)
-		for _, term := range snapshot.machine.MultiPatternSearch([]rune(strings.ToLower(text)), false) {
-			word := string(term.Word)
+		snapshot.machine.scan(originalRunes, func(word string, start, end int) bool {
 			for _, metadata := range snapshot.words[word] {
+				mode := normalizeSensitiveWordRuleMode(metadata.Mode)
 				if metadata.Scope == SensitiveWordScopeGroup {
 					matchedIndex := len(candidates)
 					for group := range metadata.Groups {
@@ -376,44 +385,43 @@ func matchSensitiveFieldsForGroups(snapshot *sensitiveRuntimeSnapshot, fields []
 						matchedGroup = candidates[matchedIndex]
 					}
 				}
-				mode := normalizeSensitiveWordRuleMode(metadata.Mode)
 				blockingMatch := mode == SensitiveWordModeBlock
-				decision.Blocking = decision.Blocking || blockingMatch
 				key := fmt.Sprintf("%d:%s", metadata.ID, word)
 				if _, exists := seenMatches[key]; exists {
 					continue
 				}
 				seenMatches[key] = struct{}{}
-				end := min(len(originalRunes), term.Pos+len(term.Word))
-				start := min(max(term.Pos, 0), end)
+				end = min(len(originalRunes), end)
+				start = min(max(start, 0), end)
 				from := max(0, start-24)
 				to := min(len(originalRunes), end+24)
 				match := SensitiveWordMatch{
 					RuleID: metadata.ID, RuleName: metadata.Name,
 					RuleScope: metadata.Scope, RuleMode: mode, RuleVersion: metadata.Version,
 					Word: word, FieldOrder: field.Order, FieldRole: field.Role,
-					FieldKind: field.Kind, FieldRound: field.Round,
+					FieldKind: field.Kind, FieldConversation: field.Conversation, FieldRound: field.Round,
 					StartRune: start, EndRune: end,
 					Snippet: redactedSensitivePreview(string(originalRunes[from:to])),
 				}
 				if len(decision.Matches) >= SensitiveWordMaxMatches {
 					decision.MatchesTruncated = true
-					if blockingMatch && !retainedBlockingMatch {
-						for index := len(decision.Matches) - 1; index >= 0; index-- {
-							if decision.Matches[index].RuleMode == SensitiveWordModeBlock {
-								retainedBlockingMatch = true
-								break
-							}
-							decision.Matches[index] = match
-							retainedBlockingMatch = true
-							break
-						}
+					if blockingMatch {
+						decision.Matches[len(decision.Matches)-1] = match
+						decision.Blocking = true
+						return false
 					}
 					continue
 				}
 				decision.Matches = append(decision.Matches, match)
-				retainedBlockingMatch = retainedBlockingMatch || blockingMatch
+				if blockingMatch {
+					decision.Blocking = true
+					return false
+				}
 			}
+			return true
+		})
+		if decision.Blocking {
+			break scanFields
 		}
 	}
 	if matchedGroup == "" && len(candidates) > 0 {

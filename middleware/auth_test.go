@@ -167,11 +167,60 @@ func TestTokenAuthBannedUserReturnsStableErrorCode(t *testing.T) {
 	assert.False(t, called)
 	var payload struct {
 		Error struct {
+			Type string `json:"type"`
 			Code string `json:"code"`
 		} `json:"error"`
 	}
 	require.NoError(t, common.Unmarshal(response.Body.Bytes(), &payload))
+	assert.Equal(t, "permission_error", payload.Error.Type)
 	assert.Equal(t, "user_banned", payload.Error.Code)
+}
+
+func TestTokenAuthBannedUserReturnsClaudeErrorEnvelope(t *testing.T) {
+	setupTokenAuthSensitiveWordTest(t)
+	user := &model.User{
+		Username: "banned-claude-user", Password: "password-placeholder",
+		Role: common.RoleCommonUser, Status: common.UserStatusDisabled,
+		Group: "default", AuthVersion: 2, AffCode: "banned-claude-aff",
+	}
+	require.NoError(t, model.DB.Create(user).Error)
+	token := &model.Token{
+		UserId: user.Id, Key: "bannedclaudekey", Name: "banned claude token",
+		Status: common.TokenStatusEnabled, RemainQuota: 1_000_000, ExpiredTime: -1,
+	}
+	require.NoError(t, model.DB.Create(token).Error)
+
+	gin.SetMode(gin.TestMode)
+	called := false
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set(common.RequestIdKey, "req-banned-claude")
+		c.Next()
+	})
+	router.POST("/v1/messages", TokenAuth(), func(c *gin.Context) {
+		called = true
+		c.Status(http.StatusNoContent)
+	})
+	request := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(`{"model":"claude-test","messages":[]}`))
+	request.Header.Set("x-api-key", token.Key)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	assert.Equal(t, http.StatusForbidden, response.Code)
+	assert.False(t, called)
+	var payload struct {
+		Type      string `json:"type"`
+		RequestID string `json:"request_id"`
+		Error     struct {
+			Type    string `json:"type"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	require.NoError(t, common.Unmarshal(response.Body.Bytes(), &payload))
+	assert.Equal(t, "error", payload.Type)
+	assert.Equal(t, "req-banned-claude", payload.RequestID)
+	assert.Equal(t, "permission_error", payload.Error.Type)
+	assert.NotEmpty(t, payload.Error.Message)
 }
 
 func TestUserAuthAllowsOpaqueDottedPAT(t *testing.T) {

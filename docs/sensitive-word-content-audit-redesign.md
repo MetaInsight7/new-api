@@ -17,12 +17,14 @@ middleware.Distribute：有效分组解析完成、选渠道前预检
         |
 主库事务：锁定用户、审计、计数、必要时禁用
         |
-  400 sensitive_words_detected  或  缓存决定 -> 选渠道 -> 估算/预扣费/上游
+  400 invalid_request_error / sensitive_words_detected
+  达到封禁阈值时 403 permission_error / user_banned
+  或  缓存决定 -> 选渠道 -> 估算/预扣费/上游
 ```
 
-`middleware.Distribute` 在协议请求已可解析、有效分组已确定但尚未调用 `SelectChannelForRequest` 时执行策略，因此本地阻断优先于无可用渠道或模型不存在。Responses WebSocket 不经过 `Distribute`，其已解析的 `response.create` DTO 会调用同一预检函数，位置同样位于渠道选择和上游握手之前。结果放入请求上下文；`PrepareRequestBilling` 复用该结果，以确保一个请求只匹配和审计一次，并在未经过分发中间件的调用场景保留同样的计费前兜底。命中阻断规则时返回不可重试的 HTTP `400 sensitive_words_detected`。用户已被阈值禁用后，令牌鉴权稳定返回不可重试的 `403 user_banned`。
+`middleware.Distribute` 在协议请求已可解析、有效分组已确定但尚未调用 `SelectChannelForRequest` 时执行策略，因此本地阻断优先于无可用渠道或模型不存在。Responses WebSocket 不经过 `Distribute`，其已解析的 `response.create` DTO 会调用同一预检函数，位置同样位于渠道选择和上游握手之前。结果放入请求上下文；`PrepareRequestBilling` 复用该结果，以确保一个请求只匹配和审计一次，并在未经过分发中间件的调用场景保留同样的计费前兜底。普通阻断返回不可重试的 HTTP `400`，OpenAI 兼容错误使用 `invalid_request_error / sensitive_words_detected`；当次命中触发自动封禁时立即返回不可重试的 HTTP `403 permission_error / user_banned`，之后的令牌鉴权保持同一 `403` 语义。Claude 路径使用其原生错误外壳并返回请求 ID。敏感词响应不携带 `Retry-After`；该头只用于临时限流。系统默认的普通拦截及自动封禁文案按用户设置、`Accept-Language` 或站点默认语言返回简中、繁中或英文；管理员自定义普通拦截文案是单一文本，按配置原样返回。对外响应不暴露命中词、规则、证据、累计次数或准确封禁阈值，这些信息只在管理员审计面板提供。
 
-受支持 DTO 通过独立的结构化文本提取接口进入检查，不再复用 Token 统计的 `CombineText`。提取器覆盖通用 Relay 中的 system、developer、user、assistant、tool、普通 Prompt、Embedding、Rerank、图片和音频文本字段；Tool 描述、文本参数、文本结果及模型可见的结构化输出 Schema 文本参与检查，结构字段、ID、URL、媒体、Base64 和二进制不参与。Responses 的 `function_call_output.output` 支持字符串、内容数组和 JSON 对象，且提取过程不改变请求原始 wire shape。
+受支持 DTO 通过独立的结构化文本提取接口进入检查，不再复用 Token 统计的 `CombineText`。提取器覆盖通用 Relay 中的 system、developer、user、assistant、tool、普通 Prompt、Embedding、Rerank、图片和音频文本字段；运行时只匹配最高用户轮次中的 user 文本，历史和非 user 字段只作为命中后的审计上下文候选。纯媒体或空白 user 消息通过不含文本的内部边界推进轮次，该边界不扫描、不留存；纯工具结果仍归属当前轮次。Gemini 批量聊天和批量 Embedding 中的每个子请求视为独立会话，分别检查各自的最高用户轮次，不能由批次中的后续子请求遮蔽。结构字段、ID、URL、媒体、Base64 和二进制不参与匹配。Responses 的 `function_call_output.output` 支持字符串、内容数组和 JSON 对象，且提取过程不改变请求原始 wire shape。
 
 视频生成、通用异步任务、Midjourney、Suno、任务插件自定义字段和 OpenAI Realtime WebSocket 事件明确不进入敏感词风控。Responses WebSocket 的 `response.create` 属于 Responses 协议，仍进入相同检查链路。
 
@@ -43,7 +45,7 @@ middleware.Distribute：有效分组解析完成、选渠道前预检
 
 ## 策略、审计与账号状态
 
-单例 `sensitive_word_policy` 保存策略。新库默认启用 Prompt 检查、关闭自动封禁，阈值为 50，完整证据留存 180 天；单字段最多保留 65,536 个字符，整份结构化证据序列化后最多 512 KiB。证据优先保留命中字段、system/developer 和命中轮次之前三轮，超过上限时记录截断状态。每日系统任务每批最多处理 500 条，到期清空结构化证据、兼容完整 Prompt、脱敏预览和命中片段，但永久保留审计事实、处置结果和账号违规次数。
+单例 `sensitive_word_policy` 保存策略。新库默认启用请求文本检查、关闭自动封禁，阈值为 50，完整证据留存 180 天。`block` 和 `observe` 规则都只扫描最高用户轮次中的 user 字段，历史 user 内容和非 user 角色不触发匹配；`observe` 命中会继续收集，首个适用的 `block` 命中被保留后立即停止扫描剩余文本。命中按“规则 ID + 词条”去重并最多保留 256 个，同一次请求只写一条审计并最多累计一次违规。`max_prompt_runes` 是单个证据字段的字符上限，不是当前轮、全部轮次或扫描文本的总上限：命中字段超过该值时，优先围绕首个 `block` 命中截取窗口，没有 `block` 时围绕首个 `observe` 命中截取；其他命中通过位置和短片段保留，非命中上下文字段仍从开头截断。每个选中字段最多保存一次，整份结构化证据序列化后最多 512 KiB。证据优先保留命中字段、system/developer 和命中轮次之前三轮，超过任一证据上限时记录截断状态。每日系统任务每批最多处理 500 条，到期清空结构化证据、兼容完整 Prompt、脱敏预览和命中片段，但永久保留审计事实、处置结果和账号违规次数。
 
 审计写入 `sensitive_word_audit_events`，包含请求、协议、分组、规则版本、命中信息、提示词哈希、证据留存状态、违规次数和前后账号状态。请求 ID 与用户 ID 共同保证重复请求不会重复计数。
 
@@ -73,11 +75,12 @@ middleware.Distribute：有效分组解析完成、选渠道前预检
 - `PATCH /api/sensitive-words/rules/:id/mode`
 - `PATCH /api/sensitive-words/users/:id`
 - `POST /api/sensitive-words/users/:id/unban`
+- `GET /api/sensitive-words/dashboard`
 - `GET /api/log/sensitive-word-audit/:id`
 
 规则、策略、白名单、违规次数和专用解封接口要求 `sensitive_word.manage`；该权限默认授予内置管理员角色。完整证据读取使用独立的 `sensitive_word.evidence_read`，默认不授予非 Root。普通管理员没有管理权限时，用户列表和详情会隐藏真实白名单与违规次数。
 
-管理界面位于 `/system-settings/request-policies/filtering`。旧 `/system-settings/security/sensitive-words` 路由保持重定向。规则弹窗支持一行一个词、TXT 导入、大小写不敏感草稿搜索、首次命中选择、Enter/Shift+Enter 循环命中，并在关闭时清空搜索状态。用户编辑抽屉可维护白名单和违规次数；专用解封只在具有权限且目标用户存在违规次数时显示。普通启用账号不会隐式清零。
+管理界面位于 `/system-settings/request-policies/filtering`。旧 `/system-settings/security/sensitive-words` 路由保持重定向。运营看板位于 `/sensitive-word-monitor`；管理权限允许查看汇总、趋势、用户、模型、分组和处置事实，只有同时具备 `sensitive_word.evidence_read` 时，Dashboard API 才返回规则排行、最近事件的规则名和审计 ID，前端才展示证据入口。最近事件可直接打开受独立证据读取权限保护的多轮上下文，并复用既有接口执行白名单切换、违规次数清零和敏感词专用解封；完整使用日志跳转仍作为追踪入口保留。规则弹窗支持一行一个词、TXT 导入、大小写不敏感草稿搜索、首次命中选择、Enter/Shift+Enter 循环命中，并在关闭时清空搜索状态。用户编辑抽屉可维护白名单和违规次数；专用解封只在具有权限且目标用户存在违规次数时显示。普通启用账号不会隐式清零。
 
 ## 单向迁移
 
@@ -93,7 +96,7 @@ middleware.Distribute：有效分组解析完成、选渠道前预检
 
 - 从未取得有效快照且迁移已完成时，策略加载失败返回不可重试 `503`；已有有效快照的节点刷新失败继续使用最后有效版本并告警。
 - 迁移尚未完成或迁移明确失败时，敏感词运行时保持未启用，不阻止服务启动。
-- `observe` 命中的审计持久化失败时放行并告警；`block` 命中的审计持久化失败时仍返回 `400 sensitive_words_detected`，但不伪造未提交的审计 ID、计数或封禁。
+- `observe` 命中的审计持久化失败时放行并告警；`block` 命中的审计持久化失败时仍返回 `400 invalid_request_error / sensitive_words_detected`，但不伪造未提交的审计 ID、计数或封禁。
 - 普通使用日志写入失败不回滚已提交的审计和账号处置；认证缓存发布、会话撤销或 Token 缓存失效的单项失败也不会阻止其余失效步骤。
 - Redis 不可用不会让已有快照失效；恢复后即时通知继续工作，周期代次检查负责最终一致。
 

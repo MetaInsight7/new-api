@@ -37,6 +37,7 @@ import {
   Radio,
   ServerCog,
   Settings,
+  ShieldAlert,
   ShieldCheck,
   Ticket,
   User,
@@ -46,7 +47,13 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import type { SidebarData } from '@/components/layout/types'
+import {
+  ADMIN_PERMISSION_ACTIONS,
+  ADMIN_PERMISSION_RESOURCES,
+  hasPermission,
+} from '@/lib/admin-permissions'
 import { ROLE } from '@/lib/roles'
+import { useAuthStore } from '@/stores/auth-store'
 
 /**
  * Root navigation groups for the application sidebar.
@@ -56,6 +63,12 @@ import { ROLE } from '@/lib/roles'
  */
 export function useSidebarData(): SidebarData {
   const { t } = useTranslation()
+  const user = useAuthStore((state) => state.auth.user)
+  const canManageSensitiveWords = hasPermission(
+    user,
+    ADMIN_PERMISSION_RESOURCES.SENSITIVE_WORD,
+    ADMIN_PERMISSION_ACTIONS.MANAGE
+  )
 
   return {
     navGroups: [
@@ -185,6 +198,15 @@ export function useSidebarData(): SidebarData {
             url: '/usage-report',
             icon: BarChart3,
           },
+          ...(canManageSensitiveWords
+            ? [
+                {
+                  title: t('Sensitive-word monitor'),
+                  url: '/sensitive-word-monitor',
+                  icon: ShieldAlert,
+                },
+              ]
+            : []),
           {
             title: t('Users'),
             url: '/users',

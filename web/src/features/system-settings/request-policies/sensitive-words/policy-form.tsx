@@ -60,7 +60,9 @@ export function SensitiveWordPolicyForm({ policy, onSaved }: PolicyFormProps) {
       return
     }
     if (draft.max_prompt_runes < 1 || draft.max_prompt_runes > 65536) {
-      toast.error(t('Prompt limit must be between 1 and 65536 characters'))
+      toast.error(
+        t('Per-field evidence limit must be between 1 and 65536 characters')
+      )
       return
     }
     setSaving(true)
@@ -78,7 +80,7 @@ export function SensitiveWordPolicyForm({ policy, onSaved }: PolicyFormProps) {
     <SettingsCard
       title={t('Sensitive-word policy')}
       description={t(
-        'Control prompt matching, evidence retention, and account enforcement.'
+        'Control request-text matching, evidence retention, and account enforcement.'
       )}
       className='shadow-none'
     >
@@ -87,10 +89,12 @@ export function SensitiveWordPolicyForm({ policy, onSaved }: PolicyFormProps) {
           <label className='flex items-center justify-between gap-3 rounded-lg border p-3'>
             <span>
               <span className='block text-sm font-medium'>
-                {t('Enable sensitive-word checks')}
+                {t('Enable sensitive-word enforcement')}
               </span>
               <span className='text-muted-foreground block text-xs'>
-                {t('Apply the rule snapshot to incoming prompts.')}
+                {t(
+                  'Master switch for matching, auditing, blocking, and violation counting.'
+                )}
               </span>
             </span>
             <Switch
@@ -101,10 +105,10 @@ export function SensitiveWordPolicyForm({ policy, onSaved }: PolicyFormProps) {
           <label className='flex items-center justify-between gap-3 rounded-lg border p-3'>
             <span>
               <span className='block text-sm font-medium'>
-                {t('Check prompt content')}
+                {t('Request text inspection')}
               </span>
               <span className='text-muted-foreground block text-xs'>
-                {t('Inspect normalized text before token estimation.')}
+                {t('Inspect supported model-visible request text.')}
               </span>
             </span>
             <Switch
@@ -137,7 +141,7 @@ export function SensitiveWordPolicyForm({ policy, onSaved }: PolicyFormProps) {
         <label className='flex items-center justify-between gap-3 rounded-lg border p-3'>
           <span>
             <span className='block text-sm font-medium'>
-              {t('Retain full prompt evidence')}
+              {t('Retain request context evidence')}
             </span>
             <span className='text-muted-foreground block text-xs'>
               {t(
@@ -187,7 +191,7 @@ export function SensitiveWordPolicyForm({ policy, onSaved }: PolicyFormProps) {
           </div>
           <div className='space-y-2'>
             <Label htmlFor='sensitive-prompt-limit'>
-              {t('Prompt limit (characters)')}
+              {t('Per-field evidence limit (characters)')}
             </Label>
             <Input
               id='sensitive-prompt-limit'
@@ -199,6 +203,11 @@ export function SensitiveWordPolicyForm({ policy, onSaved }: PolicyFormProps) {
                 update('max_prompt_runes', Number(event.target.value) || 0)
               }
             />
+            <p className='text-muted-foreground text-xs leading-relaxed'>
+              {t(
+                'Block and observe rules inspect only the latest user input. Earlier conversation and non-user roles are retained only as audit context. Each selected field is stored once, with up to 256 unique matches and 512 KiB of evidence per request.'
+              )}
+            </p>
           </div>
         </div>
 

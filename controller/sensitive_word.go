@@ -3,9 +3,12 @@ package controller
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/service/authz"
 	"github.com/gin-gonic/gin"
 )
 
@@ -16,6 +19,38 @@ func GetSensitiveWordPolicy(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": policy})
+}
+
+func GetSensitiveWordDashboard(c *gin.Context) {
+	hours := 24
+	if rawHours := strings.TrimSpace(c.Query("hours")); rawHours != "" {
+		parsed, err := strconv.Atoi(rawHours)
+		if err != nil || !model.ValidSensitiveWordDashboardHours(parsed) {
+			common.ApiErrorStatus(
+				c,
+				http.StatusBadRequest,
+				common.NewMessage("Sensitive-word monitor window must be one of 24, 168, or 720 hours"),
+			)
+			return
+		}
+		hours = parsed
+	}
+	dashboard, err := model.GetSensitiveWordDashboard(hours)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	canReadSensitiveMetadata := authz.Can(c.GetInt("id"), c.GetInt("role"), authz.SensitiveWordEvidenceRead)
+	if canReadSensitiveMetadata && c.GetInt("access_token_id") > 0 {
+		canReadSensitiveMetadata = service.AccessTokenScopeGranted(
+			c.GetStringSlice("access_token_scopes"),
+			service.AccessTokenScopeOf(authz.SensitiveWordEvidenceRead),
+		)
+	}
+	if !canReadSensitiveMetadata {
+		dashboard.RedactSensitiveMetadata()
+	}
+	common.ApiSuccess(c, dashboard)
 }
 
 func UpdateSensitiveWordPolicy(c *gin.Context) {

@@ -137,6 +137,15 @@ func TestSensitiveWordValidationAndDefaults(t *testing.T) {
 	require.Equal(t, 50, policy.BanThreshold)
 	require.Equal(t, 180, policy.FullPromptRetentionDays)
 	require.Equal(t, 65_536, policy.MaxPromptRunes)
+	require.Equal(t, sensitiveWordBlockMessage, policy.BlockMessage)
+	require.NotContains(t, policy.BlockMessage, "{{threshold}}")
+
+	legacyPolicy := policy
+	legacyPolicy.BlockMessage = legacySensitiveWordBlockMessage
+	require.Equal(t, sensitiveWordBlockMessage, normalizeSensitiveWordPolicy(legacyPolicy).BlockMessage)
+	customPolicy := policy
+	customPolicy.BlockMessage = "custom policy message"
+	require.Equal(t, customPolicy.BlockMessage, normalizeSensitiveWordPolicy(customPolicy).BlockMessage)
 
 	words, err := normalizeSensitiveWords([]string{" Alpha ", "alpha", "Beta"})
 	require.NoError(t, err)
@@ -155,6 +164,22 @@ func TestSensitiveWordValidationAndDefaults(t *testing.T) {
 	detail := addSensitiveWordTestRule(t, "default observe", []string{"word"}, SensitiveWordScopeGlobal, nil, SensitiveWordModeObserve)
 	require.Equal(t, SensitiveWordModeObserve, detail.Mode)
 	require.Equal(t, 1, detail.WordCount)
+}
+
+func TestSensitiveWordCustomBlockMessageRemainsVerbatim(t *testing.T) {
+	setupSensitiveWordTest(t)
+	require.NoError(t, MigrateSensitiveWordData())
+	policy := GetSensitiveWordPolicy()
+	policy.BlockMessage = "  custom {{threshold}} policy message，清空余额  "
+	require.NoError(t, SaveSensitiveWordPolicy(policy, 1))
+	addSensitiveWordTestRule(t, "custom message", []string{"custom-message-marker"}, SensitiveWordScopeGlobal, nil, SensitiveWordModeBlock)
+	user := createSensitiveWordTestUser(t, 1_000_000, false)
+
+	result, err := CheckSensitiveRequest(sensitiveWordTestInput(user, "custom-message", "custom-message-marker"))
+	require.NoError(t, err)
+	require.True(t, result.Blocked)
+	require.False(t, result.UsesDefaultMessage)
+	require.Equal(t, "  custom {{threshold}} policy message，清空余额  ", result.Message)
 }
 
 func TestSensitiveWordPolicyVersionIsServerOwned(t *testing.T) {
@@ -228,6 +253,8 @@ func TestSensitiveWordRuleModePriorityGroupsAndHotReload(t *testing.T) {
 	require.False(t, result.ObserveOnly)
 	require.Equal(t, 1, result.ViolationCount, "one request must increment only once")
 	require.ElementsMatch(t, []int64{observe.ID, groupBlock.ID}, result.MatchedRuleIDs)
+	require.Equal(t, []string{"hot marker"}, result.MatchedWords)
+	require.Len(t, result.Matches, 2)
 	require.Equal(t, "vip", sensitiveWordTestAudit(t, "block-vip").GroupName)
 
 	require.NoError(t, SetSensitiveWordRuleMode(groupBlock.ID, SensitiveWordModeOff, 1))
@@ -239,6 +266,236 @@ func TestSensitiveWordRuleModePriorityGroupsAndHotReload(t *testing.T) {
 	require.False(t, result.Blocked)
 	require.Equal(t, 1, result.ViolationCount)
 	require.NotContains(t, ListSensitiveWordGroups(), "auto")
+}
+
+func TestSensitiveWordCollectsObserveMatchesUntilFirstBlock(t *testing.T) {
+	setupSensitiveWordTest(t)
+	require.NoError(t, MigrateSensitiveWordData())
+	saveSensitiveWordTestPolicy(t, true, SensitiveWordBanThreshold)
+	user := createSensitiveWordTestUser(t, 7_315_000, false)
+	blockRule := addSensitiveWordTestRule(
+		t, "block words", []string{"block marker", "later block marker"},
+		SensitiveWordScopeGlobal, nil, SensitiveWordModeBlock,
+	)
+	observeRule := addSensitiveWordTestRule(
+		t, "observe words", []string{"first observe marker", "second observe marker", "later observe marker"},
+		SensitiveWordScopeGlobal, nil, SensitiveWordModeObserve,
+	)
+
+	result, err := CheckSensitiveRequest(sensitiveWordTestInput(
+		user, "stop-at-first-block", "first observe marker, second observe marker, block marker, later observe marker, later block marker",
+	))
+	require.NoError(t, err)
+	require.True(t, result.Blocked)
+	require.ElementsMatch(t, []int64{blockRule.ID, observeRule.ID}, result.MatchedRuleIDs)
+	require.Equal(t, []string{"first observe marker", "second observe marker", "block marker"}, result.MatchedWords)
+	require.Len(t, result.Matches, 3)
+	require.Equal(t, 1, result.ViolationCount)
+
+	event := sensitiveWordTestAudit(t, "stop-at-first-block")
+	var storedWords []string
+	require.NoError(t, common.Unmarshal([]byte(event.MatchedWords), &storedWords))
+	require.ElementsMatch(t, result.MatchedWords, storedWords)
+	var evidence SensitiveWordAuditEvidence
+	require.NoError(t, common.Unmarshal([]byte(event.Evidence), &evidence))
+	require.Len(t, evidence.Matches, 3)
+}
+
+func TestSensitiveWordChecksOnlyLatestUserRound(t *testing.T) {
+	setupSensitiveWordTest(t)
+	require.NoError(t, MigrateSensitiveWordData())
+	saveSensitiveWordTestPolicy(t, true, SensitiveWordBanThreshold)
+	user := createSensitiveWordTestUser(t, 7_316_000, false)
+	observeRule := addSensitiveWordTestRule(
+		t, "observe latest user", []string{"observe marker"},
+		SensitiveWordScopeGlobal, nil, SensitiveWordModeObserve,
+	)
+	blockRule := addSensitiveWordTestRule(
+		t, "block latest user", []string{"block marker"},
+		SensitiveWordScopeGlobal, nil, SensitiveWordModeBlock,
+	)
+
+	input := sensitiveWordTestInput(user, "latest-user-semantics", "")
+	input.Fields = []relaytypes.SensitiveTextField{
+		{Role: relaytypes.SensitiveTextRoleSystem, Kind: relaytypes.SensitiveTextKindContent, Round: -1, Order: 0, Text: "block marker in system"},
+		{Role: relaytypes.SensitiveTextRoleDeveloper, Kind: relaytypes.SensitiveTextKindInstruction, Round: -1, Order: 1, Text: "block marker from developer"},
+		{Role: relaytypes.SensitiveTextRoleUser, Kind: relaytypes.SensitiveTextKindContent, Round: 0, Order: 2, Text: "observe marker and block marker in history"},
+		{Role: relaytypes.SensitiveTextRoleAssistant, Kind: relaytypes.SensitiveTextKindContent, Round: 0, Order: 3, Text: "observe marker and block marker from assistant"},
+		{Role: relaytypes.SensitiveTextRoleTool, Kind: relaytypes.SensitiveTextKindToolResult, Round: 0, Order: 4, Text: "block marker from tool"},
+		{Role: relaytypes.SensitiveTextRoleUser, Kind: relaytypes.SensitiveTextKindContent, Round: 1, Order: 5, Text: "latest clean input"},
+		{Role: relaytypes.SensitiveTextRoleUser, Kind: relaytypes.SensitiveTextKindContent, Round: 1, Order: 6, Text: "latest clean second text block"},
+	}
+	result, err := CheckSensitiveRequest(input)
+	require.NoError(t, err)
+	require.False(t, result.Matched)
+
+	input.RequestID = "latest-user-observe"
+	input.Fields[6].Text = "observe marker in latest input"
+	result, err = CheckSensitiveRequest(input)
+	require.NoError(t, err)
+	require.False(t, result.Blocked)
+	require.True(t, result.ObserveOnly)
+	require.Equal(t, []int64{observeRule.ID}, result.MatchedRuleIDs)
+
+	input.RequestID = "latest-user-block"
+	input.Fields[6].Text = "block marker in latest input"
+	result, err = CheckSensitiveRequest(input)
+	require.NoError(t, err)
+	require.True(t, result.Blocked)
+	require.Equal(t, []int64{blockRule.ID}, result.MatchedRuleIDs)
+}
+
+func TestSensitiveWordTextFreeLatestUserRoundDoesNotRescanHistory(t *testing.T) {
+	setupSensitiveWordTest(t)
+	require.NoError(t, MigrateSensitiveWordData())
+	saveSensitiveWordTestPolicy(t, true, SensitiveWordBanThreshold)
+	user := createSensitiveWordTestUser(t, 7_316_250, false)
+	addSensitiveWordTestRule(
+		t, "media follow-up", []string{"historical block marker"},
+		SensitiveWordScopeGlobal, nil, SensitiveWordModeBlock,
+	)
+
+	input := sensitiveWordTestInput(user, "text-free-latest-user", "")
+	input.Fields = []relaytypes.SensitiveTextField{
+		{Role: relaytypes.SensitiveTextRoleUser, Kind: relaytypes.SensitiveTextKindTurnBoundary, Round: 0, Order: 0},
+		{Role: relaytypes.SensitiveTextRoleUser, Kind: relaytypes.SensitiveTextKindContent, Round: 0, Order: 1, Text: "historical block marker"},
+		{Role: relaytypes.SensitiveTextRoleAssistant, Kind: relaytypes.SensitiveTextKindContent, Round: 0, Order: 2, Text: "prior response"},
+		{Role: relaytypes.SensitiveTextRoleUser, Kind: relaytypes.SensitiveTextKindTurnBoundary, Round: 1, Order: 3},
+	}
+
+	result, err := CheckSensitiveRequest(input)
+	require.NoError(t, err)
+	require.False(t, result.Matched)
+}
+
+func TestSensitiveWordChecksLatestUserRoundInEveryConversation(t *testing.T) {
+	setupSensitiveWordTest(t)
+	require.NoError(t, MigrateSensitiveWordData())
+	saveSensitiveWordTestPolicy(t, true, SensitiveWordBanThreshold)
+	user := createSensitiveWordTestUser(t, 7_316_500, false)
+	addSensitiveWordTestRule(
+		t, "batch latest user", []string{"batch block marker"},
+		SensitiveWordScopeGlobal, nil, SensitiveWordModeBlock,
+	)
+
+	input := sensitiveWordTestInput(user, "batch-latest-user", "")
+	input.Fields = []relaytypes.SensitiveTextField{
+		{Role: relaytypes.SensitiveTextRoleUser, Kind: relaytypes.SensitiveTextKindContent, Conversation: 1, Round: 0, Order: 0, Text: "batch block marker in history"},
+		{Role: relaytypes.SensitiveTextRoleUser, Kind: relaytypes.SensitiveTextKindContent, Conversation: 1, Round: 1, Order: 1, Text: "first conversation latest is clean"},
+		{Role: relaytypes.SensitiveTextRoleUser, Kind: relaytypes.SensitiveTextKindContent, Conversation: 2, Round: 0, Order: 2, Text: "batch block marker in second conversation"},
+		{Role: relaytypes.SensitiveTextRoleUser, Kind: relaytypes.SensitiveTextKindContent, Conversation: 3, Round: 0, Order: 3, Text: "third conversation latest is clean"},
+	}
+
+	result, err := CheckSensitiveRequest(input)
+	require.NoError(t, err)
+	require.True(t, result.Blocked)
+	require.Len(t, result.Matches, 1)
+	require.Equal(t, 2, result.Matches[0].FieldConversation)
+	require.Equal(t, 2, result.Matches[0].FieldOrder)
+}
+
+func TestSensitiveWordRejectedHistoryDoesNotPoisonNextUserTurn(t *testing.T) {
+	setupSensitiveWordTest(t)
+	require.NoError(t, MigrateSensitiveWordData())
+	saveSensitiveWordTestPolicy(t, true, SensitiveWordBanThreshold)
+	user := createSensitiveWordTestUser(t, 7_317_000, false)
+	addSensitiveWordTestRule(
+		t, "blocked input", []string{"block marker"},
+		SensitiveWordScopeGlobal, nil, SensitiveWordModeBlock,
+	)
+
+	blockedInput := sensitiveWordTestInput(user, "initial-block", "")
+	blockedInput.Fields = []relaytypes.SensitiveTextField{{
+		Role: relaytypes.SensitiveTextRoleUser, Kind: relaytypes.SensitiveTextKindContent,
+		Round: 0, Order: 0, Text: "block marker in rejected input",
+	}}
+	result, err := CheckSensitiveRequest(blockedInput)
+	require.NoError(t, err)
+	require.True(t, result.Blocked)
+	require.Equal(t, 1, result.ViolationCount)
+
+	nextInput := sensitiveWordTestInput(user, "clean-follow-up", "")
+	nextInput.Fields = []relaytypes.SensitiveTextField{
+		{
+			Role: relaytypes.SensitiveTextRoleUser, Kind: relaytypes.SensitiveTextKindContent,
+			Round: 0, Order: 0, Text: "block marker in rejected input",
+		},
+		{
+			Role: relaytypes.SensitiveTextRoleUser, Kind: relaytypes.SensitiveTextKindContent,
+			Round: 1, Order: 1, Text: "clean follow-up",
+		},
+	}
+	result, err = CheckSensitiveRequest(nextInput)
+	require.NoError(t, err)
+	require.False(t, result.Matched)
+
+	var storedUser User
+	require.NoError(t, DB.First(&storedUser, user.Id).Error)
+	require.Equal(t, 1, storedUser.SensitiveWordViolationCount)
+
+	var auditCount int64
+	require.NoError(t, LOG_DB.Model(&SensitiveWordAuditEvent{}).Where("user_id = ?", user.Id).Count(&auditCount).Error)
+	require.Equal(t, int64(1), auditCount)
+}
+
+func TestSensitiveWordCapsMatchesAndRetainsBlockingEvidence(t *testing.T) {
+	setupSensitiveWordTest(t)
+	require.NoError(t, MigrateSensitiveWordData())
+	saveSensitiveWordTestPolicy(t, true, SensitiveWordBanThreshold)
+	user := createSensitiveWordTestUser(t, 7_318_000, false)
+	words := make([]string, 0, SensitiveWordMaxMatches+1)
+	for index := 0; index <= SensitiveWordMaxMatches; index++ {
+		words = append(words, fmt.Sprintf("observe-marker-%03d", index))
+	}
+	addSensitiveWordTestRule(
+		t, "many observe words", words,
+		SensitiveWordScopeGlobal, nil, SensitiveWordModeObserve,
+	)
+	blockRule := addSensitiveWordTestRule(
+		t, "late block", []string{"final-block-marker"},
+		SensitiveWordScopeGlobal, nil, SensitiveWordModeBlock,
+	)
+
+	result, err := CheckSensitiveRequest(sensitiveWordTestInput(
+		user, "match-cap", strings.Join(append(words, "final-block-marker"), " "),
+	))
+	require.NoError(t, err)
+	require.True(t, result.Blocked)
+	require.True(t, result.EvidenceTruncated)
+	require.Len(t, result.Matches, SensitiveWordMaxMatches)
+	require.Contains(t, result.MatchedRuleIDs, blockRule.ID)
+	require.Condition(t, func() bool {
+		for _, match := range result.Matches {
+			if match.RuleID == blockRule.ID && match.RuleMode == SensitiveWordModeBlock {
+				return true
+			}
+		}
+		return false
+	})
+}
+
+func TestSensitiveWordSkipsFirstWordOutsideCandidateGroups(t *testing.T) {
+	setupSensitiveWordTest(t)
+	require.NoError(t, MigrateSensitiveWordData())
+	saveSensitiveWordTestPolicy(t, true, SensitiveWordBanThreshold)
+	user := createSensitiveWordTestUser(t, 7_317_000, false)
+	addSensitiveWordTestRule(
+		t, "vip only", []string{"vip marker"},
+		SensitiveWordScopeGroup, []string{"vip"}, SensitiveWordModeBlock,
+	)
+	defaultRule := addSensitiveWordTestRule(
+		t, "default block", []string{"default marker"},
+		SensitiveWordScopeGlobal, nil, SensitiveWordModeBlock,
+	)
+
+	result, err := CheckSensitiveRequestForGroups(
+		sensitiveWordTestInput(user, "skip-inapplicable-word", "vip marker then default marker"),
+		[]string{"default"},
+	)
+	require.NoError(t, err)
+	require.True(t, result.Blocked)
+	require.Equal(t, []int64{defaultRule.ID}, result.MatchedRuleIDs)
+	require.Equal(t, []string{"default marker"}, result.MatchedWords)
 }
 
 func TestSensitiveWordPolicyVersionRefreshesRemoteRuntime(t *testing.T) {
@@ -568,6 +825,38 @@ func TestSensitiveWordThresholdBanAndEnableResetPreserveAccounting(t *testing.T)
 	require.Equal(t, enabled.AuthVersion, second.AuthVersionAfter)
 }
 
+func TestSensitiveWordCountResetKeepsEnabledUserAuthentication(t *testing.T) {
+	setupSensitiveWordTest(t)
+	user := createSensitiveWordTestUser(t, 2_000_000, false)
+	require.NoError(t, DB.Model(&User{}).Where("id = ?", user.Id).
+		Update("sensitive_word_violation_count", 2).Error)
+	now := time.Now().Unix()
+	session := UserSession{
+		SID: fmt.Sprintf("sensitive-enabled-session-%d", user.Id), UserID: user.Id,
+		Version: 1, UserAuthVersion: user.AuthVersion, Status: UserSessionStatusActive,
+		RefreshHash: "sensitive-enabled-refresh", LoginMethod: "password",
+		CreatedAt: now, LastActiveAt: now, ExpiresAt: now + 3600,
+	}
+	require.NoError(t, DB.Create(&session).Error)
+
+	reset, err := EnableUserAndResetSensitiveWordViolations(user.Id)
+	require.NoError(t, err)
+	require.False(t, reset.StatusChanged)
+	require.True(t, reset.ViolationCountReset)
+	require.Equal(t, user.AuthVersion, reset.AuthVersionAfter)
+	require.Zero(t, reset.SessionsRevoked)
+
+	var stored User
+	require.NoError(t, DB.First(&stored, user.Id).Error)
+	require.Equal(t, common.UserStatusEnabled, stored.Status)
+	require.Zero(t, stored.SensitiveWordViolationCount)
+	require.Equal(t, user.AuthVersion, stored.AuthVersion)
+	var active UserSession
+	require.NoError(t, DB.First(&active, "sid = ?", session.SID).Error)
+	require.Equal(t, UserSessionStatusActive, active.Status)
+	require.Empty(t, active.RevokedReason)
+}
+
 func TestSensitiveWordAuditFailurePreservesBlockingDecision(t *testing.T) {
 	setupSensitiveWordTest(t)
 	require.NoError(t, MigrateSensitiveWordData())
@@ -634,6 +923,7 @@ func TestSensitiveWordPromptEvidenceLimits(t *testing.T) {
 		{Role: relaytypes.SensitiveTextRoleUser, Kind: relaytypes.SensitiveTextKindContent, Round: 0, Order: 1, Text: "first user"},
 		{Role: relaytypes.SensitiveTextRoleAssistant, Kind: relaytypes.SensitiveTextKindContent, Round: 0, Order: 2, Text: "assistant"},
 		{Role: relaytypes.SensitiveTextRoleUser, Kind: relaytypes.SensitiveTextKindContent, Round: 1, Order: 3, Text: "matched user"},
+		{Role: relaytypes.SensitiveTextRoleUser, Kind: relaytypes.SensitiveTextKindTurnBoundary, Round: 1, Order: 4},
 	}
 	matches := []SensitiveWordMatch{{
 		RuleID: 1, RuleMode: SensitiveWordModeBlock, Word: "matched",
@@ -648,6 +938,111 @@ func TestSensitiveWordPromptEvidenceLimits(t *testing.T) {
 		evidence.Fields[0].Order, evidence.Fields[1].Order,
 		evidence.Fields[2].Order, evidence.Fields[3].Order,
 	})
+	for _, field := range evidence.Fields {
+		require.NotEqual(t, relaytypes.SensitiveTextKindTurnBoundary, field.Kind)
+	}
+}
+
+func TestSensitiveWordAuditEvidenceCentersRetainedMatch(t *testing.T) {
+	word := "命中词"
+	text := strings.Repeat("前", 160) + word
+	matchStart := 160
+	fields := []relaytypes.SensitiveTextField{{
+		Role: relaytypes.SensitiveTextRoleUser, Kind: relaytypes.SensitiveTextKindContent,
+		Round: 4, Order: 9, Text: text,
+	}}
+	matches := []SensitiveWordMatch{{
+		RuleID: 1, RuleMode: SensitiveWordModeBlock, Word: word,
+		FieldOrder: 9, FieldRole: relaytypes.SensitiveTextRoleUser,
+		FieldKind: relaytypes.SensitiveTextKindContent, FieldRound: 4,
+		StartRune: matchStart, EndRune: matchStart + len([]rune(word)),
+	}}
+	policy := defaultSensitiveWordPolicy()
+	policy.MaxPromptRunes = 17
+	evidenceJSON, _, _, truncated, _, err := buildSensitiveAuditEvidence(fields, matches, policy, false)
+	require.NoError(t, err)
+	require.True(t, truncated)
+	require.LessOrEqual(t, len([]byte(evidenceJSON)), SensitiveWordMaxPromptBytes)
+
+	var evidence SensitiveWordAuditEvidence
+	require.NoError(t, common.Unmarshal([]byte(evidenceJSON), &evidence))
+	require.Len(t, evidence.Fields, 1)
+	require.Equal(t, 9, evidence.Fields[0].Order)
+	require.LessOrEqual(t, len([]rune(evidence.Fields[0].Text)), policy.MaxPromptRunes)
+	require.Contains(t, evidence.Fields[0].Text, word)
+	require.True(t, strings.HasPrefix(evidence.Fields[0].Text, "…"))
+	require.False(t, strings.HasSuffix(evidence.Fields[0].Text, "…"), "a match at the field end should retain the end of the field")
+	require.Equal(t, matchStart, evidence.Matches[0].StartRune, "stored match offsets remain relative to the original normalized field")
+}
+
+func TestSensitiveWordAuditEvidenceStoresEachFieldOnceAndPrefersBlock(t *testing.T) {
+	observeWord := "观察词"
+	blockWord := "阻断词"
+	middle := strings.Repeat("中", 200)
+	text := observeWord + middle + blockWord
+	blockStart := len([]rune(observeWord + middle))
+	fields := []relaytypes.SensitiveTextField{{
+		Role: relaytypes.SensitiveTextRoleUser, Kind: relaytypes.SensitiveTextKindContent,
+		Round: 2, Order: 5, Text: text,
+	}}
+	matches := []SensitiveWordMatch{
+		{
+			RuleID: 1, RuleMode: SensitiveWordModeObserve, Word: observeWord,
+			FieldOrder: 5, FieldRole: relaytypes.SensitiveTextRoleUser,
+			FieldKind: relaytypes.SensitiveTextKindContent, FieldRound: 2,
+			StartRune: 0, EndRune: len([]rune(observeWord)),
+		},
+		{
+			RuleID: 2, RuleMode: SensitiveWordModeBlock, Word: blockWord,
+			FieldOrder: 5, FieldRole: relaytypes.SensitiveTextRoleUser,
+			FieldKind: relaytypes.SensitiveTextKindContent, FieldRound: 2,
+			StartRune: blockStart, EndRune: blockStart + len([]rune(blockWord)),
+		},
+	}
+	policy := defaultSensitiveWordPolicy()
+	policy.MaxPromptRunes = 21
+	evidenceJSON, _, _, truncated, _, err := buildSensitiveAuditEvidence(fields, matches, policy, false)
+	require.NoError(t, err)
+	require.True(t, truncated)
+
+	var evidence SensitiveWordAuditEvidence
+	require.NoError(t, common.Unmarshal([]byte(evidenceJSON), &evidence))
+	require.Len(t, evidence.Fields, 1)
+	require.Contains(t, evidence.Fields[0].Text, blockWord)
+	require.NotContains(t, evidence.Fields[0].Text, observeWord)
+	require.Len(t, evidence.Matches, 2)
+}
+
+func TestSensitiveWordAuditEvidenceKeepsTotalSerializedSizeBounded(t *testing.T) {
+	fields := []relaytypes.SensitiveTextField{
+		{Role: relaytypes.SensitiveTextRoleSystem, Kind: relaytypes.SensitiveTextKindContent, Round: -1, Order: 0, Text: strings.Repeat("系", SensitiveWordMaxPromptRunes)},
+		{Role: relaytypes.SensitiveTextRoleUser, Kind: relaytypes.SensitiveTextKindContent, Round: 0, Order: 1, Text: strings.Repeat("甲", SensitiveWordMaxPromptRunes)},
+		{Role: relaytypes.SensitiveTextRoleAssistant, Kind: relaytypes.SensitiveTextKindContent, Round: 0, Order: 2, Text: strings.Repeat("乙", SensitiveWordMaxPromptRunes)},
+		{Role: relaytypes.SensitiveTextRoleUser, Kind: relaytypes.SensitiveTextKindContent, Round: 1, Order: 3, Text: strings.Repeat("丙", SensitiveWordMaxPromptRunes-3) + "命中词"},
+	}
+	matches := []SensitiveWordMatch{{
+		RuleID: 1, RuleMode: SensitiveWordModeBlock, Word: "命中词",
+		FieldOrder: 3, FieldRole: relaytypes.SensitiveTextRoleUser,
+		FieldKind: relaytypes.SensitiveTextKindContent, FieldRound: 1,
+		StartRune: SensitiveWordMaxPromptRunes - 3, EndRune: SensitiveWordMaxPromptRunes,
+	}}
+	evidenceJSON, _, _, truncated, _, err := buildSensitiveAuditEvidence(fields, matches, defaultSensitiveWordPolicy(), false)
+	require.NoError(t, err)
+	require.True(t, truncated)
+	require.LessOrEqual(t, len([]byte(evidenceJSON)), SensitiveWordMaxPromptBytes)
+
+	var evidence SensitiveWordAuditEvidence
+	require.NoError(t, common.Unmarshal([]byte(evidenceJSON), &evidence))
+	require.NotEmpty(t, evidence.Fields)
+	var matchedField *relaytypes.SensitiveTextField
+	for index := range evidence.Fields {
+		if evidence.Fields[index].Order == 3 {
+			matchedField = &evidence.Fields[index]
+			break
+		}
+	}
+	require.NotNil(t, matchedField)
+	require.Contains(t, matchedField.Text, "命中词")
 }
 
 func TestSensitiveWordAuditEvidenceRetentionCleanup(t *testing.T) {

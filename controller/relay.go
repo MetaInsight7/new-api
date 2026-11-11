@@ -141,10 +141,16 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 	defer func() {
 		if newAPIError != nil {
+			errorCode := newAPIError.GetErrorCode()
+			sensitiveWordError := errorCode == types.ErrorCodeSensitiveWordsDetected
+			if !sensitiveWordError && errorCode == types.ErrorCodeUserBanned {
+				result, exists := common.GetContextKeyType[*model.SensitiveCheckResult](c, constant.ContextKeySensitiveWordCheckResult)
+				sensitiveWordError = exists && result != nil && result.Matched && result.Blocked
+			}
 			service.RecordRequestPolicyTermination(c, newAPIError)
 			logger.LogError(c, common.LogText("relay error: %s", common.LocalLogPreview(newAPIError.Error())))
-			sanitizeErrorForUser(newAPIError)
-			if newAPIError.GetErrorCode() != types.ErrorCodeSensitiveWordsDetected {
+			sanitizeErrorForUser(newAPIError, sensitiveWordError)
+			if !sensitiveWordError {
 				newAPIError.SetMessage(common.MessageWithRequestId(newAPIError.Error(), requestId))
 			}
 			upstreamURLs := common.UpstreamAddresses(c)
@@ -163,12 +169,15 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 				openAIError.Message = common.MaskSensitiveInfo(newAPIError.Error(), upstreamURLs...)
 				helper.WssError(c, ws, openAIError)
 			case types.RelayFormatClaude:
-				claudeError := newAPIError.ToClaudeError(upstreamURLs...)
-				claudeError.Message = common.MaskSensitiveInfo(newAPIError.Error(), upstreamURLs...)
-				c.JSON(newAPIError.StatusCode, gin.H{
+				claudeError := toClaudeRelayError(newAPIError, sensitiveWordError, upstreamURLs...)
+				response := gin.H{
 					"type":  "error",
 					"error": claudeError,
-				})
+				}
+				if sensitiveWordError && requestId != "" {
+					response["request_id"] = requestId
+				}
+				c.JSON(newAPIError.StatusCode, response)
 			default:
 				openAIError := newAPIError.ToOpenAIError(upstreamURLs...)
 				openAIError.Message = common.MaskSensitiveInfo(newAPIError.Error(), upstreamURLs...)

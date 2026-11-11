@@ -613,7 +613,12 @@ func TokenAuth() func(c *gin.Context) {
 		}
 		userEnabled := userCache.Status == common.UserStatusEnabled
 		if !userEnabled {
-			abortWithOpenAiMessage(c, http.StatusForbidden, common.TranslateMessage(c, i18n.MsgAuthUserBanned), types.ErrorCodeUserBanned)
+			message := common.TranslateMessage(c, i18n.MsgAuthUserBanned)
+			if strings.Contains(c.Request.URL.Path, "/v1/messages") {
+				abortWithClaudeMessageType(c, http.StatusForbidden, message, "permission_error")
+			} else {
+				abortWithOpenAiMessageType(c, http.StatusForbidden, message, "permission_error", types.ErrorCodeUserBanned)
+			}
 			return
 		}
 

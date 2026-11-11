@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/service/authz"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -27,6 +28,11 @@ func newSensitiveWordAuthorizationEngine() *gin.Engine {
 		c.Set("id", actorID)
 		c.Set("role", actorRole)
 		c.Set("username", fmt.Sprintf("actor-%d", actorID))
+		accessTokenID, _ := strconv.Atoi(c.GetHeader("X-Test-Access-Token-ID"))
+		if accessTokenID > 0 {
+			c.Set("access_token_id", accessTokenID)
+			c.Set("access_token_scopes", strings.Split(c.GetHeader("X-Test-Access-Token-Scopes"), ","))
+		}
 		c.Next()
 	})
 	engine.PATCH(
@@ -49,6 +55,11 @@ func newSensitiveWordAuthorizationEngine() *gin.Engine {
 		middleware.RequirePermission(authz.SensitiveWordManage),
 		GetSensitiveWordRule,
 	)
+	engine.GET(
+		"/api/sensitive-words/dashboard",
+		middleware.RequirePermission(authz.SensitiveWordManage),
+		GetSensitiveWordDashboard,
+	)
 	engine.GET("/api/user/:id", GetUser)
 	return engine
 }
@@ -69,7 +80,12 @@ func setupSensitiveWordControllerAuthorization(t *testing.T) (*gin.Engine, *mode
 	previousMaster := common.IsMasterNode
 	common.IsMasterNode = true
 	t.Cleanup(func() { common.IsMasterNode = previousMaster })
-	require.NoError(t, database.AutoMigrate(&model.Token{}, &model.SensitiveWordAuditEvent{}))
+	require.NoError(t, database.AutoMigrate(
+		&model.Option{}, &model.Token{}, &model.SensitiveWordRule{},
+		&model.SensitiveWordRuleWord{}, &model.SensitiveWordRuleGroup{},
+		&model.SensitiveWordPolicy{}, &model.SensitiveWordAuditEvent{},
+	))
+	require.NoError(t, model.MigrateSensitiveWordData())
 	require.NoError(t, authz.Init(database))
 
 	target := &model.User{
@@ -79,6 +95,87 @@ func setupSensitiveWordControllerAuthorization(t *testing.T) (*gin.Engine, *mode
 	}
 	require.NoError(t, database.Create(target).Error)
 	return newSensitiveWordAuthorizationEngine(), target
+}
+
+func TestSensitiveWordDashboardPermissionAndWindowValidation(t *testing.T) {
+	engine, _ := setupSensitiveWordControllerAuthorization(t)
+	const managerID = 203
+	require.NoError(t, model.DB.Create(&model.SensitiveWordAuditEvent{
+		RequestID: "dashboard-permission-event", UserID: 99,
+		MatchedRuleIDs:   model.SensitiveWordAuditJSON(`[123]`),
+		MatchedRuleNames: model.SensitiveWordAuditJSON(`["restricted rule"]`),
+		Disposition:      "block", Blocked: true, CreatedAt: time.Now(),
+	}).Error)
+
+	invalid := performSensitiveWordAdminRequest(
+		engine, http.MethodGet, "/api/sensitive-words/dashboard?hours=12", "",
+		managerID, common.RoleAdminUser,
+	)
+	require.Equal(t, http.StatusBadRequest, invalid.Code, invalid.Body.String())
+	assert.Contains(t, invalid.Body.String(), "24, 168, or 720")
+
+	allowed := performSensitiveWordAdminRequest(
+		engine, http.MethodGet, "/api/sensitive-words/dashboard?hours=24", "",
+		managerID, common.RoleAdminUser,
+	)
+	require.Equal(t, http.StatusOK, allowed.Code, allowed.Body.String())
+	assert.Contains(t, allowed.Body.String(), `"requested_hours":24`)
+	assert.Contains(t, allowed.Body.String(), `"sensitive_metadata_included":false`)
+	assert.NotContains(t, allowed.Body.String(), `"audit_id"`)
+	assert.NotContains(t, allowed.Body.String(), "restricted rule")
+
+	require.NoError(t, authz.SetUserPermissions(managerID, authz.PermissionsMap{
+		authz.ResourceSensitiveWord: {
+			authz.ActionManage: true, authz.ActionEvidenceRead: true,
+		},
+	}))
+	withEvidence := performSensitiveWordAdminRequest(
+		engine, http.MethodGet, "/api/sensitive-words/dashboard?hours=24", "",
+		managerID, common.RoleAdminUser,
+	)
+	require.Equal(t, http.StatusOK, withEvidence.Code, withEvidence.Body.String())
+	assert.Contains(t, withEvidence.Body.String(), `"sensitive_metadata_included":true`)
+	assert.Contains(t, withEvidence.Body.String(), `"audit_id"`)
+	assert.Contains(t, withEvidence.Body.String(), "restricted rule")
+
+	accessTokenRequest := httptest.NewRequest(http.MethodGet, "/api/sensitive-words/dashboard?hours=24", nil)
+	accessTokenRequest.Header.Set("X-Test-Actor-ID", strconv.Itoa(managerID))
+	accessTokenRequest.Header.Set("X-Test-Actor-Role", strconv.Itoa(common.RoleAdminUser))
+	accessTokenRequest.Header.Set("X-Test-Access-Token-ID", "1")
+	accessTokenRequest.Header.Set("X-Test-Access-Token-Scopes", service.AccessTokenScopeOf(authz.SensitiveWordManage))
+	accessTokenResponse := httptest.NewRecorder()
+	engine.ServeHTTP(accessTokenResponse, accessTokenRequest)
+	require.Equal(t, http.StatusOK, accessTokenResponse.Code, accessTokenResponse.Body.String())
+	assert.Contains(t, accessTokenResponse.Body.String(), `"sensitive_metadata_included":false`)
+	assert.NotContains(t, accessTokenResponse.Body.String(), `"audit_id"`)
+
+	accessTokenRequest = httptest.NewRequest(http.MethodGet, "/api/sensitive-words/dashboard?hours=24", nil)
+	accessTokenRequest.Header.Set("X-Test-Actor-ID", strconv.Itoa(managerID))
+	accessTokenRequest.Header.Set("X-Test-Actor-Role", strconv.Itoa(common.RoleAdminUser))
+	accessTokenRequest.Header.Set("X-Test-Access-Token-ID", "1")
+	accessTokenRequest.Header.Set(
+		"X-Test-Access-Token-Scopes",
+		strings.Join([]string{
+			service.AccessTokenScopeOf(authz.SensitiveWordManage),
+			service.AccessTokenScopeOf(authz.SensitiveWordEvidenceRead),
+		}, ","),
+	)
+	accessTokenResponse = httptest.NewRecorder()
+	engine.ServeHTTP(accessTokenResponse, accessTokenRequest)
+	require.Equal(t, http.StatusOK, accessTokenResponse.Code, accessTokenResponse.Body.String())
+	assert.Contains(t, accessTokenResponse.Body.String(), `"sensitive_metadata_included":true`)
+	assert.Contains(t, accessTokenResponse.Body.String(), `"audit_id"`)
+
+	require.NoError(t, authz.SetUserPermissions(managerID, authz.PermissionsMap{
+		authz.ResourceSensitiveWord: {
+			authz.ActionManage: false, authz.ActionEvidenceRead: true,
+		},
+	}))
+	denied := performSensitiveWordAdminRequest(
+		engine, http.MethodGet, "/api/sensitive-words/dashboard", "",
+		managerID, common.RoleAdminUser,
+	)
+	assert.Equal(t, http.StatusForbidden, denied.Code)
 }
 
 func TestSensitiveWordManagementPermissionAndDedicatedUnban(t *testing.T) {

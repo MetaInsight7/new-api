@@ -77,7 +77,7 @@ function parseSensitiveAuditEvidence(
 
 export function SensitiveWordAuditSection(props: {
   auditId?: number
-  log: UsageLog
+  log: Pick<UsageLog, 'request_id' | 'group' | 'model_name'>
   other: LogOtherData | null
   isAdmin: boolean
   open: boolean
@@ -154,6 +154,15 @@ export function SensitiveWordAuditSection(props: {
   const promptHash = event?.prompt_hash || filter?.prompt_hash
   const evidence = parseSensitiveAuditEvidence(event?.evidence)
   const evidenceCopyText = event?.evidence || event?.full_prompt || ''
+  const evidenceFields = (() => {
+    const occurrences = new Map<string, number>()
+    return (evidence?.fields ?? []).map((field) => {
+      const identity = `${field.order}-${field.role}-${field.kind}`
+      const occurrence = (occurrences.get(identity) ?? 0) + 1
+      occurrences.set(identity, occurrence)
+      return { field, key: `${identity}-${occurrence}` }
+    })
+  })()
 
   return (
     <>
@@ -289,11 +298,8 @@ export function SensitiveWordAuditSection(props: {
             {t('Structured context')}
           </Label>
           <div className='max-h-72 space-y-2 overflow-y-auto pr-6'>
-            {evidence?.fields.map((field) => (
-              <div
-                key={`${field.order}-${field.role}-${field.kind}`}
-                className='space-y-1'
-              >
+            {evidenceFields.map(({ field, key }) => (
+              <div key={key} className='space-y-1'>
                 <div className='text-muted-foreground flex flex-wrap gap-x-2 font-mono text-[11px]'>
                   <span>{field.role}</span>
                   <span>{field.kind}</span>

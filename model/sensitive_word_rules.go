@@ -13,7 +13,9 @@ import (
 	"gorm.io/gorm"
 )
 
-const sensitiveWordBlockMessage = "你的请求因命中敏感词已被拦截，已记录 1 次；若平台开启自动封禁，累计达到 {{threshold}} 次将停用账号，余额不退。如果有攻击破解别人网站等情节严重的情况将会直接报警。请勿使用当前分组进行违规对话；如有误判，请联系群主审核并清理你的记录。"
+const sensitiveWordBlockMessage = "请求内容违反平台使用政策，已被拒绝并记录。请修改内容后重试；再次违规可能导致账号停用。如有误判，请联系管理员。"
+
+const legacySensitiveWordBlockMessage = "你的请求因命中敏感词已被拦截，已记录 1 次；若平台开启自动封禁，累计达到 {{threshold}} 次将停用账号，余额不退。如果有攻击破解别人网站等情节严重的情况将会直接报警。请勿使用当前分组进行违规对话；如有误判，请联系群主审核并清理你的记录。"
 
 func normalizeSensitiveWord(word string) (string, error) {
 	word = strings.TrimSpace(word)
@@ -110,8 +112,7 @@ func normalizeSensitiveWordPolicy(policy SensitiveWordPolicy) SensitiveWordPolic
 		policy.MaxPromptRunes = SensitiveWordMaxPromptRunes
 	}
 	if strings.TrimSpace(policy.BlockMessage) == "" ||
-		strings.Contains(policy.BlockMessage, "清空余额") ||
-		strings.Contains(policy.BlockMessage, "清零余额") {
+		policy.BlockMessage == legacySensitiveWordBlockMessage {
 		policy.BlockMessage = sensitiveWordBlockMessage
 	}
 	if policy.Version <= 0 {

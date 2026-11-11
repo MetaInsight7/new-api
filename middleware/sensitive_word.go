@@ -55,7 +55,7 @@ func checkSensitiveTextBeforeChannelSelection(c *gin.Context, protocol string, m
 	if policyErr != nil {
 		logger.LogWarn(c, "sensitive-word policy unavailable: "+policyErr.Error())
 		return newSensitiveWordRequestError(
-			"敏感词审计暂时不可用，请稍后重试", types.ErrorCodeQueryDataError, http.StatusServiceUnavailable,
+			"敏感词审计暂时不可用，请稍后重试", "api_error", types.ErrorCodeQueryDataError, http.StatusServiceUnavailable,
 		)
 	}
 	if !policy.Enabled || !policy.CheckPrompt {
@@ -92,7 +92,7 @@ func checkSensitiveTextBeforeChannelSelection(c *gin.Context, protocol string, m
 		logger.LogWarn(c, "sensitive-word audit failed: "+err.Error())
 		if !errors.Is(err, model.ErrSensitiveWordAuditPersistence) {
 			return newSensitiveWordRequestError(
-				"敏感词审计暂时不可用，请稍后重试", types.ErrorCodeQueryDataError, http.StatusServiceUnavailable,
+				"敏感词审计暂时不可用，请稍后重试", "api_error", types.ErrorCodeQueryDataError, http.StatusServiceUnavailable,
 			)
 		}
 		if result == nil || !result.Blocked {
@@ -112,7 +112,7 @@ func checkSensitiveTextBeforeChannelSelection(c *gin.Context, protocol string, m
 		Health: "unchanged",
 	})
 	logger.LogWarn(c, "sensitive-word policy matched")
-	return newSensitiveWordRequestError(result.Message, types.ErrorCodeSensitiveWordsDetected, http.StatusBadRequest)
+	return service.NewSensitiveWordRequestError(c, result)
 }
 
 func sensitiveWordRelayFormat(path string) (types.RelayFormat, bool) {
@@ -146,15 +146,30 @@ func sensitiveWordRelayFormat(path string) (types.RelayFormat, bool) {
 	}
 }
 
-func newSensitiveWordRequestError(message string, code types.ErrorCode, status int) *types.NewAPIError {
-	return types.NewOpenAIError(errors.New(message), code, status, types.ErrOptionWithSkipRetry())
+func newSensitiveWordRequestError(message string, errorType string, code types.ErrorCode, status int) *types.NewAPIError {
+	return types.WithOpenAIError(types.OpenAIError{
+		Message: message,
+		Type:    errorType,
+		Code:    code,
+	}, status, types.ErrOptionWithSkipRetry())
 }
 
 func writeSensitiveWordRequestError(c *gin.Context, format types.RelayFormat, apiErr *types.NewAPIError) {
 	c.Abort()
+	openAIError := apiErr.ToOpenAIError()
 	if format == types.RelayFormatClaude {
-		c.JSON(apiErr.StatusCode, gin.H{"type": "error", "error": apiErr.ToClaudeError()})
+		response := gin.H{
+			"type": "error",
+			"error": types.ClaudeError{
+				Type:    openAIError.Type,
+				Message: openAIError.Message,
+			},
+		}
+		if requestID := c.GetString(common.RequestIdKey); requestID != "" {
+			response["request_id"] = requestID
+		}
+		c.JSON(apiErr.StatusCode, response)
 		return
 	}
-	c.JSON(apiErr.StatusCode, gin.H{"error": apiErr.ToOpenAIError()})
+	c.JSON(apiErr.StatusCode, gin.H{"error": openAIError})
 }

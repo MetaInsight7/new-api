@@ -184,6 +184,7 @@ func SetApiRouter(router *gin.Engine) {
 		sensitiveWordRoute := apiRouter.Group("/sensitive-words")
 		sensitiveWordRoute.Use(middleware.AdminAuth(), middleware.RequirePermission(authz.SensitiveWordManage))
 		{
+			sensitiveWordRoute.GET("/dashboard", controller.GetSensitiveWordDashboard)
 			sensitiveWordRoute.GET("/policy", controller.GetSensitiveWordPolicy)
 			sensitiveWordRoute.PUT("/policy", controller.UpdateSensitiveWordPolicy)
 			sensitiveWordRoute.GET("/groups", controller.GetSensitiveWordGroups)

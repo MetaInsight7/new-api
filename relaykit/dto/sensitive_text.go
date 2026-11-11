@@ -1,12 +1,11 @@
 package dto
 
 import (
-	"bytes"
 	"encoding/json"
-	"io"
 	"sort"
 	"strings"
 
+	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/QuantumNous/new-api/relaykit/types"
 )
 
@@ -34,13 +33,32 @@ func SensitivePromptFields(prompt string) []types.SensitiveTextField {
 }
 
 type sensitiveTextCollector struct {
-	fields       []types.SensitiveTextField
-	round        int
-	userRoundSet bool
+	fields               []types.SensitiveTextField
+	round                int
+	userRoundSet         bool
+	conversation         int
+	conversationSequence *int
 }
 
 func newSensitiveTextCollector() *sensitiveTextCollector {
-	return &sensitiveTextCollector{round: 0}
+	sequence := 0
+	return &sensitiveTextCollector{round: 0, conversationSequence: &sequence}
+}
+
+func (collector *sensitiveTextCollector) newConversation() *sensitiveTextCollector {
+	(*collector.conversationSequence)++
+	return &sensitiveTextCollector{
+		round:                0,
+		conversation:         *collector.conversationSequence,
+		conversationSequence: collector.conversationSequence,
+	}
+}
+
+func (collector *sensitiveTextCollector) appendConversation(fields []types.SensitiveTextField) {
+	for _, field := range fields {
+		field.Order = len(collector.fields)
+		collector.fields = append(collector.fields, field)
+	}
 }
 
 func (collector *sensitiveTextCollector) nextUserRound() int {
@@ -52,6 +70,15 @@ func (collector *sensitiveTextCollector) nextUserRound() int {
 	return collector.round
 }
 
+func (collector *sensitiveTextCollector) startUserRound() int {
+	round := collector.nextUserRound()
+	collector.fields = append(collector.fields, types.SensitiveTextField{
+		Role: types.SensitiveTextRoleUser, Kind: types.SensitiveTextKindTurnBoundary,
+		Conversation: collector.conversation, Round: round, Order: len(collector.fields),
+	})
+	return round
+}
+
 func (collector *sensitiveTextCollector) currentRound() int {
 	return collector.round
 }
@@ -61,7 +88,8 @@ func (collector *sensitiveTextCollector) append(role types.SensitiveTextRole, ki
 		return
 	}
 	collector.fields = append(collector.fields, types.SensitiveTextField{
-		Role: role, Kind: kind, Round: round, Order: len(collector.fields), Text: text,
+		Role: role, Kind: kind, Conversation: collector.conversation,
+		Round: round, Order: len(collector.fields), Text: text,
 	})
 }
 
@@ -85,23 +113,14 @@ func sensitiveRoundForRole(collector *sensitiveTextCollector, role types.Sensiti
 		return types.SensitiveTextContextRound
 	}
 	if role == types.SensitiveTextRoleUser && startsUserRound {
-		return collector.nextUserRound()
+		return collector.startUserRound()
 	}
 	return collector.currentRound()
 }
 
 func decodeSensitiveJSON(raw []byte) (any, bool) {
-	if len(bytes.TrimSpace(raw)) == 0 {
-		return nil, false
-	}
-	decoder := json.NewDecoder(bytes.NewReader(raw))
-	decoder.UseNumber()
 	var value any
-	if err := decoder.Decode(&value); err != nil {
-		return nil, false
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); err != io.EOF {
+	if err := kitutil.Unmarshal(raw, &value); err != nil {
 		return nil, false
 	}
 	return value, true
@@ -298,14 +317,7 @@ func (request *GeneralOpenAIRequest) GetSensitiveTextFields() []types.SensitiveT
 	for _, message := range request.Messages {
 		role := sensitiveRole(message.Role)
 		content := message.ParseContent()
-		hasText := false
-		for _, part := range content {
-			if part.Type == ContentTypeText && strings.TrimSpace(part.Text) != "" {
-				hasText = true
-				break
-			}
-		}
-		round := sensitiveRoundForRole(collector, role, role == types.SensitiveTextRoleUser && hasText)
+		round := sensitiveRoundForRole(collector, role, role == types.SensitiveTextRoleUser)
 		contentKind := types.SensitiveTextKindContent
 		if role == types.SensitiveTextRoleTool {
 			contentKind = types.SensitiveTextKindToolResult
@@ -394,7 +406,7 @@ func appendSensitiveResponsesInput(collector *sensitiveTextCollector, raw json.R
 		case "message":
 			role := sensitiveRole(stringValue(item["role"]))
 			parts := sensitiveResponsesTextParts(item["content"])
-			round := sensitiveRoundForRole(collector, role, role == types.SensitiveTextRoleUser && len(parts) > 0)
+			round := sensitiveRoundForRole(collector, role, role == types.SensitiveTextRoleUser)
 			for _, text := range parts {
 				collector.append(role, types.SensitiveTextKindContent, round, text)
 			}
@@ -491,16 +503,18 @@ func (request *ClaudeRequest) GetSensitiveTextFields() []types.SensitiveTextFiel
 	for _, message := range request.Messages {
 		role := sensitiveRole(message.Role)
 		parts, _ := message.ParseContent()
-		hasUserText := false
-		if text, ok := message.Content.(string); ok && strings.TrimSpace(text) != "" {
-			hasUserText = true
-		}
-		for _, part := range parts {
-			if part.Type == ContentTypeText && strings.TrimSpace(part.GetText()) != "" {
-				hasUserText = true
+		startsUserRound := false
+		if role == types.SensitiveTextRoleUser {
+			startsUserRound = true
+			for _, part := range parts {
+				if part.Type != "tool_result" && part.Type != "web_search_tool_result" {
+					startsUserRound = true
+					break
+				}
+				startsUserRound = false
 			}
 		}
-		round := sensitiveRoundForRole(collector, role, role == types.SensitiveTextRoleUser && hasUserText)
+		round := sensitiveRoundForRole(collector, role, startsUserRound)
 		if text, ok := message.Content.(string); ok {
 			collector.append(role, types.SensitiveTextKindContent, round, text)
 		}
@@ -523,7 +537,7 @@ func appendSensitiveClaudeSystem(collector *sensitiveTextCollector, value any) {
 		collector.append(types.SensitiveTextRoleSystem, types.SensitiveTextKindContent, types.SensitiveTextContextRound, text)
 		return
 	}
-	raw, err := json.Marshal(value)
+	raw, err := kitutil.Marshal(value)
 	if err != nil {
 		return
 	}
@@ -547,7 +561,7 @@ func appendSensitiveClaudeToolResult(collector *sensitiveTextCollector, round in
 		collector.append(types.SensitiveTextRoleTool, types.SensitiveTextKindToolResult, round, text)
 		return
 	}
-	raw, err := json.Marshal(value)
+	raw, err := kitutil.Marshal(value)
 	if err != nil {
 		return
 	}
@@ -595,14 +609,19 @@ func appendSensitiveGeminiRequest(collector *sensitiveTextCollector, request *Ge
 	appendSensitiveRawSchema(collector, request.GenerationConfig.ResponseJsonSchema)
 	for _, content := range request.Contents {
 		role := sensitiveRole(content.Role)
-		hasUserText := false
-		for _, part := range content.Parts {
-			if strings.TrimSpace(part.Text) != "" {
-				hasUserText = true
-				break
+		startsUserRound := role == types.SensitiveTextRoleUser
+		if startsUserRound && len(content.Parts) > 0 {
+			startsUserRound = false
+			for _, part := range content.Parts {
+				if part.FunctionResponse == nil && part.CodeExecutionResult == nil ||
+					part.Text != "" || part.InlineData != nil || part.FileData != nil ||
+					part.FunctionCall != nil || part.ExecutableCode != nil {
+					startsUserRound = true
+					break
+				}
 			}
 		}
-		round := sensitiveRoundForRole(collector, role, role == types.SensitiveTextRoleUser && hasUserText)
+		round := sensitiveRoundForRole(collector, role, startsUserRound)
 		for _, part := range content.Parts {
 			collector.append(role, types.SensitiveTextKindContent, round, part.Text)
 			if part.FunctionCall != nil {
@@ -626,7 +645,9 @@ func appendSensitiveGeminiRequest(collector *sensitiveTextCollector, request *Ge
 		}
 	}
 	for index := range request.Requests {
-		appendSensitiveGeminiRequest(collector, &request.Requests[index])
+		conversation := collector.newConversation()
+		appendSensitiveGeminiRequest(conversation, &request.Requests[index])
+		collector.appendConversation(conversation.fields)
 	}
 }
 
@@ -675,7 +696,9 @@ func (request *GeminiEmbeddingRequest) GetSensitiveTextFields() []types.Sensitiv
 func (request *GeminiBatchEmbeddingRequest) GetSensitiveTextFields() []types.SensitiveTextField {
 	collector := newSensitiveTextCollector()
 	for _, item := range request.Requests {
-		appendSensitiveGeminiEmbedding(collector, item)
+		conversation := collector.newConversation()
+		appendSensitiveGeminiEmbedding(conversation, item)
+		collector.appendConversation(conversation.fields)
 	}
 	return collector.fields
 }
