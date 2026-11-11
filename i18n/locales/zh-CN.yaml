@@ -94,3 +94,5 @@ channel.upstream_update_failed_channels: "失败渠道 ID（展示 {{.Shown}}/{{
 channel.upstream_update_more_omitted: "（其余 {{.Count}} 个已省略）"
 rate_limit.concurrency_reached: "已达到并发上限：所有 API Key 合计最多同时处理 {{.Max}} 个请求"
 rate_limit.concurrency_unavailable: "并发控制暂时不可用，请稍后重试"
+sensitive_word.blocked: "请求内容违反平台使用政策，已被拒绝并记录。请修改内容后重试；再次违规可能导致账号停用。如有误判，请联系管理员。"
+sensitive_word.auto_banned: "本次请求命中违规内容并达到自动封禁阈值，账号现已停用。如有误判，请联系管理员处理。"

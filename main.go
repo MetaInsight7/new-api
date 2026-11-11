@@ -110,6 +110,7 @@ func main() {
 	}
 	wsmanager.StartSubscriber(context.Background())
 	service.StartChannelCacheNotifications(context.Background())
+	model.StartSensitiveWordRuntimeSync(context.Background(), common.SyncFrequency)
 
 	// Warm pricing after channel cache initialization so Advanced Custom
 	// endpoint inference can read cached route settings on first request.

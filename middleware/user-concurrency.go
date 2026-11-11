@@ -182,7 +182,8 @@ func UserConcurrencyLimit() gin.HandlerFunc {
 			return
 		}
 		if lease == nil {
-			abortWithOpenAiMessage(c, http.StatusTooManyRequests, i18n.T(c, i18n.MsgConcurrencyLimitReached, map[string]any{"Max": limit}), types.ErrorCode("user_concurrency_limit"))
+			c.Header("Retry-After", "1")
+			abortWithOpenAiMessageType(c, http.StatusTooManyRequests, i18n.T(c, i18n.MsgConcurrencyLimitReached, map[string]any{"Max": limit}), "rate_limit_error", types.ErrorCode("user_concurrency_limit"))
 			return
 		}
 		defer lease.release()

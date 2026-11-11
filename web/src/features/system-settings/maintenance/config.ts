@@ -78,6 +78,7 @@ export const SIDEBAR_MODULES_DEFAULT: SidebarModulesAdminConfig = {
     enabled: true,
     channel: true,
     models: true,
+    sensitive_word: true,
     redemption: true,
     user: true,
     setting: true,

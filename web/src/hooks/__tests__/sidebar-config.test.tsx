@@ -47,7 +47,12 @@ afterEach(() => {
   useAuthStore.getState().auth.reset()
 })
 
-function sidebarFor(admin?: object, user?: object, canConfigure = true) {
+function sidebarFor(
+  admin?: object,
+  user?: object,
+  canConfigure = true,
+  canManageSensitiveWords = false
+) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
@@ -58,7 +63,12 @@ function sidebarFor(admin?: object, user?: object, canConfigure = true) {
     id: 1,
     username: 'alice',
     role: 1,
-    permissions: { sidebar_settings: canConfigure },
+    permissions: {
+      sidebar_settings: canConfigure,
+      admin_permissions: {
+        sensitive_word: { manage: canManageSensitiveWords },
+      },
+    },
     sidebar_modules: user ? JSON.stringify(user) : '',
   })
   function Wrapper(props: { children: ReactNode }) {
@@ -173,6 +183,41 @@ describe('primary navigation', () => {
 
     expect(titles).not.toContain('Channels')
     expect(titles).not.toContain('Channel Load Monitor')
+  })
+
+  it('shows the sensitive-word monitor after Usage Report only to managers', () => {
+    const { result } = sidebarFor(undefined, undefined, true, true)
+    const items =
+      result.current.find((group) => group.id === 'admin')?.items ?? []
+    const usageReportIndex = items.findIndex(
+      (item) => item.title === 'Usage Report'
+    )
+
+    expect(items[usageReportIndex + 1]).toMatchObject({
+      title: 'Sensitive-word monitor',
+      url: '/sensitive-word-monitor',
+    })
+  })
+
+  it('hides the sensitive-word monitor without permission or when its module is disabled', () => {
+    const withoutPermission = sidebarFor()
+    expect(
+      withoutPermission.result.current
+        .flatMap((group) => group.items)
+        .map((item) => item.title)
+    ).not.toContain('Sensitive-word monitor')
+
+    const disabled = sidebarFor(
+      { admin: { enabled: true, sensitive_word: false } },
+      undefined,
+      true,
+      true
+    )
+    expect(
+      disabled.result.current
+        .flatMap((group) => group.items)
+        .map((item) => item.title)
+    ).not.toContain('Sensitive-word monitor')
   })
 })
 

@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"regexp"
 
+	"github.com/QuantumNous/new-api/common"
 	taskdto "github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 )
@@ -45,8 +46,12 @@ var upstreamRequestIDPattern = regexp.MustCompile(
 		`|,?\s*x-request-id[=:]\s*[a-zA-Z0-9_-]+`,
 )
 
-func sanitizeErrorForUser(err *types.NewAPIError) {
+func sanitizeErrorForUser(err *types.NewAPIError, preserveLocalPolicyMessage bool) {
 	if err == nil {
+		return
+	}
+	if preserveLocalPolicyMessage {
+		err.SetMessage(upstreamRequestIDPattern.ReplaceAllString(err.Error(), ""))
 		return
 	}
 	if _, ok := userFacingErrorCodes[err.GetErrorCode()]; ok {
@@ -69,6 +74,15 @@ func sanitizeErrorForUser(err *types.NewAPIError) {
 		message = "请求处理失败，请稍后再试"
 	}
 	err.SetMessage(message)
+}
+
+func toClaudeRelayError(err *types.NewAPIError, localPolicyError bool, upstreamURLs ...string) types.ClaudeError {
+	claudeError := err.ToClaudeError(upstreamURLs...)
+	if localPolicyError {
+		claudeError.Type = err.ToOpenAIError(upstreamURLs...).Type
+	}
+	claudeError.Message = common.MaskSensitiveInfo(err.Error(), upstreamURLs...)
+	return claudeError
 }
 
 func sanitizeTaskErrorForUser(taskErr *taskdto.TaskError) {

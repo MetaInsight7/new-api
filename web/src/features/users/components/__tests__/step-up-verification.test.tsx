@@ -24,6 +24,7 @@ import { useEffect } from 'react'
 import { afterEach, expect, it, vi } from 'vitest'
 
 import { api } from '@/lib/api'
+import { useAuthStore } from '@/stores/auth-store'
 
 import type { User } from '../../types'
 import { DataTableRowActions } from '../data-table-row-actions'
@@ -105,6 +106,7 @@ async function completeTwoFactorVerification() {
 afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
+  useAuthStore.getState().auth.reset()
 })
 
 it('deleting a user sends the request only with a single-use proof for that user', async () => {
@@ -197,4 +199,104 @@ it('disabling a user from the row menu binds the proof to the user and action', 
     }),
     expect.anything()
   )
+})
+
+it('ordinary enable keeps the step-up flow and does not call sensitive-word unban', async () => {
+  const proof = mockVerification('admin.user.manage', 'enable-proof')
+  const post = vi.spyOn(api, 'post').mockImplementation(async (url) => {
+    if (url === '/api/verify') return proof
+    if (url === '/api/user/manage') return { data: { success: true } }
+    throw new Error(`Unexpected POST ${url}`)
+  })
+  renderInProvider(
+    <DataTableRowActions
+      row={
+        {
+          original: {
+            ...target,
+            status: 2,
+            sensitive_word_violation_count: 3,
+          },
+        } as Row<User>
+      }
+    />
+  )
+
+  await userEvent.click(screen.getByRole('button', { name: 'Open menu' }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: 'Enable' }))
+  await completeTwoFactorVerification()
+
+  await waitFor(() =>
+    expect(post).toHaveBeenCalledWith(
+      '/api/user/manage',
+      { id: 2, action: 'enable' },
+      expect.objectContaining({
+        headers: { 'X-Security-Proof': 'enable-proof' },
+        singleUseAuthorization: true,
+      })
+    )
+  )
+  expect(post).not.toHaveBeenCalledWith(
+    '/api/sensitive-words/users/2/unban',
+    expect.anything(),
+    expect.anything()
+  )
+})
+
+it('a sensitive-word manager can use the dedicated unban action', async () => {
+  useAuthStore.getState().auth.setUser({
+    id: 1,
+    username: 'risk-manager',
+    role: 10,
+    permissions: {
+      admin_permissions: { sensitive_word: { manage: true } },
+    },
+  })
+  const post = vi
+    .spyOn(api, 'post')
+    .mockResolvedValue({ data: { success: true } })
+  renderInProvider(
+    <DataTableRowActions
+      row={
+        {
+          original: { ...target, sensitive_word_violation_count: 3 },
+        } as Row<User>
+      }
+    />
+  )
+
+  await userEvent.click(screen.getByRole('button', { name: 'Open menu' }))
+  await userEvent.click(
+    await screen.findByRole('menuitem', { name: 'Sensitive-word unban' })
+  )
+  await userEvent.click(
+    await screen.findByRole('button', { name: 'Unban and clear count' })
+  )
+
+  await waitFor(() =>
+    expect(post).toHaveBeenCalledWith('/api/sensitive-words/users/2/unban')
+  )
+})
+
+it('hides sensitive-word unban without the management permission', async () => {
+  useAuthStore.getState().auth.setUser({
+    id: 1,
+    username: 'limited-admin',
+    role: 10,
+    permissions: { admin_permissions: {} },
+  })
+  renderInProvider(
+    <DataTableRowActions
+      row={
+        {
+          original: { ...target, sensitive_word_violation_count: 3 },
+        } as Row<User>
+      }
+    />
+  )
+
+  await userEvent.click(screen.getByRole('button', { name: 'Open menu' }))
+  expect(
+    screen.queryByRole('menuitem', { name: 'Sensitive-word unban' })
+  ).not.toBeInTheDocument()
 })

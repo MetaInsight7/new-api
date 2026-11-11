@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -109,5 +110,52 @@ func TestConfigChangedNoopsWithoutRedis(t *testing.T) {
 		require.NoError(t, PublishConfigChanged(context.Background(), ConfigScopeChannels, 1))
 		SubscribeConfigChanged(context.Background(), func(string) { t.Error("unexpected disabled subscriber callback") })
 		SubscribeChannelChanges(context.Background(), func([]int) { t.Error("unexpected disabled channel callback") })
+	}
+}
+
+func TestSensitiveWordConfigNotificationDispatches(t *testing.T) {
+	server := miniredis.RunT(t)
+	local := redis.NewClient(&redis.Options{Addr: server.Addr(), DB: 3})
+	peer := redis.NewClient(&redis.Options{Addr: server.Addr(), DB: 3})
+	t.Cleanup(func() {
+		require.NoError(t, local.Close())
+		require.NoError(t, peer.Close())
+	})
+	previousClient, previousEnabled := RDB, RedisEnabled
+	RDB, RedisEnabled = local, true
+	t.Cleanup(func() { RDB, RedisEnabled = previousClient, previousEnabled })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	received := make(chan string, 1)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		SubscribeConfigChanged(ctx, func(scope string) { received <- scope })
+	}()
+	t.Cleanup(func() {
+		cancel()
+		select {
+		case <-done:
+		case <-time.After(time.Second):
+			t.Error("subscriber did not stop after cancellation")
+		}
+	})
+
+	topic := configChangedTopic(3)
+	require.Eventually(t, func() bool {
+		counts, err := peer.PubSubNumSub(context.Background(), topic).Result()
+		return err == nil && counts[topic] == 1
+	}, time.Second, 5*time.Millisecond)
+	const peerID = "018f89db-7792-7b5e-a360-7fd9279fd726"
+	require.NoError(t, peer.Publish(
+		context.Background(), topic,
+		`{"scope":"sensitive_words","source":"`+peerID+`"}`,
+	).Err())
+
+	select {
+	case scope := <-received:
+		assert.Equal(t, ConfigScopeSensitiveWords, scope)
+	case <-time.After(time.Second):
+		t.Fatal("sensitive-word notification was not dispatched")
 	}
 }

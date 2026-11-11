@@ -88,6 +88,8 @@ func TestUserConcurrencySharesAPIKeysAndReleasesAfterStreaming(t *testing.T) {
 					assert.Equal(t, http.StatusOK, second.Code)
 				} else {
 					assert.Equal(t, http.StatusTooManyRequests, second.Code, second.Body.String())
+					assert.Equal(t, "1", second.Header().Get("Retry-After"))
+					assert.Contains(t, second.Body.String(), `"type":"rate_limit_error"`)
 					assert.Contains(t, second.Body.String(), `"code":"user_concurrency_limit"`)
 				}
 				assert.Equal(t, http.StatusOK, middlewareBearerRequest(router, "/v1/chat/completions", keys[2]).Code)
@@ -326,6 +328,8 @@ func TestUserConcurrencyRedisUnavailableRejectsInsteadOfBypassing(t *testing.T) 
 	assert.Equal(t, http.StatusOK, performRateLimitRequest(router, "/0", "127.0.0.1:1").Code)
 	response := performRateLimitRequest(router, "/1", "127.0.0.1:1")
 	assert.Equal(t, http.StatusServiceUnavailable, response.Code)
+	assert.Empty(t, response.Header().Get("Retry-After"))
+	assert.Contains(t, response.Body.String(), `"type":"new_api_error"`)
 	assert.Contains(t, response.Body.String(), "concurrency_limit_unavailable")
 }
 

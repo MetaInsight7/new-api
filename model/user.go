@@ -78,47 +78,49 @@ func resolveUserSortOptions(sortOptions []UserSortOptions) UserSortOptions {
 // User if you add sensitive fields, don't forget to clean them in setupLogin function.
 // Otherwise, the sensitive information will be saved on local storage in plain text!
 type User struct {
-	Id                   int                        `json:"id"`
-	Username             string                     `json:"username" gorm:"unique;index" validate:"max=20"`
-	Password             string                     `json:"password" gorm:"not null;" validate:"min=8,max=128"`
-	HasPassword          bool                       `json:"-" gorm:"-:all"`
-	OriginalPassword     string                     `json:"original_password" gorm:"-:all"` // this field is only for Password change verification, don't save it to database!
-	DisplayName          string                     `json:"display_name" gorm:"index" validate:"max=20"`
-	Role                 int                        `json:"role" gorm:"type:int;default:1"`   // admin, common
-	Status               int                        `json:"status" gorm:"type:int;default:1"` // enabled, disabled
-	Email                string                     `json:"email" gorm:"index" validate:"max=50"`
-	GitHubId             string                     `json:"github_id" gorm:"column:github_id;index"`
-	DiscordId            string                     `json:"discord_id" gorm:"column:discord_id;index"`
-	OidcId               string                     `json:"oidc_id" gorm:"column:oidc_id;index"`
-	WeChatId             string                     `json:"wechat_id" gorm:"column:wechat_id;index"`
-	TelegramId           string                     `json:"telegram_id" gorm:"column:telegram_id;index"`
-	VerificationCode     string                     `json:"verification_code" gorm:"-:all"`                         // this field is only for Email verification, don't save it to database!
-	AccessToken          *string                    `json:"-" gorm:"type:char(32);column:access_token;uniqueIndex"` // Deprecated: 旧版面板访问令牌，仅在升级后的过渡期内使用；删除 users.access_token 列时一并移除。
-	AccessTokenCreatedAt *int64                     `json:"-" gorm:"type:bigint;column:access_token_created_at"`    // Deprecated: 旧版面板访问令牌，仅在升级后的过渡期内使用；删除 users.access_token 列时一并移除。
-	Quota                int                        `json:"quota" gorm:"type:int;default:0"`
-	UsedQuota            int                        `json:"used_quota" gorm:"type:int;default:0;column:used_quota"` // used quota
-	RequestCount         int                        `json:"request_count" gorm:"type:int;default:0;"`               // request number
-	MaxConcurrency       int                        `json:"max_concurrency" gorm:"type:int;not null;default:0" validate:"gte=0,lte=2147483647"`
-	ConcurrencyVersion   int64                      `json:"-" gorm:"type:bigint;not null;default:1"`
-	Group                string                     `json:"group" gorm:"type:varchar(64);default:'default'"`
-	AffCode              string                     `json:"aff_code" gorm:"type:varchar(32);column:aff_code;uniqueIndex"`
-	AffCount             int                        `json:"aff_count" gorm:"type:int;default:0;column:aff_count"`
-	AffQuota             int                        `json:"aff_quota" gorm:"type:int;default:0;column:aff_quota"`           // 邀请剩余额度
-	AffHistoryQuota      int                        `json:"aff_history_quota" gorm:"type:int;default:0;column:aff_history"` // 邀请历史额度
-	InviterId            int                        `json:"inviter_id" gorm:"type:int;column:inviter_id;index"`
-	DeletedAt            gorm.DeletedAt             `gorm:"index"`
-	LinuxDOId            string                     `json:"linux_do_id" gorm:"column:linux_do_id;index"`
-	Setting              string                     `json:"setting" gorm:"type:text;column:setting"`
-	Remark               string                     `json:"remark,omitempty" gorm:"type:varchar(255)" validate:"max=255"`
-	StripeCustomer       string                     `json:"stripe_customer" gorm:"type:varchar(64);column:stripe_customer;index"`
-	AdsAttribution       string                     `json:"ads_attribution,omitempty" gorm:"type:text;column:ads_attribution"`
-	CreatedAt            int64                      `json:"created_at" gorm:"autoCreateTime;column:created_at"`
-	LastLoginAt          int64                      `json:"last_login_at" gorm:"default:0;column:last_login_at"`
-	BrowserLang          string                     `json:"browser_lang" gorm:"type:varchar(32);default:'';column:browser_lang"`
-	LastLoginIp          string                     `json:"last_login_ip" gorm:"type:varchar(64);default:'';column:last_login_ip"`
-	PayCountry           string                     `json:"pay_country" gorm:"type:varchar(8);default:'';column:pay_country"`
-	AuthVersion          int64                      `json:"-" gorm:"type:bigint;not null;default:1;column:auth_version"`
-	AdminPermissions     map[string]map[string]bool `json:"admin_permissions,omitempty" gorm:"-:all"`
+	Id                          int                        `json:"id"`
+	Username                    string                     `json:"username" gorm:"unique;index" validate:"max=20"`
+	Password                    string                     `json:"password" gorm:"not null;" validate:"min=8,max=128"`
+	HasPassword                 bool                       `json:"-" gorm:"-:all"`
+	OriginalPassword            string                     `json:"original_password" gorm:"-:all"` // this field is only for Password change verification, don't save it to database!
+	DisplayName                 string                     `json:"display_name" gorm:"index" validate:"max=20"`
+	Role                        int                        `json:"role" gorm:"type:int;default:1"`   // admin, common
+	Status                      int                        `json:"status" gorm:"type:int;default:1"` // enabled, disabled
+	SensitiveWordViolationCount int                        `json:"sensitive_word_violation_count" gorm:"type:int;not null;default:0;column:sensitive_word_violation_count"`
+	SensitiveWordWhitelist      bool                       `json:"sensitive_word_whitelist" gorm:"not null;default:false;column:sensitive_word_whitelist"`
+	Email                       string                     `json:"email" gorm:"index" validate:"max=50"`
+	GitHubId                    string                     `json:"github_id" gorm:"column:github_id;index"`
+	DiscordId                   string                     `json:"discord_id" gorm:"column:discord_id;index"`
+	OidcId                      string                     `json:"oidc_id" gorm:"column:oidc_id;index"`
+	WeChatId                    string                     `json:"wechat_id" gorm:"column:wechat_id;index"`
+	TelegramId                  string                     `json:"telegram_id" gorm:"column:telegram_id;index"`
+	VerificationCode            string                     `json:"verification_code" gorm:"-:all"`                         // this field is only for Email verification, don't save it to database!
+	AccessToken                 *string                    `json:"-" gorm:"type:char(32);column:access_token;uniqueIndex"` // Deprecated: 旧版面板访问令牌，仅在升级后的过渡期内使用；删除 users.access_token 列时一并移除。
+	AccessTokenCreatedAt        *int64                     `json:"-" gorm:"type:bigint;column:access_token_created_at"`    // Deprecated: 旧版面板访问令牌，仅在升级后的过渡期内使用；删除 users.access_token 列时一并移除。
+	Quota                       int                        `json:"quota" gorm:"type:int;default:0"`
+	UsedQuota                   int                        `json:"used_quota" gorm:"type:int;default:0;column:used_quota"` // used quota
+	RequestCount                int                        `json:"request_count" gorm:"type:int;default:0;"`               // request number
+	MaxConcurrency              int                        `json:"max_concurrency" gorm:"type:int;not null;default:0" validate:"gte=0,lte=2147483647"`
+	ConcurrencyVersion          int64                      `json:"-" gorm:"type:bigint;not null;default:1"`
+	Group                       string                     `json:"group" gorm:"type:varchar(64);default:'default'"`
+	AffCode                     string                     `json:"aff_code" gorm:"type:varchar(32);column:aff_code;uniqueIndex"`
+	AffCount                    int                        `json:"aff_count" gorm:"type:int;default:0;column:aff_count"`
+	AffQuota                    int                        `json:"aff_quota" gorm:"type:int;default:0;column:aff_quota"`           // 邀请剩余额度
+	AffHistoryQuota             int                        `json:"aff_history_quota" gorm:"type:int;default:0;column:aff_history"` // 邀请历史额度
+	InviterId                   int                        `json:"inviter_id" gorm:"type:int;column:inviter_id;index"`
+	DeletedAt                   gorm.DeletedAt             `gorm:"index"`
+	LinuxDOId                   string                     `json:"linux_do_id" gorm:"column:linux_do_id;index"`
+	Setting                     string                     `json:"setting" gorm:"type:text;column:setting"`
+	Remark                      string                     `json:"remark,omitempty" gorm:"type:varchar(255)" validate:"max=255"`
+	StripeCustomer              string                     `json:"stripe_customer" gorm:"type:varchar(64);column:stripe_customer;index"`
+	AdsAttribution              string                     `json:"ads_attribution,omitempty" gorm:"type:text;column:ads_attribution"`
+	CreatedAt                   int64                      `json:"created_at" gorm:"autoCreateTime;column:created_at"`
+	LastLoginAt                 int64                      `json:"last_login_at" gorm:"default:0;column:last_login_at"`
+	BrowserLang                 string                     `json:"browser_lang" gorm:"type:varchar(32);default:'';column:browser_lang"`
+	LastLoginIp                 string                     `json:"last_login_ip" gorm:"type:varchar(64);default:'';column:last_login_ip"`
+	PayCountry                  string                     `json:"pay_country" gorm:"type:varchar(8);default:'';column:pay_country"`
+	AuthVersion                 int64                      `json:"-" gorm:"type:bigint;not null;default:1;column:auth_version"`
+	AdminPermissions            map[string]map[string]bool `json:"admin_permissions,omitempty" gorm:"-:all"`
 }
 
 func (user *User) ToBaseUser() *UserBase {
@@ -831,7 +833,7 @@ func (user *User) UpdateWithTx(tx *gorm.DB, updatePassword bool) error {
 	}
 	newUser := *user
 	current := User{}
-	if err = tx.First(&current, user.Id).Error; err != nil {
+	if err = lockForUpdate(tx).First(&current, user.Id).Error; err != nil {
 		return err
 	}
 	// Updates(struct) ignores zero values. Match that behavior when deciding
@@ -858,6 +860,8 @@ func (user *User) UpdateWithTx(tx *gorm.DB, updatePassword bool) error {
 		"auth_version",
 		"max_concurrency",
 		"concurrency_version",
+		"sensitive_word_violation_count",
+		"sensitive_word_whitelist",
 	).Updates(newUser).Error; err != nil {
 		return err
 	}

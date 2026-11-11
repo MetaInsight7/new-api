@@ -32,6 +32,8 @@ import type {
   ManageUserAction,
   ManageUserQuotaPayload,
   ApiResponse,
+  SensitiveWordUserSafetyPatch,
+  SensitiveWordUnbanResult,
 } from './types'
 
 // A step-up proof is single-use, so the request carrying it must never be
@@ -169,6 +171,21 @@ export async function adjustUserQuota(
   payload: ManageUserQuotaPayload
 ): Promise<ApiResponse<Partial<User>>> {
   const res = await api.post('/api/user/manage', payload)
+  return res.data
+}
+
+export async function updateSensitiveWordUserSafety(
+  id: number,
+  data: SensitiveWordUserSafetyPatch
+): Promise<ApiResponse> {
+  const res = await api.patch(`/api/sensitive-words/users/${id}`, data)
+  return res.data
+}
+
+export async function unbanSensitiveWordUser(
+  id: number
+): Promise<ApiResponse<SensitiveWordUnbanResult>> {
+  const res = await api.post(`/api/sensitive-words/users/${id}/unban`)
   return res.data
 }
 

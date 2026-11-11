@@ -13,10 +13,11 @@ import (
 )
 
 const (
-	ConfigChangedChannel = "new-api:config-changed"
-	ConfigScopeOptions   = "options"
-	ConfigScopeChannels  = "channels"
-	maxConfigChangeBytes = 64 * 1024
+	ConfigChangedChannel      = "new-api:config-changed"
+	ConfigScopeOptions        = "options"
+	ConfigScopeChannels       = "channels"
+	ConfigScopeSensitiveWords = "sensitive_words"
+	maxConfigChangeBytes      = 64 * 1024
 )
 
 var configChangeReplicaID = sync.OnceValue(uuid.NewString)
@@ -80,7 +81,7 @@ func configChangedTopic(database int) string {
 }
 
 func validateConfigChangeMessage(message configChangeMessage) error {
-	if message.Scope != ConfigScopeOptions && message.Scope != ConfigScopeChannels {
+	if message.Scope != ConfigScopeOptions && message.Scope != ConfigScopeChannels && message.Scope != ConfigScopeSensitiveWords {
 		return errors.New("unsupported config-change scope")
 	}
 	source, err := uuid.Parse(message.Source)

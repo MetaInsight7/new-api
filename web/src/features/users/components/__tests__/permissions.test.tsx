@@ -174,6 +174,9 @@ it.each([undefined, true])(
         })
       )
     )
+    const payload = put.mock.calls[0]?.[1]
+    expect(payload).not.toHaveProperty('sensitive_word_violation_count')
+    expect(payload).not.toHaveProperty('sensitive_word_whitelist')
   }
 )
 
@@ -198,10 +201,41 @@ it('root saving an administrator without changing permissions or password does n
   expect(get).not.toHaveBeenCalledWith('/api/verify/methods', expect.anything())
 })
 
+it('sends changed sensitive-word fields through the dedicated safety endpoint', async () => {
+  const put = vi
+    .spyOn(api, 'put')
+    .mockResolvedValue({ data: { success: true } })
+  const patch = vi
+    .spyOn(api, 'patch')
+    .mockResolvedValue({ data: { success: true } })
+  renderPermissions(100)
+  await screen.findByDisplayValue('Managed admin')
+  await userEvent.click(
+    screen.getByRole('switch', { name: 'Sensitive-word whitelist' })
+  )
+  await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+  await waitFor(() =>
+    expect(put).toHaveBeenCalledWith(
+      '/api/user/',
+      expect.objectContaining({ id: 2 }),
+      {}
+    )
+  )
+  expect(put.mock.calls[0][1]).not.toHaveProperty('sensitive_word_whitelist')
+  await waitFor(() =>
+    expect(patch).toHaveBeenCalledWith('/api/sensitive-words/users/2', {
+      whitelist: true,
+    })
+  )
+})
+
 it('admin cannot edit the audit permission even when the catalog is available', async () => {
   renderPermissions(10)
   await screen.findByDisplayValue('Managed admin')
   expect(screen.queryByRole('button', { name: label })).not.toBeInTheDocument()
+  expect(
+    screen.queryByRole('switch', { name: 'Sensitive-word whitelist' })
+  ).not.toBeInTheDocument()
 })
 
 it.each([0, 5])(

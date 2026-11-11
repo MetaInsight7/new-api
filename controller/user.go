@@ -359,6 +359,7 @@ func GetAllUsers(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	hideSensitiveWordUserSafetyState(c, users)
 
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(users)
@@ -389,6 +390,7 @@ func SearchUsers(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	hideSensitiveWordUserSafetyState(c, users)
 
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(users)
@@ -398,6 +400,16 @@ func SearchUsers(c *gin.Context) {
 
 func canManageTargetRole(myRole int, targetRole int) bool {
 	return myRole == common.RoleRootUser || myRole > targetRole
+}
+
+func hideSensitiveWordUserSafetyState(c *gin.Context, users []*model.User) {
+	if authz.Can(c.GetInt("id"), c.GetInt("role"), authz.SensitiveWordManage) {
+		return
+	}
+	for _, user := range users {
+		user.SensitiveWordViolationCount = 0
+		user.SensitiveWordWhitelist = false
+	}
 }
 
 func GetUser(c *gin.Context) {
@@ -416,6 +428,7 @@ func GetUser(c *gin.Context) {
 		common.ApiErrorT(c, "No permission to access users of same or higher level")
 		return
 	}
+	hideSensitiveWordUserSafetyState(c, []*model.User{user})
 	user.AdminPermissions = authz.Capabilities(user.Id, user.Role)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -668,7 +681,9 @@ func GetUserModels(c *gin.Context) {
 func UpdateUser(c *gin.Context) {
 	var request struct {
 		model.User
-		MaxConcurrency *int `json:"max_concurrency"`
+		MaxConcurrency              *int  `json:"max_concurrency"`
+		SensitiveWordViolationCount *int  `json:"sensitive_word_violation_count"`
+		SensitiveWordWhitelist      *bool `json:"sensitive_word_whitelist"`
 	}
 	err := common.DecodeJson(c.Request.Body, &request)
 	updatedUser := request.User
@@ -677,6 +692,12 @@ func UpdateUser(c *gin.Context) {
 	}
 	if err != nil || updatedUser.Id == 0 {
 		common.ApiErrorT(c, "Invalid parameters")
+		return
+	}
+	sensitiveViolationCount := request.SensitiveWordViolationCount
+	sensitiveWhitelist := request.SensitiveWordWhitelist
+	if sensitiveViolationCount != nil || sensitiveWhitelist != nil {
+		common.ApiErrorT(c, "Use the sensitive-word safety API to update safety state")
 		return
 	}
 	updatedUser.Username = strings.TrimSpace(updatedUser.Username)

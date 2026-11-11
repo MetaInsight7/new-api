@@ -338,6 +338,9 @@ func migrateDB() error {
 	if err := migrateOptionPrimaryKey(DB); err != nil {
 		common.SysError(common.LogText("failed to migrate options primary key: %s", err.Error()))
 	}
+	if err := prepareSensitiveWordAuditIdentityMigration(DB); err != nil {
+		return err
+	}
 
 	err := DB.AutoMigrate(
 		&Channel{},
@@ -389,12 +392,23 @@ func migrateDB() error {
 		&CasbinRule{},
 		&AuthzRole{},
 		&UserAccessToken{},
+		&SensitiveWordRule{},
+		&SensitiveWordRuleWord{},
+		&SensitiveWordRuleGroup{},
+		&SensitiveWordPolicy{},
+		&SensitiveWordAuditEvent{},
 	)
 	if err != nil {
 		return err
 	}
 	if err := BackfillCodexFingerprintSeeds(); err != nil {
 		return fmt.Errorf("backfill Codex fingerprint seeds: %w", err)
+	}
+	if err := MigrateSensitiveWordData(); err != nil {
+		// Legacy data can be malformed. Keep the service available, but leave
+		// the request filter disabled until a later startup completes the
+		// one-way import successfully.
+		common.SysError(fmt.Sprintf("migrate sensitive-word data failed; sensitive-word protection is disabled: %v", err))
 	}
 	if err := InitializeUserAuthVersions(); err != nil {
 		return err

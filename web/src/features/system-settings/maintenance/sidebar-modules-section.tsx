@@ -146,6 +146,10 @@ export function SidebarModulesSection({
         title: t('Models'),
         description: t('Manage catalog visibility and pricing.'),
       },
+      sensitive_word: {
+        title: t('Sensitive-word monitor'),
+        description: t('Review policy matches and enforcement activity.'),
+      },
       redemption: {
         title: t('Redeem codes'),
         description: t('Create and review invite or credit codes.'),

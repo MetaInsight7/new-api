@@ -62,6 +62,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import {
   ADMIN_PERMISSION_ACTIONS,
@@ -83,6 +84,7 @@ import { useAuthStore } from '@/stores/auth-store'
 import {
   createUser,
   updateUser,
+  updateSensitiveWordUserSafety,
   getUser,
   getGroups,
   getPermissionCatalog,
@@ -174,6 +176,11 @@ export function UsersMutateDrawer({
   const currentQuotaRaw = form.watch('quota_dollars') || 0
   const selectedRole = form.watch('role')
   const canEditAdminPermissions = currentUser?.role === ROLE.SUPER_ADMIN
+  const canManageSensitiveWords = hasPermission(
+    currentUser,
+    ADMIN_PERMISSION_RESOURCES.SENSITIVE_WORD,
+    ADMIN_PERMISSION_ACTIONS.MANAGE
+  )
   const targetIsAdmin = (selectedRole ?? currentRow?.role ?? 0) >= ROLE.ADMIN
 
   const onSubmit = async (data: UserFormValues) => {
@@ -209,6 +216,24 @@ export function UsersMutateDrawer({
           )
       ) {
         delete payload.admin_permissions
+      }
+      const safetyPatch: {
+        violation_count?: number
+        whitelist?: boolean
+      } = {}
+      if (
+        isUpdate &&
+        canManageSensitiveWords &&
+        form.formState.dirtyFields.sensitive_word_violation_count
+      ) {
+        safetyPatch.violation_count = data.sensitive_word_violation_count ?? 0
+      }
+      if (
+        isUpdate &&
+        canManageSensitiveWords &&
+        form.formState.dirtyFields.sensitive_word_whitelist
+      ) {
+        safetyPatch.whitelist = data.sensitive_word_whitelist === true
       }
       // Resetting a password, rewriting admin permissions, or creating an
       // administrator changes who can sign in or what they may do.
@@ -247,6 +272,19 @@ export function UsersMutateDrawer({
         : await createUser(payload, proofToken)
 
       if (result.success) {
+        if (isUpdate && currentRow && Object.keys(safetyPatch).length > 0) {
+          const safetyResult = await updateSensitiveWordUserSafety(
+            currentRow.id,
+            safetyPatch
+          )
+          if (!safetyResult.success) {
+            handleServerError(
+              safetyResult,
+              t('Unable to update sensitive-word safety state')
+            )
+            return
+          }
+        }
         toast.success(
           isUpdate
             ? t(SUCCESS_MESSAGES.USER_UPDATED)
@@ -294,6 +332,7 @@ export function UsersMutateDrawer({
         }}
       >
         <SheetContent
+          side='left'
           className={sideDrawerContentClassName('sm:max-w-[600px]')}
         >
           <SheetHeader className={sideDrawerHeaderClassName()}>
@@ -550,6 +589,79 @@ export function UsersMutateDrawer({
                           />
                         </FormControl>
                         <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </SideDrawerSection>
+              )}
+
+              {isUpdate && canManageSensitiveWords && (
+                <SideDrawerSection>
+                  <h3 className='text-sm font-medium'>{t('Content Safety')}</h3>
+                  <p className='text-muted-foreground text-xs'>
+                    {t(
+                      'Whitelist users are still audited but sensitive-word matches do not block requests or increase the violation count.'
+                    )}
+                  </p>
+
+                  <FormField
+                    control={form.control}
+                    name='sensitive_word_violation_count'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Sensitive-word violations')}</FormLabel>
+                        <div className='flex gap-2'>
+                          <FormControl>
+                            <Input
+                              type='number'
+                              min={0}
+                              step={1}
+                              value={field.value ?? 0}
+                              onChange={(event) =>
+                                field.onChange(
+                                  Math.max(0, Number(event.target.value) || 0)
+                                )
+                              }
+                            />
+                          </FormControl>
+                          <Button
+                            type='button'
+                            variant='outline'
+                            onClick={() => field.onChange(0)}
+                          >
+                            {t('Clear count')}
+                          </Button>
+                        </div>
+                        <FormDescription>
+                          {t(
+                            'Clearing the count is independent. Ordinary account enablement preserves the current count.'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='sensitive_word_whitelist'
+                    render={({ field }) => (
+                      <FormItem className='flex items-center justify-between gap-4 rounded-md border p-3'>
+                        <span>
+                          <FormLabel>{t('Sensitive-word whitelist')}</FormLabel>
+                          <FormDescription>
+                            {t(
+                              'Keep recording matches without blocking or counting violations.'
+                            )}
+                          </FormDescription>
+                        </span>
+                        <FormControl>
+                          <Switch
+                            checked={field.value === true}
+                            onCheckedChange={field.onChange}
+                            aria-label={t('Sensitive-word whitelist')}
+                          />
+                        </FormControl>
                       </FormItem>
                     )}
                   />

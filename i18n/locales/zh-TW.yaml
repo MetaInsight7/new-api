@@ -94,3 +94,5 @@ channel.upstream_update_failed_channels: "失敗管道 ID（顯示 {{.Shown}}/{{
 channel.upstream_update_more_omitted: "（其餘 {{.Count}} 個已省略）"
 rate_limit.concurrency_reached: "已達到並行請求上限：所有 API Key 合計最多同時處理 {{.Max}} 個請求"
 rate_limit.concurrency_unavailable: "並行請求控制暫時無法使用，請稍後重試"
+sensitive_word.blocked: "請求內容違反平台使用政策，已被拒絕並記錄。請修改內容後重試；再次違規可能導致帳號停用。如有誤判，請聯絡管理員。"
+sensitive_word.auto_banned: "本次請求命中違規內容並達到自動封禁門檻，帳號現已停用。如有誤判，請聯絡管理員處理。"
