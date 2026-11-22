@@ -102,6 +102,8 @@
     "Enter a whole number from {{minimum}} to {{maximum}}.": "Введите целое число от {{minimum}} до {{maximum}}.",
     "Channel concurrency settings saved": "Настройки параллелизма каналов сохранены",
     "Some channel concurrency settings may already be active. Later changes were not saved; server values are being reloaded.": "Некоторые настройки параллелизма каналов уже могли вступить в силу. Последующие изменения не сохранены; значения сервера перезагружаются.",
+    "Request rejected because the user concurrency limit was reached.": "Запрос отклонён, поскольку достигнут лимит одновременных запросов пользователя.",
+    "Request rejected because all eligible channels reached their concurrency limits.": "Запрос отклонён, поскольку все подходящие каналы достигли лимита одновременных запросов.",
     "Model-specific group ratios": "Множители групп для моделей",
     "Nested JSON map of group → model → ratio. This overrides inter-group and group ratios for matching models.": "Вложенный JSON: группа → модель → множитель. Для совпавших моделей заменяет межгрупповой и групповой множители, а не перемножается с ними.",
     "Use billing-normalized model keys, same as ModelRatio, for example gpt-4o-gizmo-*.": "Используйте нормализованные ключи моделей для оплаты, как в ModelRatio, например gpt-4o-gizmo-*.",

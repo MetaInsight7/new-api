@@ -160,6 +160,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 		}
 
 		concurrencyLimited := false
+		var concurrencyCandidates []ChannelConcurrencyCandidate
 		for i := startGroupIndex; i < len(autoGroups); i++ {
 			autoGroup := autoGroups[i]
 			remainingAttempts := operation_setting.GetChannelConcurrencyMaxAcquireAttempts()
@@ -182,6 +183,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			if err != nil {
 				if errors.Is(err, ErrChannelConcurrencyLimit) {
 					concurrencyLimited = true
+					concurrencyCandidates = mergeChannelConcurrencyCandidates(concurrencyCandidates, ChannelConcurrencyCandidates(err))
 					selectGroup = autoGroup
 					common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, i+1)
 					common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupRetryIndex, 0)
@@ -229,7 +231,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			break
 		}
 		if channel == nil && concurrencyLimited {
-			return nil, selectGroup, ErrChannelConcurrencyLimit
+			return nil, selectGroup, NewChannelConcurrencyLimitError(concurrencyCandidates)
 		}
 	} else {
 		remainingAttempts := operation_setting.GetChannelConcurrencyMaxAcquireAttempts()
@@ -255,6 +257,7 @@ func getRandomSatisfiedChannelWithConcurrency(param *RetryParam, group string, f
 	activeFilters := filters
 	retriedWithoutExclusions := false
 	sawCandidates := false
+	var concurrencyCandidates []ChannelConcurrencyCandidate
 	var waitCandidate *model.Channel
 	waitCandidateRetry := priorityRetry
 	for {
@@ -275,7 +278,7 @@ func getRandomSatisfiedChannelWithConcurrency(param *RetryParam, group string, f
 				acquired, acquireErr := EnsureChannelConcurrencyWithWaitForContext(param.Ctx, waitCandidate)
 				if acquireErr != nil {
 					if errors.Is(acquireErr, ErrChannelConcurrencyLimit) {
-						return nil, waitCandidateRetry, ErrChannelConcurrencyLimit
+						return nil, waitCandidateRetry, NewChannelConcurrencyLimitError(concurrencyCandidates)
 					}
 					return nil, waitCandidateRetry, fmt.Errorf("wait for channel concurrency for channel #%d failed: %w", waitCandidate.Id, acquireErr)
 				}
@@ -284,11 +287,16 @@ func getRandomSatisfiedChannelWithConcurrency(param *RetryParam, group string, f
 				}
 			}
 			if sawCandidates {
-				return nil, waitCandidateRetry, ErrChannelConcurrencyLimit
+				return nil, waitCandidateRetry, NewChannelConcurrencyLimitError(concurrencyCandidates)
 			}
 			return nil, priorityRetry, nil
 		}
 		sawCandidates = true
+		for _, candidate := range candidates {
+			if limit := candidate.GetMaxConcurrency(); limit > 0 {
+				concurrencyCandidates = mergeChannelConcurrencyCandidates(concurrencyCandidates, []ChannelConcurrencyCandidate{{ChannelID: candidate.Id, Limit: limit}})
+			}
+		}
 
 		orderedCandidates, err := orderChannelCandidatesByConcurrencyLoad(ctx, candidates, group)
 		if err != nil {
@@ -467,7 +475,9 @@ type ChannelSelectError struct {
 	Channel    *model.Channel
 	// NoAvailableChannel marks the "no channel for this group and model"
 	// outcome so the distributor can name the claiming task plugin.
-	NoAvailableChannel bool
+	NoAvailableChannel    bool
+	ConcurrencyLimited    bool
+	ConcurrencyCandidates []ChannelConcurrencyCandidate
 }
 
 // SelectChannelForRequest resolves the channel for one attempt with the rules
@@ -564,9 +574,14 @@ func SelectChannelForRequest(c *gin.Context, modelName string, retry *RetryParam
 						showGroup = fmt.Sprintf("auto(%s)", preferredGroup)
 					}
 					return nil, preferredGroup, &ChannelSelectError{
-						StatusCode: http.StatusTooManyRequests,
-						Code:       types.ErrorCodeGetChannelFailed,
-						MessageID:  i18n.MsgDistributorGetChannelFailed,
+						StatusCode:         http.StatusTooManyRequests,
+						Code:               types.ErrorCodeGetChannelFailed,
+						MessageID:          i18n.MsgDistributorGetChannelFailed,
+						ConcurrencyLimited: true,
+						ConcurrencyCandidates: []ChannelConcurrencyCandidate{{
+							ChannelID: preferred.Id,
+							Limit:     preferred.GetMaxConcurrency(),
+						}},
 						Params: map[string]any{
 							"Group": showGroup,
 							"Model": modelName,
@@ -594,8 +609,12 @@ func SelectChannelForRequest(c *gin.Context, modelName string, retry *RetryParam
 				errorCode = types.ErrorCodeGetChannelFailed
 			}
 			return nil, selectGroup, &ChannelSelectError{
-				StatusCode: statusCode, Code: errorCode, MessageID: i18n.MsgDistributorGetChannelFailed,
-				Params: map[string]any{"Group": showGroup, "Model": modelName, "Error": err.Error()},
+				StatusCode:            statusCode,
+				Code:                  errorCode,
+				MessageID:             i18n.MsgDistributorGetChannelFailed,
+				Params:                map[string]any{"Group": showGroup, "Model": modelName, "Error": err.Error()},
+				ConcurrencyLimited:    errors.Is(err, ErrChannelConcurrencyLimit),
+				ConcurrencyCandidates: ChannelConcurrencyCandidates(err),
 			}
 		}
 		if channel == nil {

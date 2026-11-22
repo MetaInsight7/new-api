@@ -102,6 +102,8 @@
     "Enter a whole number from {{minimum}} to {{maximum}}.": "Nhập số nguyên từ {{minimum}} đến {{maximum}}.",
     "Channel concurrency settings saved": "Đã lưu cài đặt đồng thời của kênh",
     "Some channel concurrency settings may already be active. Later changes were not saved; server values are being reloaded.": "Một số cài đặt đồng thời của kênh có thể đã có hiệu lực. Các thay đổi sau đó chưa được lưu; đang tải lại giá trị từ máy chủ.",
+    "Request rejected because the user concurrency limit was reached.": "Yêu cầu bị từ chối vì đã đạt giới hạn đồng thời của người dùng.",
+    "Request rejected because all eligible channels reached their concurrency limits.": "Yêu cầu bị từ chối vì tất cả các kênh phù hợp đã đạt giới hạn đồng thời.",
     "Model-specific group ratios": "Hệ số nhóm riêng theo mô hình",
     "Nested JSON map of group → model → ratio. This overrides inter-group and group ratios for matching models.": "JSON lồng nhau: nhóm → mô hình → hệ số. Thay thế hệ số liên nhóm và hệ số nhóm cho mô hình khớp, không nhân với nhau.",
     "Use billing-normalized model keys, same as ModelRatio, for example gpt-4o-gizmo-*.": "Dùng khóa mô hình chuẩn hóa để tính phí, giống ModelRatio, ví dụ gpt-4o-gizmo-*.",

@@ -318,10 +318,26 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 			statusCode := http.StatusServiceUnavailable
 			if errors.Is(acquireErr, service.ErrChannelConcurrencyLimit) {
 				statusCode = http.StatusTooManyRequests
+				service.RecordConcurrencyLimitRejection(c, service.ConcurrencyLimitRejection{
+					Scope:     service.ConcurrencyScopeChannel,
+					ModelName: modelName,
+					Candidates: []service.ChannelConcurrencyCandidate{{
+						ChannelID: lockedChannel.Id,
+						Limit:     lockedChannel.GetMaxConcurrency(),
+					}},
+				})
 			}
 			return types.NewErrorWithStatusCode(acquireErr, types.ErrorCodeGetChannelFailed, statusCode, types.ErrOptionWithSkipRetry())
 		}
 		if !acquired {
+			service.RecordConcurrencyLimitRejection(c, service.ConcurrencyLimitRejection{
+				Scope:     service.ConcurrencyScopeChannel,
+				ModelName: modelName,
+				Candidates: []service.ChannelConcurrencyCandidate{{
+					ChannelID: lockedChannel.Id,
+					Limit:     lockedChannel.GetMaxConcurrency(),
+				}},
+			})
 			return types.NewErrorWithStatusCode(service.ErrChannelConcurrencyLimit, types.ErrorCodeGetChannelFailed, http.StatusTooManyRequests, types.ErrOptionWithSkipRetry())
 		}
 		info = relaycommon.GenRelayInfoResponses(c, &create.Request)
@@ -1123,6 +1139,13 @@ func selectResponsesWSChannel(c *gin.Context, modelName string, retryParam *serv
 	}
 	channel, _, selectErr := service.SelectChannelForRequest(c, modelName, retryParam)
 	if selectErr != nil {
+		if selectErr.ConcurrencyLimited {
+			service.RecordConcurrencyLimitRejection(c, service.ConcurrencyLimitRejection{
+				Scope:      service.ConcurrencyScopeChannel,
+				ModelName:  modelName,
+				Candidates: selectErr.ConcurrencyCandidates,
+			})
+		}
 		message := selectErr.Message
 		if selectErr.MessageID != "" {
 			message = i18n.T(c, selectErr.MessageID, selectErr.Params)

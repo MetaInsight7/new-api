@@ -18,6 +18,7 @@ import (
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
@@ -378,6 +379,7 @@ func TestDistributeConcurrencyQueueFullReturnsTooManyRequests(t *testing.T) {
 	useMiddlewareMemoryChannelConcurrency(t)
 	useMiddlewareChannelConcurrencyWaitSetting(t, 2*time.Second, 5*time.Millisecond, 1)
 	useMiddlewareChannelSelectionDB(t)
+	logDB := useMiddlewareConcurrencyLogDB(t)
 
 	channel := &model.Channel{
 		Id:             930007,
@@ -396,6 +398,11 @@ func TestDistributeConcurrencyQueueFullReturnsTooManyRequests(t *testing.T) {
 
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
+		c.Set("id", 930007)
+		c.Set("username", "channel-capacity-user")
+		c.Set("token_name", "channel-capacity-token")
+		common.SetContextKey(c, constant.ContextKeyTokenId, 77)
+		common.SetContextKey(c, constant.ContextKeyTokenGroup, "default")
 		common.SetContextKey(c, constant.ContextKeyUsingGroup, "default")
 		common.SetContextKey(c, constant.ContextKeyUserGroup, "default")
 		c.Next()
@@ -412,6 +419,72 @@ func TestDistributeConcurrencyQueueFullReturnsTooManyRequests(t *testing.T) {
 	router.ServeHTTP(recorder, request)
 
 	require.Equal(t, http.StatusTooManyRequests, recorder.Code, recorder.Body.String())
+	var logs []model.Log
+	require.NoError(t, logDB.Find(&logs).Error)
+	require.Len(t, logs, 1)
+	assert.Equal(t, "gpt-concurrency-full", logs[0].ModelName)
+	other, err := common.StrToMap(logs[0].Other)
+	require.NoError(t, err)
+	assert.Equal(t, "channel_concurrency_limit", other["error_code"])
+	adminInfo, ok := other["admin_info"].(map[string]any)
+	require.True(t, ok)
+	concurrency, ok := adminInfo["concurrency"].(map[string]any)
+	require.True(t, ok)
+	candidates, ok := concurrency["candidates"].([]any)
+	require.True(t, ok)
+	require.Len(t, candidates, 1)
+	assert.Equal(t, float64(channel.Id), candidates[0].(map[string]any)["channel_id"])
+
+	missing := httptest.NewRecorder()
+	missingRequest := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{"model":"missing-model"}`))
+	missingRequest.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(missing, missingRequest)
+	require.Equal(t, http.StatusServiceUnavailable, missing.Code, missing.Body.String())
+	require.NoError(t, logDB.Find(&logs).Error)
+	assert.Len(t, logs, 1, "ordinary no-available-channel responses must not create concurrency logs")
+}
+
+func TestDistributeConcurrencyBackendFailureDoesNotRecordErrorLog(t *testing.T) {
+	require.NoError(t, appI18n.Init())
+	useMiddlewareChannelSelectionDB(t)
+	logDB := useMiddlewareConcurrencyLogDB(t)
+	_, redisClient := useRateLimitMiniRedis(t)
+	require.NoError(t, redisClient.Close())
+
+	channel := &model.Channel{
+		Id:             930008,
+		Type:           constant.ChannelTypeOpenAI,
+		Key:            "sk-backend-failure",
+		Status:         common.ChannelStatusEnabled,
+		Name:           "backend-failure",
+		Group:          "default",
+		Models:         "gpt-concurrency-backend-failure",
+		MaxConcurrency: 1,
+	}
+	require.NoError(t, model.DB.Create(channel).Error)
+	require.NoError(t, channel.AddAbilities(nil))
+	model.InitChannelCache()
+
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set("id", 930008)
+		common.SetContextKey(c, constant.ContextKeyTokenGroup, "default")
+		common.SetContextKey(c, constant.ContextKeyUsingGroup, "default")
+		common.SetContextKey(c, constant.ContextKeyUserGroup, "default")
+		c.Next()
+	})
+	router.Use(Distribute())
+	router.POST("/v1/chat/completions", func(c *gin.Context) { t.Error("concurrency backend failure reached relay") })
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{"model":"gpt-concurrency-backend-failure"}`))
+	request.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusServiceUnavailable, recorder.Code, recorder.Body.String())
+	var count int64
+	require.NoError(t, logDB.Model(&model.Log{}).Count(&count).Error)
+	assert.Zero(t, count)
 }
 
 type middlewareConcurrencyWaitResult struct {
@@ -497,6 +570,30 @@ func useMiddlewareChannelSelectionDB(t *testing.T) {
 			model.InitChannelCache()
 		}
 	})
+}
+
+func useMiddlewareConcurrencyLogDB(t *testing.T) *gorm.DB {
+	t.Helper()
+	previousLogDB := model.LOG_DB
+	previousLogDatabaseType := common.LogDatabaseType()
+	previousErrorLogEnabled := constant.ErrorLogEnabled
+
+	database, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := database.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
+	require.NoError(t, database.AutoMigrate(&model.Log{}))
+	model.LOG_DB = database
+	common.SetLogDatabaseType(common.DatabaseTypeSQLite)
+	constant.ErrorLogEnabled = true
+	t.Cleanup(func() {
+		model.LOG_DB = previousLogDB
+		common.SetLogDatabaseType(previousLogDatabaseType)
+		constant.ErrorLogEnabled = previousErrorLogEnabled
+		require.NoError(t, sqlDB.Close())
+	})
+	return database
 }
 
 func useMiddlewareChannelAffinityRule(t *testing.T) {

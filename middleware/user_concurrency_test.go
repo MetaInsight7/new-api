@@ -333,6 +333,76 @@ func TestUserConcurrencyRedisUnavailableRejectsInsteadOfBypassing(t *testing.T) 
 	assert.Contains(t, response.Body.String(), "concurrency_limit_unavailable")
 }
 
+func TestUserConcurrencyLimitRecordsOnlyCapacityRejection(t *testing.T) {
+	require.NoError(t, i18n.Init())
+	database := useMiddlewareConcurrencyLogDB(t)
+	previousRedisEnabled := common.RedisEnabled
+	common.RedisEnabled = false
+	t.Cleanup(func() { common.RedisEnabled = previousRedisEnabled })
+
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	router := gin.New()
+	router.POST("/v1/chat/completions", func(c *gin.Context) {
+		c.Set("id", 830006)
+		c.Set("username", "capacity-user")
+		c.Set("token_name", "capacity-token")
+		common.SetContextKey(c, constant.ContextKeyTokenId, 66)
+		common.SetContextKey(c, constant.ContextKeyTokenGroup, "default")
+		common.SetContextKey(c, constant.ContextKeyUsingGroup, "default")
+		common.SetContextKey(c, constant.ContextKeyUserMaxConcurrency, 1)
+		c.Next()
+	}, UserConcurrencyLimit(), func(c *gin.Context) {
+		close(entered)
+		<-release
+		c.Status(http.StatusOK)
+	})
+
+	firstDone := make(chan struct{})
+	go func() {
+		defer close(firstDone)
+		request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{"model":"gpt-user-capacity"}`))
+		request.Header.Set("Content-Type", "application/json")
+		router.ServeHTTP(httptest.NewRecorder(), request)
+	}()
+	select {
+	case <-entered:
+	case <-time.After(time.Second):
+		t.Fatal("first request did not acquire the user concurrency slot")
+	}
+
+	second := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{"model":"gpt-user-capacity"}`))
+	request.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(second, request)
+	require.Equal(t, http.StatusTooManyRequests, second.Code, second.Body.String())
+
+	var logs []model.Log
+	require.NoError(t, database.Find(&logs).Error)
+	require.Len(t, logs, 1)
+	assert.Equal(t, "gpt-user-capacity", logs[0].ModelName)
+	assert.Equal(t, model.LogTypeError, logs[0].Type)
+	other, err := common.StrToMap(logs[0].Other)
+	require.NoError(t, err)
+	assert.Equal(t, "user_concurrency_limit", other["error_code"])
+	assert.Equal(t, float64(http.StatusTooManyRequests), other["status_code"])
+
+	invalid := gin.New()
+	invalid.POST("/v1/chat/completions", func(c *gin.Context) {
+		c.Set("id", 830006)
+		common.SetContextKey(c, constant.ContextKeyUserMaxConcurrency, -1)
+		c.Next()
+	}, UserConcurrencyLimit(), func(c *gin.Context) { t.Error("invalid limiter state reached handler") })
+	invalidResponse := httptest.NewRecorder()
+	invalid.ServeHTTP(invalidResponse, httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{"model":"gpt-user-capacity"}`)))
+	require.Equal(t, http.StatusServiceUnavailable, invalidResponse.Code)
+	require.NoError(t, database.Find(&logs).Error)
+	assert.Len(t, logs, 1, "concurrency component failures must not create user-facing error logs")
+
+	close(release)
+	<-firstDone
+}
+
 func TestUserConcurrencyRealRedisAtomicAdmission(t *testing.T) {
 	address := os.Getenv("TEST_REDIS_ADDR")
 	if address == "" {

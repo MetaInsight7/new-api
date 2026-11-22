@@ -126,6 +126,14 @@ func Distribute() func(c *gin.Context) {
 				if selectErr.FilterKind == taskdto.FilterTaskPluginIdentity {
 					logTaskPluginChannelDecision(c, selectErr.Channel, modelRequest.Model, "channel_rejected", "identity_mismatch")
 				}
+				if selectErr.ConcurrencyLimited {
+					service.RecordConcurrencyLimitRejection(c, service.ConcurrencyLimitRejection{
+						Scope:      service.ConcurrencyScopeChannel,
+						ModelName:  modelRequest.Model,
+						Candidates: selectErr.ConcurrencyCandidates,
+						PreRelay:   true,
+					})
+				}
 				message := selectErr.Message
 				if selectErr.NoAvailableChannel {
 					message = noAvailableChannelMessage(c, usingGroup, modelRequest.Model)
@@ -150,6 +158,15 @@ func Distribute() func(c *gin.Context) {
 			ok, acquireErr := service.EnsureChannelConcurrencyWithWaitForContext(c, channel)
 			if acquireErr != nil {
 				if errors.Is(acquireErr, service.ErrChannelConcurrencyLimit) {
+					service.RecordConcurrencyLimitRejection(c, service.ConcurrencyLimitRejection{
+						Scope:     service.ConcurrencyScopeChannel,
+						ModelName: modelRequest.Model,
+						Candidates: []service.ChannelConcurrencyCandidate{{
+							ChannelID: channel.Id,
+							Limit:     channel.GetMaxConcurrency(),
+						}},
+						PreRelay: true,
+					})
 					abortWithOpenAiMessage(c, http.StatusTooManyRequests, "channel concurrency limit exceeded", types.ErrorCodeGetChannelFailed)
 				} else {
 					abortWithOpenAiMessage(c, http.StatusServiceUnavailable, fmt.Sprintf("acquire channel concurrency failed: %s", acquireErr.Error()), types.ErrorCodeGetChannelFailed)
@@ -157,6 +174,15 @@ func Distribute() func(c *gin.Context) {
 				return
 			}
 			if !ok {
+				service.RecordConcurrencyLimitRejection(c, service.ConcurrencyLimitRejection{
+					Scope:     service.ConcurrencyScopeChannel,
+					ModelName: modelRequest.Model,
+					Candidates: []service.ChannelConcurrencyCandidate{{
+						ChannelID: channel.Id,
+						Limit:     channel.GetMaxConcurrency(),
+					}},
+					PreRelay: true,
+				})
 				abortWithOpenAiMessage(c, http.StatusTooManyRequests, "channel concurrency limit exceeded", types.ErrorCodeGetChannelFailed)
 				return
 			}

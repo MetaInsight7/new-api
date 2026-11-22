@@ -21,6 +21,8 @@ import (
 
 const modelPerformanceIdleRetention = time.Hour
 
+const localCapacityErrorCode types.ErrorCode = "local_capacity"
+
 var modelDropReasons = []string{"model_limit", "invalid_latency", "invalid_ttft", "series_limit"}
 
 var modelLatencyBounds = []float64{0.25, 0.5, 1, 2, 3, 5, 10, 15, 30, 60, 120, 300, 600}
@@ -213,6 +215,9 @@ func classifyFinalModelError(ctx context.Context, info *relaycommon.RelayInfo, a
 		return "client_cancel"
 	}
 	errorCode := apiErr.GetErrorCode()
+	if errorCode == localCapacityErrorCode {
+		return string(localCapacityErrorCode)
+	}
 	if errors.Is(apiErr, context.DeadlineExceeded) || errorCode == types.ErrorCodeChannelResponseTimeExceeded ||
 		apiErr.StatusCode == http.StatusRequestTimeout || apiErr.StatusCode == http.StatusGatewayTimeout {
 		return "timeout"

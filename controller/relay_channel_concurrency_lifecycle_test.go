@@ -105,28 +105,35 @@ func TestRelayRetryRebindsAndReleasesChannelConcurrency(t *testing.T) {
 func TestGetChannelMapsConcurrencyExhaustionToTooManyRequests(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	previousDB := model.DB
+	previousLogDB := model.LOG_DB
 	previousMemoryCacheEnabled := common.MemoryCacheEnabled
 	previousRDB := common.RDB
 	previousRedisEnabled := common.RedisEnabled
 	previousMainDatabaseType := common.MainDatabaseType()
+	previousLogDatabaseType := common.LogDatabaseType()
+	previousErrorLogEnabled := constant.ErrorLogEnabled
 	previousConcurrencySetting := operation_setting.GetChannelConcurrencySetting()
 	database, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, database.AutoMigrate(&model.Channel{}, &model.Ability{}))
-	model.DB = database
+	require.NoError(t, database.AutoMigrate(&model.Channel{}, &model.Ability{}, &model.Log{}))
+	model.DB, model.LOG_DB = database, database
 	common.MemoryCacheEnabled = true
 	common.RDB = nil
 	common.RedisEnabled = false
 	common.SetMainDatabaseType(common.DatabaseTypeSQLite)
+	common.SetLogDatabaseType(common.DatabaseTypeSQLite)
+	constant.ErrorLogEnabled = true
 	concurrencySetting := previousConcurrencySetting
 	concurrencySetting.WaitEnabled = false
 	operation_setting.SetChannelConcurrencySettingForTest(concurrencySetting)
 	t.Cleanup(func() {
-		model.DB = previousDB
+		model.DB, model.LOG_DB = previousDB, previousLogDB
 		common.MemoryCacheEnabled = previousMemoryCacheEnabled
 		common.RDB = previousRDB
 		common.RedisEnabled = previousRedisEnabled
 		common.SetMainDatabaseType(previousMainDatabaseType)
+		common.SetLogDatabaseType(previousLogDatabaseType)
+		constant.ErrorLogEnabled = previousErrorLogEnabled
 		operation_setting.SetChannelConcurrencySettingForTest(previousConcurrencySetting)
 		if previousMemoryCacheEnabled && previousDB != nil {
 			model.InitChannelCache()
@@ -157,6 +164,11 @@ func TestGetChannelMapsConcurrencyExhaustionToTooManyRequests(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	c.Set("id", 940003)
+	c.Set("username", "retry-capacity-user")
+	c.Set("token_name", "retry-capacity-token")
+	common.SetContextKey(c, constant.ContextKeyTokenId, 940003)
+	common.SetContextKey(c, constant.ContextKeyUsingGroup, "default")
 	relayInfo := &relaycommon.RelayInfo{
 		TokenGroup:      "default",
 		OriginModelName: "gpt-retry-full",
@@ -175,6 +187,10 @@ func TestGetChannelMapsConcurrencyExhaustionToTooManyRequests(t *testing.T) {
 	require.Equal(t, http.StatusTooManyRequests, apiErr.StatusCode)
 	require.Equal(t, relaytypes.ErrorCodeGetChannelFailed, apiErr.GetErrorCode())
 	require.True(t, relaytypes.IsSkipRetryError(apiErr))
+	var logs []model.Log
+	require.NoError(t, database.Where("type = ?", model.LogTypeError).Find(&logs).Error)
+	require.Len(t, logs, 1)
+	require.Equal(t, "gpt-retry-full", logs[0].ModelName)
 }
 
 type observingErrorReadCloser struct {

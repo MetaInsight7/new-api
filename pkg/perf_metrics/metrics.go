@@ -68,6 +68,28 @@ func RecordRelayResult(ctx context.Context, info *relaycommon.RelayInfo, apiErr 
 	})
 }
 
+// RecordPreRelayLocalCapacityFailure records a terminal local concurrency
+// rejection that happened before RelayInfo was constructed. Callers must not
+// use it on paths that already finish through RecordRelayResult.
+func RecordPreRelayLocalCapacityFailure(ctx context.Context, modelName, group string, startedAt time.Time) {
+	if modelName == "" {
+		return
+	}
+	now := time.Now()
+	if startedAt.IsZero() || startedAt.After(now) {
+		startedAt = now
+	}
+	info := &relaycommon.RelayInfo{OriginModelName: modelName, UsingGroup: group, StartTime: startedAt}
+	apiErr := types.InitOpenAIError(localCapacityErrorCode, 429)
+	recordModelPerformance(ctx, info, false, apiErr, now)
+	Record(Sample{
+		Model:     modelName,
+		Group:     group,
+		LatencyMs: now.Sub(startedAt).Milliseconds(),
+		Success:   false,
+	})
+}
+
 // RecordTaskResult samples one async task exactly once, at its terminal
 // transition, after the polling status CAS is won. Latency is the end-to-end
 // task duration (second resolution, unlike the ms-resolution relay samples);

@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
 )
@@ -182,6 +183,18 @@ func UserConcurrencyLimit() gin.HandlerFunc {
 			return
 		}
 		if lease == nil {
+			modelName := common.GetContextKeyString(c, constant.ContextKeyOriginalModel)
+			if modelName == "" {
+				if modelRequest, _, parseErr := getModelRequest(c); parseErr == nil && modelRequest != nil {
+					modelName = modelRequest.Model
+				}
+			}
+			service.RecordConcurrencyLimitRejection(c, service.ConcurrencyLimitRejection{
+				Scope:     service.ConcurrencyScopeUser,
+				ModelName: modelName,
+				Limit:     limit,
+				PreRelay:  true,
+			})
 			c.Header("Retry-After", "1")
 			abortWithOpenAiMessageType(c, http.StatusTooManyRequests, i18n.T(c, i18n.MsgConcurrencyLimitReached, map[string]any{"Max": limit}), "rate_limit_error", types.ErrorCode("user_concurrency_limit"))
 			return

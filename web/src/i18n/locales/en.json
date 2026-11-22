@@ -102,6 +102,8 @@
     "Enter a whole number from {{minimum}} to {{maximum}}.": "Enter a whole number from {{minimum}} to {{maximum}}.",
     "Channel concurrency settings saved": "Channel concurrency settings saved",
     "Some channel concurrency settings may already be active. Later changes were not saved; server values are being reloaded.": "Some channel concurrency settings may already be active. Later changes were not saved; server values are being reloaded.",
+    "Request rejected because the user concurrency limit was reached.": "Request rejected because the user concurrency limit was reached.",
+    "Request rejected because all eligible channels reached their concurrency limits.": "Request rejected because all eligible channels reached their concurrency limits.",
     "Model-specific group ratios": "Model-specific group ratios",
     "Nested JSON map of group → model → ratio. This overrides inter-group and group ratios for matching models.": "Nested JSON map of group → model → ratio. This overrides inter-group and group ratios for matching models.",
     "Use billing-normalized model keys, same as ModelRatio, for example gpt-4o-gizmo-*.": "Use billing-normalized model keys, same as ModelRatio, for example gpt-4o-gizmo-*.",

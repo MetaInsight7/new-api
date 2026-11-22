@@ -358,6 +358,76 @@ func TestSelectResponsesWSChannelHonorsStrictSessionBinding(t *testing.T) {
 	assert.Equal(t, fallback.Id, channel.Id)
 }
 
+func TestSelectResponsesWSChannelRecordsConcurrencyRejection(t *testing.T) {
+	require.NoError(t, i18n.Init())
+	database := setupRelayChannelDB(t)
+	require.NoError(t, database.AutoMigrate(&model.Ability{}, &model.Log{}))
+	previousLogDB := model.LOG_DB
+	previousLogDatabaseType := common.LogDatabaseType()
+	previousErrorLogEnabled := constant.ErrorLogEnabled
+	previousRedisEnabled := common.RedisEnabled
+	model.LOG_DB = database
+	common.SetLogDatabaseType(common.DatabaseTypeSQLite)
+	constant.ErrorLogEnabled = true
+	common.RedisEnabled = false
+	t.Cleanup(func() {
+		model.LOG_DB = previousLogDB
+		common.SetLogDatabaseType(previousLogDatabaseType)
+		constant.ErrorLogEnabled = previousErrorLogEnabled
+		common.RedisEnabled = previousRedisEnabled
+	})
+
+	setting := operation_setting.GetChannelConcurrencySetting()
+	originalSetting := setting
+	setting.WaitEnabled = false
+	setting.CooldownEnabled = false
+	operation_setting.SetChannelConcurrencySettingForTest(setting)
+	t.Cleanup(func() { operation_setting.SetChannelConcurrencySettingForTest(originalSetting) })
+
+	channel := &model.Channel{
+		Name:           "responses-ws-capacity",
+		Key:            "sk-test",
+		Type:           constant.ChannelTypeOpenAI,
+		Status:         common.ChannelStatusEnabled,
+		Group:          "default",
+		Models:         "ws-capacity-model",
+		MaxConcurrency: 1,
+	}
+	channel.SetSetting(dto.ChannelSettings{ResponsesWebSocketEnabled: true})
+	require.NoError(t, database.Create(channel).Error)
+	require.NoError(t, database.Create(&model.Ability{ChannelId: channel.Id, Model: "ws-capacity-model", Group: "default", Enabled: true}).Error)
+	common.MemoryCacheEnabled = true
+	model.InitChannelCache()
+	heldLease, acquired, err := service.TryAcquireChannelConcurrency(context.Background(), channel)
+	require.NoError(t, err)
+	require.True(t, acquired)
+	t.Cleanup(func() { require.NoError(t, service.ReleaseChannelConcurrency(context.Background(), heldLease)) })
+
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodGet, "/v1/responses", nil)
+	c.Set("id", 91)
+	c.Set("username", "ws-capacity-user")
+	c.Set("token_name", "ws-capacity-token")
+	common.SetContextKey(c, constant.ContextKeyTokenId, 92)
+	common.SetContextKey(c, constant.ContextKeyTokenGroup, "default")
+	common.SetContextKey(c, constant.ContextKeyUsingGroup, "default")
+	common.SetContextKey(c, constant.ContextKeyUserGroup, "default")
+
+	selected, apiErr := selectResponsesWSChannel(c, "ws-capacity-model", &service.RetryParam{
+		Ctx: c, ModelName: "ws-capacity-model", TokenGroup: "default", Retry: common.GetPointer(0),
+	})
+	require.Nil(t, selected)
+	require.NotNil(t, apiErr)
+	require.Equal(t, http.StatusTooManyRequests, apiErr.StatusCode)
+
+	var logs []model.Log
+	require.NoError(t, database.Where("type = ?", model.LogTypeError).Find(&logs).Error)
+	require.Len(t, logs, 1)
+	other, err := common.StrToMap(logs[0].Other)
+	require.NoError(t, err)
+	assert.Equal(t, "channel_concurrency_limit", other["error_code"])
+}
+
 func TestNormalizeResponsesWSCreateEventWrapper(t *testing.T) {
 	message := []byte(`{
 		"type": "response.create",

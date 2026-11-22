@@ -63,6 +63,16 @@ func TestFinalModelRequestsCountSampledCancellations(testContext *testing.T) {
 	}
 }
 
+func TestRecordPreRelayLocalCapacityFailureUsesDedicatedCategory(t *testing.T) {
+	isolatePrometheusMetrics(t)
+	RecordPreRelayLocalCapacityFailure(context.Background(), "capacity-model", "default", time.Now().Add(-25*time.Millisecond))
+
+	text, err := BuildPrometheusText(context.Background())
+	require.NoError(t, err)
+	require.Contains(t, text, `newapi_model_requests_total{model="capacity-model",status="error"} 1`)
+	require.Contains(t, text, `newapi_model_errors_total{model="capacity-model",error_category="local_capacity"} 1`)
+}
+
 func TestFinalModelLabelsAreSanitizedAndParseable(testContext *testing.T) {
 	isolatePrometheusMetrics(testContext)
 	modelName := "model\"\\\n\x1f" + strings.Repeat("界", 300)

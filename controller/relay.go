@@ -421,6 +421,11 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 	channel, selectGroup, err := service.CacheGetRandomSatisfiedChannel(retryParam)
 	if err != nil {
 		if errors.Is(err, service.ErrChannelConcurrencyLimit) {
+			service.RecordConcurrencyLimitRejection(c, service.ConcurrencyLimitRejection{
+				Scope:      service.ConcurrencyScopeChannel,
+				ModelName:  info.OriginModelName,
+				Candidates: service.ChannelConcurrencyCandidates(err),
+			})
 			return nil, types.NewErrorWithStatusCode(
 				fmt.Errorf("group %s model %s channel concurrency limit exceeded", selectGroup, info.OriginModelName),
 				types.ErrorCodeGetChannelFailed,

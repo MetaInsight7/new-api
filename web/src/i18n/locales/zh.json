@@ -102,6 +102,8 @@
     "Enter a whole number from {{minimum}} to {{maximum}}.": "请输入 {{minimum}} 到 {{maximum}} 之间的整数。",
     "Channel concurrency settings saved": "渠道并发设置已保存",
     "Some channel concurrency settings may already be active. Later changes were not saved; server values are being reloaded.": "部分渠道并发设置可能已经生效。后续更改未保存；正在重新加载服务端值。",
+    "Request rejected because the user concurrency limit was reached.": "请求因用户并发数达到上限而被拒绝。",
+    "Request rejected because all eligible channels reached their concurrency limits.": "请求因所有符合条件的渠道均达到并发上限而被拒绝。",
     "Model-specific group ratios": "模型专属分组倍率",
     "Nested JSON map of group → model → ratio. This overrides inter-group and group ratios for matching models.": "嵌套 JSON 映射：分组 → 模型 → 倍率。匹配模型使用此倍率覆盖跨组专属倍率及分组倍率，而非相乘。",
     "Use billing-normalized model keys, same as ModelRatio, for example gpt-4o-gizmo-*.": "使用与 ModelRatio 相同的计费归一化模型键，例如 gpt-4o-gizmo-*。",
