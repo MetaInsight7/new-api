@@ -69,6 +69,7 @@ import {
   renderLogContent,
 } from '../../lib/format'
 import { buildQuotaAuditOperation } from '../../lib/quota-audit-operation'
+import { getSensitiveWordKeywordFilter } from '../../lib/sensitive-word'
 import {
   getLogTypeConfig,
   isPerCallBilling,
@@ -513,12 +514,10 @@ export function DetailsDialog(props: DetailsDialogProps) {
   const isConsume = props.log.type === 2
   const isTopup = props.log.type === 1
   const isManage = props.log.type === 3
+  const sensitiveFilter = getSensitiveWordKeywordFilter(other)
   const sensitiveAuditId =
-    props.log.type === 8
-      ? (other?.admin_info?.keyword_filter?.audit_id ??
-        other?.keyword_filter?.audit_id ??
-        other?.audit_id)
-      : undefined
+    sensitiveFilter?.audit_id ??
+    (props.log.type === 8 ? other?.audit_id : undefined)
   const isSubscription = other?.billing_source === 'subscription'
   const isTieredBilling =
     isConsume &&
@@ -912,7 +911,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
           </DetailSection>
         )}
 
-        {props.log.type === 8 && (
+        {(props.log.type === 8 || sensitiveFilter) && (
           <SensitiveWordAuditSection
             auditId={sensitiveAuditId}
             log={props.log}

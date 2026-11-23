@@ -3,6 +3,7 @@ package model
 import (
 	"cmp"
 	"fmt"
+	"math"
 	"slices"
 	"strconv"
 	"strings"
@@ -12,6 +13,7 @@ import (
 const (
 	sensitiveWordDashboardTopLimit    = 5
 	sensitiveWordDashboardRecentLimit = 12
+	SensitiveWordMonitorMaxRangeDays  = 366
 )
 
 var sensitiveWordDashboardLocation = time.FixedZone("Asia/Shanghai", 8*60*60)
@@ -86,6 +88,7 @@ type SensitiveWordDashboard struct {
 	SensitiveMetadataIncluded bool                                `json:"sensitive_metadata_included"`
 	BucketSeconds             int64                               `json:"bucket_seconds"`
 	WindowStart               int64                               `json:"window_start"`
+	WindowEnd                 int64                               `json:"window_end"`
 	GeneratedAt               int64                               `json:"generated_at"`
 	Timezone                  string                              `json:"timezone"`
 	Policy                    SensitiveWordDashboardPolicy        `json:"policy"`
@@ -120,22 +123,54 @@ func ValidSensitiveWordDashboardHours(hours int) bool {
 	return hours == 24 || hours == 168 || hours == 720
 }
 
+func SensitiveWordDashboardTimestampWindow(hours int) (int64, int64, error) {
+	if !ValidSensitiveWordDashboardHours(hours) {
+		return 0, 0, fmt.Errorf("invalid sensitive-word dashboard window: %d", hours)
+	}
+	now := time.Now().In(sensitiveWordDashboardLocation)
+	windowStart, _, _ := sensitiveWordDashboardWindow(hours, now)
+	return windowStart.Unix(), now.Unix(), nil
+}
+
 func GetSensitiveWordDashboard(hours int) (*SensitiveWordDashboard, error) {
 	if !ValidSensitiveWordDashboardHours(hours) {
 		return nil, fmt.Errorf("invalid sensitive-word dashboard window: %d", hours)
 	}
+	now := time.Now().In(sensitiveWordDashboardLocation)
+	windowStart, bucketDuration, bucketCount := sensitiveWordDashboardWindow(hours, now)
+	return getSensitiveWordDashboard(hours, windowStart, now, bucketDuration, bucketCount)
+}
+
+func ValidSensitiveWordMonitorTimestampRange(startTimestamp, endTimestamp int64) bool {
+	if startTimestamp <= 0 || endTimestamp <= startTimestamp {
+		return false
+	}
+	return endTimestamp-startTimestamp <= int64(SensitiveWordMonitorMaxRangeDays*24*time.Hour/time.Second)
+}
+
+func GetSensitiveWordDashboardForRange(startTimestamp, endTimestamp int64) (*SensitiveWordDashboard, error) {
+	if !ValidSensitiveWordMonitorTimestampRange(startTimestamp, endTimestamp) {
+		return nil, fmt.Errorf("invalid sensitive-word monitor range: %d-%d", startTimestamp, endTimestamp)
+	}
+	windowStart := time.Unix(startTimestamp, 0).In(sensitiveWordDashboardLocation)
+	windowEnd := time.Unix(endTimestamp, 0).In(sensitiveWordDashboardLocation)
+	bucketDuration, bucketCount := sensitiveWordDashboardRangeBuckets(windowStart, windowEnd)
+	requestedHours := int(math.Ceil(windowEnd.Sub(windowStart).Hours()))
+	return getSensitiveWordDashboard(requestedHours, windowStart, windowEnd, bucketDuration, bucketCount)
+}
+
+func getSensitiveWordDashboard(hours int, windowStart, windowEnd time.Time, bucketDuration time.Duration, bucketCount int) (*SensitiveWordDashboard, error) {
 	policy, err := GetSensitiveWordPolicyWithError()
 	if err != nil {
 		return nil, err
 	}
-	now := time.Now().In(sensitiveWordDashboardLocation)
-	windowStart, bucketDuration, bucketCount := sensitiveWordDashboardWindow(hours, now)
 	dashboard := &SensitiveWordDashboard{
 		RequestedHours:            hours,
 		SensitiveMetadataIncluded: true,
 		BucketSeconds:             int64(bucketDuration / time.Second),
 		WindowStart:               windowStart.Unix(),
-		GeneratedAt:               now.Unix(),
+		WindowEnd:                 windowEnd.Unix(),
+		GeneratedAt:               time.Now().In(sensitiveWordDashboardLocation).Unix(),
 		Timezone:                  sensitiveWordDashboardLocation.String(),
 		Policy: SensitiveWordDashboardPolicy{
 			Enabled:                 policy.Enabled,
@@ -159,7 +194,7 @@ func GetSensitiveWordDashboard(hours int) (*SensitiveWordDashboard, error) {
 	groups := make(map[string]int64)
 	rows, err := DB.Model(&SensitiveWordAuditEvent{}).
 		Select("id", "request_id", "user_id", "username_snapshot", "model_name", "group_name", "matched_rule_ids", "matched_rule_names", "disposition", "whitelist_bypassed", "blocked", "observe_only", "auto_banned", "violation_count", "created_at").
-		Where("created_at >= ? AND created_at <= ?", windowStart, now).
+		Where("created_at >= ? AND created_at <= ?", windowStart, windowEnd).
 		Rows()
 	if err != nil {
 		return nil, err
@@ -172,6 +207,9 @@ func GetSensitiveWordDashboard(hours int) (*SensitiveWordDashboard, error) {
 			return nil, err
 		}
 		bucketIndex := int(event.CreatedAt.Sub(windowStart) / bucketDuration)
+		if bucketIndex == len(dashboard.Series) && !event.CreatedAt.After(windowEnd) {
+			bucketIndex = len(dashboard.Series) - 1
+		}
 		if bucketIndex < 0 || bucketIndex >= len(dashboard.Series) {
 			continue
 		}
@@ -230,11 +268,23 @@ func GetSensitiveWordDashboard(hours int) (*SensitiveWordDashboard, error) {
 	dashboard.TopRules = topSensitiveWordDashboardRules(rules)
 	dashboard.TopModels = topSensitiveWordDashboardDimensions(models)
 	dashboard.TopGroups = topSensitiveWordDashboardDimensions(groups)
-	dashboard.RecentEvents, err = getSensitiveWordDashboardRecentEvents(windowStart, now)
+	dashboard.RecentEvents, err = getSensitiveWordDashboardRecentEvents(windowStart, windowEnd)
 	if err != nil {
 		return nil, err
 	}
 	return dashboard, nil
+}
+
+func sensitiveWordDashboardRangeBuckets(start, end time.Time) (time.Duration, int) {
+	duration := end.Sub(start)
+	bucketDuration := time.Hour
+	if duration > 48*time.Hour && duration <= 90*24*time.Hour {
+		bucketDuration = 24 * time.Hour
+	} else if duration > 90*24*time.Hour {
+		bucketDuration = 7 * 24 * time.Hour
+	}
+	bucketCount := int(math.Ceil(float64(duration) / float64(bucketDuration)))
+	return bucketDuration, max(1, bucketCount)
 }
 
 func (dashboard *SensitiveWordDashboard) RedactSensitiveMetadata() {
@@ -376,17 +426,5 @@ func getSensitiveWordDashboardRecentEvents(start, end time.Time) ([]SensitiveWor
 		Find(&events).Error; err != nil {
 		return nil, err
 	}
-	result := make([]SensitiveWordDashboardRecentEvent, 0, len(events))
-	for _, event := range events {
-		result = append(result, SensitiveWordDashboardRecentEvent{
-			AuditID: event.ID, RequestID: event.RequestID,
-			UserID: event.UserID, Username: event.UsernameSnapshot,
-			ModelName: event.ModelName, GroupName: event.GroupName,
-			Disposition:    sensitiveWordDashboardDisposition(event),
-			RuleNames:      decodeSensitiveAuditSlice[string](string(event.MatchedRuleNames)),
-			ViolationCount: event.ViolationCount, AutomaticBan: event.AutoBanned,
-			CreatedAt: event.CreatedAt.Unix(),
-		})
-	}
-	return result, nil
+	return sensitiveWordDashboardRecentEvents(events), nil
 }

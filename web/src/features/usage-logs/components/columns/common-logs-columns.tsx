@@ -67,6 +67,10 @@ import {
   renderLogContent,
 } from '../../lib/format'
 import {
+  getSensitiveWordKeywordFilter,
+  getSensitiveWordLogDisposition,
+} from '../../lib/sensitive-word'
+import {
   isDisplayableLogType,
   isTimingLogType,
   getLogTypeConfig,
@@ -378,19 +382,35 @@ export function useCommonLogsColumns(
           const log = row.original
           const timestamp = row.getValue('created_at') as number
           const config = getLogTypeConfig(log.type)
+          const sensitiveDisposition = isAdmin
+            ? getSensitiveWordLogDisposition(
+                getSensitiveWordKeywordFilter(parseLogOther(log.other))
+              )
+            : null
 
           return (
             <div className='flex min-w-0 flex-col gap-0.5'>
               <span className='truncate font-mono text-xs tabular-nums'>
                 {formatTimestampToDate(timestamp)}
               </span>
-              <StatusBadge
-                label={t(config.label)}
-                variant={config.color as StatusBadgeProps['variant']}
-                size='sm'
-                copyable={false}
-                className='-ml-1.5 !text-xs [&_span]:!text-xs'
-              />
+              <div className='-ml-1.5 flex min-w-0 flex-wrap gap-1'>
+                <StatusBadge
+                  label={t(config.label)}
+                  variant={config.color as StatusBadgeProps['variant']}
+                  size='sm'
+                  copyable={false}
+                  className='!text-xs [&_span]:!text-xs'
+                />
+                {sensitiveDisposition ? (
+                  <StatusBadge
+                    label={t(sensitiveDisposition.label)}
+                    variant={sensitiveDisposition.variant}
+                    size='sm'
+                    copyable={false}
+                    className='!text-xs [&_span]:!text-xs'
+                  />
+                ) : null}
+              </div>
             </div>
           )
         },

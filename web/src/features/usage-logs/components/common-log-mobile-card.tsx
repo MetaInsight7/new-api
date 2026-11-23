@@ -34,6 +34,10 @@ import { formatLogQuota, formatTimestampToDate } from '@/lib/format'
 import type { UsageLog } from '../data/schema'
 import { formatModelName, logTokenName, parseLogOther } from '../lib/format'
 import {
+  getSensitiveWordKeywordFilter,
+  getSensitiveWordLogDisposition,
+} from '../lib/sensitive-word'
+import {
   getLogTypeConfig,
   isDisplayableLogType,
   isTimingLogType,
@@ -61,6 +65,7 @@ type LogField = {
 export function CommonLogMobileCard<TData>(props: {
   log: UsageLog
   cells: Map<string, Cell<TData, unknown>>
+  isAdmin: boolean
 }) {
   const { t } = useTranslation()
   const context = useUsageLogsContext()
@@ -71,6 +76,9 @@ export function CommonLogMobileCard<TData>(props: {
   const timing = isTimingLogType(log.type)
   const model = formatModelName(log)
   const config = getLogTypeConfig(log.type)
+  const sensitiveDisposition = props.isAdmin
+    ? getSensitiveWordLogDisposition(getSensitiveWordKeywordFilter(other))
+    : null
   const group = log.group || other?.group || ''
   const groupRatio =
     other?.user_group_ratio != null && other.user_group_ratio !== -1
@@ -167,13 +175,24 @@ export function CommonLogMobileCard<TData>(props: {
       >
         {fields.time.visible && (
           <div className='flex min-w-0 flex-col items-start justify-between gap-1'>
-            <StatusBadge
-              label={t(config.label)}
-              variant={config.color as StatusVariant}
-              copyable={false}
-              showDot
-              className='h-5 px-0 text-xs'
-            />
+            <div className='flex min-w-0 flex-wrap gap-1'>
+              <StatusBadge
+                label={t(config.label)}
+                variant={config.color as StatusVariant}
+                copyable={false}
+                showDot
+                className='h-5 px-0 text-xs'
+              />
+              {sensitiveDisposition ? (
+                <StatusBadge
+                  label={t(sensitiveDisposition.label)}
+                  variant={sensitiveDisposition.variant}
+                  copyable={false}
+                  showDot
+                  className='h-5 px-0 text-xs'
+                />
+              ) : null}
+            </div>
             <Button
               variant='ghost'
               aria-label={`${t('Time')}: ${fields.time.value}`}

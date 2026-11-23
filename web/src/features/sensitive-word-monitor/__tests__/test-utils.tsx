@@ -22,6 +22,8 @@ import { useAuthStore } from '@/stores/auth-store'
 import { SensitiveWordMonitor } from '..'
 import type {
   SensitiveWordMonitorDashboard,
+  SensitiveWordMonitorEventPage,
+  SensitiveWordMonitorRecentEvent,
   SensitiveWordMonitorWindow,
 } from '../types'
 
@@ -33,6 +35,7 @@ export function sensitiveWordDashboard(
     sensitive_metadata_included: true,
     bucket_seconds: hours === 24 ? 3600 : 86400,
     window_start: 1_800_000_000,
+    window_end: 1_800_003_600,
     generated_at: 1_800_003_600,
     timezone: 'Asia/Shanghai',
     policy: {
@@ -99,6 +102,19 @@ export function sensitiveWordDashboard(
         created_at: 1_800_003_600,
       },
     ],
+  }
+}
+
+export function sensitiveWordEventPage(
+  items: SensitiveWordMonitorRecentEvent[] = sensitiveWordDashboard(24)
+    .recent_events,
+  options?: { page?: number; pageSize?: number; total?: number }
+): SensitiveWordMonitorEventPage {
+  return {
+    page: options?.page ?? 1,
+    page_size: options?.pageSize ?? 20,
+    total: options?.total ?? items.length,
+    items,
   }
 }
 

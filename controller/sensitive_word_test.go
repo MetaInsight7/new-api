@@ -60,6 +60,11 @@ func newSensitiveWordAuthorizationEngine() *gin.Engine {
 		middleware.RequirePermission(authz.SensitiveWordManage),
 		GetSensitiveWordDashboard,
 	)
+	engine.GET(
+		"/api/sensitive-words/events",
+		middleware.RequirePermission(authz.SensitiveWordManage),
+		GetSensitiveWordEvents,
+	)
 	engine.GET("/api/user/:id", GetUser)
 	return engine
 }
@@ -404,4 +409,85 @@ func TestSensitiveWordAuditActionMappings(t *testing.T) {
 		"Unbanned user 42 and reset sensitive-word violations",
 		auditContentEN("sensitive_word.unban", map[string]any{"target_user_id": 42}),
 	)
+}
+
+func TestSensitiveWordEventsPaginationFiltersAndMetadataProjection(t *testing.T) {
+	engine, _ := setupSensitiveWordControllerAuthorization(t)
+	const managerID = 204
+	now := time.Now().Truncate(time.Second)
+	events := []model.SensitiveWordAuditEvent{
+		{
+			RequestID: "controller-events-new", UserID: 41, UsernameSnapshot: "searchable-user",
+			ModelName: "observe-model", GroupName: "premium", Disposition: "observe", ObserveOnly: true,
+			MatchedRuleNames: model.SensitiveWordAuditJSON(`["private observe rule"]`), CreatedAt: now.Add(-time.Minute),
+		},
+		{
+			RequestID: "controller-events-old", UserID: 41, UsernameSnapshot: "searchable-user",
+			ModelName: "observe-model", GroupName: "default", Disposition: "observe", ObserveOnly: true,
+			MatchedRuleNames: model.SensitiveWordAuditJSON(`["private observe rule"]`), CreatedAt: now.Add(-time.Hour),
+		},
+		{
+			RequestID: "controller-events-block", UserID: 42, UsernameSnapshot: "blocked-user",
+			ModelName: "block-model", GroupName: "default", Disposition: "block", Blocked: true,
+			MatchedRuleNames: model.SensitiveWordAuditJSON(`["private block rule"]`), CreatedAt: now.Add(-2 * time.Hour),
+		},
+	}
+	require.NoError(t, model.DB.Create(&events).Error)
+	baseQuery := fmt.Sprintf("start_timestamp=%d&end_timestamp=%d&disposition=observe&keyword=searchable&page_size=1", now.Add(-3*time.Hour).Unix(), now.Unix())
+
+	invalid := performSensitiveWordAdminRequest(
+		engine, http.MethodGet, "/api/sensitive-words/events?start_timestamp=1", "",
+		managerID, common.RoleAdminUser,
+	)
+	require.Equal(t, http.StatusBadRequest, invalid.Code, invalid.Body.String())
+
+	firstPage := performSensitiveWordAdminRequest(
+		engine, http.MethodGet, "/api/sensitive-words/events?"+baseQuery+"&p=1", "",
+		managerID, common.RoleAdminUser,
+	)
+	require.Equal(t, http.StatusOK, firstPage.Code, firstPage.Body.String())
+	assert.Contains(t, firstPage.Body.String(), `"total":2`)
+	assert.Contains(t, firstPage.Body.String(), `"page":1`)
+	assert.Contains(t, firstPage.Body.String(), "controller-events-new")
+	assert.NotContains(t, firstPage.Body.String(), `"audit_id"`)
+	assert.NotContains(t, firstPage.Body.String(), "private observe rule")
+
+	require.NoError(t, authz.SetUserPermissions(managerID, authz.PermissionsMap{
+		authz.ResourceSensitiveWord: {
+			authz.ActionManage: true, authz.ActionEvidenceRead: true,
+		},
+	}))
+	secondPage := performSensitiveWordAdminRequest(
+		engine, http.MethodGet, "/api/sensitive-words/events?"+baseQuery+"&p=2", "",
+		managerID, common.RoleAdminUser,
+	)
+	require.Equal(t, http.StatusOK, secondPage.Code, secondPage.Body.String())
+	assert.Contains(t, secondPage.Body.String(), "controller-events-old")
+	assert.Contains(t, secondPage.Body.String(), `"audit_id"`)
+	assert.Contains(t, secondPage.Body.String(), "private observe rule")
+}
+
+func TestSensitiveWordDashboardAcceptsCustomTimeRange(t *testing.T) {
+	engine, _ := setupSensitiveWordControllerAuthorization(t)
+	const managerID = 205
+	now := time.Now().Truncate(time.Second)
+	start := now.Add(-4 * time.Hour).Unix()
+	end := now.Unix()
+
+	response := performSensitiveWordAdminRequest(
+		engine, http.MethodGet,
+		fmt.Sprintf("/api/sensitive-words/dashboard?start_timestamp=%d&end_timestamp=%d", start, end), "",
+		managerID, common.RoleAdminUser,
+	)
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	assert.Contains(t, response.Body.String(), fmt.Sprintf(`"window_start":%d`, start))
+	assert.Contains(t, response.Body.String(), fmt.Sprintf(`"window_end":%d`, end))
+	assert.Contains(t, response.Body.String(), `"requested_hours":4`)
+
+	tooWide := performSensitiveWordAdminRequest(
+		engine, http.MethodGet,
+		fmt.Sprintf("/api/sensitive-words/dashboard?start_timestamp=%d&end_timestamp=%d", now.Add(-367*24*time.Hour).Unix(), end), "",
+		managerID, common.RoleAdminUser,
+	)
+	require.Equal(t, http.StatusBadRequest, tooWide.Code, tooWide.Body.String())
 }

@@ -9,6 +9,17 @@ option) any later version.
 
 export type SensitiveWordMonitorWindow = 24 | 168 | 720
 
+export type SensitiveWordMonitorRange =
+  | {
+      kind: 'preset'
+      hours: SensitiveWordMonitorWindow
+    }
+  | {
+      kind: 'custom'
+      start_timestamp: number
+      end_timestamp: number
+    }
+
 export type SensitiveWordMonitorPolicy = {
   enabled: boolean
   check_prompt: boolean
@@ -80,10 +91,11 @@ export type SensitiveWordMonitorRecentEvent = {
 }
 
 export type SensitiveWordMonitorDashboard = {
-  requested_hours: SensitiveWordMonitorWindow
+  requested_hours: number
   sensitive_metadata_included: boolean
   bucket_seconds: number
   window_start: number
+  window_end: number
   generated_at: number
   timezone: string
   policy: SensitiveWordMonitorPolicy
@@ -94,6 +106,20 @@ export type SensitiveWordMonitorDashboard = {
   top_models: SensitiveWordMonitorDimension[]
   top_groups: SensitiveWordMonitorDimension[]
   recent_events: SensitiveWordMonitorRecentEvent[]
+}
+
+export type SensitiveWordMonitorEventPage = {
+  page: number
+  page_size: number
+  total: number
+  items: SensitiveWordMonitorRecentEvent[]
+}
+
+export type SensitiveWordMonitorEventFilters = {
+  page: number
+  pageSize: number
+  disposition: '' | SensitiveWordMonitorDisposition
+  keyword: string
 }
 
 export type ApiEnvelope<T> = {

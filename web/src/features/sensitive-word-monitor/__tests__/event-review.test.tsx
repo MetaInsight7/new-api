@@ -19,6 +19,7 @@ import {
   affectedSensitiveWordUser,
   renderSensitiveWordMonitor,
   sensitiveWordDashboard,
+  sensitiveWordEventPage,
   setSensitiveWordManager,
 } from './test-utils'
 
@@ -45,6 +46,14 @@ describe('sensitive-word event account review', () => {
     const get = vi.spyOn(api, 'get').mockImplementation(async (url) => {
       if (url === '/api/sensitive-words/dashboard') {
         return { data: { success: true, data: dashboard } }
+      }
+      if (url === '/api/sensitive-words/events') {
+        return {
+          data: {
+            success: true,
+            data: sensitiveWordEventPage(dashboard.recent_events),
+          },
+        }
       }
       if (url === '/api/user/7') {
         return {
@@ -85,6 +94,11 @@ describe('sensitive-word event account review', () => {
       if (url === '/api/sensitive-words/dashboard') {
         return { data: { success: true, data: sensitiveWordDashboard(24) } }
       }
+      if (url === '/api/sensitive-words/events') {
+        return {
+          data: { success: true, data: sensitiveWordEventPage() },
+        }
+      }
       if (url === '/api/user/7') {
         return {
           data: {
@@ -117,6 +131,11 @@ describe('sensitive-word event account review', () => {
       if (url === '/api/sensitive-words/dashboard') {
         return { data: { success: true, data: sensitiveWordDashboard(24) } }
       }
+      if (url === '/api/sensitive-words/events') {
+        return {
+          data: { success: true, data: sensitiveWordEventPage() },
+        }
+      }
       if (url === '/api/user/7') {
         throw new Error('user lookup unavailable')
       }
@@ -139,6 +158,11 @@ describe('sensitive-word event account review', () => {
     vi.spyOn(api, 'get').mockImplementation(async (url) => {
       if (url === '/api/sensitive-words/dashboard') {
         return { data: { success: true, data: sensitiveWordDashboard(24) } }
+      }
+      if (url === '/api/sensitive-words/events') {
+        return {
+          data: { success: true, data: sensitiveWordEventPage() },
+        }
       }
       if (url === '/api/user/7') {
         return {
@@ -173,6 +197,11 @@ describe('sensitive-word event account review', () => {
         ) as SensitiveWordMonitorWindow
         return {
           data: { success: true, data: sensitiveWordDashboard(hours) },
+        }
+      }
+      if (url === '/api/sensitive-words/events') {
+        return {
+          data: { success: true, data: sensitiveWordEventPage() },
         }
       }
       if (url === '/api/user/7') {
@@ -238,6 +267,10 @@ describe('sensitive-word event account review', () => {
     expect(logLink).toHaveAttribute(
       'href',
       expect.stringContaining('requestId=request-sensitive-10')
+    )
+    expect(logLink).not.toHaveAttribute(
+      'href',
+      expect.stringContaining('type=8')
     )
 
     await userEvent.click(

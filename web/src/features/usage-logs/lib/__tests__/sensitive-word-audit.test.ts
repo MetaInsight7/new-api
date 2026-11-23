@@ -27,6 +27,7 @@ import zhTW from '@/i18n/locales/zh-TW.json'
 import zh from '@/i18n/locales/zh.json'
 
 import { renderAuditContent } from '../format'
+import { getSensitiveWordLogDisposition } from '../sensitive-word'
 
 const requiredKeys = [
   'Updated sensitive-word safety state for user {{target_user_id}}',
@@ -61,6 +62,14 @@ function interpolate(
 }
 
 describe('sensitive-word audit mappings', () => {
+  it.each([
+    ['blocked', 'Blocked'],
+    ['observe', 'Observed'],
+    ['whitelist_bypass', 'Whitelist bypassed'],
+  ] as const)('maps the %s usage-log action to %s', (action, label) => {
+    expect(getSensitiveWordLogDisposition({ action })?.label).toBe(label)
+  })
+
   it.each([
     [
       'sensitive_word.user_update',

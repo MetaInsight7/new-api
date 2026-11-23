@@ -254,6 +254,7 @@ func (s *responsesWSSession) runRequest(state *responsesWSCallState, message []b
 
 func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState, create responsesWSCreateRequest) (apiErr *types.NewAPIError) {
 	policy := service.RequestPolicy(c)
+	defer appmodel.FinalizeSensitiveWordUsageLog(c)
 	encryptedReasoningRecovery := service.NewResponsesEncryptedReasoningRecovery(
 		appmodel.CurrentRequestPolicy().ResponsesEncryptedReasoningRecoveryEnabled,
 	)

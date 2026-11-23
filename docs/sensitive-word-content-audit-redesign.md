@@ -60,7 +60,7 @@ middleware.Distribute：有效分组解析完成、选渠道前预检
 
 ## 日志与隐私
 
-命中事件写入使用日志类型 `8`。新日志的公开部分仅写入 `other.action=sensitive_word_block`；管理员投影只额外携带用于打开独立审计记录的 `audit_id` 和不含内容证据的处置摘要。规则、命中词、Prompt 哈希和结构化上下文只保存在独立审计表，不写入使用日志。普通用户投影会移除整个管理员字段，并继续清理历史记录中的顶层 `audit_id` 和 `keyword_filter`。
+真正阻断立即写入一条类型 `8` 的“敏感词事件”。观察和白名单放行若最终产生类型 `2` 消费日志，则把脱敏处置摘要及 `audit_id` 合并进该消费日志，不再额外写类型 `8`；请求结束仍未产生消费日志时，才回退写入一条类型 `8`。只有目标日志成功持久化后才标记审计已附加，因此写入失败仍允许请求结束回退，渠道重试过程中的错误日志不会抢先承载摘要。新日志的公开部分仅写入 `other.action=sensitive_word_block`；管理员投影额外携带用于打开独立审计记录的 `audit_id` 和不含内容证据的处置摘要。规则、命中词、Prompt 哈希和结构化上下文只保存在独立审计表，不写入使用日志。普通用户投影会移除整个管理员字段，并继续清理历史记录中的顶层 `audit_id` 和 `keyword_filter`。
 
 完整证据只由 `GET /api/log/sensitive-word-audit/:id` 返回。该接口除 `AdminAuth` 外还要求独立的 `sensitive_word.evidence_read` 权限；非 Root 即使拥有此权限，也不能读取 Root 的证据。用户使用日志及普通用户 API 不返回证据、命中词或审计 ID。
 
@@ -76,11 +76,12 @@ middleware.Distribute：有效分组解析完成、选渠道前预检
 - `PATCH /api/sensitive-words/users/:id`
 - `POST /api/sensitive-words/users/:id/unban`
 - `GET /api/sensitive-words/dashboard`
+- `GET /api/sensitive-words/events`
 - `GET /api/log/sensitive-word-audit/:id`
 
 规则、策略、白名单、违规次数和专用解封接口要求 `sensitive_word.manage`；该权限默认授予内置管理员角色。完整证据读取使用独立的 `sensitive_word.evidence_read`，默认不授予非 Root。普通管理员没有管理权限时，用户列表和详情会隐藏真实白名单与违规次数。
 
-管理界面位于 `/system-settings/request-policies/filtering`。旧 `/system-settings/security/sensitive-words` 路由保持重定向。运营看板位于 `/sensitive-word-monitor`；管理权限允许查看汇总、趋势、用户、模型、分组和处置事实，只有同时具备 `sensitive_word.evidence_read` 时，Dashboard API 才返回规则排行、最近事件的规则名和审计 ID，前端才展示证据入口。最近事件可直接打开受独立证据读取权限保护的多轮上下文，并复用既有接口执行白名单切换、违规次数清零和敏感词专用解封；完整使用日志跳转仍作为追踪入口保留。规则弹窗支持一行一个词、TXT 导入、大小写不敏感草稿搜索、首次命中选择、Enter/Shift+Enter 循环命中，并在关闭时清空搜索状态。用户编辑抽屉可维护白名单和违规次数；专用解封只在具有权限且目标账号当前由敏感词自动封禁时显示。普通启用账号不会隐式清零。
+管理界面位于 `/system-settings/request-policies/filtering`。旧 `/system-settings/security/sensitive-words` 路由保持重定向。运营看板位于 `/sensitive-word-monitor`；管理权限允许查看汇总、趋势、用户、模型、分组和处置事实，只有同时具备 `sensitive_word.evidence_read` 时，Dashboard 与事件 API 才返回规则名和审计 ID，前端才展示证据入口。看板支持 24 小时、7 天、30 天预设以及最长 366 天的自定义时间范围；最近事件由独立接口执行服务端分页，可按阻断、观察、白名单放行筛选，并按用户、用户 ID、模型、分组或请求 ID 搜索。事件可直接打开受独立证据读取权限保护的多轮上下文，并复用既有接口执行白名单切换、违规次数清零和敏感词专用解封；完整使用日志跳转只按请求 ID 定位，使合并进类型 `2` 的观察/白名单摘要与类型 `8` 回退事件都可被找到。规则弹窗支持一行一个词、TXT 导入、大小写不敏感草稿搜索、首次命中选择、Enter/Shift+Enter 循环命中，并在关闭时清空搜索状态。用户编辑抽屉可维护白名单和违规次数；专用解封只在具有权限且目标账号当前由敏感词自动封禁时显示。普通启用账号不会隐式清零。
 
 ## 单向迁移
 
@@ -104,4 +105,4 @@ middleware.Distribute：有效分组解析完成、选渠道前预检
 
 设计对应 OWASP ASVS 5.0.0 的 V7.4.1、V7.4.2、V16.2.5、V16.3.3：状态转换经行锁与事务保护，认证版本和会话/令牌缓存失效，敏感证据按角色隔离，审计失败不会静默放行。
 
-出现意外放行时，依次检查：策略是否启用、迁移标记和本机快照是否可用、规则模式/作用域、令牌的实际或自动候选分组、DTO 是否实现结构化文本提取、主库审计写入及类型 8 日志。对于 Responses WebSocket，还要确认 `response.create` 已进入渠道选择前的共享 DTO 预检。视频、通用异步任务、MJ、Suno、插件自定义字段和 Realtime 不应出现在审计中。出现 `503` 时优先检查策略表、迁移标记、数据库连接和首次快照加载；出现 `403 user_banned` 时检查用户状态、`auth_version`、会话与令牌缓存失效日志。
+出现意外放行时，依次检查：策略是否启用、迁移标记和本机快照是否可用、规则模式/作用域、令牌的实际或自动候选分组、DTO 是否实现结构化文本提取、主库审计写入，以及最终类型 `2` 消费日志或类型 `8` 回退事件中的敏感词摘要。对于 Responses WebSocket，还要确认 `response.create` 已进入渠道选择前的共享 DTO 预检。视频、通用异步任务、MJ、Suno、插件自定义字段和 Realtime 不应出现在审计中。出现 `503` 时优先检查策略表、迁移标记、数据库连接和首次快照加载；出现 `403 user_banned` 时检查用户状态、`auth_version`、会话与令牌缓存失效日志。

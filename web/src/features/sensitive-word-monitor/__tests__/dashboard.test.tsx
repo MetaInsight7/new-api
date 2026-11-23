@@ -17,6 +17,7 @@ import type { SensitiveWordMonitorWindow } from '../types'
 import {
   renderSensitiveWordMonitor,
   sensitiveWordDashboard,
+  sensitiveWordEventPage,
   setSensitiveWordManager,
 } from './test-utils'
 
@@ -42,9 +43,20 @@ describe('sensitive-word monitor dashboard states', () => {
 
   it('requests and renders the selected dashboard window', async () => {
     const get = vi.spyOn(api, 'get').mockImplementation(async (url, config) => {
-      expect(url).toBe('/api/sensitive-words/dashboard')
       const hours = Number(config?.params?.hours) as SensitiveWordMonitorWindow
-      return { data: { success: true, data: sensitiveWordDashboard(hours) } }
+      const dashboard = sensitiveWordDashboard(hours)
+      if (url === '/api/sensitive-words/dashboard') {
+        return { data: { success: true, data: dashboard } }
+      }
+      if (url === '/api/sensitive-words/events') {
+        return {
+          data: {
+            success: true,
+            data: sensitiveWordEventPage(dashboard.recent_events),
+          },
+        }
+      }
+      throw new Error(`Unexpected GET ${url}`)
     })
 
     await renderSensitiveWordMonitor()
@@ -55,7 +67,7 @@ describe('sensitive-word monitor dashboard states', () => {
       params: { hours: 24 },
     })
 
-    await userEvent.click(screen.getByRole('button', { name: '7d' }))
+    await userEvent.click(screen.getAllByRole('button', { name: '7d' })[0])
     await waitFor(() =>
       expect(get).toHaveBeenCalledWith('/api/sensitive-words/dashboard', {
         params: { hours: 168 },
@@ -65,12 +77,22 @@ describe('sensitive-word monitor dashboard states', () => {
   })
 
   it('recovers after the dashboard request fails and the user retries', async () => {
-    const get = vi
-      .spyOn(api, 'get')
-      .mockRejectedValueOnce(new Error('dashboard unavailable'))
-      .mockResolvedValue({
-        data: { success: true, data: sensitiveWordDashboard(24) },
-      })
+    let dashboardAttempts = 0
+    const get = vi.spyOn(api, 'get').mockImplementation(async (url) => {
+      if (url === '/api/sensitive-words/dashboard') {
+        dashboardAttempts += 1
+        if (dashboardAttempts === 1) throw new Error('dashboard unavailable')
+        return {
+          data: { success: true, data: sensitiveWordDashboard(24) },
+        }
+      }
+      if (url === '/api/sensitive-words/events') {
+        return {
+          data: { success: true, data: sensitiveWordEventPage() },
+        }
+      }
+      throw new Error(`Unexpected GET ${url}`)
+    })
 
     await renderSensitiveWordMonitor()
     expect(
@@ -81,7 +103,9 @@ describe('sensitive-word monitor dashboard states', () => {
 
     expect(await screen.findByText('Sensitive-word monitor')).toBeVisible()
     expect((await screen.findAllByText('Credential abuse'))[0]).toBeVisible()
-    expect(get).toHaveBeenCalledTimes(2)
+    expect(
+      get.mock.calls.filter(([url]) => url === '/api/sensitive-words/dashboard')
+    ).toHaveLength(2)
   })
 
   it('renders empty dashboard collections without failing', async () => {
@@ -92,8 +116,16 @@ describe('sensitive-word monitor dashboard states', () => {
     dashboard.top_models = []
     dashboard.top_groups = []
     dashboard.recent_events = []
-    vi.spyOn(api, 'get').mockResolvedValue({
-      data: { success: true, data: dashboard },
+    vi.spyOn(api, 'get').mockImplementation(async (url) => {
+      if (url === '/api/sensitive-words/dashboard') {
+        return { data: { success: true, data: dashboard } }
+      }
+      if (url === '/api/sensitive-words/events') {
+        return {
+          data: { success: true, data: sensitiveWordEventPage([]) },
+        }
+      }
+      throw new Error(`Unexpected GET ${url}`)
     })
 
     await renderSensitiveWordMonitor()

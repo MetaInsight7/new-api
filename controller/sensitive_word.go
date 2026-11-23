@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -22,35 +23,125 @@ func GetSensitiveWordPolicy(c *gin.Context) {
 }
 
 func GetSensitiveWordDashboard(c *gin.Context) {
-	hours := 24
-	if rawHours := strings.TrimSpace(c.Query("hours")); rawHours != "" {
-		parsed, err := strconv.Atoi(rawHours)
-		if err != nil || !model.ValidSensitiveWordDashboardHours(parsed) {
-			common.ApiErrorStatus(
-				c,
-				http.StatusBadRequest,
-				common.NewMessage("Sensitive-word monitor window must be one of 24, 168, or 720 hours"),
-			)
+	startTimestamp, endTimestamp, customRange, ok := sensitiveWordMonitorCustomRange(c)
+	if !ok {
+		return
+	}
+	var dashboard *model.SensitiveWordDashboard
+	var err error
+	if customRange {
+		dashboard, err = model.GetSensitiveWordDashboardForRange(startTimestamp, endTimestamp)
+	} else {
+		hours, valid := sensitiveWordMonitorHours(c)
+		if !valid {
 			return
 		}
-		hours = parsed
+		dashboard, err = model.GetSensitiveWordDashboard(hours)
 	}
-	dashboard, err := model.GetSensitiveWordDashboard(hours)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	canReadSensitiveMetadata := authz.Can(c.GetInt("id"), c.GetInt("role"), authz.SensitiveWordEvidenceRead)
-	if canReadSensitiveMetadata && c.GetInt("access_token_id") > 0 {
-		canReadSensitiveMetadata = service.AccessTokenScopeGranted(
+	if !canReadSensitiveWordMetadata(c) {
+		dashboard.RedactSensitiveMetadata()
+	}
+	common.ApiSuccess(c, dashboard)
+}
+
+func GetSensitiveWordEvents(c *gin.Context) {
+	page := common.GetPageQuery(c)
+	if page.GetPage() < 1 || page.GetPageSize() < 1 || page.GetPage() > 100000000 {
+		common.ApiErrorStatus(c, http.StatusBadRequest, common.NewMessage("Invalid sensitive-word event pagination"))
+		return
+	}
+	startTimestamp, endTimestamp, customRange, ok := sensitiveWordMonitorCustomRange(c)
+	if !ok {
+		return
+	}
+	if !customRange {
+		hours, valid := sensitiveWordMonitorHours(c)
+		if !valid {
+			return
+		}
+		var rangeErr error
+		startTimestamp, endTimestamp, rangeErr = model.SensitiveWordDashboardTimestampWindow(hours)
+		if rangeErr != nil {
+			common.ApiError(c, rangeErr)
+			return
+		}
+	}
+	disposition := strings.TrimSpace(c.Query("disposition"))
+	if disposition == "all" {
+		disposition = ""
+	}
+	if !model.ValidSensitiveWordEventDisposition(disposition) {
+		common.ApiErrorStatus(c, http.StatusBadRequest, common.NewMessage("Invalid sensitive-word event disposition"))
+		return
+	}
+	keyword := strings.TrimSpace(c.Query("keyword"))
+	if utf8.RuneCountInString(keyword) > 200 {
+		common.ApiErrorStatus(c, http.StatusBadRequest, common.NewMessage("Sensitive-word event search is too long"))
+		return
+	}
+	events, total, err := model.ListSensitiveWordEvents(model.SensitiveWordEventFilter{
+		StartTimestamp: startTimestamp,
+		EndTimestamp:   endTimestamp,
+		Disposition:    disposition,
+		Keyword:        keyword,
+	}, page.GetStartIdx(), page.GetPageSize())
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if !canReadSensitiveWordMetadata(c) {
+		model.RedactSensitiveWordEventMetadata(events)
+	}
+	page.SetItems(events)
+	page.SetTotal(int(total))
+	common.ApiSuccess(c, page)
+}
+
+func sensitiveWordMonitorHours(c *gin.Context) (int, bool) {
+	hours := 24
+	if rawHours := strings.TrimSpace(c.Query("hours")); rawHours != "" {
+		parsed, err := strconv.Atoi(rawHours)
+		if err != nil || !model.ValidSensitiveWordDashboardHours(parsed) {
+			common.ApiErrorStatus(c, http.StatusBadRequest, common.NewMessage("Sensitive-word monitor window must be one of 24, 168, or 720 hours"))
+			return 0, false
+		}
+		hours = parsed
+	}
+	return hours, true
+}
+
+func sensitiveWordMonitorCustomRange(c *gin.Context) (int64, int64, bool, bool) {
+	rawStart := strings.TrimSpace(c.Query("start_timestamp"))
+	rawEnd := strings.TrimSpace(c.Query("end_timestamp"))
+	if rawStart == "" && rawEnd == "" {
+		return 0, 0, false, true
+	}
+	if rawStart == "" || rawEnd == "" {
+		common.ApiErrorStatus(c, http.StatusBadRequest, common.NewMessage("Sensitive-word monitor requires both start and end times"))
+		return 0, 0, false, false
+	}
+	startTimestamp, startErr := strconv.ParseInt(rawStart, 10, 64)
+	endTimestamp, endErr := strconv.ParseInt(rawEnd, 10, 64)
+	if startErr != nil || endErr != nil || !model.ValidSensitiveWordMonitorTimestampRange(startTimestamp, endTimestamp) {
+		common.ApiErrorStatus(c, http.StatusBadRequest, common.NewMessage("Sensitive-word monitor time range is invalid or exceeds 366 days"))
+		return 0, 0, false, false
+	}
+	return startTimestamp, endTimestamp, true, true
+}
+
+func canReadSensitiveWordMetadata(c *gin.Context) bool {
+	allowed := authz.Can(c.GetInt("id"), c.GetInt("role"), authz.SensitiveWordEvidenceRead)
+	if allowed && c.GetInt("access_token_id") > 0 {
+		allowed = service.AccessTokenScopeGranted(
 			c.GetStringSlice("access_token_scopes"),
 			service.AccessTokenScopeOf(authz.SensitiveWordEvidenceRead),
 		)
 	}
-	if !canReadSensitiveMetadata {
-		dashboard.RedactSensitiveMetadata()
-	}
-	common.ApiSuccess(c, dashboard)
+	return allowed
 }
 
 func UpdateSensitiveWordPolicy(c *gin.Context) {

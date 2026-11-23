@@ -167,6 +167,7 @@ var accessTokenRouteRules = map[string]accessTokenRouteRule{
 
 	// router/api-router.go: /api/sensitive-words
 	"GET /api/sensitive-words/dashboard":        accessTokenScopeRule("sensitive_word:manage"),
+	"GET /api/sensitive-words/events":           accessTokenScopeRule("sensitive_word:manage"),
 	"GET /api/sensitive-words/policy":           accessTokenScopeRule("sensitive_word:manage"),
 	"PUT /api/sensitive-words/policy":           accessTokenScopeRule("sensitive_word:manage"),
 	"GET /api/sensitive-words/groups":           accessTokenScopeRule("sensitive_word:manage"),

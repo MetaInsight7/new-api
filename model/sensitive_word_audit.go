@@ -61,6 +61,12 @@ func sensitiveCheckResultFromAudit(event SensitiveWordAuditEvent) *SensitiveChec
 		ObserveOnly: event.ObserveOnly, MatchedRuleModes: modes,
 		Matches: evidence.Matches, EvidenceTruncated: event.EvidenceTruncated,
 		PolicyGeneration: event.PolicyGeneration,
+		usageLogIdentity: sensitiveWordUsageLogIdentity{
+			RequestID: event.RequestID, UserID: event.UserID,
+			Username: event.UsernameSnapshot, TokenID: event.TokenID,
+			TokenName: event.TokenNameSnapshot, GroupName: event.GroupName,
+			ModelName: event.ModelName,
+		},
 	}
 }
 
@@ -161,6 +167,12 @@ func CheckSensitiveRequestForGroups(input SensitiveCheckInput, candidateGroups [
 		UsesDefaultMessage: policy.BlockMessage == sensitiveWordBlockMessage,
 		MatchedRuleModes:   modes, Matches: decision.Matches,
 		EvidenceTruncated: decision.MatchesTruncated, PolicyGeneration: policy.Version,
+		usageLogIdentity: sensitiveWordUsageLogIdentity{
+			RequestID: input.RequestID, UserID: input.UserID,
+			Username: input.Username, TokenID: input.TokenID,
+			TokenName: input.TokenName, GroupName: input.GroupName,
+			ModelName: input.ModelName,
+		},
 	}
 
 	evidence, preview, snippets, evidenceTruncated, promptHash, evidenceErr := buildSensitiveAuditEvidence(fields, decision.Matches, policy, decision.MatchesTruncated)
@@ -289,7 +301,9 @@ func CheckSensitiveRequestForGroups(input SensitiveCheckInput, candidateGroups [
 	if authStateChanged {
 		refreshSensitiveWordAuthState(input.UserID, "sensitive_word_threshold")
 	}
-	writeSensitiveWordUsageLog(input, event, result)
+	if result.Blocked {
+		writeSensitiveWordUsageLog(input, event, result)
+	}
 	return result, nil
 }
 
@@ -543,28 +557,32 @@ func refreshSensitiveWordAuthState(userID int, reason string) int64 {
 }
 
 func writeSensitiveWordUsageLog(input SensitiveCheckInput, event SensitiveWordAuditEvent, result *SensitiveCheckResult) {
-	action := "blocked"
-	if result.WhitelistBypassed {
-		action = "whitelist_bypass"
-	} else if result.ObserveOnly {
-		action = "observe"
-	}
 	other := NewLogOther()
-	other.SetPublic("action", SensitiveWordLogAction)
-	other.SetAdmin("keyword_filter", map[string]any{
-		"audit_id": event.ID, "action": action,
-		"blocked": result.Blocked, "counted": result.Counted,
-		"auto_banned": result.AutoBanned, "balance_changed": false,
-	})
+	appendSensitiveWordUsageLogMetadata(other, event.ID, result)
 	log := &Log{
 		UserId: input.UserID, Username: input.Username, CreatedAt: common.GetTimestamp(),
-		Type: LogTypeSensitiveWordBlock, Content: "Sensitive word audit", TokenId: input.TokenID,
+		Type: LogTypeSensitiveWordEvent, Content: "Sensitive word audit", TokenId: input.TokenID,
 		TokenName: input.TokenName, ModelName: input.ModelName, Group: input.GroupName,
 		RequestId: input.RequestID, Other: other.JSONString(),
 	}
 	if err := createLog(log); err != nil {
 		common.SysLog("failed to record sensitive-word usage log: " + err.Error())
 	}
+}
+
+func appendSensitiveWordUsageLogMetadata(other *LogOther, auditID int64, result *SensitiveCheckResult) {
+	action := "blocked"
+	if result.WhitelistBypassed {
+		action = "whitelist_bypass"
+	} else if result.ObserveOnly {
+		action = "observe"
+	}
+	other.SetPublic("action", SensitiveWordLogAction)
+	other.SetAdmin("keyword_filter", map[string]any{
+		"audit_id": auditID, "action": action,
+		"blocked": result.Blocked, "counted": result.Counted,
+		"auto_banned": result.AutoBanned, "balance_changed": false,
+	})
 }
 
 // CleanupSensitiveWordAudits clears full-prompt evidence after the configured

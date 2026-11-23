@@ -91,6 +91,20 @@ function DetailPreview(props: {
   if (!cell) throw new Error('The log must have a content column')
   return flexRender(cell.column.columnDef.cell, cell.getContext())
 }
+
+function TimePreview(props: { other: LogOtherData; isAdmin: boolean }) {
+  const table = useReactTable({
+    data: [makeLog(props.other)],
+    columns: useCommonLogsColumns(props.isAdmin, false),
+    getCoreRowModel: getCoreRowModel(),
+  })
+  const cell = table
+    .getRowModel()
+    .rows[0].getAllCells()
+    .find((item) => item.column.id === 'created_at')
+  if (!cell) throw new Error('The log must have a time column')
+  return flexRender(cell.column.columnDef.cell, cell.getContext())
+}
 const plugin = {
   key: 'incho',
   name: 'Incho',
@@ -131,6 +145,23 @@ function renderPreview(other: LogOtherData, isAdmin = true, type?: number) {
   )
   return screen.getByRole('button', { name: /./ })
 }
+
+test('shows the sensitive-word disposition beside the desktop log type', () => {
+  render(
+    <I18nextProvider i18n={i18n}>
+      <TimePreview
+        isAdmin
+        other={{
+          admin_info: {
+            keyword_filter: { action: 'whitelist_bypass', audit_id: 45 },
+          },
+        }}
+      />
+    </I18nextProvider>
+  )
+  expect(screen.getByText('Consume')).toBeVisible()
+  expect(screen.getByText('Allowed by whitelist')).toBeVisible()
+})
 
 test('keeps log details open when the parent refreshes with unchanged data', async () => {
   const other = { model_price: 0.25 }

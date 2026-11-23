@@ -363,7 +363,7 @@ export function SensitiveWordEventReviewSheet(props: {
                     <Link
                       to='/usage-logs/$section'
                       params={{ section: 'common' }}
-                      search={{ type: ['8'], requestId: event.request_id }}
+                      search={{ requestId: event.request_id }}
                     />
                   }
                 >

@@ -18,6 +18,7 @@ import { useAuthStore } from '@/stores/auth-store'
 import {
   renderSensitiveWordMonitor,
   sensitiveWordDashboard,
+  sensitiveWordEventPage,
   setSensitiveWordManager,
 } from './test-utils'
 
@@ -57,8 +58,19 @@ describe('sensitive-word monitor number formatting', () => {
     const dashboard = sensitiveWordDashboard(24)
     dashboard.recent_events[0].username = ''
     dashboard.recent_events[0].user_id = 1_234_567
-    vi.spyOn(api, 'get').mockResolvedValue({
-      data: { success: true, data: dashboard },
+    vi.spyOn(api, 'get').mockImplementation(async (url) => {
+      if (url === '/api/sensitive-words/dashboard') {
+        return { data: { success: true, data: dashboard } }
+      }
+      if (url === '/api/sensitive-words/events') {
+        return {
+          data: {
+            success: true,
+            data: sensitiveWordEventPage(dashboard.recent_events),
+          },
+        }
+      }
+      throw new Error(`Unexpected GET ${url}`)
     })
 
     await renderSensitiveWordMonitor()

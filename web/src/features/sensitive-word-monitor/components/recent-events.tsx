@@ -6,10 +6,18 @@ it under the terms of the GNU Affero General Public License as published by
 the Free Software Foundation, either version 3 of the License, or (at your
 option) any later version.
 */
-import { History, ScanSearch } from 'lucide-react'
-import { useState } from 'react'
+import {
+  getCoreRowModel,
+  type ColumnDef,
+  type PaginationState,
+  useReactTable,
+} from '@tanstack/react-table'
+import { AlertTriangle, History, LoaderCircle, ScanSearch } from 'lucide-react'
+import { type FormEvent, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { DataTablePagination } from '@/components/data-table'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -18,6 +26,15 @@ import {
   EmptyHeader,
   EmptyTitle,
 } from '@/components/ui/empty'
+import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
   TableBody,
@@ -34,9 +51,13 @@ import { cn } from '@/lib/utils'
 import { sensitiveWordDispositionLabel } from '../lib'
 import type {
   SensitiveWordMonitorDisposition,
+  SensitiveWordMonitorEventFilters,
   SensitiveWordMonitorRecentEvent,
 } from '../types'
 import { SensitiveWordEventReviewSheet } from './event-review-sheet'
+
+const EVENT_PAGINATION_COLUMNS: ColumnDef<SensitiveWordMonitorRecentEvent>[] =
+  []
 
 function DispositionBadge(props: {
   disposition: SensitiveWordMonitorDisposition
@@ -115,10 +136,21 @@ function eventUser(
 
 export function SensitiveWordRecentEvents(props: {
   events: SensitiveWordMonitorRecentEvent[]
+  total: number
+  page: number
+  pageSize: number
+  disposition: SensitiveWordMonitorEventFilters['disposition']
+  keyword: string
+  isLoading: boolean
+  isFetching: boolean
+  isError: boolean
   includeSensitiveMetadata: boolean
   timezone: string
+  onFiltersChange: (filters: SensitiveWordMonitorEventFilters) => void
+  onRetry: () => void
 }) {
   const { t, i18n } = useTranslation()
+  const [keywordDraft, setKeywordDraft] = useState(props.keyword)
   const [selectedEvent, setSelectedEvent] =
     useState<SensitiveWordMonitorRecentEvent | null>(null)
   const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
@@ -130,6 +162,52 @@ export function SensitiveWordRecentEvents(props: {
     second: '2-digit',
     timeZone: props.timezone,
   })
+  const pagination: PaginationState = {
+    pageIndex: Math.max(0, props.page - 1),
+    pageSize: props.pageSize,
+  }
+  const table = useReactTable({
+    data: props.events,
+    columns: EVENT_PAGINATION_COLUMNS,
+    getCoreRowModel: getCoreRowModel(),
+    manualPagination: true,
+    rowCount: props.total,
+    state: { pagination },
+    onPaginationChange: (updater) => {
+      const next = typeof updater === 'function' ? updater(pagination) : updater
+      props.onFiltersChange({
+        page:
+          next.pageSize === props.pageSize
+            ? Math.max(1, next.pageIndex + 1)
+            : 1,
+        pageSize: next.pageSize,
+        disposition: props.disposition,
+        keyword: props.keyword,
+      })
+    },
+  })
+  const dispositionItems = [
+    { value: 'all', label: t('All dispositions') },
+    { value: 'block', label: t('Blocked') },
+    { value: 'observe', label: t('Observed') },
+    { value: 'whitelist_bypass', label: t('Whitelist bypassed') },
+  ]
+
+  useEffect(() => {
+    setKeywordDraft(props.keyword)
+  }, [props.keyword])
+
+  const submitSearch = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const keyword = keywordDraft.trim()
+    if (keyword === props.keyword) return
+    props.onFiltersChange({
+      page: 1,
+      pageSize: props.pageSize,
+      disposition: props.disposition,
+      keyword,
+    })
+  }
 
   return (
     <TitledCard
@@ -142,16 +220,100 @@ export function SensitiveWordRecentEvents(props: {
       disableHoverEffect
       contentClassName='p-0'
     >
-      {props.events.length === 0 ? (
+      <div className='flex flex-col gap-3 border-b p-4 lg:flex-row lg:items-center lg:justify-between'>
+        <form
+          className='flex min-w-0 flex-1 gap-2 lg:max-w-xl'
+          onSubmit={submitSearch}
+        >
+          <Input
+            value={keywordDraft}
+            maxLength={200}
+            aria-label={t('Search sensitive-word events')}
+            placeholder={t('Search by user, model, group, or request ID')}
+            onChange={(event) => setKeywordDraft(event.target.value)}
+          />
+          <Button type='submit' size='sm' variant='outline'>
+            {t('Search')}
+          </Button>
+        </form>
+        <div className='flex items-center gap-2'>
+          <Select
+            items={dispositionItems}
+            value={props.disposition || 'all'}
+            onValueChange={(value) => {
+              const disposition =
+                value === 'block' ||
+                value === 'observe' ||
+                value === 'whitelist_bypass'
+                  ? value
+                  : ''
+              props.onFiltersChange({
+                page: 1,
+                pageSize: props.pageSize,
+                disposition,
+                keyword: props.keyword,
+              })
+            }}
+          >
+            <SelectTrigger
+              className='min-w-44 flex-1 lg:flex-none'
+              aria-label={t('Disposition')}
+            >
+              <SelectValue placeholder={t('All dispositions')} />
+            </SelectTrigger>
+            <SelectContent align='end'>
+              {dispositionItems.map((item) => (
+                <SelectItem key={item.value} value={item.value}>
+                  {item.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {props.isFetching ? (
+            <LoaderCircle
+              aria-label={t('Loading')}
+              className='text-muted-foreground size-4 animate-spin'
+            />
+          ) : null}
+        </div>
+      </div>
+      {props.isError ? (
+        <Alert variant='destructive' className='m-4 w-auto'>
+          <AlertTriangle aria-hidden='true' />
+          <AlertTitle>{t('Unable to load sensitive-word events')}</AlertTitle>
+          <AlertDescription>
+            {t('The sensitive-word event list could not be retrieved.')}
+          </AlertDescription>
+          <Button
+            size='sm'
+            variant='outline'
+            disabled={props.isFetching}
+            onClick={props.onRetry}
+          >
+            {t('Retry')}
+          </Button>
+        </Alert>
+      ) : null}
+      {props.isLoading ? (
+        <div role='status' aria-label={t('Loading')} className='space-y-3 p-4'>
+          {[1, 2, 3, 4].map((row) => (
+            <Skeleton key={row} className='h-12 w-full rounded-lg' />
+          ))}
+        </div>
+      ) : null}
+      {!props.isLoading && !props.isError && props.events.length === 0 ? (
         <Empty className='py-12'>
           <EmptyHeader>
             <EmptyTitle>{t('No sensitive-word events')}</EmptyTitle>
             <EmptyDescription>
-              {t('No requests matched a configured rule in this window.')}
+              {props.keyword || props.disposition
+                ? t('No events match the current filters.')
+                : t('No requests matched a configured rule in this window.')}
             </EmptyDescription>
           </EmptyHeader>
         </Empty>
-      ) : (
+      ) : null}
+      {!props.isLoading && props.events.length > 0 ? (
         <>
           <div className='divide-y md:hidden'>
             {props.events.map((event) => (
@@ -282,7 +444,12 @@ export function SensitiveWordRecentEvents(props: {
             </Table>
           </div>
         </>
-      )}
+      ) : null}
+      {props.total > 0 ? (
+        <div className='border-t p-4'>
+          <DataTablePagination table={table} />
+        </div>
+      ) : null}
       <SensitiveWordEventReviewSheet
         event={selectedEvent}
         onOpenChange={(open) => {

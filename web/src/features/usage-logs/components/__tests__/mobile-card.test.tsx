@@ -78,6 +78,7 @@ function Fixture(props: {
         table={table}
         logCategory='common'
         isLoading={props.loading}
+        isAdmin={props.admin ?? true}
       />
     </>
   )
@@ -224,6 +225,21 @@ it('keeps input, output and cache quantities readable without empty metric cells
   expect(screen.getByText('Output')).toBeVisible()
   expect(screen.getByText(/300/)).toBeVisible()
   expect(screen.getByText('Cache ↑ 200')).toBeVisible()
+})
+
+it('shows the sensitive-word disposition attached to a consume log', () => {
+  renderLogs({
+    logs: [
+      {
+        ...log,
+        other: JSON.stringify({
+          admin_info: { keyword_filter: { action: 'observe', audit_id: 44 } },
+        }),
+      },
+    ],
+  })
+  expect(screen.getByText('Consume')).toBeVisible()
+  expect(screen.getByText('Observed')).toBeVisible()
 })
 
 it('shows the established empty state when no logs exist', () => {

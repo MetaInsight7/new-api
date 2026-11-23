@@ -103,6 +103,7 @@ func Distribute() func(c *gin.Context) {
 		if !CheckSensitiveWordBeforeChannelSelection(c, modelRequest.Model) {
 			return
 		}
+		defer model.FinalizeSensitiveWordUsageLog(c)
 		if pinned || shouldSelectChannel {
 			usingGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
 			var selectErr *service.ChannelSelectError

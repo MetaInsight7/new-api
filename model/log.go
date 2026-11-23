@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/types"
 
@@ -89,7 +90,8 @@ const (
 	LogTypeError              = 5
 	LogTypeRefund             = 6
 	LogTypeLogin              = 7
-	LogTypeSensitiveWordBlock = 8
+	LogTypeSensitiveWordEvent = 8
+	LogTypeSensitiveWordBlock = LogTypeSensitiveWordEvent
 )
 
 func ensureLogRequestId(log *Log) {
@@ -332,34 +334,38 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	}
 	logger.LogInfo(c, common.LogText("record consume log: userId=%d, params=%s", userId, common.GetJsonString(params)))
 	username := c.GetString("username")
-	requestId := c.GetString(common.RequestIdKey)
-	upstreamRequestId := c.GetString(common.UpstreamRequestIdKey)
 	createdAt := common.GetTimestamp()
 	other := params.Other
-	content := other.setContent(params.Content)
-	otherStr := other.JSONString()
-	log := &Log{
-		UserId:            userId,
-		Username:          username,
-		CreatedAt:         createdAt,
-		Type:              LogTypeConsume,
-		Content:           content,
-		PromptTokens:      params.PromptTokens,
-		CompletionTokens:  params.CompletionTokens,
-		TokenName:         params.TokenName,
-		ModelName:         params.ModelName,
-		Quota:             params.Quota,
-		ChannelId:         params.ChannelId,
-		TokenId:           params.TokenId,
-		UseTime:           params.UseTimeSeconds,
-		IsStream:          params.IsStream,
-		Group:             params.Group,
-		Ip:                c.ClientIP(),
-		RequestId:         requestId,
-		UpstreamRequestId: upstreamRequestId,
-		Other:             otherStr,
+	if other == nil {
+		other = NewLogOther()
 	}
-	err := createLog(log)
+	writeLog := func(other *LogOther) error {
+		content := other.setContent(params.Content)
+		log := &Log{
+			UserId:            userId,
+			Username:          username,
+			CreatedAt:         createdAt,
+			Type:              LogTypeConsume,
+			Content:           content,
+			PromptTokens:      params.PromptTokens,
+			CompletionTokens:  params.CompletionTokens,
+			TokenName:         params.TokenName,
+			ModelName:         params.ModelName,
+			Quota:             params.Quota,
+			ChannelId:         params.ChannelId,
+			TokenId:           params.TokenId,
+			UseTime:           params.UseTimeSeconds,
+			IsStream:          params.IsStream,
+			Group:             params.Group,
+			Ip:                c.ClientIP(),
+			RequestId:         c.GetString(common.RequestIdKey),
+			UpstreamRequestId: c.GetString(common.UpstreamRequestIdKey),
+			Other:             other.JSONString(),
+		}
+		return createLog(log)
+	}
+	result, _ := common.GetContextKeyType[*SensitiveCheckResult](c, constant.ContextKeySensitiveWordCheckResult)
+	err := recordUsageLogWithSensitiveWordAudit(result, other, writeLog)
 	if err != nil {
 		logger.LogError(c, common.LogText("failed to record log: %s", err.Error()))
 	}
@@ -386,6 +392,80 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 			NodeName:            common.NodeName,
 		})
 	}
+}
+
+func recordUsageLogWithSensitiveWordAudit(result *SensitiveCheckResult, other *LogOther, writeLog func(*LogOther) error) error {
+	if other == nil {
+		other = NewLogOther()
+	}
+	if result == nil {
+		return writeLog(other)
+	}
+
+	result.usageLogMu.Lock()
+	defer result.usageLogMu.Unlock()
+	pending := result.Matched && !result.Blocked && result.AuditID > 0 && !result.usageLogAttached
+	if pending {
+		appendSensitiveWordUsageLogMetadata(other, result.AuditID, result)
+	}
+	if err := writeLog(other); err != nil {
+		return err
+	}
+	if pending {
+		result.usageLogAttached = true
+	}
+	return nil
+}
+
+func FinalizeSensitiveWordUsageLog(c *gin.Context) {
+	if c == nil {
+		return
+	}
+	result, _ := common.GetContextKeyType[*SensitiveCheckResult](c, constant.ContextKeySensitiveWordCheckResult)
+	if result == nil {
+		return
+	}
+
+	result.usageLogMu.Lock()
+	defer result.usageLogMu.Unlock()
+	if !result.Matched || result.Blocked || result.AuditID <= 0 || result.usageLogAttached {
+		return
+	}
+	identity := result.usageLogIdentity
+	if identity.RequestID == "" {
+		identity.RequestID = c.GetString(common.RequestIdKey)
+	}
+	if identity.UserID == 0 {
+		identity.UserID = common.GetContextKeyInt(c, constant.ContextKeyUserId)
+	}
+	if identity.Username == "" {
+		identity.Username = common.GetContextKeyString(c, constant.ContextKeyUserName)
+	}
+	if identity.TokenID == 0 {
+		identity.TokenID = common.GetContextKeyInt(c, constant.ContextKeyTokenId)
+	}
+	if identity.TokenName == "" {
+		identity.TokenName = c.GetString("token_name")
+	}
+	if identity.GroupName == "" {
+		identity.GroupName = common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+	}
+	if identity.ModelName == "" {
+		identity.ModelName = common.GetContextKeyString(c, constant.ContextKeyOriginalModel)
+	}
+	other := NewLogOther()
+	appendSensitiveWordUsageLogMetadata(other, result.AuditID, result)
+	log := &Log{
+		UserId: identity.UserID, Username: identity.Username, CreatedAt: common.GetTimestamp(),
+		Type: LogTypeSensitiveWordEvent, Content: "Sensitive word audit", TokenId: identity.TokenID,
+		TokenName: identity.TokenName, ModelName: identity.ModelName, Group: identity.GroupName,
+		RequestId: identity.RequestID, Other: other.JSONString(),
+	}
+	if err := createLog(log); err != nil {
+		logger.LogError(c, common.LogText("failed to record sensitive-word usage log: %s", err.Error()))
+		return
+	}
+	result.usageLogAttached = true
 }
 
 type RecordTaskBillingLogParams struct {

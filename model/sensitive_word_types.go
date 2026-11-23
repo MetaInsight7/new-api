@@ -2,6 +2,7 @@ package model
 
 import (
 	"errors"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -233,6 +234,19 @@ type SensitiveCheckResult struct {
 	Matches            []SensitiveWordMatch
 	EvidenceTruncated  bool
 	PolicyGeneration   int64
+	usageLogIdentity   sensitiveWordUsageLogIdentity
+	usageLogMu         sync.Mutex
+	usageLogAttached   bool
+}
+
+type sensitiveWordUsageLogIdentity struct {
+	RequestID string
+	UserID    int
+	Username  string
+	TokenID   int
+	TokenName string
+	GroupName string
+	ModelName string
 }
 
 type SensitiveWordEnableResetResult struct {

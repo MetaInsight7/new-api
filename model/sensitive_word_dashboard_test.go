@@ -1,6 +1,7 @@
 package model
 
 import (
+	"strconv"
 	"testing"
 	"time"
 
@@ -101,5 +102,87 @@ func TestSensitiveWordDashboardAggregatesOperationalView(t *testing.T) {
 	assert.Equal(t, []string{blockingRule.Name}, dashboard.RecentEvents[0].RuleNames)
 
 	_, err = GetSensitiveWordDashboard(12)
+	require.Error(t, err)
+}
+
+func TestSensitiveWordEventsSupportRangeFilteringSearchAndPagination(t *testing.T) {
+	setupSensitiveWordTest(t)
+	require.NoError(t, MigrateSensitiveWordData())
+	now := time.Now().Truncate(time.Second)
+	user := createSensitiveWordTestUser(t, 10_000, false)
+	events := []SensitiveWordAuditEvent{
+		{
+			RequestID: "events-observe-new", UserID: user.Id, UsernameSnapshot: "searchable-user",
+			ModelName: "observe-model", GroupName: "premium", Disposition: "observe", ObserveOnly: true,
+			MatchedRuleNames: sensitiveWordDashboardJSON(t, []string{"observe rule"}), CreatedAt: now.Add(-time.Minute),
+		},
+		{
+			RequestID: "events-observe-old", UserID: user.Id, UsernameSnapshot: "searchable-user",
+			ModelName: "observe-model", GroupName: "default", Disposition: "observe", ObserveOnly: true,
+			MatchedRuleNames: sensitiveWordDashboardJSON(t, []string{"observe rule"}), CreatedAt: now.Add(-2 * time.Hour),
+		},
+		{
+			RequestID: "events-block", UserID: user.Id + 1, UsernameSnapshot: "blocked-user",
+			ModelName: "block-model", GroupName: "default", Disposition: "block", Blocked: true,
+			MatchedRuleNames: sensitiveWordDashboardJSON(t, []string{"block rule"}), CreatedAt: now.Add(-3 * time.Hour),
+		},
+		{
+			RequestID: "events-outside", UserID: user.Id, UsernameSnapshot: "searchable-user",
+			ModelName: "observe-model", GroupName: "default", Disposition: "observe", ObserveOnly: true,
+			CreatedAt: now.Add(-48 * time.Hour),
+		},
+	}
+	require.NoError(t, DB.Create(&events).Error)
+
+	filter := SensitiveWordEventFilter{
+		StartTimestamp: now.Add(-4 * time.Hour).Unix(), EndTimestamp: now.Unix(),
+		Disposition: "observe", Keyword: "observe-model",
+	}
+	firstPage, total, err := ListSensitiveWordEvents(filter, 0, 1)
+	require.NoError(t, err)
+	require.Equal(t, int64(2), total)
+	require.Len(t, firstPage, 1)
+	require.Equal(t, "events-observe-new", firstPage[0].RequestID)
+	require.Equal(t, []string{"observe rule"}, firstPage[0].RuleNames)
+
+	secondPage, total, err := ListSensitiveWordEvents(filter, 1, 1)
+	require.NoError(t, err)
+	require.Equal(t, int64(2), total)
+	require.Len(t, secondPage, 1)
+	require.Equal(t, "events-observe-old", secondPage[0].RequestID)
+
+	filter.Keyword = strconv.Itoa(user.Id)
+	byUser, total, err := ListSensitiveWordEvents(filter, 0, 20)
+	require.NoError(t, err)
+	require.Equal(t, int64(2), total)
+	require.Len(t, byUser, 2)
+
+	filter.Keyword = "events-observe-old"
+	byRequest, total, err := ListSensitiveWordEvents(filter, 0, 20)
+	require.NoError(t, err)
+	require.Equal(t, int64(1), total)
+	require.Equal(t, "events-observe-old", byRequest[0].RequestID)
+}
+
+func TestSensitiveWordDashboardSupportsCustomRange(t *testing.T) {
+	setupSensitiveWordTest(t)
+	require.NoError(t, MigrateSensitiveWordData())
+	now := time.Now().Truncate(time.Second)
+	require.NoError(t, DB.Create(&[]SensitiveWordAuditEvent{
+		{RequestID: "custom-range-inside", UserID: 1, Disposition: "observe", ObserveOnly: true, CreatedAt: now.Add(-2 * time.Hour)},
+		{RequestID: "custom-range-outside", UserID: 1, Disposition: "block", Blocked: true, CreatedAt: now.Add(-8 * time.Hour)},
+	}).Error)
+
+	dashboard, err := GetSensitiveWordDashboardForRange(now.Add(-4*time.Hour).Unix(), now.Unix())
+	require.NoError(t, err)
+	require.Equal(t, 4, dashboard.RequestedHours)
+	require.Equal(t, now.Add(-4*time.Hour).Unix(), dashboard.WindowStart)
+	require.Equal(t, now.Unix(), dashboard.WindowEnd)
+	require.Equal(t, int64(1), dashboard.Summary.MatchedRequests)
+	require.Equal(t, int64(1), dashboard.Summary.ObservedRequests)
+	require.Len(t, dashboard.RecentEvents, 1)
+	require.Equal(t, "custom-range-inside", dashboard.RecentEvents[0].RequestID)
+
+	_, err = GetSensitiveWordDashboardForRange(now.Unix(), now.Add(-time.Hour).Unix())
 	require.Error(t, err)
 }

@@ -167,7 +167,7 @@ it('shows an evidence loading failure without exposing fallback details', async 
   expect(screen.queryByText('bounded user evidence')).not.toBeInTheDocument()
 })
 
-it('loads linked evidence from the usage-log admin projection', async () => {
+it('loads linked evidence and disposition from a consume-log admin projection', async () => {
   useAuthStore.getState().auth.setUser({
     id: 4,
     username: 'auditor',
@@ -218,9 +218,12 @@ it('loads linked evidence from the usage-log admin projection', async () => {
       <DetailsDialog
         log={{
           ...log,
+          type: 2,
           other: JSON.stringify({
             action: 'sensitive_word_block',
-            admin_info: { keyword_filter: { audit_id: 44 } },
+            admin_info: {
+              keyword_filter: { audit_id: 44, action: 'observe' },
+            },
           }),
         }}
         isAdmin
@@ -232,6 +235,7 @@ it('loads linked evidence from the usage-log admin projection', async () => {
   )
 
   expect(await screen.findByText('linked audit evidence')).toBeVisible()
+  expect(screen.getAllByText('Observed')[0]).toBeVisible()
   expect(get).toHaveBeenCalledWith('/api/log/sensitive-word-audit/44')
   queryClient.clear()
 })

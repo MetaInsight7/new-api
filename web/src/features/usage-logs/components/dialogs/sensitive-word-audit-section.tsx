@@ -36,6 +36,10 @@ import { useAuthStore } from '@/stores/auth-store'
 
 import { getSensitiveWordAudit } from '../../api'
 import type { UsageLog } from '../../data/schema'
+import {
+  getSensitiveWordKeywordFilter,
+  getSensitiveWordLogDisposition,
+} from '../../lib/sensitive-word'
 import type {
   KeywordFilterLogData,
   LogOtherData,
@@ -115,10 +119,7 @@ export function SensitiveWordAuditSection(props: {
 
   if (!canReadEvidence) return null
 
-  const filter =
-    props.other?.admin_info?.keyword_filter ??
-    props.other?.keyword_filter ??
-    null
+  const filter = getSensitiveWordKeywordFilter(props.other)
   const actionFilter: KeywordFilterLogData = {
     ...filter,
     whitelist_bypassed: event?.whitelist_bypassed ?? filter?.whitelist_bypassed,
@@ -139,14 +140,8 @@ export function SensitiveWordAuditSection(props: {
   const matchedSnippets = event
     ? parseSensitiveAuditList(event.matched_snippets)
     : (filter?.matched_snippets ?? [])
-  let resultLabel = t('Recorded')
-  if (actionFilter.blocked) {
-    resultLabel = t('Blocked')
-  } else if (actionFilter.whitelist_bypassed) {
-    resultLabel = t('Whitelist bypassed')
-  } else if (actionFilter.observe_only) {
-    resultLabel = t('Observed')
-  }
+  const disposition = getSensitiveWordLogDisposition(actionFilter)
+  const resultLabel = disposition ? t(disposition.label) : t('Recorded')
   const requestId =
     event?.request_id || filter?.request_id || props.log.request_id
   const group = event?.group_name || filter?.group || props.log.group

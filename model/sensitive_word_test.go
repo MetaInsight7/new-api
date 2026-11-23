@@ -2,6 +2,8 @@ package model
 
 import (
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
@@ -9,7 +11,9 @@ import (
 	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	relaytypes "github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -712,6 +716,145 @@ func TestSensitiveWordUsageLogLinksEvidenceWithoutContentLeak(t *testing.T) {
 	userLog := stored
 	formatUserLogs([]*Log{&userLog}, 12)
 	require.JSONEq(t, `{"action":"sensitive_word_block"}`, userLog.Other)
+}
+
+func TestSensitiveWordObserveMergesAuditIntoConsumeLog(t *testing.T) {
+	setupSensitiveWordTest(t)
+	require.NoError(t, MigrateSensitiveWordData())
+	saveSensitiveWordTestPolicy(t, true, SensitiveWordBanThreshold)
+	addSensitiveWordTestRule(
+		t, "observe usage log", []string{"observe usage marker"},
+		SensitiveWordScopeGlobal, nil, SensitiveWordModeObserve,
+	)
+	user := createSensitiveWordTestUser(t, 1_000_000, false)
+	requestID := fmt.Sprintf("sensitive-observe-log-%d", time.Now().UnixNano())
+	result, err := CheckSensitiveRequest(sensitiveWordTestInput(user, requestID, "observe usage marker"))
+	require.NoError(t, err)
+	require.True(t, result.ObserveOnly)
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	c.Set(common.RequestIdKey, requestID)
+	c.Set("username", user.Username)
+	common.SetContextKey(c, constant.ContextKeySensitiveWordCheckResult, result)
+	RecordConsumeLog(c, user.Id, RecordConsumeLogParams{
+		ModelName: "gpt-test", TokenName: "sensitive-test-key", TokenId: 99,
+		PromptTokens: 10, CompletionTokens: 5, Other: NewLogOther(),
+	})
+
+	var logs []*Log
+	require.NoError(t, LOG_DB.Where("request_id = ?", requestID).Order("id asc").Find(&logs).Error)
+	require.Len(t, logs, 1)
+	require.Equal(t, LogTypeConsume, logs[0].Type)
+
+	adminLog := *logs[0]
+	FormatAdminLogs([]*Log{&adminLog})
+	require.Contains(t, adminLog.Other, fmt.Sprintf(`"audit_id":%d`, result.AuditID))
+	require.Contains(t, adminLog.Other, `"action":"observe"`)
+	require.NotContains(t, adminLog.Other, "observe usage marker")
+
+	userLog := *logs[0]
+	formatUserLogs([]*Log{&userLog}, user.Id)
+	require.Contains(t, userLog.Other, `"action":"sensitive_word_block"`)
+	require.NotContains(t, userLog.Other, "keyword_filter")
+}
+
+func TestSensitiveWordWhitelistMergesAuditIntoConsumeLog(t *testing.T) {
+	setupSensitiveWordTest(t)
+	require.NoError(t, MigrateSensitiveWordData())
+	saveSensitiveWordTestPolicy(t, true, SensitiveWordBanThreshold)
+	addSensitiveWordTestRule(
+		t, "whitelist usage log", []string{"whitelist usage marker"},
+		SensitiveWordScopeGlobal, nil, SensitiveWordModeBlock,
+	)
+	user := createSensitiveWordTestUser(t, 1_000_000, true)
+	requestID := fmt.Sprintf("sensitive-whitelist-log-%d", time.Now().UnixNano())
+	result, err := CheckSensitiveRequest(sensitiveWordTestInput(user, requestID, "whitelist usage marker"))
+	require.NoError(t, err)
+	require.True(t, result.WhitelistBypassed)
+	require.False(t, result.Blocked)
+
+	c := sensitiveWordUsageLogTestContext(user, requestID, result)
+	RecordConsumeLog(c, user.Id, RecordConsumeLogParams{
+		ModelName: "gpt-test", TokenName: "sensitive-test-key", TokenId: 99,
+		PromptTokens: 10, CompletionTokens: 5, Other: NewLogOther(),
+	})
+
+	var logs []*Log
+	require.NoError(t, LOG_DB.Where("request_id = ?", requestID).Find(&logs).Error)
+	require.Len(t, logs, 1)
+	require.Equal(t, LogTypeConsume, logs[0].Type)
+	require.Contains(t, logs[0].Other, `"action":"whitelist_bypass"`)
+}
+
+func TestSensitiveWordAllowedMatchFallsBackWhenNoConsumeLogExists(t *testing.T) {
+	setupSensitiveWordTest(t)
+	require.NoError(t, MigrateSensitiveWordData())
+	saveSensitiveWordTestPolicy(t, true, SensitiveWordBanThreshold)
+	addSensitiveWordTestRule(
+		t, "fallback usage log", []string{"fallback usage marker"},
+		SensitiveWordScopeGlobal, nil, SensitiveWordModeObserve,
+	)
+	user := createSensitiveWordTestUser(t, 1_000_000, false)
+	requestID := fmt.Sprintf("sensitive-fallback-log-%d", time.Now().UnixNano())
+	result, err := CheckSensitiveRequest(sensitiveWordTestInput(user, requestID, "fallback usage marker"))
+	require.NoError(t, err)
+
+	c := sensitiveWordUsageLogTestContext(user, requestID, result)
+	common.SetContextKey(c, constant.ContextKeyUserName, "")
+	common.SetContextKey(c, constant.ContextKeyUsingGroup, "")
+	common.SetContextKey(c, constant.ContextKeyOriginalModel, "")
+	c.Set("token_name", "")
+	FinalizeSensitiveWordUsageLog(c)
+	FinalizeSensitiveWordUsageLog(c)
+
+	var logs []*Log
+	require.NoError(t, LOG_DB.Where("request_id = ?", requestID).Find(&logs).Error)
+	require.Len(t, logs, 1)
+	require.Equal(t, LogTypeSensitiveWordEvent, logs[0].Type)
+	require.Equal(t, user.Username, logs[0].Username)
+	require.Equal(t, "gpt-test", logs[0].ModelName)
+	require.Equal(t, "default", logs[0].Group)
+	require.Equal(t, "sensitive-test-key", logs[0].TokenName)
+	require.Contains(t, logs[0].Other, `"action":"observe"`)
+}
+
+func TestSensitiveWordBlockKeepsStandaloneUsageLog(t *testing.T) {
+	setupSensitiveWordTest(t)
+	require.NoError(t, MigrateSensitiveWordData())
+	saveSensitiveWordTestPolicy(t, true, SensitiveWordBanThreshold)
+	addSensitiveWordTestRule(
+		t, "blocked usage log", []string{"blocked usage marker"},
+		SensitiveWordScopeGlobal, nil, SensitiveWordModeBlock,
+	)
+	user := createSensitiveWordTestUser(t, 1_000_000, false)
+	requestID := fmt.Sprintf("sensitive-block-log-%d", time.Now().UnixNano())
+	result, err := CheckSensitiveRequest(sensitiveWordTestInput(user, requestID, "blocked usage marker"))
+	require.NoError(t, err)
+	require.True(t, result.Blocked)
+
+	var logs []*Log
+	require.NoError(t, LOG_DB.Where("request_id = ?", requestID).Find(&logs).Error)
+	require.Len(t, logs, 1)
+	require.Equal(t, LogTypeSensitiveWordBlock, logs[0].Type)
+	require.Contains(t, logs[0].Other, `"action":"blocked"`)
+}
+
+func sensitiveWordUsageLogTestContext(user *User, requestID string, result *SensitiveCheckResult) *gin.Context {
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	c.Set(common.RequestIdKey, requestID)
+	common.SetContextKey(c, constant.ContextKeyUserId, user.Id)
+	common.SetContextKey(c, constant.ContextKeyUserName, user.Username)
+	common.SetContextKey(c, constant.ContextKeyTokenId, 99)
+	common.SetContextKey(c, constant.ContextKeyOriginalModel, "gpt-test")
+	common.SetContextKey(c, constant.ContextKeyUsingGroup, "default")
+	c.Set("token_name", "sensitive-test-key")
+	common.SetContextKey(c, constant.ContextKeySensitiveWordCheckResult, result)
+	return c
 }
 
 func TestSensitiveWordRoleDispositionKeepsRootRecoverable(t *testing.T) {
