@@ -240,9 +240,10 @@ func BuildPrometheusText(ctx context.Context) (string, error) {
 	})
 	sort.Slice(snapshots, func(i, j int) bool { return snapshots[i].channelID < snapshots[j].channelID })
 	modelSnapshots := snapshotChannelModels(cutoff)
-	requestSnapshots := snapshotModelRequests(cutoff)
+	outcomeSnapshots := snapshotModelOutcomes(cutoff)
+	requestSnapshots := legacyModelRequestSnapshots(outcomeSnapshots)
 
-	series := len(requestSnapshots)
+	series := len(outcomeSnapshots) + len(requestSnapshots)
 	for _, snapshot := range snapshots {
 		series += 1 + len(snapshot.attempts) + len(channelDurationBuckets) + 3
 		if snapshot.ttftCount > 0 {
@@ -277,7 +278,11 @@ func BuildPrometheusText(ctx context.Context) (string, error) {
 
 	var output strings.Builder
 	fmt.Fprintf(&output, "# HELP newapi_perf_metrics_series Number of application metric series exposed by this endpoint.\n# TYPE newapi_perf_metrics_series gauge\nnewapi_perf_metrics_series %d\n", series)
-	output.WriteString("# HELP newapi_model_requests_total Total model requests by model and status.\n# TYPE newapi_model_requests_total counter\n")
+	output.WriteString("# HELP newapi_model_health_outcomes_total Final model health observations by official outcome.\n# TYPE newapi_model_health_outcomes_total counter\n")
+	for _, snapshot := range outcomeSnapshots {
+		fmt.Fprintf(&output, "newapi_model_health_outcomes_total{model=\"%s\",outcome=\"%s\"} %d\n", escapePrometheusLabel(snapshot.model), snapshot.outcome, snapshot.count)
+	}
+	output.WriteString("# HELP newapi_model_requests_total Legacy model request outcomes; deprecated for health calculations.\n# TYPE newapi_model_requests_total counter\n")
 	for _, snapshot := range requestSnapshots {
 		fmt.Fprintf(&output, "newapi_model_requests_total{model=\"%s\",status=\"%s\"} %d\n", escapePrometheusLabel(snapshot.model), snapshot.status, snapshot.count)
 	}

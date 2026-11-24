@@ -159,6 +159,8 @@ func TestDistributeChecksSensitiveWordsBeforeMissingChannel(t *testing.T) {
 			metricsText, metricsErr := perfmetrics.BuildPrometheusText(request.Context())
 			require.NoError(t, metricsErr)
 			assert.Contains(t, metricsText, `newapi_model_requests_total{model="`+testCase.model+`",status="error"}`)
+			assert.Contains(t, metricsText, `newapi_model_health_outcomes_total{model="`+testCase.model+`",outcome="ignored"}`)
+			assert.NotContains(t, metricsText, `newapi_model_errors_total{model="`+testCase.model+`"`)
 
 			require.Equal(t, http.StatusBadRequest, recorder.Code)
 			assert.False(t, handlerCalled, "the relay handler and channel selection must not run")

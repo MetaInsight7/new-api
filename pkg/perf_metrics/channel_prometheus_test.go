@@ -39,7 +39,7 @@ func TestClassifyChannelAttemptError(t *testing.T) {
 	require.Equal(t, "timeout", category)
 }
 
-func TestFinalModelRequestsCountSampledCancellations(testContext *testing.T) {
+func TestFinalModelOutcomesKeepIgnoredObservableWithoutLoweringHealth(testContext *testing.T) {
 	isolatePrometheusMetrics(testContext)
 	modelName := "final-model\"with\\labels\n"
 	for range 9 {
@@ -47,14 +47,23 @@ func TestFinalModelRequestsCountSampledCancellations(testContext *testing.T) {
 			OriginModelName: modelName, StartTime: time.Now().Add(-time.Second),
 		}, nil)
 	}
-	RecordRelayResult(context.Background(), &relaycommon.RelayInfo{
+	canceledInfo := &relaycommon.RelayInfo{
 		OriginModelName: modelName, StartTime: time.Now().Add(-time.Second),
-	}, types.NewOpenAIError(context.Canceled, types.ErrorCodeDoRequestFailed, 499))
+	}
+	canceledErr := types.NewOpenAIError(context.Canceled, types.ErrorCodeDoRequestFailed, 499)
+	canceledContext, cancel := context.WithCancel(context.Background())
+	cancel()
+	require.Equal(testContext, OutcomeIgnored, ClassifyRelayOutcome(canceledContext, canceledInfo, canceledErr))
+	RecordRelayResult(canceledContext, canceledInfo, canceledErr)
 	text, err := BuildPrometheusText(context.Background())
 	require.NoError(testContext, err)
+	require.Contains(testContext, text, `newapi_model_health_outcomes_total{model="final-model\"with\\labels\n",outcome="success"} 9`)
+	require.Contains(testContext, text, `newapi_model_health_outcomes_total{model="final-model\"with\\labels\n",outcome="ignored"} 1`)
 	require.Contains(testContext, text, `newapi_model_requests_total{model="final-model\"with\\labels\n",status="success"} 9`)
 	require.Contains(testContext, text, `newapi_model_requests_total{model="final-model\"with\\labels\n",status="error"} 1`)
 	require.Contains(testContext, text, `newapi_model_request_duration_seconds_count{model="final-model\"with\\labels\n"} 9`)
+	require.NotContains(testContext, text, `newapi_model_errors_total{model="final-model\"with\\labels\n"`)
+	require.Contains(testContext, text, "Legacy model request outcomes; deprecated for health calculations")
 	parser := expfmt.TextParser{}
 	families, err := parser.TextToMetricFamilies(strings.NewReader(text))
 	require.NoError(testContext, err)
@@ -63,14 +72,28 @@ func TestFinalModelRequestsCountSampledCancellations(testContext *testing.T) {
 	}
 }
 
-func TestRecordPreRelayLocalCapacityFailureUsesDedicatedCategory(t *testing.T) {
+func TestRecordPreRelayLocalCapacityIsIgnoredForHealth(t *testing.T) {
 	isolatePrometheusMetrics(t)
-	RecordPreRelayLocalCapacityFailure(context.Background(), "capacity-model", "default", time.Now().Add(-25*time.Millisecond))
+	RecordPreRelayIgnored("capacity-model", "default")
 
 	text, err := BuildPrometheusText(context.Background())
 	require.NoError(t, err)
+	require.Contains(t, text, `newapi_model_health_outcomes_total{model="capacity-model",outcome="ignored"} 1`)
 	require.Contains(t, text, `newapi_model_requests_total{model="capacity-model",status="error"} 1`)
-	require.Contains(t, text, `newapi_model_errors_total{model="capacity-model",error_category="local_capacity"} 1`)
+	require.NotContains(t, text, `newapi_model_errors_total{model="capacity-model"`)
+}
+
+func TestUpstreamRateLimitRemainsAHealthFailure(t *testing.T) {
+	isolatePrometheusMetrics(t)
+	RecordRelayResult(context.Background(), &relaycommon.RelayInfo{
+		OriginModelName: "rate-limited", StartTime: time.Now().Add(-time.Second),
+	}, types.InitOpenAIError("rate_limit_exceeded", 429))
+
+	text, err := BuildPrometheusText(context.Background())
+	require.NoError(t, err)
+	require.Contains(t, text, `newapi_model_health_outcomes_total{model="rate-limited",outcome="failure"} 1`)
+	require.Contains(t, text, `newapi_model_errors_total{model="rate-limited",error_category="rate_limit"} 1`)
+	require.NotContains(t, text, `newapi_model_request_duration_seconds_count{model="rate-limited"}`)
 }
 
 func TestFinalModelLabelsAreSanitizedAndParseable(testContext *testing.T) {
@@ -118,9 +141,9 @@ func isolatePrometheusMetrics(testContext *testing.T) {
 	channelMetricBuckets.Clear()
 	channelModelBuckets.Clear()
 	hotBuckets.Clear()
-	modelRequests.Lock()
-	clear(modelRequests.values)
-	modelRequests.Unlock()
+	modelOutcomes.Lock()
+	clear(modelOutcomes.values)
+	modelOutcomes.Unlock()
 	modelPerformance.Lock()
 	clear(modelPerformance.values)
 	clear(modelPerformance.dropped)
@@ -129,9 +152,9 @@ func isolatePrometheusMetrics(testContext *testing.T) {
 		channelMetricBuckets.Clear()
 		channelModelBuckets.Clear()
 		hotBuckets.Clear()
-		modelRequests.Lock()
-		clear(modelRequests.values)
-		modelRequests.Unlock()
+		modelOutcomes.Lock()
+		clear(modelOutcomes.values)
+		modelOutcomes.Unlock()
 		modelPerformance.Lock()
 		clear(modelPerformance.values)
 		clear(modelPerformance.dropped)
@@ -147,27 +170,28 @@ func TestFinalModelErrorCategories(testContext *testing.T) {
 		code           types.ErrorCode
 		status         int
 		cause          error
+		outcome        Outcome
 	}{
-		{"cancel", "client_cancel", types.ErrorCodeDoRequestFailed, 500, context.Canceled},
-		{"deadline", "timeout", types.ErrorCodeDoRequestFailed, 500, context.DeadlineExceeded},
-		{"net-timeout", "timeout", types.ErrorCodeDoRequestFailed, 500, &net.DNSError{IsTimeout: true}},
-		{"response-timeout", "timeout", types.ErrorCodeChannelResponseTimeExceeded, 400, nil},
-		{"http-timeout", "timeout", "upstream", 504, nil},
-		{"http-request-timeout", "timeout", "upstream", 408, nil},
-		{"rate", "rate_limit", types.ErrorCodeDoRequestFailed, 429, nil},
-		{"auth", "auth", types.ErrorCodeDoRequestFailed, 401, nil},
-		{"forbidden", "auth", "upstream", 403, nil},
-		{"key", "auth", types.ErrorCodeChannelInvalidKey, 400, nil},
-		{"body-read", "bad_response", types.ErrorCodeReadResponseBodyFailed, 500, nil},
-		{"bad-response", "bad_response", types.ErrorCodeBadResponse, 500, nil},
-		{"bad-body", "bad_response", types.ErrorCodeBadResponseBody, 500, nil},
-		{"empty", "bad_response", types.ErrorCodeEmptyResponse, 500, nil},
-		{"transport", "network", types.ErrorCodeDoRequestFailed, 500, nil},
-		{"aws-invoke", "network", types.ErrorCodeAwsInvokeError, 400, nil},
-		{"aws-client", "network", types.ErrorCodeChannelAwsClientError, 500, nil},
-		{"upstream-parameter", "upstream_4xx", "context_length_exceeded", 400, nil},
-		{"upstream-failure", "upstream_5xx", "upstream", 500, nil},
-		{"fallback", "other", "unexpected", 200, nil},
+		{"cancel", "", types.ErrorCodeDoRequestFailed, 500, context.Canceled, OutcomeIgnored},
+		{"deadline", "timeout", types.ErrorCodeDoRequestFailed, 500, context.DeadlineExceeded, OutcomeFailure},
+		{"net-timeout", "timeout", types.ErrorCodeDoRequestFailed, 500, &net.DNSError{IsTimeout: true}, OutcomeFailure},
+		{"response-timeout", "timeout", types.ErrorCodeChannelResponseTimeExceeded, 400, nil, OutcomeFailure},
+		{"http-timeout", "timeout", "upstream", 504, nil, OutcomeFailure},
+		{"http-request-timeout", "timeout", "upstream", 408, nil, OutcomeFailure},
+		{"rate", "rate_limit", types.ErrorCodeDoRequestFailed, 429, nil, OutcomeFailure},
+		{"auth", "auth", types.ErrorCodeDoRequestFailed, 401, nil, OutcomeFailure},
+		{"forbidden", "auth", "upstream", 403, nil, OutcomeFailure},
+		{"key", "auth", types.ErrorCodeChannelInvalidKey, 400, nil, OutcomeFailure},
+		{"body-read", "bad_response", types.ErrorCodeReadResponseBodyFailed, 500, nil, OutcomeFailure},
+		{"bad-response", "bad_response", types.ErrorCodeBadResponse, 500, nil, OutcomeFailure},
+		{"bad-body", "bad_response", types.ErrorCodeBadResponseBody, 500, nil, OutcomeFailure},
+		{"empty", "bad_response", types.ErrorCodeEmptyResponse, 500, nil, OutcomeFailure},
+		{"transport", "network", types.ErrorCodeDoRequestFailed, 500, nil, OutcomeFailure},
+		{"aws-invoke", "network", types.ErrorCodeAwsInvokeError, 400, nil, OutcomeFailure},
+		{"aws-client", "network", types.ErrorCodeChannelAwsClientError, 500, nil, OutcomeFailure},
+		{"upstream-parameter", "upstream_4xx", "context_length_exceeded", 400, nil, OutcomeFailure},
+		{"upstream-failure", "upstream_5xx", "upstream", 500, nil, OutcomeFailure},
+		{"fallback", "other", "unexpected", 200, nil, OutcomeFailure},
 	} {
 		testContext.Run(test.name, func(testContext *testing.T) {
 			cause := test.cause
@@ -179,7 +203,12 @@ func TestFinalModelErrorCategories(testContext *testing.T) {
 			}, types.NewErrorWithStatusCode(cause, test.code, test.status))
 			text, err := BuildPrometheusText(context.Background())
 			require.NoError(testContext, err)
-			require.Contains(testContext, text, fmt.Sprintf(`newapi_model_errors_total{model=%q,error_category=%q} 1`, test.name, test.category))
+			require.Contains(testContext, text, fmt.Sprintf(`newapi_model_health_outcomes_total{model=%q,outcome=%q} 1`, test.name, test.outcome))
+			if test.outcome == OutcomeFailure {
+				require.Contains(testContext, text, fmt.Sprintf(`newapi_model_errors_total{model=%q,error_category=%q} 1`, test.name, test.category))
+			} else {
+				require.NotContains(testContext, text, fmt.Sprintf(`newapi_model_errors_total{model=%q`, test.name))
+			}
 			require.Contains(testContext, text, fmt.Sprintf(`newapi_model_requests_total{model=%q,status="error"} 1`, test.name))
 			require.NotContains(testContext, text, "sensitive error")
 		})
@@ -212,21 +241,21 @@ func TestModelPerformanceBudgetKeepsRecentGroupsWhole(testContext *testing.T) {
 	for _, modelName := range []string{"older", "recent"} {
 		RecordRelayResult(context.Background(), &relaycommon.RelayInfo{OriginModelName: modelName}, types.InitOpenAIError("upstream", 500))
 	}
-	testContext.Setenv("PROMETHEUS_MAX_SERIES_PER_SCRAPE", "8")
+	testContext.Setenv("PROMETHEUS_MAX_SERIES_PER_SCRAPE", "10")
 	text, err := BuildPrometheusText(context.Background())
 	require.NoError(testContext, err)
 	require.Contains(testContext, text, `newapi_model_errors_total{model="recent",error_category="upstream_5xx"} 1`)
 	require.NotContains(testContext, text, `newapi_model_errors_total{model="older"`)
-	require.Contains(testContext, text, "newapi_perf_metrics_series 8\n")
+	require.Contains(testContext, text, "newapi_perf_metrics_series 10\n")
 	require.Contains(testContext, text, "newapi_model_histogram_active_models 2\n")
 	require.Contains(testContext, text, `newapi_model_histogram_dropped_samples_total{reason="series_limit"} 0`)
-	testContext.Setenv("PROMETHEUS_MAX_SERIES_PER_SCRAPE", "6")
+	testContext.Setenv("PROMETHEUS_MAX_SERIES_PER_SCRAPE", "8")
 	text, err = BuildPrometheusText(context.Background())
 	require.NoError(testContext, err)
 	require.Contains(testContext, text, `newapi_model_requests_total{model="older",status="error"} 1`)
 	require.NotContains(testContext, text, "newapi_model_histogram_active_models ")
 	require.NotContains(testContext, text, `newapi_model_errors_total{`)
-	testContext.Setenv("PROMETHEUS_MAX_SERIES_PER_SCRAPE", "1")
+	testContext.Setenv("PROMETHEUS_MAX_SERIES_PER_SCRAPE", "3")
 	_, err = BuildPrometheusText(context.Background())
 	require.ErrorContains(testContext, err, "series limit exceeded")
 }
@@ -429,12 +458,12 @@ func TestModelMetricIdleLifetimesAndReadmission(testContext *testing.T) {
 	require.Contains(testContext, text, `newapi_model_requests_total{model="idle",status="error"} 1`)
 	require.NotContains(testContext, text, `newapi_model_errors_total{model="idle"`)
 	require.Contains(testContext, text, `newapi_model_errors_total{model="current",error_category="upstream_5xx"} 2`)
-	modelRequests.Lock()
-	key := modelRequestKey{model: "idle", status: "error"}
-	counter := modelRequests.values[key]
+	modelOutcomes.Lock()
+	key := modelOutcomeKey{model: "idle", outcome: OutcomeFailure}
+	counter := modelOutcomes.values[key]
 	counter.lastUpdated = time.Now().Add(-7 * time.Hour)
-	modelRequests.values[key] = counter
-	modelRequests.Unlock()
+	modelOutcomes.values[key] = counter
+	modelOutcomes.Unlock()
 	text, err = BuildPrometheusText(context.Background())
 	require.NoError(testContext, err)
 	require.NotContains(testContext, text, `newapi_model_requests_total{model="idle"`)
@@ -445,13 +474,14 @@ func TestFinalStreamErrorsExcludeSuccessfulDistributions(testContext *testing.T)
 		name, category string
 		end            relaycommon.StreamEndReason
 		mark           func(*relaycommon.StreamStatus)
+		outcome        Outcome
 	}{
-		{name: "first-response-timeout", category: "timeout", end: relaycommon.StreamEndReasonFirstResponseTimeout},
-		{name: "read-timeout", category: "timeout", end: relaycommon.StreamEndReasonTimeout},
-		{name: "disconnect", category: "client_cancel", end: relaycommon.StreamEndReasonClientGone},
-		{name: "soft-error", category: "other", end: relaycommon.StreamEndReasonDone, mark: func(stream *relaycommon.StreamStatus) { stream.RecordError("secret detail") }},
-		{name: "terminal-rate-limit", category: "rate_limit", end: relaycommon.StreamEndReasonEOF, mark: func(stream *relaycommon.StreamStatus) { stream.MarkFailed("rate_limit", "upstream", 429) }},
-		{name: "missing-terminal", category: "other", end: relaycommon.StreamEndReasonEOF, mark: (*relaycommon.StreamStatus).RequireTerminal},
+		{name: "first-response-timeout", category: "timeout", end: relaycommon.StreamEndReasonFirstResponseTimeout, outcome: OutcomeFailure},
+		{name: "read-timeout", category: "timeout", end: relaycommon.StreamEndReasonTimeout, outcome: OutcomeFailure},
+		{name: "disconnect", end: relaycommon.StreamEndReasonClientGone, outcome: OutcomeIgnored},
+		{name: "soft-error", category: "other", end: relaycommon.StreamEndReasonDone, mark: func(stream *relaycommon.StreamStatus) { stream.RecordError("secret detail") }, outcome: OutcomeFailure},
+		{name: "terminal-rate-limit", category: "rate_limit", end: relaycommon.StreamEndReasonEOF, mark: func(stream *relaycommon.StreamStatus) { stream.MarkFailed("rate_limit", "upstream", 429) }, outcome: OutcomeFailure},
+		{name: "missing-terminal", category: "other", end: relaycommon.StreamEndReasonEOF, mark: (*relaycommon.StreamStatus).RequireTerminal, outcome: OutcomeFailure},
 	} {
 		testContext.Run(test.name, func(testContext *testing.T) {
 			isolatePrometheusMetrics(testContext)
@@ -468,7 +498,12 @@ func TestFinalStreamErrorsExcludeSuccessfulDistributions(testContext *testing.T)
 			text, err := BuildPrometheusText(context.Background())
 			require.NoError(testContext, err)
 			require.Contains(testContext, text, `newapi_model_requests_total{model="stream-error",status="error"} 1`)
-			require.Contains(testContext, text, `newapi_model_errors_total{model="stream-error",error_category="`+test.category+`"} 1`)
+			require.Contains(testContext, text, `newapi_model_health_outcomes_total{model="stream-error",outcome="`+string(test.outcome)+`"} 1`)
+			if test.outcome == OutcomeFailure {
+				require.Contains(testContext, text, `newapi_model_errors_total{model="stream-error",error_category="`+test.category+`"} 1`)
+			} else {
+				require.NotContains(testContext, text, `newapi_model_errors_total{model="stream-error"`)
+			}
 			require.NotContains(testContext, text, `newapi_model_request_duration_seconds_count{model="stream-error"}`)
 			require.NotContains(testContext, text, `newapi_model_ttft_seconds_count{model="stream-error"}`)
 			require.NotContains(testContext, text, `newapi_model_stream_success_total{model="stream-error"}`)
@@ -515,7 +550,7 @@ func TestDisablingCollectionPreservesExistingModelMetrics(testContext *testing.T
 	require.NoError(testContext, config.GlobalConfig.LoadFromDB(map[string]string{"perf_metrics_setting.enabled": "false"}))
 	RecordRelayResult(context.Background(), info, types.InitOpenAIError("upstream", 500))
 	RecordTaskResult(&model.Task{Status: model.TaskStatusSuccess, Properties: model.Properties{OriginModelName: "collection-switch"}}, nil)
-	Record(Sample{Model: "collection-switch", Success: true})
+	Record(Sample{Model: "collection-switch", Outcome: OutcomeSuccess})
 	RecordChannelAttempt(info, 1, "channel", time.Now(), nil)
 	after, err := BuildPrometheusText(context.Background())
 	require.NoError(testContext, err)

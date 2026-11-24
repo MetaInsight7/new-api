@@ -19,7 +19,7 @@ const (
 
 	ModelHealthDataQualityMode = "best_effort_persisted"
 
-	ModelHealthCaveatClientDisconnects = "client_disconnects_counted_as_failures"
+	ModelHealthCaveatIgnoredOutcomes   = "ignored_outcomes_excluded"
 	ModelHealthCaveatUnflushedNodeData = "unflushed_node_data_undetectable"
 )
 
@@ -401,8 +401,8 @@ func buildModelHealthMetadata(now int64, hours int, setting perf_metrics_setting
 			CompletenessGuaranteed: false,
 			Caveats: []ModelHealthCaveat{
 				{
-					Code:        ModelHealthCaveatClientDisconnects,
-					Description: "Client disconnects are counted as unsuccessful final requests.",
+					Code:        ModelHealthCaveatIgnoredOutcomes,
+					Description: "Client cancellations and business rejections are excluded from health calculations.",
 				},
 				{
 					Code:        ModelHealthCaveatUnflushedNodeData,

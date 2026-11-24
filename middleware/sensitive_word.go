@@ -35,13 +35,7 @@ func CheckSensitiveWordBeforeChannelSelection(c *gin.Context, modelName string) 
 		return true
 	}
 	if apiErr := CheckSensitiveWordRequestBeforeChannelSelection(c, format, modelName, request); apiErr != nil {
-		perfmetrics.RecordPreRelayFailure(
-			c.Request.Context(),
-			modelName,
-			common.GetContextKeyString(c, constant.ContextKeyUsingGroup),
-			common.GetContextKeyTime(c, constant.ContextKeyRequestStartTime),
-			apiErr,
-		)
+		perfmetrics.RecordPreRelayIgnored(modelName, common.GetContextKeyString(c, constant.ContextKeyUsingGroup))
 		writeSensitiveWordRequestError(c, format, apiErr)
 		return false
 	}

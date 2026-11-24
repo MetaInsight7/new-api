@@ -32,7 +32,7 @@ func flushCompletedBuckets() {
 
 		bucket := value.(*atomicBucket)
 		drained := bucket.drain()
-		if drained.requestCount == 0 {
+		if drained.requestCount == 0 && drained.ignoredCount == 0 {
 			deleteOldEmptyBucket(k, key)
 			return true
 		}
@@ -43,6 +43,7 @@ func flushCompletedBuckets() {
 			BucketTs:       k.bucketTs,
 			RequestCount:   drained.requestCount,
 			SuccessCount:   drained.successCount,
+			IgnoredCount:   drained.ignoredCount,
 			TotalLatencyMs: drained.totalLatencyMs,
 			TtftSumMs:      drained.ttftSumMs,
 			TtftCount:      drained.ttftCount,
@@ -80,6 +81,7 @@ func redisCounters(values map[string]string) counters {
 	return counters{
 		requestCount:   parseRedisInt(values["req"]),
 		successCount:   parseRedisInt(values["ok"]),
+		ignoredCount:   parseRedisInt(values["ignored"]),
 		totalLatencyMs: parseRedisInt(values["lat"]),
 		ttftSumMs:      parseRedisInt(values["ttft"]),
 		ttftCount:      parseRedisInt(values["ttft_n"]),

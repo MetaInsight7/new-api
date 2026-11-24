@@ -1,6 +1,12 @@
 package perfmetrics
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/QuantumNous/new-api/setting/perf_metrics_setting"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
 
 func TestClassifyModelHealth(t *testing.T) {
 	tests := []struct {
@@ -21,4 +27,11 @@ func TestClassifyModelHealth(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestModelHealthMetadataDescribesIgnoredOutcomes(t *testing.T) {
+	metadata := buildModelHealthMetadata(100, 24, perf_metrics_setting.PerfMetricsSetting{}, 3600, 0, 0, nil, nil)
+	require.Len(t, metadata.DataQuality.Caveats, 2)
+	assert.Equal(t, ModelHealthCaveatIgnoredOutcomes, metadata.DataQuality.Caveats[0].Code)
+	assert.Equal(t, "Client cancellations and business rejections are excluded from health calculations.", metadata.DataQuality.Caveats[0].Description)
 }

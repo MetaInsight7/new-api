@@ -13,7 +13,7 @@ type Sample struct {
 	LatencyMs    int64
 	TtftMs       int64
 	HasTtft      bool
-	Success      bool
+	Outcome      Outcome
 	OutputTokens int64
 	GenerationMs int64
 }
@@ -94,6 +94,7 @@ type bucketKey struct {
 type counters struct {
 	requestCount   int64
 	successCount   int64
+	ignoredCount   int64
 	totalLatencyMs int64
 	ttftSumMs      int64
 	ttftCount      int64
@@ -104,6 +105,7 @@ type counters struct {
 type atomicBucket struct {
 	requestCount   atomic.Int64
 	successCount   atomic.Int64
+	ignoredCount   atomic.Int64
 	totalLatencyMs atomic.Int64
 	ttftSumMs      atomic.Int64
 	ttftCount      atomic.Int64
@@ -112,8 +114,12 @@ type atomicBucket struct {
 }
 
 func (b *atomicBucket) add(sample Sample) {
+	if sample.Outcome == OutcomeIgnored {
+		b.ignoredCount.Add(1)
+		return
+	}
 	b.requestCount.Add(1)
-	if sample.Success {
+	if sample.Outcome == OutcomeSuccess {
 		b.successCount.Add(1)
 	}
 	if sample.LatencyMs > 0 {
@@ -133,6 +139,7 @@ func (b *atomicBucket) snapshot() counters {
 	return counters{
 		requestCount:   b.requestCount.Load(),
 		successCount:   b.successCount.Load(),
+		ignoredCount:   b.ignoredCount.Load(),
 		totalLatencyMs: b.totalLatencyMs.Load(),
 		ttftSumMs:      b.ttftSumMs.Load(),
 		ttftCount:      b.ttftCount.Load(),
@@ -145,6 +152,7 @@ func (b *atomicBucket) drain() counters {
 	return counters{
 		requestCount:   b.requestCount.Swap(0),
 		successCount:   b.successCount.Swap(0),
+		ignoredCount:   b.ignoredCount.Swap(0),
 		totalLatencyMs: b.totalLatencyMs.Swap(0),
 		ttftSumMs:      b.ttftSumMs.Swap(0),
 		ttftCount:      b.ttftCount.Swap(0),
@@ -159,6 +167,9 @@ func (b *atomicBucket) addCounters(c counters) {
 	}
 	if c.successCount != 0 {
 		b.successCount.Add(c.successCount)
+	}
+	if c.ignoredCount != 0 {
+		b.ignoredCount.Add(c.ignoredCount)
 	}
 	if c.totalLatencyMs != 0 {
 		b.totalLatencyMs.Add(c.totalLatencyMs)

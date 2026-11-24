@@ -23,7 +23,7 @@ var hotBuckets sync.Map
 
 // seriesSchema is a stable client cache/schema marker. Do not change it when
 // hiding fields or making response-only privacy hardening changes.
-const seriesSchema = "dbcd0a3c01b55203"
+const seriesSchema = "7db68bc5f70fd471"
 
 // MaxRecentModels bounds the historical lookups made by one summary request.
 const MaxRecentModels = 50
@@ -42,7 +42,7 @@ func RecordRelayResult(ctx context.Context, info *relaycommon.RelayInfo, apiErr 
 	}
 	outcome := ClassifyRelayOutcome(ctx, info, apiErr)
 	now := time.Now()
-	recordModelPerformance(ctx, info, outcome == OutcomeSuccess, apiErr, now)
+	recordModelPerformance(ctx, info, outcome, apiErr, now)
 	hasTtft := info.IsStream && info.HasSendResponse()
 	ttftMs := int64(0)
 	if hasTtft {
@@ -62,37 +62,24 @@ func RecordRelayResult(ctx context.Context, info *relaycommon.RelayInfo, apiErr 
 		LatencyMs:    latencyMs,
 		TtftMs:       ttftMs,
 		HasTtft:      hasTtft,
-		Success:      outcome == OutcomeSuccess,
+		Outcome:      outcome,
 		OutputTokens: info.PerformanceOutputTokens,
 		GenerationMs: generationMs,
 	})
 }
 
-// RecordPreRelayFailure records a terminal rejection that happened before
-// RelayInfo was constructed. Callers must not use it on paths that already
-// finish through RecordRelayResult.
-func RecordPreRelayFailure(ctx context.Context, modelName, group string, startedAt time.Time, apiErr *types.NewAPIError) {
+// RecordPreRelayIgnored records a terminal local rejection before an upstream
+// attempt exists. Callers must not use it on paths that finish through
+// RecordRelayResult.
+func RecordPreRelayIgnored(modelName, group string) {
 	if modelName == "" {
 		return
 	}
-	now := time.Now()
-	if startedAt.IsZero() || startedAt.After(now) {
-		startedAt = now
-	}
-	info := &relaycommon.RelayInfo{OriginModelName: modelName, UsingGroup: group, StartTime: startedAt}
-	recordModelPerformance(ctx, info, false, apiErr, now)
 	Record(Sample{
-		Model:     modelName,
-		Group:     group,
-		LatencyMs: now.Sub(startedAt).Milliseconds(),
-		Success:   false,
+		Model:   modelName,
+		Group:   group,
+		Outcome: OutcomeIgnored,
 	})
-}
-
-// RecordPreRelayLocalCapacityFailure records a terminal local concurrency
-// rejection that happened before RelayInfo was constructed.
-func RecordPreRelayLocalCapacityFailure(ctx context.Context, modelName, group string, startedAt time.Time) {
-	RecordPreRelayFailure(ctx, modelName, group, startedAt, types.InitOpenAIError(localCapacityErrorCode, 429))
 }
 
 // RecordTaskResult samples one async task exactly once, at its terminal
@@ -114,12 +101,15 @@ func RecordTaskResult(task *model.Task, result *relaycommon.TaskInfo) {
 	sample := Sample{
 		Model:   modelName,
 		Group:   task.Group,
-		Success: task.Status == model.TaskStatusSuccess,
+		Outcome: OutcomeFailure,
+	}
+	if task.Status == model.TaskStatusSuccess {
+		sample.Outcome = OutcomeSuccess
 	}
 	if task.SubmitTime > 0 && endTs > task.SubmitTime {
 		sample.LatencyMs = (endTs - task.SubmitTime) * 1000
 	}
-	if sample.Success && result != nil {
+	if sample.Outcome == OutcomeSuccess && result != nil {
 		tokens := int64(cmp.Or(result.TotalTokens, result.CompletionTokens))
 		genStart := cmp.Or(task.StartTime, task.SubmitTime)
 		if tokens > 0 && genStart > 0 && endTs > genStart {
@@ -131,7 +121,7 @@ func RecordTaskResult(task *model.Task, result *relaycommon.TaskInfo) {
 	if task.SubmitTime > 0 {
 		info.StartTime = time.Unix(task.SubmitTime, 0)
 	}
-	recordModelPerformance(context.Background(), info, sample.Success, nil, time.Unix(endTs, 0))
+	recordModelPerformance(context.Background(), info, sample.Outcome, nil, time.Unix(endTs, 0))
 	Record(sample)
 }
 
@@ -144,7 +134,7 @@ func RecordImmediateTaskResult(info *relaycommon.RelayInfo, result *relaycommon.
 		Model:     info.OriginModelName,
 		Group:     info.UsingGroup,
 		LatencyMs: time.Since(info.StartTime).Milliseconds(),
-		Success:   true,
+		Outcome:   OutcomeSuccess,
 	}
 	if tokens := int64(cmp.Or(result.TotalTokens, result.CompletionTokens)); tokens > 0 {
 		sample.OutputTokens = tokens
@@ -164,6 +154,11 @@ func Record(sample Sample) {
 	if sample.LatencyMs < 0 {
 		sample.LatencyMs = 0
 	}
+	switch sample.Outcome {
+	case OutcomeSuccess, OutcomeFailure, OutcomeIgnored:
+	default:
+		sample.Outcome = OutcomeFailure
+	}
 
 	key := bucketKey{
 		model:    sample.Model,
@@ -172,7 +167,7 @@ func Record(sample Sample) {
 	}
 	actual, _ := hotBuckets.LoadOrStore(key, &atomicBucket{})
 	actual.(*atomicBucket).add(sample)
-	recordModelRequest(sample)
+	recordModelOutcome(sample)
 	if common.RedisEnabled && common.RDB != nil {
 		client := common.RDB
 		gopool.Go(func() {
@@ -214,6 +209,7 @@ func Query(params QueryParams) (QueryResult, error) {
 		}, counters{
 			requestCount:   row.RequestCount,
 			successCount:   row.SuccessCount,
+			ignoredCount:   row.IgnoredCount,
 			totalLatencyMs: row.TotalLatencyMs,
 			ttftSumMs:      row.TtftSumMs,
 			ttftCount:      row.TtftCount,
@@ -466,12 +462,13 @@ func bucketStart(ts int64) int64 {
 }
 
 func mergeCounters(merged map[bucketKey]counters, key bucketKey, value counters) {
-	if value.requestCount == 0 {
+	if value.requestCount == 0 && value.ignoredCount == 0 {
 		return
 	}
 	current := merged[key]
 	current.requestCount += value.requestCount
 	current.successCount += value.successCount
+	current.ignoredCount += value.ignoredCount
 	current.totalLatencyMs += value.totalLatencyMs
 	current.ttftSumMs += value.ttftSumMs
 	current.ttftCount += value.ttftCount
@@ -608,8 +605,14 @@ func recordRedis(client *redis.Client, key bucketKey, sample Sample) {
 
 	redisKey := redisBucketKey(key)
 	pipe := client.TxPipeline()
+	if sample.Outcome == OutcomeIgnored {
+		pipe.HIncrBy(ctx, redisKey, "ignored", 1)
+		pipe.Expire(ctx, redisKey, time.Hour)
+		_, _ = pipe.Exec(ctx)
+		return
+	}
 	pipe.HIncrBy(ctx, redisKey, "req", 1)
-	if sample.Success {
+	if sample.Outcome == OutcomeSuccess {
 		pipe.HIncrBy(ctx, redisKey, "ok", 1)
 	}
 	if sample.LatencyMs > 0 {
@@ -646,5 +649,5 @@ func mergeRedisActiveBuckets(merged map[bucketKey]counters, params QueryParams, 
 }
 
 func redisBucketKey(key bucketKey) string {
-	return fmt.Sprintf("perf:%s:%s:%d", key.model, key.group, key.bucketTs)
+	return fmt.Sprintf("perf:v2:%s:%s:%d", key.model, key.group, key.bucketTs)
 }

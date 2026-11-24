@@ -21,8 +21,6 @@ import (
 
 const modelPerformanceIdleRetention = time.Hour
 
-const localCapacityErrorCode types.ErrorCode = "local_capacity"
-
 var modelDropReasons = []string{"model_limit", "invalid_latency", "invalid_ttft", "series_limit"}
 
 var modelLatencyBounds = []float64{0.25, 0.5, 1, 2, 3, 5, 10, 15, 30, 60, 120, 300, 600}
@@ -82,10 +80,14 @@ var modelPerformance = struct {
 	dropped map[string]int64
 }{values: make(map[string]*modelPerformanceBucket), dropped: make(map[string]int64)}
 
-func recordModelPerformance(ctx context.Context, info *relaycommon.RelayInfo, success bool, apiErr *types.NewAPIError, now time.Time) {
+func recordModelPerformance(ctx context.Context, info *relaycommon.RelayInfo, outcome Outcome, apiErr *types.NewAPIError, now time.Time) {
 	if !perf_metrics_setting.GetSetting().Enabled || info == nil || info.OriginModelName == "" {
 		return
 	}
+	if outcome == OutcomeIgnored {
+		return
+	}
+	success := outcome == OutcomeSuccess
 	category := ""
 	if !success {
 		category = classifyFinalModelError(ctx, info, apiErr)
@@ -215,9 +217,6 @@ func classifyFinalModelError(ctx context.Context, info *relaycommon.RelayInfo, a
 		return "client_cancel"
 	}
 	errorCode := apiErr.GetErrorCode()
-	if errorCode == localCapacityErrorCode {
-		return string(localCapacityErrorCode)
-	}
 	if errors.Is(apiErr, context.DeadlineExceeded) || errorCode == types.ErrorCodeChannelResponseTimeExceeded ||
 		apiErr.StatusCode == http.StatusRequestTimeout || apiErr.StatusCode == http.StatusGatewayTimeout {
 		return "timeout"

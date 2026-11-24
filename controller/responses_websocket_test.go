@@ -317,13 +317,14 @@ func (fixture *responsesWSBillingTest) closeAndWait(t *testing.T) {
 	// Redis write is asynchronous, see waitPerfCounters.
 }
 
-// waitPerfCounters waits for the asynchronous health samples of the fixture
-// model to reach wantRequests and returns the request and success counters.
-func waitPerfCounters(t *testing.T, wantRequests int64) (requests, successes int64) {
+// waitPerfCounters waits for the asynchronous health outcomes of the fixture
+// model to reach wantOutcomes and returns eligible, successful and ignored
+// counters. Eligible requests are the success/failure health denominator.
+func waitPerfCounters(t *testing.T, wantOutcomes int64) (requests, successes, ignored int64) {
 	t.Helper()
 	require.Eventually(t, func() bool {
-		requests, successes = 0, 0
-		keys, err := common.RDB.Keys(context.Background(), "perf:ws-billing:*").Result()
+		requests, successes, ignored = 0, 0, 0
+		keys, err := common.RDB.Keys(context.Background(), "perf:v2:ws-billing:*").Result()
 		if err != nil {
 			return false
 		}
@@ -332,13 +333,15 @@ func waitPerfCounters(t *testing.T, wantRequests int64) (requests, successes int
 			requests += n
 			n, _ = common.RDB.HGet(context.Background(), key, "ok").Int64()
 			successes += n
+			n, _ = common.RDB.HGet(context.Background(), key, "ignored").Int64()
+			ignored += n
 		}
-		return requests >= wantRequests
+		return requests+ignored >= wantOutcomes
 	}, 3*time.Second, 10*time.Millisecond)
-	return requests, successes
+	return requests, successes, ignored
 }
 
-func responsesPrometheusCounters(testContext *testing.T) (requests, successes int64) {
+func responsesPrometheusCounters(testContext *testing.T) (requests, successes, ignored int64) {
 	testContext.Helper()
 	testContext.Setenv("PROMETHEUS_MAX_SERIES_PER_SCRAPE", "0")
 	testContext.Setenv(middleware.PrometheusMetricsTokenEnv, "monitor-secret")
@@ -352,20 +355,24 @@ func responsesPrometheusCounters(testContext *testing.T) (requests, successes in
 	require.Equal(testContext, http.StatusOK, response.Code)
 	require.Equal(testContext, "text/plain; version=0.0.4; charset=utf-8", response.Header().Get("Content-Type"))
 	for line := range strings.SplitSeq(response.Body.String(), "\n") {
-		for _, status := range []string{"success", "error"} {
-			value, found := strings.CutPrefix(line, `newapi_model_requests_total{model="ws-billing",status="`+status+`"} `)
+		for _, outcome := range []string{"success", "failure", "ignored"} {
+			value, found := strings.CutPrefix(line, `newapi_model_health_outcomes_total{model="ws-billing",outcome="`+outcome+`"} `)
 			if !found {
 				continue
 			}
 			count, err := strconv.ParseInt(value, 10, 64)
 			require.NoError(testContext, err)
-			requests += count
-			if status == "success" {
+			if outcome != "ignored" {
+				requests += count
+			}
+			if outcome == "success" {
 				successes = count
+			} else if outcome == "ignored" {
+				ignored = count
 			}
 		}
 	}
-	return requests, successes
+	return requests, successes, ignored
 }
 
 func newResponsesWSBillingTest(t *testing.T, expression string, handle func(*websocket.Conn, *http.Request), httpEvents ...string) *responsesWSBillingTest {
@@ -566,9 +573,15 @@ func TestResponsesInterruptedStreamHealth(t *testing.T) {
 			}
 			fixture.closeAndWait(t)
 			assertResponsesWSAccounting(t, fixture, []int{1000})
-			requests, successes := waitPerfCounters(t, 1)
-			assert.Equal(t, int64(1), requests)
+			requests, successes, ignored := waitPerfCounters(t, 1)
 			assert.Zero(t, successes)
+			if scenario == "sse client cancel" {
+				assert.Zero(t, requests)
+				assert.Equal(t, int64(1), ignored)
+			} else {
+				assert.Equal(t, int64(1), requests)
+				assert.Zero(t, ignored)
+			}
 		})
 	}
 }
@@ -602,7 +615,7 @@ func assertResponsesWSAccounting(t *testing.T, fixture *responsesWSBillingTest, 
 }
 
 func TestResponsesWebSocketReusesConnectionAndSettlesEachRequest(t *testing.T) {
-	beforeRequests, beforeSuccesses := responsesPrometheusCounters(t)
+	beforeRequests, beforeSuccesses, beforeIgnored := responsesPrometheusCounters(t)
 	type upstreamRequest struct {
 		Authorization      string
 		Type               string `json:"type"`
@@ -718,9 +731,10 @@ func TestResponsesWebSocketReusesConnectionAndSettlesEachRequest(t *testing.T) {
 	assert.Equal(t, 97000, user.Quota)
 	assert.Equal(t, 3000, user.UsedQuota)
 	fixture.closeAndWait(t)
-	afterRequests, afterSuccesses := responsesPrometheusCounters(t)
+	afterRequests, afterSuccesses, afterIgnored := responsesPrometheusCounters(t)
 	assert.Equal(t, int64(2), afterRequests-beforeRequests)
 	assert.Equal(t, int64(2), afterSuccesses-beforeSuccesses)
+	assert.Equal(t, int64(0), afterIgnored-beforeIgnored)
 }
 
 // Both transports must reach the same upstream target with the same
@@ -865,9 +879,10 @@ func TestResponsesWebSocketDisconnectSettlesDeliveredOutputOnce(t *testing.T) {
 	assert.Equal(t, "hello", delta["delta"])
 	fixture.closeAndWait(t)
 	assertResponsesWSAccounting(t, fixture, []int{1})
-	requests, successes := waitPerfCounters(t, 1)
-	assert.Equal(t, int64(1), requests)
+	requests, successes, ignored := waitPerfCounters(t, 1)
+	assert.Zero(t, requests)
 	assert.Zero(t, successes)
+	assert.Equal(t, int64(1), ignored)
 }
 
 func TestResponsesWebSocketCancelErrorDoesNotFinishActiveRequest(t *testing.T) {
@@ -1104,8 +1119,15 @@ func TestResponsesStreamOutcomesPreserveAccounting(t *testing.T) {
 					}
 				}
 				assert.NotContains(t, logs[0].Other, "sensitive upstream detail")
-				expectedRequests := int64(len(quotas))
-				requests, successes := waitPerfCounters(t, expectedRequests)
+				expectedOutcomes := int64(len(quotas))
+				requests, successes, ignored := waitPerfCounters(t, expectedOutcomes)
+				expectedRequests := expectedOutcomes
+				if tc.name == "business-error-after-created" {
+					expectedRequests--
+					assert.Equal(t, int64(1), ignored)
+				} else {
+					assert.Zero(t, ignored)
+				}
 				assert.Equal(t, expectedRequests, requests)
 				assert.Equal(t, int64(1), successes)
 			})
@@ -1125,7 +1147,7 @@ func TestResponsesHTTPHealthCountsFinalResult(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			fixture := newResponsesWSBillingTest(t, `tier("request", fixed(0.002))`, func(*websocket.Conn, *http.Request) {})
-			beforeRequests, beforeSuccesses := responsesPrometheusCounters(t)
+			beforeRequests, beforeSuccesses, beforeIgnored := responsesPrometheusCounters(t)
 			oldRetries := common.RetryTimes
 			common.RetryTimes = 1
 			t.Cleanup(func() { common.RetryTimes = oldRetries })
@@ -1162,16 +1184,24 @@ func TestResponsesHTTPHealthCountsFinalResult(t *testing.T) {
 			} else {
 				assert.Equal(t, http.StatusOK, response.StatusCode)
 			}
-			requests, successes := waitPerfCounters(t, 1)
-			assert.Equal(t, int64(1), requests)
-			if tc.success {
-				assert.Equal(t, int64(1), successes)
-			} else {
+			requests, successes, ignored := waitPerfCounters(t, 1)
+			if tc.name == "business rejection" {
+				assert.Zero(t, requests)
 				assert.Zero(t, successes)
+				assert.Equal(t, int64(1), ignored)
+			} else if tc.success {
+				assert.Equal(t, int64(1), requests)
+				assert.Equal(t, int64(1), successes)
+				assert.Zero(t, ignored)
+			} else {
+				assert.Equal(t, int64(1), requests)
+				assert.Zero(t, successes)
+				assert.Zero(t, ignored)
 			}
-			afterRequests, afterSuccesses := responsesPrometheusCounters(t)
+			afterRequests, afterSuccesses, afterIgnored := responsesPrometheusCounters(t)
 			assert.Equal(t, requests, afterRequests-beforeRequests)
 			assert.Equal(t, successes, afterSuccesses-beforeSuccesses)
+			assert.Equal(t, ignored, afterIgnored-beforeIgnored)
 		})
 	}
 }
@@ -1529,14 +1559,15 @@ func TestResponsesWebSocketPreRoutingRejectionsFollowHealthClassification(t *tes
 			fixture.closeAndWait(t)
 			assertResponsesWSAccounting(t, fixture, nil)
 			if !tc.sampled {
-				keys, err := common.RDB.Keys(context.Background(), "perf:ws-billing:*").Result()
+				keys, err := common.RDB.Keys(context.Background(), "perf:v2:ws-billing:*").Result()
 				require.NoError(t, err)
 				assert.Empty(t, keys, "model access validation before sampling must not affect model health")
 				return
 			}
-			requests, successes := waitPerfCounters(t, 1)
+			requests, successes, ignored := waitPerfCounters(t, 1)
 			assert.Equal(t, int64(1), requests)
 			assert.Zero(t, successes)
+			assert.Zero(t, ignored)
 		})
 	}
 }

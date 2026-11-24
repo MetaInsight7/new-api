@@ -157,7 +157,7 @@ export function DataQualityBanner(props: {
           )}
           <p>
             {t(
-              'Client disconnects count as unsuccessful final requests, and metrics lost before a node flushes cannot be detected.'
+              'Client cancellations and business rejections are excluded from health calculations, and metrics lost before a node flushes cannot be detected.'
             )}
           </p>
         </AlertDescription>

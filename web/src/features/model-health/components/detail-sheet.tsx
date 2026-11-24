@@ -59,7 +59,7 @@ function QualityNote(props: { detail: ModelHealthDetail }) {
         </p>
         <p>
           {t(
-            'Client disconnects count as unsuccessful final requests, which can lower observed completion rate.'
+            'Client cancellations and business rejections are excluded from the observed completion rate.'
           )}
         </p>
         <p>

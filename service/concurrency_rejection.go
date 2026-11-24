@@ -1,7 +1,6 @@
 package service
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"time"
@@ -101,11 +100,7 @@ func RecordConcurrencyLimitRejection(c *gin.Context, rejection ConcurrencyLimitR
 	}
 	if rejection.PreRelay && !c.GetBool(concurrencyLimitMetricRecordedContextKey) {
 		c.Set(concurrencyLimitMetricRecordedContextKey, true)
-		requestContext := context.Background()
-		if c.Request != nil {
-			requestContext = c.Request.Context()
-		}
-		perfmetrics.RecordPreRelayLocalCapacityFailure(requestContext, modelName, group, startedAt)
+		perfmetrics.RecordPreRelayIgnored(modelName, group)
 	}
 	if !constant.ErrorLogEnabled || c.GetBool(concurrencyLimitLogRecordedContextKey) {
 		return
