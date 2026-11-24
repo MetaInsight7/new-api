@@ -377,14 +377,18 @@ func UpdateAbilityStatus(channelId int, status bool) error {
 		if err := lockForUpdate(tx).Where("id = ?", channelId).Find(&channels).Error; err != nil {
 			return err
 		}
-		if err := tx.Model(&Ability{}).Where("channel_id = ?", channelId).Select("enabled").Update("enabled", status).Error; err != nil {
-			return err
-		}
-		if status {
-			return ReapplyCodexModelGovernanceWithDB(tx, []int{channelId})
-		}
-		return nil
+		return updateAbilityStatusWithDB(tx, channelId, status)
 	})
+}
+
+func updateAbilityStatusWithDB(tx *gorm.DB, channelID int, status bool) error {
+	if err := tx.Model(&Ability{}).Where("channel_id = ?", channelID).Select("enabled").Update("enabled", status).Error; err != nil {
+		return err
+	}
+	if !status {
+		return nil
+	}
+	return ReapplyCodexModelGovernanceWithDB(tx, []int{channelID})
 }
 
 func UpdateAbilityStatusByTag(tag string, status bool) error {
@@ -476,5 +480,6 @@ func FixAbility() (int, int, error) {
 		}
 	}
 	InitChannelCache()
+	BumpSyncTopic(SyncTopicChannels)
 	return successCount, failCount, nil
 }

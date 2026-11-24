@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"maps"
 	"math"
-	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 
+	"github.com/MoeForge/moego/regexp"
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -215,6 +215,8 @@ func refreshRequestPolicySnapshot() error {
 // UpdateRequestPolicyOptions validates the entire resulting policy before any
 // write. Unknown JSON rule fields stay in the original option string.
 func UpdateRequestPolicyOptions(values map[string]string) error {
+	optionRuntimeMutationMutex.Lock()
+	defer optionRuntimeMutationMutex.Unlock()
 	requestPolicyOptionMutex.Lock()
 	defer requestPolicyOptionMutex.Unlock()
 	options := maps.Clone(CurrentRequestPolicy().Options)
@@ -248,5 +250,7 @@ func UpdateRequestPolicyOptions(values map[string]string) error {
 		}
 	}
 	requestPolicySnapshot.Store(snapshot)
+	optionRuntimeRevision++
+	BumpSyncTopic(SyncTopicOptions)
 	return nil
 }

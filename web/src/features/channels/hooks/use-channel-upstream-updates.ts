@@ -20,12 +20,18 @@ import { useRef, useState, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import {
+  ADMIN_PERMISSION_ACTIONS,
+  ADMIN_PERMISSION_RESOURCES,
+  hasPermission,
+} from '@/lib/admin-permissions'
 import { api, type ApiRequestConfig } from '@/lib/api'
 import { handleServerError } from '@/lib/handle-server-error'
 import {
   createServerError,
   getServerErrorMessage,
 } from '@/lib/server-error-message'
+import { useAuthStore } from '@/stores/auth-store'
 
 import { normalizeModelList } from '../lib/upstream-update-utils'
 
@@ -51,6 +57,17 @@ type UpstreamUpdateResponse<T> = {
 
 export function useChannelUpstreamUpdates(refresh: () => Promise<void>) {
   const { t } = useTranslation()
+  const currentUser = useAuthStore((state) => state.auth.user)
+  const canOperate = hasPermission(
+    currentUser,
+    ADMIN_PERMISSION_RESOURCES.CHANNEL,
+    ADMIN_PERMISSION_ACTIONS.OPERATE
+  )
+  const canWrite = hasPermission(
+    currentUser,
+    ADMIN_PERMISSION_RESOURCES.CHANNEL,
+    ADMIN_PERMISSION_ACTIONS.WRITE
+  )
 
   const [showModal, setShowModal] = useState(false)
   const [channel, setChannel] = useState<UpstreamUpdateChannel | null>(null)
@@ -78,7 +95,7 @@ export function useChannelUpstreamUpdates(refresh: () => Promise<void>) {
       pendingRemove: string[] = [],
       tab: 'add' | 'remove' = 'add'
     ) => {
-      if (applyRef.current) return
+      if (applyRef.current || !canWrite) return
       const normAdd = normalizeModelList(pendingAdd)
       const normRemove = normalizeModelList(pendingRemove)
       if (!record?.id) return
@@ -94,7 +111,7 @@ export function useChannelUpstreamUpdates(refresh: () => Promise<void>) {
       setPreferredTab(tab)
       setShowModal(true)
     },
-    []
+    [canWrite]
   )
 
   const closeModal = useCallback(() => {
@@ -125,6 +142,7 @@ export function useChannelUpstreamUpdates(refresh: () => Promise<void>) {
         detectError ||
         applyError ||
         result ||
+        !canWrite ||
         !channel?.id
       ) {
         return
@@ -188,11 +206,12 @@ export function useChannelUpstreamUpdates(refresh: () => Promise<void>) {
       result,
       refresh,
       t,
+      canWrite,
     ]
   )
 
   const applyAllUpdates = useCallback(async () => {
-    if (applyAllRef.current) return
+    if (applyAllRef.current || !canWrite) return
     applyAllRef.current = true
     setApplyAllLoading(true)
     try {
@@ -225,11 +244,11 @@ export function useChannelUpstreamUpdates(refresh: () => Promise<void>) {
       applyAllRef.current = false
       setApplyAllLoading(false)
     }
-  }, [refresh, t])
+  }, [canWrite, refresh, t])
 
   const detectChannelUpdates = useCallback(
     async (ch: UpstreamUpdateChannel | null) => {
-      if (applyRef.current || !ch?.id) return
+      if (applyRef.current || !canOperate || !ch?.id) return
       const requestId = ++previewRequestRef.current
       setChannel(ch)
       setShowModal(true)
@@ -267,11 +286,11 @@ export function useChannelUpstreamUpdates(refresh: () => Promise<void>) {
         if (requestId === previewRequestRef.current) setDetectLoading(false)
       }
     },
-    [t]
+    [canOperate, t]
   )
 
   const detectAllUpdates = useCallback(async () => {
-    if (detectAllRef.current) return
+    if (detectAllRef.current || !canOperate) return
     detectAllRef.current = true
     setDetectAllLoading(true)
     try {
@@ -298,7 +317,7 @@ export function useChannelUpstreamUpdates(refresh: () => Promise<void>) {
       detectAllRef.current = false
       setDetectAllLoading(false)
     }
-  }, [refresh, t])
+  }, [canOperate, refresh, t])
 
   // Memoized so consumers (and the channels context value built from this) get
   // a stable reference unless an actual field changes. Callbacks above are all

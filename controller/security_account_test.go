@@ -15,12 +15,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/textproto"
-	"regexp"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/MoeForge/moego/regexp"
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
@@ -379,6 +379,7 @@ func TestSecurityAccountRequiresProofBeforeMutation(t *testing.T) {
 }
 
 func TestSecurityAccountPasswordRequiresCurrentPassword(t *testing.T) {
+	newPassword := "Saffron-river telescope 47"
 	for _, test := range []struct {
 		name, original string
 		success        bool
@@ -390,7 +391,7 @@ func TestSecurityAccountPasswordRequiresCurrentPassword(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			user, identity := setupSecurityEnrollmentTest(t)
 			proof := issueSecurityEnrollmentProof(t, identity, service.VerificationOperation{Scope: service.VerificationScopePasswordChange}, service.VerificationMethodPassword)
-			request, err := common.Marshal(map[string]string{"password": "password123", "original_password": test.original})
+			request, err := common.Marshal(map[string]string{"password": newPassword, "original_password": test.original})
 			require.NoError(t, err)
 			response := securityEnrollmentRequest(http.MethodPut, "/api/user/self", string(request), proof, identity, UpdateSelf)
 			var result securityEnrollmentResponse
@@ -399,7 +400,7 @@ func TestSecurityAccountPasswordRequiresCurrentPassword(t *testing.T) {
 			stored, err := model.GetUserById(user.Id, true)
 			require.NoError(t, err)
 			if test.success {
-				assert.True(t, common.ValidatePasswordAndHash("password123", stored.Password))
+				assert.True(t, common.ValidatePasswordAndHash(newPassword, stored.Password))
 				assert.True(t, strings.HasPrefix(stored.Password, "$argon2id$"))
 			} else {
 				assert.Equal(t, "CURRENT_PASSWORD_INVALID", result.Code)
@@ -410,6 +411,24 @@ func TestSecurityAccountPasswordRequiresCurrentPassword(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSecurityAccountPasswordRejectsCommonPassword(t *testing.T) {
+	user, identity := setupSecurityEnrollmentTest(t)
+	proof := issueSecurityEnrollmentProof(t, identity, service.VerificationOperation{Scope: service.VerificationScopePasswordChange}, service.VerificationMethodPassword)
+	request, err := common.Marshal(map[string]string{"password": "Password123!", "original_password": "enrollment-password"})
+	require.NoError(t, err)
+
+	response := securityEnrollmentRequest(http.MethodPut, "/api/user/self", string(request), proof, identity, UpdateSelf)
+	var result securityEnrollmentResponse
+	require.NoError(t, common.Unmarshal(response.Body.Bytes(), &result))
+	assert.Equal(t, http.StatusOK, response.Code)
+	assert.False(t, result.Success)
+	assert.Equal(t, "PASSWORD_POLICY_REJECTED", result.Code)
+	assert.Equal(t, common.ErrAccountPasswordCommon.Error(), result.Message)
+	stored, err := model.GetUserById(user.Id, true)
+	require.NoError(t, err)
+	assert.Equal(t, user.Password, stored.Password)
 }
 
 func TestSecurityAccountProfileReadsPasswordStatusInOneQuery(t *testing.T) {
@@ -514,7 +533,7 @@ func TestSecurityAccountPasswordPolicyAndHashCompatibility(t *testing.T) {
 		name, password string
 		valid          bool
 	}{
-		{"common password accepted", "password123", true},
+		{"common password rejected", "password123", false},
 		{"short", "seven77", false},
 		{"too long", strings.Repeat("界", 129), false},
 		{"long Unicode", strings.Repeat("界🔒 ", 40), true},
@@ -542,7 +561,7 @@ func TestSecurityAccountPasswordPolicyAndHashCompatibility(t *testing.T) {
 
 func TestSecurityAccountEncryptedLongPasswordLogin(t *testing.T) {
 	user, identity := setupSecurityEnrollmentTest(t)
-	password := strings.Repeat("🔒", 128)
+	password := strings.Repeat("🔒", 127) + "🔑"
 	hash, err := common.HashAccountPassword(password)
 	require.NoError(t, err)
 	require.NoError(t, model.DB.Model(user).Update("password", hash).Error)

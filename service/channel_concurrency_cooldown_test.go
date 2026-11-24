@@ -62,6 +62,28 @@ func TestProcessChannelErrorDoesNotCoolDownFuzzyMatchByDefault(t *testing.T) {
 	require.NoError(t, ReleaseChannelConcurrency(context.Background(), lease))
 }
 
+func TestChannelConcurrencyCooldownIgnoresLocalErrors(t *testing.T) {
+	policy := operation_setting.ChannelConcurrencyCooldownPolicy{
+		Enabled:        true,
+		OnStatus429:    true,
+		OnMessageMatch: true,
+	}
+	for _, testCase := range []struct {
+		name       string
+		message    string
+		statusCode int
+	}{
+		{name: "local 429", message: "local rate limit", statusCode: http.StatusTooManyRequests},
+		{name: "local capacity message", message: "local capacity unavailable", statusCode: http.StatusServiceUnavailable},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			apiErr := types.NewErrorWithStatusCode(errors.New(testCase.message), types.ErrorCodeInvalidRequest, testCase.statusCode)
+			require.Equal(t, "local", RelayErrorSource(apiErr))
+			require.False(t, shouldMarkChannelConcurrencyCooldown(apiErr, policy))
+		})
+	}
+}
+
 func TestProcessChannelErrorExcludesQuotaFailuresBeforeCooldownTriggers(t *testing.T) {
 	testCases := []struct {
 		name       string

@@ -26,6 +26,8 @@ type Option struct {
 
 var streamingOptionMutex sync.Mutex
 var streamingOptionRevision uint64
+var optionRuntimeMutationMutex sync.Mutex
+var optionRuntimeRevision uint64
 
 func AllOption() ([]*Option, error) {
 	var options []*Option
@@ -204,25 +206,44 @@ func InitOptionMap() {
 	maps.Copy(common.OptionMap, modelConfigs)
 
 	common.OptionMapRWMutex.Unlock()
-	loadOptionsFromDatabase()
+	if err := LoadOptionsFromDatabase(); err != nil {
+		common.SysError(common.LogText("failed to load options from database: %s", err.Error()))
+	}
 }
 
-func loadOptionsFromDatabase() {
-	requestPolicyOptionMutex.Lock()
-	defer requestPolicyOptionMutex.Unlock()
-	defer func() {
-		if err := refreshRequestPolicySnapshot(); err != nil {
-			common.SysError(common.LogText("invalid request policy: %s", err.Error()))
-		}
-	}()
-	passkeyOptionMutex.Lock()
-	defer passkeyOptionMutex.Unlock()
+// LoadOptionsFromDatabase applies every stored option. A failed read keeps
+// the options in memory as they are.
+func LoadOptionsFromDatabase() error {
+	optionRuntimeMutationMutex.Lock()
+	loadedRuntimeRevision := optionRuntimeRevision
 	streamingOptionMutex.Lock()
 	loadedStreamingRevision := streamingOptionRevision
 	streamingOptionMutex.Unlock()
-	options, loadErr := AllOption()
+	optionRuntimeMutationMutex.Unlock()
+
+	options, err := AllOption()
+	if err != nil {
+		return err
+	}
+
+	optionRuntimeMutationMutex.Lock()
+	defer optionRuntimeMutationMutex.Unlock()
+	if optionRuntimeRevision != loadedRuntimeRevision {
+		return nil
+	}
+	requestPolicyOptionMutex.Lock()
+	defer requestPolicyOptionMutex.Unlock()
+	passkeyOptionMutex.Lock()
+	defer passkeyOptionMutex.Unlock()
+	streamingOptionMutex.Lock()
+	defer streamingOptionMutex.Unlock()
+	if streamingOptionRevision != loadedStreamingRevision {
+		return nil
+	}
+
 	passkeyOptions := make(map[string]string)
 	streamingOptions := make(map[string]string)
+	requestPolicyOptions := make(map[string]string)
 	for _, option := range options {
 		if strings.HasPrefix(option.Key, "streaming_setting.") {
 			streamingOptions[option.Key] = option.Value
@@ -232,23 +253,39 @@ func loadOptionsFromDatabase() {
 			passkeyOptions[option.Key] = option.Value
 			continue
 		}
-		err := updateOptionMap(option.Key, option.Value)
-		if err != nil {
-			common.SysLog(common.LogText("failed to update option map: %s", err.Error()))
+		if IsRequestPolicyOption(option.Key) {
+			requestPolicyOptions[option.Key] = option.Value
 		}
 	}
-	if loadErr != nil {
-		common.SysError("failed to load streaming settings: " + loadErr.Error())
-	} else {
-		streamingOptionMutex.Lock()
-		if streamingOptionRevision == loadedStreamingRevision {
-			if err := applyStreamingOptions(streamingOptions); err != nil {
-				common.SysError("invalid streaming settings: " + err.Error())
-			}
-		}
-		streamingOptionMutex.Unlock()
+	policySnapshot, err := BuildRequestPolicy(requestPolicyOptions)
+	if err != nil {
+		return err
+	}
+	if err := operation_setting.ValidateMonitorOptions(optionValues(options)); err != nil {
+		return err
+	}
+	if err := applyStreamingOptions(streamingOptions); err != nil {
+		return err
 	}
 	applyPasskeyDomainOptions(passkeyOptions)
+	for _, option := range options {
+		if strings.HasPrefix(option.Key, "streaming_setting.") || IsPasskeyDomainOption(option.Key) {
+			continue
+		}
+		if err := updateOptionMap(option.Key, option.Value); err != nil {
+			return err
+		}
+	}
+	requestPolicySnapshot.Store(policySnapshot)
+	return nil
+}
+
+func optionValues(options []*Option) map[string]string {
+	values := make(map[string]string, len(options))
+	for _, option := range options {
+		values[option.Key] = option.Value
+	}
+	return values
 }
 
 func applyStreamingOptions(options map[string]string) error {
@@ -276,7 +313,9 @@ func SyncOptions(frequency int) {
 	for {
 		time.Sleep(time.Duration(frequency) * time.Second)
 		common.SysLog(common.LogText("syncing options from database"))
-		loadOptionsFromDatabase()
+		if err := LoadOptionsFromDatabase(); err != nil {
+			common.SysError(common.LogText("failed to load options from database: %s", err.Error()))
+		}
 	}
 }
 
@@ -299,6 +338,9 @@ func validateOptionValue(key string, value string) error {
 		return err
 	}
 	if err := operation_setting.ValidateQuotaOption(key, value); err != nil {
+		return err
+	}
+	if err := operation_setting.ValidateEpaySignOption(key, value); err != nil {
 		return err
 	}
 	if key == "EmailProvider" || key == "ResendApiKey" || key == "ResendFrom" {
@@ -331,6 +373,9 @@ func validateOptionValue(key string, value string) error {
 	if key == operation_setting.LogMaxRangeDaysOptionKey {
 		return operation_setting.ValidateLogMaxRangeDays(value)
 	}
+	if key == operation_setting.SystemTaskRetentionDaysOptionKey {
+		return operation_setting.ValidateSystemTaskRetentionDays(value)
+	}
 	if key == "MaxTokenAutoGroups" {
 		return setting.ValidateMaxTokenAutoGroups(value)
 	}
@@ -357,22 +402,32 @@ func UpdateOption(key string, value string) error {
 	if IsModelPricingOption(key) {
 		return UpdateModelPricingOptions(map[string]string{key: value})
 	}
-	if err := validateOptionValue(key, value); err != nil {
+	err := func() error {
+		optionRuntimeMutationMutex.Lock()
+		defer optionRuntimeMutationMutex.Unlock()
+		if err := validateOptionValue(key, value); err != nil {
+			return err
+		}
+		if err := DB.Transaction(func(tx *gorm.DB) error {
+			option := Option{Key: key}
+			if err := tx.FirstOrCreate(&option, Option{Key: key}).Error; err != nil {
+				return err
+			}
+			return tx.Model(&option).Update("value", value).Error
+		}); err != nil {
+			return err
+		}
+		if err := updateOptionMap(key, value); err != nil {
+			return err
+		}
+		optionRuntimeRevision++
+		return nil
+	}()
+	if err != nil {
 		return err
 	}
-	// Save to database first
-	option := Option{
-		Key: key,
-	}
-	// https://gorm.io/docs/update.html#Save-All-Fields
-	DB.FirstOrCreate(&option, Option{Key: key})
-	option.Value = value
-	// Save is a combination function.
-	// If save value does not contain primary key, it will execute Create,
-	// otherwise it will execute Update (with all fields).
-	DB.Save(&option)
-	// Update OptionMap
-	return updateOptionMap(key, value)
+	BumpSyncTopic(SyncTopicOptions)
+	return nil
 }
 
 // UpdateOptionsBulk persists multiple key/value pairs in a single database
@@ -393,6 +448,8 @@ func UpdateOptionsBulk(values map[string]string) error {
 			return err
 		}
 	}
+	optionRuntimeMutationMutex.Lock()
+	defer optionRuntimeMutationMutex.Unlock()
 	for key, value := range values {
 		if err := validateOptionValue(key, value); err != nil {
 			return err
@@ -460,10 +517,18 @@ func UpdateOptionsBulk(values map[string]string) error {
 	if policySnapshot != nil {
 		requestPolicySnapshot.Store(policySnapshot)
 	}
+	optionRuntimeRevision++
+	BumpSyncTopic(SyncTopicOptions)
 	return nil
 }
 
 func updateOptionMap(key string, value string) (err error) {
+	if isRetiredCodexModelGovernanceOption(key) {
+		common.OptionMapRWMutex.Lock()
+		delete(common.OptionMap, key)
+		common.OptionMapRWMutex.Unlock()
+		return nil
+	}
 	if strings.HasPrefix(key, "codex_model_governance_setting.") {
 		if _, err := operation_setting.NormalizeCodexModelGovernanceOption(key, value); err != nil {
 			return err

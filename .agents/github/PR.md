@@ -1,5 +1,6 @@
 <!--
 Agent-only PR body. Humans use `.github/PULL_REQUEST_TEMPLATE.md`.
+Complete every check in `.agents/github/CHECKS.md` before filling this template.
 
 Keep every heading. If a section does not apply, write why; do not delete it.
 Match the user's language in the filled answers. Do not invent facts.

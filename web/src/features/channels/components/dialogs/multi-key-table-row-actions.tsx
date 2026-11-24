@@ -25,6 +25,7 @@ import type { MultiKeyConfirmAction } from '../../types'
 type MultiKeyTableRowActionsProps = {
   keyIndex: number
   status: number
+  canOperate: boolean
   canDelete: boolean
   onAction: (action: MultiKeyConfirmAction) => void
 }
@@ -32,6 +33,7 @@ type MultiKeyTableRowActionsProps = {
 export function MultiKeyTableRowActions({
   keyIndex,
   status,
+  canOperate,
   canDelete,
   onAction,
 }: MultiKeyTableRowActionsProps) {
@@ -45,6 +47,7 @@ export function MultiKeyTableRowActions({
           variant='outline'
           size='sm'
           onClick={() => onAction({ type: 'disable', keyIndex })}
+          disabled={!canOperate}
         >
           {t('Disable')}
         </Button>
@@ -53,6 +56,7 @@ export function MultiKeyTableRowActions({
           variant='outline'
           size='sm'
           onClick={() => onAction({ type: 'enable', keyIndex })}
+          disabled={!canOperate}
         >
           {t('Enable')}
         </Button>

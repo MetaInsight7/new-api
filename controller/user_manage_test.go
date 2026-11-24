@@ -9,7 +9,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -570,12 +569,11 @@ func TestManageUserQuotaConcurrentSnapshots(t *testing.T) {
 	db := setupManageUserTestDB(t)
 	user := model.User{Username: "concurrent-quota", Quota: 1000}
 	require.NoError(t, db.Create(&user).Error)
-	var ready sync.WaitGroup
-	ready.Add(2)
+	ready := make(chan struct{}, 2)
 	release := make(chan struct{})
 	require.NoError(t, db.Callback().Query().Before("gorm:query").Register("test:concurrent_quota_start", func(tx *gorm.DB) {
 		if tx.Statement.Table == "users" {
-			ready.Done()
+			ready <- struct{}{}
 			<-release
 		}
 	}))
@@ -591,7 +589,13 @@ func TestManageUserQuotaConcurrentSnapshots(t *testing.T) {
 			results <- result{adjustment, err, value}
 		}(value)
 	}
-	ready.Wait()
+	expectedReady := 2
+	if common.UsingMainDatabase(common.DatabaseTypeSQLite) {
+		expectedReady = 1
+	}
+	for range expectedReady {
+		<-ready
+	}
 	close(release)
 	var committed []model.UserQuotaAdjustment
 	for range 2 {

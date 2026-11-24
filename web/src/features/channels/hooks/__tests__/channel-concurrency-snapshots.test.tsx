@@ -280,8 +280,8 @@ test('cancels the old collection and never carries its mapping into a new or emp
   })
   let oldSignal: { readonly aborted: boolean } | undefined
   const get = vi.spyOn(api, 'get').mockImplementation((_url, config) => {
-    if (config?.params?.ids === '7') {
-      oldSignal = config.signal
+    if (Reflect.get(config?.params ?? {}, 'ids') === '7') {
+      oldSignal = config?.signal
       return oldResponse
     }
     return Promise.resolve({

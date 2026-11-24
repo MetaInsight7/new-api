@@ -14,6 +14,9 @@ const (
 	OutcomeFailure Outcome = "failure"
 )
 
+// ClassifyRelayOutcome maps every finished relay to the platform's binary
+// success/failure health contract. A stream with an explicit normal completion
+// remains successful if its request context is canceled afterwards.
 func ClassifyRelayOutcome(ctx context.Context, info *relaycommon.RelayInfo, apiErr *types.NewAPIError) Outcome {
 	if info == nil || apiErr != nil || info.PerformanceBusinessRejection {
 		return OutcomeFailure

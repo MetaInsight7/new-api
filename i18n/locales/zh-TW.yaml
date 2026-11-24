@@ -34,12 +34,16 @@ relay.model_price_not_configured: "模型 {{.Model}} 的價格尚未由管理員
 relay.model_price_not_configured_admin: "模型 {{.Model}} 的價格未設定。請前往「系統設定 → 營運設定」開啟自用模式，或在「系統設定 → 分組與模型定價設定」中為該模型設定價格"
 relay.task_usage_price_unsupported: "模型 {{.Model}} 使用了任務用量表達式；請為一般轉發設定常規定價，並為插件單獨設定計費表達式"
 relay.shared_task_price_needs_override: "模型 {{.Model}} 與任務插件 {{.Plugin}} 共用了計費表達式；請先為插件設定獨立的計費表達式，再使用一般轉發定價"
+relay.task_price_not_configured: "模型 {{.Model}} 沒有插件 {{.Plugin}} 的任務價格，請在模型定價中為該插件單獨設定價格"
 relay.task_channel_disabled: "該任務所屬管道已被停用"
 relay.group_saturated: "目前分組負載已飽和，請稍後再試，或升級帳戶以提升服務品質。"
 relay.group_upstream_saturated: "目前分組上游負載已飽和，請稍後再試"
 relay.retry_get_channel_failed: "獲取分組 {{.Group}} 下模型 {{.Model}} 的可用管道失敗（retry）：{{.Error}}"
 relay.retry_no_available_channel: "分組 {{.Group}} 下模型 {{.Model}} 的可用管道不存在（retry）"
 relay.access_token_unsupported: "暫不支援使用 access token"
+relay.request_rejected: "請求被策略拒絕"
+relay.request_plugin_failed: "請求處理插件執行失敗"
+relay.response_rejected: "回覆被策略中止"
 
 # Emails and the name of the token created at registration
 user.default_token_name: "{{.Username}}的初始令牌"
@@ -96,3 +100,5 @@ rate_limit.concurrency_reached: "已達到並行請求上限：所有 API Key �
 rate_limit.concurrency_unavailable: "並行請求控制暫時無法使用，請稍後重試"
 sensitive_word.blocked: "請求內容違反平台使用政策，已被拒絕並記錄。請修改內容後重試；再次違規可能導致帳號停用。如有誤判，請聯絡管理員。"
 sensitive_word.auto_banned: "本次請求命中違規內容並達到自動封禁門檻，帳號現已停用。如有誤判，請聯絡管理員處理。"
+
+channel.notify_scheduled_subject: "渠道「{{.Name}}」(#{{.Id}}) 外掛通知"

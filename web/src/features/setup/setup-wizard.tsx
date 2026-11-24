@@ -38,7 +38,7 @@ import { Form } from '@/components/ui/form'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { handleServerError } from '@/lib/handle-server-error'
-import { accountPasswordSchema } from '@/lib/password-policy'
+import { getAccountPasswordPolicyError } from '@/lib/password-policy'
 import { requireServerSuccess } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
 
@@ -224,12 +224,13 @@ export function SetupWizard() {
       return false
     }
 
-    if (!accountPasswordSchema.safeParse(password).success) {
+    const passwordError = getAccountPasswordPolicyError(password)
+    if (passwordError) {
       form.setError('password', {
         type: 'manual',
-        message: t('Password must contain between 8 and 128 characters.'),
+        message: t(passwordError),
       })
-      toast.error(t('Password must contain between 8 and 128 characters.'))
+      toast.error(t(passwordError))
       return false
     }
 

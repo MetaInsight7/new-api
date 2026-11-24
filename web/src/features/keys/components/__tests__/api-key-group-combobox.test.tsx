@@ -121,7 +121,7 @@ describe('API key group combobox Auto effect', () => {
       .closest('[data-slot="badge"]')
     expect(triggerRatio).toHaveTextContent('Auto')
     expect(triggerRatio).not.toHaveTextContent('Ratio')
-    expect(triggerRatio).not.toHaveTextContent('x')
+    expect(triggerRatio).not.toHaveTextContent('×')
     expect(trigger).not.toHaveTextContent('自动')
     expect(triggerRatio).toHaveClass(
       'relative',
@@ -160,7 +160,7 @@ describe('API key group combobox Auto effect', () => {
       null
     )
     const defaultRatio = within(defaultOption)
-      .getByText('1x')
+      .getByText('1×')
       .closest('[data-slot="badge"]')
     expect(defaultRatio).toHaveClass(
       'h-5',

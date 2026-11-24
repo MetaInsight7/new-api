@@ -43,7 +43,9 @@ describe('sensitive-word monitor dashboard states', () => {
 
   it('requests and renders the selected dashboard window', async () => {
     const get = vi.spyOn(api, 'get').mockImplementation(async (url, config) => {
-      const hours = Number(config?.params?.hours) as SensitiveWordMonitorWindow
+      const hours = Number(
+        Reflect.get(config?.params ?? {}, 'hours')
+      ) as SensitiveWordMonitorWindow
       const dashboard = sensitiveWordDashboard(hours)
       if (url === '/api/sensitive-words/dashboard') {
         return { data: { success: true, data: dashboard } }

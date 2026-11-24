@@ -3,11 +3,13 @@ package common
 import (
 	"crypto/rand"
 	"crypto/subtle"
+	_ "embed"
 	"encoding/base64"
 	"errors"
 	"fmt"
 	"os"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	"golang.org/x/crypto/argon2"
@@ -24,9 +26,34 @@ const (
 
 var (
 	ErrAccountPasswordLength = errors.New("Password must contain between 8 and 128 characters.")
+	ErrAccountPasswordCommon = errors.New("Password is too common. Choose a less predictable password.")
 	ErrAccountPasswordSame   = errors.New("New password must be different from current password")
 	ErrPasswordLegacyLimit   = errors.New("Long passwords are unavailable until the password storage upgrade is complete.")
 )
+
+//go:embed account_password_blocklist.txt
+var accountPasswordBlocklistSource string
+
+var accountPasswordBlocklist = func() map[string]struct{} {
+	lines := strings.Split(accountPasswordBlocklistSource, "\n")
+	blocklist := make(map[string]struct{}, len(lines))
+	for _, line := range lines {
+		line = strings.TrimSuffix(line, "\r")
+		if line == "" {
+			continue
+		}
+		blocklist[strings.ToLower(line)] = struct{}{}
+	}
+	return blocklist
+}()
+
+var accountPasswordStraightRuns = []string{
+	"0123456789",
+	"abcdefghijklmnopqrstuvwxyz",
+	"qwertyuiop",
+	"asdfghjkl",
+	"zxcvbnm",
+}
 
 // ValidateNewAccountPassword applies only when a user chooses a new password.
 // Authentication must continue to accept historical passwords without applying
@@ -35,7 +62,72 @@ func ValidateNewAccountPassword(password string) error {
 	if !utf8.ValidString(password) || utf8.RuneCountInString(password) < MinAccountPasswordLength || utf8.RuneCountInString(password) > MaxAccountPasswordLength {
 		return ErrAccountPasswordLength
 	}
+	if isCommonAccountPassword(password) {
+		return ErrAccountPasswordCommon
+	}
 	return nil
+}
+
+func isCommonAccountPassword(password string) bool {
+	candidate := strings.ToLower(password)
+	if _, blocked := accountPasswordBlocklist[candidate]; blocked {
+		return true
+	}
+
+	prefix := candidate
+	for prefix != "" {
+		r, size := utf8.DecodeLastRuneInString(prefix)
+		if !unicode.IsNumber(r) && !unicode.IsPunct(r) && !unicode.IsSymbol(r) && !unicode.IsSpace(r) {
+			break
+		}
+		prefix = prefix[:len(prefix)-size]
+		if _, blocked := accountPasswordBlocklist[prefix]; blocked {
+			return true
+		}
+	}
+
+	characters := []rune(candidate)
+	if len(characters) < 4 {
+		return false
+	}
+	repeated := true
+	for _, character := range characters[1:] {
+		if character != characters[0] {
+			repeated = false
+			break
+		}
+	}
+	if repeated {
+		return true
+	}
+
+	for _, run := range accountPasswordStraightRuns {
+		positions := make([]int, len(characters))
+		validRun := true
+		for i, character := range characters {
+			positions[i] = strings.IndexRune(run, character)
+			if positions[i] == -1 {
+				validRun = false
+				break
+			}
+		}
+		if !validRun {
+			continue
+		}
+		for _, step := range []int{1, len(run) - 1} {
+			straight := true
+			for i := 1; i < len(positions); i++ {
+				if positions[i] != (positions[i-1]+step)%len(run) {
+					straight = false
+					break
+				}
+			}
+			if straight {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // HashAccountPassword is for account passwords, not MFA backup codes. The

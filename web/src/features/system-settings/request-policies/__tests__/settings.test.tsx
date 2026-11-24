@@ -423,10 +423,20 @@ describe('request policy settings', () => {
     expect(api.put).not.toHaveBeenCalled()
   })
 
+  it('the legacy security path opens the independent sensitive-word policy', async () => {
+    const router = await renderPolicies(
+      '/system-settings/security/sensitive-words'
+    )
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe(
+        '/system-settings/request-policies/filtering'
+      )
+    )
+  })
+
   it.each([
     ['/system-settings/models/channel-affinity', 'routing'],
     ['/system-settings/models/routing-reliability', 'routing'],
-    ['/system-settings/security/sensitive-words', 'filtering'],
     ['/system-settings/operations/monitoring', 'health'],
     ['/system-settings/request-policies/', 'routing'],
     ['/system-settings/request-policies/unknown', 'routing'],

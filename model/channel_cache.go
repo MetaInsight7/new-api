@@ -25,7 +25,13 @@ var channelSyncLock sync.RWMutex
 
 const maxInt64ForWeight = uint64(^uint64(0) >> 1)
 
+// channelCacheReloadLock runs one channel cache reload at a time, so a reload
+// that read the database earlier never publishes over a later one.
+var channelCacheReloadLock sync.Mutex
+
 func InitChannelCache() {
+	channelCacheReloadLock.Lock()
+	defer channelCacheReloadLock.Unlock()
 	if !common.MemoryCacheEnabled {
 		InvalidatePricingCache()
 		rebuildTaskAliasView()

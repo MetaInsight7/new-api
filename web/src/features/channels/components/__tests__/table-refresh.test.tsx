@@ -170,7 +170,7 @@ it('restores the saved banned filter and sends it to channel search', async () =
     initialEntry: '/channels/?filter=prod',
   })
   const search = get.mock.calls.find(([url]) => url === '/api/channel/search')
-  expect(search?.[1]?.params?.status).toBe('banned')
+  expect(Reflect.get(search?.[1]?.params ?? {}, 'status')).toBe('banned')
   expect(screen.getByRole('button', { name: /^Status/ })).toHaveTextContent(
     'Banned'
   )

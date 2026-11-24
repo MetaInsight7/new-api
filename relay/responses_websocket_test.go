@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -19,6 +20,8 @@ import (
 	appdto "github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/requestpatch"
+	relaychannel "github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/coze"
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	"github.com/QuantumNous/new-api/relay/channel/volcengine"
@@ -44,6 +47,28 @@ func normalizeResponsesWSTestMessage(message []byte) (responsesWSCreateRequest, 
 	}
 	create, err := normalizeResponsesWSCreateEvent(message, envelope, streamID)
 	return create, envelope.EventID, err
+}
+
+type responsesWSRequestOrderAdaptor struct {
+	relaychannel.Adaptor
+	test *testing.T
+}
+
+func (adaptor *responsesWSRequestOrderAdaptor) FinalizeRequest(_ *gin.Context, _ *relaycommon.RelayInfo, request *http.Request) error {
+	require.Equal(adaptor.test, "plugin-value", request.Header.Get("X-Plugin"))
+	require.Equal(adaptor.test, "override-value", request.Header.Get("X-Order"))
+	require.Equal(adaptor.test, "application/override", request.Header.Get("Content-Type"))
+	request.Header.Set("X-Finalized", "true")
+	return nil
+}
+
+func (adaptor *responsesWSRequestOrderAdaptor) SignUpstreamRequest(_ *gin.Context, _ *relaycommon.RelayInfo, _ string, target *url.URL, header http.Header) error {
+	require.Equal(adaptor.test, "true", header.Get("X-Finalized"))
+	header.Set("X-Signed", "true")
+	query := target.Query()
+	query.Set("signed", "true")
+	target.RawQuery = query.Encode()
+	return nil
 }
 
 func TestNormalizeResponsesWSMaxOutputTokens(t *testing.T) {
@@ -166,6 +191,7 @@ func TestSelectResponsesWSChannelAcceptsNativeResponsesChannelTypes(t *testing.T
 		advanced    *dto.AdvancedCustomConfig
 		rejectedBy  appdto.ChannelFilterKind
 	}{
+		{name: "azure", channelType: constant.ChannelTypeAzure},
 		{name: "new api", channelType: constant.ChannelTypeNewAPI},
 		{name: "sub2api", channelType: constant.ChannelTypeSub2API},
 		{name: "advanced custom native responses route", channelType: constant.ChannelTypeAdvancedCustom, advanced: nativeRoute},
@@ -197,6 +223,124 @@ func TestSelectResponsesWSChannelAcceptsNativeResponsesChannelTypes(t *testing.T
 			assert.Equal(t, channel.Id, selected.Id)
 		})
 	}
+}
+
+func TestResponsesWSAzureDialUsesAzureResponsesURLAndAPIKey(t *testing.T) {
+	for _, tc := range []struct {
+		name           string
+		host           string
+		responsesVer   string
+		wantPath       string
+		wantAPIVersion string
+		channelAPIVer  string
+	}{
+		{name: "openai v1 default preview", wantPath: "/openai/v1/responses", wantAPIVersion: "preview"},
+		{name: "channel responses version", responsesVer: "2025-04-01-preview", wantPath: "/openai/v1/responses", wantAPIVersion: "2025-04-01-preview"},
+		{name: "cognitiveservices uses channel api version", host: "cognitiveservices.azure.com", channelAPIVer: "2025-03-01-preview", wantPath: "/openai/responses", wantAPIVersion: "2025-03-01-preview"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			handshake := make(chan *http.Request, 1)
+			upgrader := websocket.Upgrader{}
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				handshake <- r
+				conn, err := upgrader.Upgrade(w, r, nil)
+				if err != nil {
+					return
+				}
+				_ = conn.Close()
+			}))
+			defer server.Close()
+
+			// The host check only inspects the base URL text, so a path segment
+			// is enough to select the cognitiveservices URL form.
+			baseURL := server.URL
+			if tc.host != "" {
+				baseURL += "/" + tc.host
+			}
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodGet, "/v1/responses", nil)
+			info := &relaycommon.RelayInfo{
+				RelayMode:      relayconstant.RelayModeResponses,
+				RequestURLPath: "/v1/responses",
+				ChannelMeta: &relaycommon.ChannelMeta{
+					ChannelType:          constant.ChannelTypeAzure,
+					ChannelBaseUrl:       baseURL,
+					ApiType:              constant.APITypeOpenAI,
+					ApiVersion:           tc.channelAPIVer,
+					ApiKey:               "azure-key",
+					UpstreamModelName:    "gpt-test",
+					ChannelOtherSettings: dto.ChannelOtherSettings{AzureResponsesVersion: tc.responsesVer},
+				},
+			}
+			adaptor := GetAdaptor(info.ApiType)
+			adaptor.Init(info)
+			target, err := relaychannel.DoWssRequest(adaptor, c, info, nil)
+			require.NoError(t, err)
+			_ = target.Close()
+
+			r := <-handshake
+			assert.Equal(t, strings.TrimPrefix(baseURL, server.URL)+tc.wantPath, r.URL.Path)
+			assert.Equal(t, tc.wantAPIVersion, r.URL.Query().Get("api-version"))
+			assert.Equal(t, "azure-key", r.Header.Get("api-key"))
+			assert.Empty(t, r.Header.Get("Authorization"))
+		})
+	}
+}
+
+func TestResponsesWSDialAppliesPluginsOverridesFinalizerAndSignerInOrder(t *testing.T) {
+	handshake := make(chan *http.Request, 1)
+	upgrader := websocket.Upgrader{}
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		handshake <- request
+		connection, err := upgrader.Upgrade(writer, request, nil)
+		if err != nil {
+			return
+		}
+		_ = connection.Close()
+	}))
+	defer server.Close()
+
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/responses", nil)
+	ctx.Request.Header.Set("Content-Type", "application/client")
+	info := &relaycommon.RelayInfo{
+		RelayMode:      relayconstant.RelayModeResponses,
+		RequestURLPath: "/v1/responses",
+		RequestPluginHeaders: []requestpatch.Effect{{
+			Type: requestpatch.EffectHeaderPatch,
+			Set: map[string]string{
+				"Content-Type": "application/plugin",
+				"X-Order":      "plugin-value",
+				"X-Plugin":     "plugin-value",
+			},
+		}},
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType:       constant.ChannelTypeOpenAI,
+			ChannelBaseUrl:    server.URL,
+			ApiType:           constant.APITypeOpenAI,
+			ApiKey:            "openai-key",
+			UpstreamModelName: "gpt-test",
+			HeadersOverride: map[string]any{
+				"Content-Type": "application/override",
+				"X-Order":      "override-value",
+			},
+		},
+	}
+	baseAdaptor := GetAdaptor(info.ApiType)
+	baseAdaptor.Init(info)
+	adaptor := &responsesWSRequestOrderAdaptor{Adaptor: baseAdaptor, test: t}
+
+	target, err := relaychannel.DoWssRequest(adaptor, ctx, info, nil)
+	require.NoError(t, err)
+	_ = target.Close()
+
+	request := <-handshake
+	assert.Equal(t, "plugin-value", request.Header.Get("X-Plugin"))
+	assert.Equal(t, "override-value", request.Header.Get("X-Order"))
+	assert.Equal(t, "application/override", request.Header.Get("Content-Type"))
+	assert.Equal(t, "true", request.Header.Get("X-Finalized"))
+	assert.Equal(t, "true", request.Header.Get("X-Signed"))
+	assert.Equal(t, "true", request.URL.Query().Get("signed"))
 }
 
 func TestRestoreConnectionContextRejectsChangedAdvancedCustomRoute(t *testing.T) {
@@ -499,6 +643,23 @@ func TestNormalizeResponsesWSCreateEventFlat(t *testing.T) {
 	if req.StreamOptions != nil {
 		t.Fatalf("stream_options = %#v, want nil", req.StreamOptions)
 	}
+}
+
+// The HTTP body and the upstream event keep the client's member order and
+// number spelling; only the WebSocket members change.
+func TestResponsesWSCreateEventKeepsClientBytes(t *testing.T) {
+	message := []byte(`{"type":"response.create","model":"m","text":{"format":{"type":"json_schema","name":"r","schema":{"properties":{"b":{},"a":{}}}}},"temperature":1.0,"stream":true,"generate":false}`)
+
+	create, _, err := normalizeResponsesWSTestMessage(message)
+	require.NoError(t, err)
+	assert.Equal(t, `{"model":"m","text":{"format":{"type":"json_schema","name":"r","schema":{"properties":{"b":{},"a":{}}}}},"temperature":1.0}`, string(create.Body))
+
+	event, err := buildResponsesWSCreateEvent(create.Body, create.Generate, "s1")
+	require.NoError(t, err)
+	assert.Equal(t, `{"model":"m","text":{"format":{"type":"json_schema","name":"r","schema":{"properties":{"b":{},"a":{}}}}},"temperature":1.0,"type":"response.create","stream_id":"s1","generate":false}`, string(event))
+
+	_, _, err = normalizeResponsesWSTestMessage([]byte(`{"type":"response.create","response":["m"]}`))
+	assert.Error(t, err)
 }
 
 func TestBuildResponsesWSCreateEventIsFlat(t *testing.T) {

@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
+	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
@@ -61,6 +62,8 @@ func TestDistributeChecksSensitiveWordsBeforeMissingChannel(t *testing.T) {
 		"distributor-claude-sensitive-marker",
 		"distributor-gemini-sensitive-marker",
 		"distributor-image-sensitive-marker",
+		"distributor-deepseek-search-sensitive-marker",
+		"distributor-deepseek-fetch-sensitive-marker",
 	}
 	_, err := model.UpsertSensitiveWordRuleWithMode(
 		0, "distributor boundary", markers, model.SensitiveWordScopeGlobal, nil, 1, model.SensitiveWordModeBlock,
@@ -101,32 +104,49 @@ func TestDistributeChecksSensitiveWordsBeforeMissingChannel(t *testing.T) {
 		name       string
 		path       string
 		body       string
+		model      string
 		claudeBody bool
 		geminiBody bool
 	}{
 		{
 			name: "chat completions", path: "/v1/chat/completions",
-			body: `{"model":"no-channel-chat","messages":[{"role":"user","content":"distributor-chat-sensitive-marker"}]}`,
+			model: "no-channel-chat",
+			body:  `{"model":"no-channel-chat","messages":[{"role":"user","content":"distributor-chat-sensitive-marker"}]}`,
 		},
 		{
 			name: "responses user input", path: "/v1/responses",
-			body: `{"model":"no-channel-responses","input":"distributor-responses-sensitive-marker"}`,
+			model: "no-channel-responses",
+			body:  `{"model":"no-channel-responses","input":"distributor-responses-sensitive-marker"}`,
 		},
 		{
 			name: "responses tool result without new user text", path: "/v1/responses",
-			body: `{"model":"no-channel-responses","input":[{"type":"function_call_output","call_id":"call-1","output":"distributor-tool-result-sensitive-marker"}]}`,
+			model: "no-channel-responses",
+			body:  `{"model":"no-channel-responses","input":[{"type":"function_call_output","call_id":"call-1","output":"distributor-tool-result-sensitive-marker"}]}`,
 		},
 		{
 			name: "claude messages", path: "/v1/messages", claudeBody: true,
-			body: `{"model":"no-channel-claude","max_tokens":1,"messages":[{"role":"user","content":"distributor-claude-sensitive-marker"}]}`,
+			model: "no-channel-claude",
+			body:  `{"model":"no-channel-claude","max_tokens":1,"messages":[{"role":"user","content":"distributor-claude-sensitive-marker"}]}`,
 		},
 		{
 			name: "gemini", path: "/v1beta/models/no-channel-gemini:generateContent", geminiBody: true,
-			body: `{"contents":[{"role":"user","parts":[{"text":"distributor-gemini-sensitive-marker"}]}]}`,
+			model: "no-channel-gemini",
+			body:  `{"contents":[{"role":"user","parts":[{"text":"distributor-gemini-sensitive-marker"}]}]}`,
 		},
 		{
 			name: "image generation", path: "/v1/images/generations",
-			body: `{"model":"no-channel-image","prompt":"distributor-image-sensitive-marker"}`,
+			model: "no-channel-image",
+			body:  `{"model":"no-channel-image","prompt":"distributor-image-sensitive-marker"}`,
+		},
+		{
+			name: "deepseek tools search", path: "/v1/tools/search",
+			model: constant.DeepSeekSearchModel,
+			body:  `{"query":"distributor-deepseek-search-sensitive-marker"}`,
+		},
+		{
+			name: "deepseek tools fetch", path: "/v1/tools/fetch",
+			model: constant.DeepSeekFetchModel,
+			body:  `{"query":"distributor-deepseek-fetch-sensitive-marker","url":"https://example.com"}`,
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -136,6 +156,9 @@ func TestDistributeChecksSensitiveWordsBeforeMissingChannel(t *testing.T) {
 			request.Header.Set("Content-Type", "application/json")
 			request.Header.Set("Accept-Language", "en")
 			engine.ServeHTTP(recorder, request)
+			metricsText, metricsErr := perfmetrics.BuildPrometheusText(request.Context())
+			require.NoError(t, metricsErr)
+			assert.Contains(t, metricsText, `newapi_model_requests_total{model="`+testCase.model+`",status="error"}`)
 
 			require.Equal(t, http.StatusBadRequest, recorder.Code)
 			assert.False(t, handlerCalled, "the relay handler and channel selection must not run")

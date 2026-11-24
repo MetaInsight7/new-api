@@ -66,7 +66,10 @@ import { useStatus } from '@/hooks/use-status'
 import { getUserModels, getUserGroups } from '@/lib/api'
 import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
 import { handleServerError } from '@/lib/handle-server-error'
-import { requireServerSuccess } from '@/lib/server-error-message'
+import {
+  requireServerSuccess,
+  translateServerText,
+} from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
 
 import {
@@ -169,10 +172,10 @@ export function ApiKeysMutateDrawer({
       Object.entries(groupsData?.data || {}).map(([key, info]) => ({
         value: key,
         label: key,
-        desc: info.desc || key,
+        desc: info.desc ? translateServerText(t, info.desc) : key,
         ratio: info.ratio,
       })),
-    [groupsData]
+    [groupsData, t]
   )
   const backendHasAuto = groups.some((g) => g.value === 'auto')
   const availableAutoGroupNames = useMemo(
@@ -210,6 +213,9 @@ export function ApiKeysMutateDrawer({
   // Load existing data when updating
   useEffect(() => {
     if (!open) {
+      form.reset(
+        getApiKeyFormDefaultValues(defaultUseAutoGroup && backendHasAuto)
+      )
       setInitializedTarget(null)
       return
     }
@@ -379,7 +385,7 @@ export function ApiKeysMutateDrawer({
 
   const handleSetExpiry = (months: number, days: number, hours: number) => {
     if (months === 0 && days === 0 && hours === 0) {
-      form.setValue('expired_time', undefined)
+      form.setValue('expired_time', null)
       return
     }
 
@@ -631,8 +637,8 @@ export function ApiKeysMutateDrawer({
                         >
                           <FormControl>
                             <DateTimePicker
-                              value={field.value}
-                              onChange={field.onChange}
+                              value={field.value ?? undefined}
+                              onChange={(date) => field.onChange(date ?? null)}
                               placeholder={t('Never expires')}
                               className='min-w-0 [&_input[type=time]]:w-24 sm:[&_input[type=time]]:w-32'
                             />

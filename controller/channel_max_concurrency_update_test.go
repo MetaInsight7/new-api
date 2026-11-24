@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -36,6 +37,7 @@ func setupChannelMaxConcurrencyUpdateTest(t *testing.T) *gorm.DB {
 		&model.Ability{},
 		&model.User{},
 		&model.AuditLog{},
+		&model.SystemTask{},
 	))
 	model.DB = database
 	model.LOG_DB = database
@@ -174,6 +176,64 @@ func TestUpdateChannelRejectsNegativeMaxConcurrencyWithoutChangingStoredValue(t 
 	var persisted model.Channel
 	require.NoError(t, database.First(&persisted, "id = ?", channel.Id).Error)
 	assert.Equal(t, 5, persisted.MaxConcurrency)
+}
+
+func TestUpdateChannelCommitsKeyFieldsAndAbilitiesAtomically(t *testing.T) {
+	database := setupChannelMaxConcurrencyUpdateTest(t)
+	channel := model.Channel{
+		Type: constant.ChannelTypeOpenAI, Key: "sk-before", Status: common.ChannelStatusEnabled,
+		Name: "before", Models: "model-before", Group: "default", UsedQuota: 91, Balance: 7,
+		ChannelInfo: model.ChannelInfo{MultiKeyPollingIndex: 3},
+	}
+	channel.SetOtherInfo(map[string]any{"balance_detail": map[string]any{"amount": 7}})
+	require.NoError(t, channel.Insert())
+	var revisionsBefore int64
+	require.NoError(t, database.Model(&model.SystemTask{}).Where("type = ?", model.SyncTaskType(model.SyncTopicChannels)).Count(&revisionsBefore).Error)
+
+	failure := errors.New("ability replacement failed")
+	callbackName := "test:fail_channel_update_ability_replace"
+	require.NoError(t, database.Callback().Delete().Before("gorm:delete").Register(callbackName, func(tx *gorm.DB) {
+		if strings.HasSuffix(tx.Statement.Table, "abilities") {
+			tx.AddError(failure)
+		}
+	}))
+	t.Cleanup(func() { _ = database.Callback().Delete().Remove(callbackName) })
+	response := updateChannelMaxConcurrency(t, fmt.Sprintf(`{"id":%d,"name":"after","key":"sk-after","models":"model-after"}`, channel.Id))
+	require.Equal(t, http.StatusOK, response.Code)
+	var failed struct {
+		Success bool `json:"success"`
+	}
+	require.NoError(t, common.Unmarshal(response.Body.Bytes(), &failed))
+	assert.False(t, failed.Success)
+	require.NoError(t, database.Callback().Delete().Remove(callbackName))
+
+	var stored model.Channel
+	require.NoError(t, database.First(&stored, channel.Id).Error)
+	assert.Equal(t, "before", stored.Name)
+	assert.Equal(t, "sk-before", stored.Key)
+	assert.Equal(t, "model-before", stored.Models)
+	assert.Equal(t, int64(91), stored.UsedQuota)
+	assert.Equal(t, 7.0, stored.Balance)
+	assert.Equal(t, channel.OtherInfo, stored.OtherInfo)
+	assert.Equal(t, 3, stored.ChannelInfo.MultiKeyPollingIndex)
+	var revisionsAfter int64
+	require.NoError(t, database.Model(&model.SystemTask{}).Where("type = ?", model.SyncTaskType(model.SyncTopicChannels)).Count(&revisionsAfter).Error)
+	assert.Equal(t, revisionsBefore, revisionsAfter)
+
+	response = updateChannelMaxConcurrency(t, fmt.Sprintf(`{"id":%d,"name":"after","key":"sk-after","models":"model-after"}`, channel.Id))
+	requireChannelUpdateSuccess(t, response)
+	require.NoError(t, database.First(&stored, channel.Id).Error)
+	assert.Equal(t, "after", stored.Name)
+	assert.Equal(t, "sk-after", stored.Key)
+	assert.Equal(t, "model-after", stored.Models)
+	assert.Equal(t, int64(91), stored.UsedQuota)
+	assert.Equal(t, 7.0, stored.Balance)
+	assert.Equal(t, channel.OtherInfo, stored.OtherInfo)
+	assert.Equal(t, 3, stored.ChannelInfo.MultiKeyPollingIndex)
+	var abilities []model.Ability
+	require.NoError(t, database.Where("channel_id = ?", channel.Id).Find(&abilities).Error)
+	require.Len(t, abilities, 1)
+	assert.Equal(t, "model-after", abilities[0].Model)
 }
 
 func TestAddChannelRejectsNegativeMaxConcurrency(t *testing.T) {

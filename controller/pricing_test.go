@@ -75,13 +75,13 @@ func setupPricingControllerTest(testContext *testing.T) {
 	model.InvalidatePricingCache()
 }
 
-func requestPricing(testContext *testing.T, userID int) pricingResponse {
+func requestPricing(testContext *testing.T, userGroup string) pricingResponse {
 	testContext.Helper()
 
 	router := gin.New()
 	router.GET("/api/pricing", func(context *gin.Context) {
-		if userID != 0 {
-			context.Set("id", userID)
+		if userGroup != "" {
+			common.SetContextKey(context, constant.ContextKeyUserGroup, userGroup)
 		}
 	}, GetPricing)
 	response := httptest.NewRecorder()
@@ -97,7 +97,7 @@ func requestPricing(testContext *testing.T, userID int) pricingResponse {
 func TestGetPricingPublishesVisibleModelOverrides(testContext *testing.T) {
 	setupPricingControllerTest(testContext)
 
-	payload := requestPricing(testContext, 0)
+	payload := requestPricing(testContext, "")
 	assert.Equal(testContext, map[string]map[string]float64{
 		"vip": {"zz-pricing-token": 0.3, "zz-pricing-free": 0},
 	}, payload.GroupModelRatio)
@@ -148,7 +148,7 @@ func TestGetPricingScopesOverridesToCallerAndEnabledModels(testContext *testing.
 	}).Error)
 	model.InvalidatePricingCache()
 
-	anonymous := requestPricing(testContext, 0)
+	anonymous := requestPricing(testContext, "")
 	assert.Equal(testContext, map[string]map[string]float64{
 		"default": {"zz-pricing-all": 0.4, "gpt-4-gizmo-pricing-public": 0.25},
 		"vip": {
@@ -165,11 +165,11 @@ func TestGetPricingScopesOverridesToCallerAndEnabledModels(testContext *testing.
 		"gpt-4-gizmo-pricing-public", "gemini-2.5-flash-thinking-128",
 	}, anonymousModels)
 	publicPricing := pricingByModelName(anonymous.Data)
-	assert.ElementsMatch(testContext, []string{"default", "hidden"}, publicPricing["gpt-4-gizmo-pricing-public"].EnableGroup)
+	assert.Equal(testContext, []string{"default"}, publicPricing["gpt-4-gizmo-pricing-public"].EnableGroup)
 	assert.Equal(testContext, []string{"all"}, publicPricing["zz-pricing-all"].EnableGroup)
 	assert.Equal(testContext, []string{"vip"}, publicPricing["zz-pricing-token"].EnableGroup)
 
-	member := requestPricing(testContext, 7101)
+	member := requestPricing(testContext, "member")
 	assert.Equal(testContext, map[string]map[string]float64{
 		"default": {"zz-pricing-all": 0.4, "gpt-4-gizmo-pricing-public": 0.25},
 		"hidden":  {"zz-pricing-all": 0.2, "gpt-4-gizmo-pricing-public": 0.15, "zz-pricing-hidden": 1.5},
@@ -180,17 +180,17 @@ func TestGetPricingScopesOverridesToCallerAndEnabledModels(testContext *testing.
 	assert.Equal(testContext, []string{"default", "hidden"}, member.AutoGroups)
 	memberPricing := pricingByModelName(member.Data)
 	assert.Len(testContext, memberPricing, 4)
-	assert.Equal(testContext, publicPricing["gpt-4-gizmo-pricing-public"], memberPricing["gpt-4-gizmo-pricing-public"])
+	assert.ElementsMatch(testContext, []string{"default", "hidden"}, memberPricing["gpt-4-gizmo-pricing-public"].EnableGroup)
 	assert.Equal(testContext, publicPricing["zz-pricing-all"], memberPricing["zz-pricing-all"])
 	assert.Equal(testContext, anonymous.Vendors, member.Vendors)
 	assert.Equal(testContext, anonymous.SupportedEndpoint, member.SupportedEndpoint)
 	assert.Equal(testContext, anonymous.PricingVersion, member.PricingVersion)
-	assert.Equal(testContext, anonymous, requestPricing(testContext, 0))
+	assert.Equal(testContext, anonymous, requestPricing(testContext, ""))
 }
 
 func TestGetPricingEmptyOverridesPreserveLegacyResponse(testContext *testing.T) {
 	setupPricingControllerTest(testContext)
-	baseline := requestPricing(testContext, 0)
+	baseline := requestPricing(testContext, "")
 	baseline.GroupModelRatio = map[string]map[string]float64{}
 
 	tests := []struct {
@@ -206,7 +206,7 @@ func TestGetPricingEmptyOverridesPreserveLegacyResponse(testContext *testing.T) 
 	for _, test := range tests {
 		testContext.Run(test.name, func(testContext *testing.T) {
 			require.NoError(testContext, ratio_setting.UpdateGroupModelRatioByJSONString(test.ratios))
-			payload := requestPricing(testContext, 0)
+			payload := requestPricing(testContext, "")
 			require.NotNil(testContext, payload.GroupModelRatio)
 			assert.Empty(testContext, payload.GroupModelRatio)
 			assert.Equal(testContext, baseline, payload)
@@ -221,10 +221,10 @@ func TestGetPricingNoVisibleGroupsDoesNotExpandAll(testContext *testing.T) {
 	}).Error)
 	require.NoError(testContext, ratio_setting.UpdateGroupModelRatioByJSONString(`{"default":{"zz-pricing-all":0.5}}`))
 	model.InvalidatePricingCache()
-	baseline := requestPricing(testContext, 0)
+	baseline := requestPricing(testContext, "")
 	require.NoError(testContext, setting.UpdateUserUsableGroupsByJSONString(`{}`))
 
-	payload := requestPricing(testContext, 0)
+	payload := requestPricing(testContext, "")
 	require.NotNil(testContext, payload.GroupModelRatio)
 	assert.Empty(testContext, payload.GroupModelRatio)
 	assert.Empty(testContext, payload.Data)
@@ -236,5 +236,5 @@ func TestGetPricingNoVisibleGroupsDoesNotExpandAll(testContext *testing.T) {
 	assert.Equal(testContext, baseline.PricingVersion, payload.PricingVersion)
 
 	require.NoError(testContext, setting.UpdateUserUsableGroupsByJSONString(`{"default":"Default","vip":"VIP"}`))
-	assert.Equal(testContext, baseline, requestPricing(testContext, 0))
+	assert.Equal(testContext, baseline, requestPricing(testContext, ""))
 }

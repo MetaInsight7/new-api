@@ -89,6 +89,9 @@ var channelReadOnlyFields = map[string]struct{}{
 	"balance_updated_time":   {},
 	"used_quota":             {},
 	"codex_fingerprint_seed": {},
+	"balance_detail":         {},
+	"other_info":             {},
+	"channel_info":           {},
 }
 
 func clearChannelReadOnlyFields(channel *PatchChannel, requestData map[string]any) {
@@ -113,6 +116,9 @@ func clearChannelReadOnlyFields(channel *PatchChannel, requestData map[string]an
 	if _, ok := requestData["codex_fingerprint_seed"]; ok {
 		channel.CodexFingerprintSeed = ""
 	}
+	if _, ok := requestData["balance_detail"]; ok {
+		channel.BalanceDetail = nil
+	}
 }
 
 // channelNonSensitiveFields lists routing / server-managed channel
@@ -134,9 +140,7 @@ var channelNonSensitiveFields = map[string]struct{}{
 	"priority":            {},
 	"group_priority":      {},
 	"auto_ban":            {},
-	"other_info":          {},
 	"tag":                 {},
 	"remark":              {},
-	"channel_info":        {},
 	"multi_key_mode":      {},
 }

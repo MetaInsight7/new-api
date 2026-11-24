@@ -25,13 +25,31 @@ import {
   within,
 } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
 import { Button } from '@/components/ui/button'
 import { api } from '@/lib/api'
+import { ROLE } from '@/lib/roles'
+import { useAuthStore } from '@/stores/auth-store'
 
 import { useChannelUpstreamUpdates } from '../../hooks/use-channel-upstream-updates'
 import { UpstreamUpdateDialog } from '../dialogs/upstream-update-dialog'
+
+const originalAuth = useAuthStore.getState().auth
+
+beforeEach(() => {
+  useAuthStore.setState({
+    auth: {
+      ...originalAuth,
+      user: { id: 1, username: 'root', role: ROLE.SUPER_ADMIN },
+    },
+  })
+})
+
+afterEach(() => {
+  useAuthStore.setState({ auth: originalAuth })
+  vi.restoreAllMocks()
+})
 
 const detectionResponse = {
   data: {
@@ -80,6 +98,38 @@ function UpstreamUpdateHarness(props: { refresh?: () => Promise<void> }) {
 }
 
 describe('upstream update preview', () => {
+  test('direct hook calls send no request without channel permissions', async () => {
+    useAuthStore.setState({
+      auth: {
+        ...originalAuth,
+        user: {
+          id: 2,
+          username: 'reader',
+          role: ROLE.ADMIN,
+          permissions: {
+            admin_permissions: {
+              channel: { read: true, operate: false, write: false },
+            },
+          },
+        },
+      },
+    })
+    const post = vi.spyOn(api, 'post')
+    const refresh = vi.fn().mockResolvedValue(undefined)
+    const { result } = renderHook(() => useChannelUpstreamUpdates(refresh))
+
+    await act(async () => {
+      await result.current.detectChannelUpdates({ id: 42, name: 'blocked' })
+      await result.current.detectAllUpdates()
+      result.current.openModal({ id: 42 }, ['gpt-new'])
+      await result.current.applyAllUpdates()
+    })
+
+    expect(post).not.toHaveBeenCalled()
+    expect(refresh).not.toHaveBeenCalled()
+    expect(result.current.showModal).toBe(false)
+  })
+
   test('detecting changes opens a preview without applying them', async () => {
     const post = vi.spyOn(api, 'post').mockResolvedValue(detectionResponse)
     const { result } = renderHook(() =>

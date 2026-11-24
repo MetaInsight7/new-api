@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relaykit/types"
@@ -22,6 +23,18 @@ func TestSanitizeErrorForUserPreservesActionableRequestErrors(t *testing.T) {
 	sanitizeErrorForUser(err, false)
 
 	assert.Equal(t, "messages cannot be empty", err.Error())
+}
+
+func TestSanitizeErrorForUserHidesDiagnosticsInDebugMode(t *testing.T) {
+	previousDebug := common.DebugEnabled
+	common.DebugEnabled = true
+	t.Cleanup(func() { common.DebugEnabled = previousDebug })
+	err := types.NewErrorWithStatusCode(fmt.Errorf("plugin conversion failed RequestID: upstream-secret"), types.ErrorCodeConvertRequestFailed, http.StatusInternalServerError)
+
+	sanitizeErrorForUser(err, false)
+
+	assert.Equal(t, "请求处理失败，请稍后再试", err.Error())
+	assert.NotContains(t, err.Error(), "plugin conversion failed")
 }
 
 func TestSanitizeErrorForUserHidesUpstreamDetails(t *testing.T) {

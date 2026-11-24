@@ -63,7 +63,11 @@ import { handleServerError } from '@/lib/handle-server-error'
 import { useAuthStore } from '@/stores/auth-store'
 
 import { updateChannelStatus } from '../api'
-import { CHANNEL_STATUS, MODEL_FETCHABLE_TYPES } from '../constants'
+import { CHANNEL_STATUS } from '../constants'
+import {
+  useChannelBalanceQueryable,
+  useChannelModelFetchable,
+} from '../hooks/use-task-plugin-option'
 import {
   channelsQueryKeys,
   handleDeleteChannel,
@@ -84,6 +88,8 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   const { t } = useTranslation()
   const layout = useContext(ChannelRowActionsLayoutContext)
   const channel = row.original
+  const modelFetchable = useChannelModelFetchable(channel)
+  const balanceQueryable = useChannelBalanceQueryable(channel)
   const { setOpen, setCurrentRow, upstream } = useChannels()
   const queryClient = useQueryClient()
   const currentUser = useAuthStore((s) => s.auth.user)
@@ -100,6 +106,11 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
     ADMIN_PERMISSION_RESOURCES.CHANNEL,
     ADMIN_PERMISSION_ACTIONS.OPERATE
   )
+  const canWrite = hasPermission(
+    currentUser,
+    ADMIN_PERMISSION_RESOURCES.CHANNEL,
+    ADMIN_PERMISSION_ACTIONS.WRITE
+  )
   const canEditSensitive = hasPermission(
     currentUser,
     ADMIN_PERMISSION_RESOURCES.CHANNEL,
@@ -107,17 +118,20 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   )
 
   const handleEdit = () => {
+    if (!canWrite) return
     setCurrentRow(channel)
     setOpen('update-channel')
   }
 
   const handleTest = () => {
+    if (!canOperate) return
     setCurrentRow(channel)
     setOpen('test-channel')
   }
 
   const handleDirectTest = async (e: React.MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation()
+    if (!canOperate || isTesting) return
     setIsTesting(true)
     try {
       await handleTestChannel(channel.id, { channelName: channel.name }, () => {
@@ -129,16 +143,19 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   }
 
   const handleQueryBalance = () => {
+    if (!canOperate) return
     setCurrentRow(channel)
     setOpen('balance-query')
   }
 
   const handleFetchModels = () => {
+    if (!canOperate) return
     setCurrentRow(channel)
     setOpen('fetch-models')
   }
 
   const handleManageOllamaModels = () => {
+    if (!canEditSensitive) return
     setCurrentRow(channel)
     setOpen('ollama-models')
   }
@@ -149,6 +166,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   }
 
   const handleManageKeys = () => {
+    if (!canOperate) return
     setCurrentRow(channel)
     setOpen('multi-key-manage')
   }
@@ -210,6 +228,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
                   e.stopPropagation()
                   handleEdit()
                 }}
+                disabled={!canWrite}
                 aria-label={t('Edit')}
               />
             }
@@ -227,7 +246,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
               variant='ghost'
               size='icon-sm'
               onClick={handleDirectTest}
-              disabled={isTesting}
+              disabled={isTesting || !canOperate}
               aria-label={t('Test Connection')}
             />
           }
@@ -252,6 +271,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
                   e.stopPropagation()
                   handleTest()
                 }}
+                disabled={!canOperate}
                 aria-label={t('Test Channel Connection')}
               />
             }
@@ -300,7 +320,10 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
         </DropdownMenuTrigger>
         <DropdownMenuContent align='end' className='w-48'>
           {layout === 'card' && (
-            <DropdownMenuItem onClick={handleEdit}>
+            <DropdownMenuItem
+              disabled={!canWrite}
+              onClick={canWrite ? handleEdit : undefined}
+            >
               {t('Edit')}
               <DropdownMenuShortcut>
                 <Pencil size={16} />
@@ -309,7 +332,10 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
           )}
 
           {/* Test Connection */}
-          <DropdownMenuItem onClick={handleTest}>
+          <DropdownMenuItem
+            disabled={!canOperate}
+            onClick={canOperate ? handleTest : undefined}
+          >
             {t('Test Connection')}
             <DropdownMenuShortcut>
               <PlugZap size={16} />
@@ -317,15 +343,23 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
           </DropdownMenuItem>
 
           {/* Query Balance */}
-          <DropdownMenuItem onClick={handleQueryBalance}>
-            {t('Query Balance')}
-            <DropdownMenuShortcut>
-              <DollarSign size={16} />
-            </DropdownMenuShortcut>
-          </DropdownMenuItem>
+          {balanceQueryable && (
+            <DropdownMenuItem
+              disabled={!canOperate}
+              onClick={canOperate ? handleQueryBalance : undefined}
+            >
+              {t('Query Balance')}
+              <DropdownMenuShortcut>
+                <DollarSign size={16} />
+              </DropdownMenuShortcut>
+            </DropdownMenuItem>
+          )}
 
           {/* Fetch Models */}
-          <DropdownMenuItem onClick={handleFetchModels}>
+          <DropdownMenuItem
+            disabled={!canOperate}
+            onClick={canOperate ? handleFetchModels : undefined}
+          >
             {t('Fetch Models')}
             <DropdownMenuShortcut>
               <Download size={16} />
@@ -333,9 +367,14 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
           </DropdownMenuItem>
 
           {/* Detect Upstream Updates (only for fetchable channel types) */}
-          {MODEL_FETCHABLE_TYPES.has(channel.type) && (
+          {modelFetchable && (
             <DropdownMenuItem
-              onClick={() => upstream.detectChannelUpdates(channel)}
+              disabled={!canOperate}
+              onClick={
+                canOperate
+                  ? () => upstream.detectChannelUpdates(channel)
+                  : undefined
+              }
             >
               {t('Upstream Updates')}
               <DropdownMenuShortcut>
@@ -346,7 +385,10 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
 
           {/* Ollama Models (only for Ollama channels) */}
           {channel.type === 4 && (
-            <DropdownMenuItem onClick={handleManageOllamaModels}>
+            <DropdownMenuItem
+              disabled={!canEditSensitive}
+              onClick={canEditSensitive ? handleManageOllamaModels : undefined}
+            >
               {t('Manage Ollama Models')}
               <DropdownMenuShortcut>
                 <Boxes size={16} />
@@ -374,7 +416,10 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
 
           {/* Manage Keys (only for multi-key channels) */}
           {isMultiKey && (
-            <DropdownMenuItem onClick={handleManageKeys}>
+            <DropdownMenuItem
+              disabled={!canOperate}
+              onClick={canOperate ? handleManageKeys : undefined}
+            >
               {t('Manage Keys')}
               <DropdownMenuShortcut>
                 <Key size={16} />

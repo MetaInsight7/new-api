@@ -68,10 +68,10 @@ func RecordRelayResult(ctx context.Context, info *relaycommon.RelayInfo, apiErr 
 	})
 }
 
-// RecordPreRelayLocalCapacityFailure records a terminal local concurrency
-// rejection that happened before RelayInfo was constructed. Callers must not
-// use it on paths that already finish through RecordRelayResult.
-func RecordPreRelayLocalCapacityFailure(ctx context.Context, modelName, group string, startedAt time.Time) {
+// RecordPreRelayFailure records a terminal rejection that happened before
+// RelayInfo was constructed. Callers must not use it on paths that already
+// finish through RecordRelayResult.
+func RecordPreRelayFailure(ctx context.Context, modelName, group string, startedAt time.Time, apiErr *types.NewAPIError) {
 	if modelName == "" {
 		return
 	}
@@ -80,7 +80,6 @@ func RecordPreRelayLocalCapacityFailure(ctx context.Context, modelName, group st
 		startedAt = now
 	}
 	info := &relaycommon.RelayInfo{OriginModelName: modelName, UsingGroup: group, StartTime: startedAt}
-	apiErr := types.InitOpenAIError(localCapacityErrorCode, 429)
 	recordModelPerformance(ctx, info, false, apiErr, now)
 	Record(Sample{
 		Model:     modelName,
@@ -88,6 +87,12 @@ func RecordPreRelayLocalCapacityFailure(ctx context.Context, modelName, group st
 		LatencyMs: now.Sub(startedAt).Milliseconds(),
 		Success:   false,
 	})
+}
+
+// RecordPreRelayLocalCapacityFailure records a terminal local concurrency
+// rejection that happened before RelayInfo was constructed.
+func RecordPreRelayLocalCapacityFailure(ctx context.Context, modelName, group string, startedAt time.Time) {
+	RecordPreRelayFailure(ctx, modelName, group, startedAt, types.InitOpenAIError(localCapacityErrorCode, 429))
 }
 
 // RecordTaskResult samples one async task exactly once, at its terminal
@@ -127,6 +132,24 @@ func RecordTaskResult(task *model.Task, result *relaycommon.TaskInfo) {
 		info.StartTime = time.Unix(task.SubmitTime, 0)
 	}
 	recordModelPerformance(context.Background(), info, sample.Success, nil, time.Unix(endTs, 0))
+	Record(sample)
+}
+
+// Immediate failures are submit failures, which are not health samples.
+func RecordImmediateTaskResult(info *relaycommon.RelayInfo, result *relaycommon.TaskInfo) {
+	if result == nil || result.Status != model.TaskStatusSuccess {
+		return
+	}
+	sample := Sample{
+		Model:     info.OriginModelName,
+		Group:     info.UsingGroup,
+		LatencyMs: time.Since(info.StartTime).Milliseconds(),
+		Success:   true,
+	}
+	if tokens := int64(cmp.Or(result.TotalTokens, result.CompletionTokens)); tokens > 0 {
+		sample.OutputTokens = tokens
+		sample.GenerationMs = sample.LatencyMs
+	}
 	Record(sample)
 }
 

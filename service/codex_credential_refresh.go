@@ -31,7 +31,11 @@ type CodexOAuthKey struct {
 	Expired     string `json:"expired,omitempty"`
 }
 
-var codexCredentialRefreshes singleflight.Group
+type codexCredentialRefresher struct {
+	group singleflight.Group
+}
+
+var defaultCodexCredentialRefresher codexCredentialRefresher
 
 // codexCredentialPersistTimeout bounds the detached write so a stuck database
 // cannot pin the shared refresh goroutine forever.
@@ -54,6 +58,10 @@ func parseCodexOAuthKey(raw string) (*CodexOAuthKey, error) {
 }
 
 func RefreshCodexChannelCredential(ctx context.Context, channelID int, opts CodexCredentialRefreshOptions) (*CodexOAuthKey, *model.Channel, error) {
+	return defaultCodexCredentialRefresher.Refresh(ctx, channelID, opts)
+}
+
+func (refresher *codexCredentialRefresher) Refresh(ctx context.Context, channelID int, opts CodexCredentialRefreshOptions) (*CodexOAuthKey, *model.Channel, error) {
 	ch, err := model.GetChannelById(channelID, true)
 	if err != nil {
 		return nil, nil, err
@@ -72,82 +80,102 @@ func RefreshCodexChannelCredential(ctx context.Context, channelID int, opts Code
 	if err != nil {
 		return nil, nil, err
 	}
-	if strings.TrimSpace(oauthKey.RefreshToken) == "" {
-		return nil, nil, fmt.Errorf("codex channel: refresh_token is required to refresh credential")
-	}
 	if opts.ExpectedKey != "" && ch.Key != opts.ExpectedKey {
 		if opts.ResetCaches {
 			model.InitChannelCache()
 		}
 		return oauthKey, ch, nil
 	}
+	if strings.TrimSpace(oauthKey.RefreshToken) == "" {
+		return nil, nil, fmt.Errorf("codex channel: refresh_token is required to refresh credential")
+	}
 	operationKey := strconv.Itoa(channelID) + ":" + common.GenerateHMAC(ch.Key)
-	completion := codexCredentialRefreshes.DoChan(operationKey, func() (any, error) {
-		current, err := model.GetChannelById(channelID, true)
-		if err != nil {
-			return nil, err
-		}
-		if current.Type != constant.ChannelTypeCodex || current.ChannelInfo.IsMultiKey {
-			return nil, errors.New("Codex channel configuration changed")
-		}
-		if current.Key != ch.Key {
-			key, err := parseCodexOAuthKey(current.Key)
-			return codexCredentialRefreshResult{key: key, channel: current}, err
-		}
-
-		refreshCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-		defer cancel()
-
-		res, err := RefreshCodexOAuthTokenWithProxy(refreshCtx, oauthKey.RefreshToken, ch.GetSetting().Proxy)
-		if err != nil {
-			return nil, err
-		}
-
-		oauthKey.AccessToken = res.AccessToken
-		oauthKey.RefreshToken = res.RefreshToken
-		oauthKey.LastRefresh = time.Now().Format(time.RFC3339)
-		oauthKey.Expired = res.ExpiresAt.Format(time.RFC3339)
-		if strings.TrimSpace(oauthKey.Type) == "" {
-			oauthKey.Type = "codex"
-		}
-
-		if strings.TrimSpace(oauthKey.AccountID) == "" {
-			if accountID, ok := ExtractCodexAccountIDFromJWT(oauthKey.AccessToken); ok {
-				oauthKey.AccountID = accountID
-			}
-		}
-		if strings.TrimSpace(oauthKey.Email) == "" {
-			if email, ok := ExtractEmailFromJWT(oauthKey.AccessToken); ok {
-				oauthKey.Email = email
-			}
-		}
-
-		encoded, err := common.Marshal(oauthKey)
-		if err != nil {
-			return nil, err
-		}
-
-		// The upstream has already rotated the refresh token for every waiter in
-		// this singleflight call. One request cancellation must not discard it.
-		persistCtx, persistCancel := context.WithTimeout(context.WithoutCancel(ctx), codexCredentialPersistTimeout)
-		defer persistCancel()
-		updated := model.DB.WithContext(persistCtx).Model(&model.Channel{}).Where(map[string]any{"id": ch.Id, "type": constant.ChannelTypeCodex, "key": ch.Key}).Update("key", string(encoded))
-		if updated.Error != nil {
-			return nil, errors.New("failed to persist refreshed Codex credential")
-		}
-		if updated.RowsAffected != 1 {
-			latest, err := model.GetChannelById(channelID, true)
+	completion := refresher.group.DoChan(operationKey, func() (any, error) {
+		var result codexCredentialRefreshResult
+		lockCtx, lockCancel := context.WithTimeout(context.Background(), codexCredentialPersistTimeout)
+		defer lockCancel()
+		err := model.WithPluginCredentialRefreshLock(lockCtx, channelID, func() error {
+			current, err := model.GetChannelById(channelID, true)
 			if err != nil {
-				return nil, err
+				return err
 			}
-			if latest.Type != constant.ChannelTypeCodex || latest.ChannelInfo.IsMultiKey {
-				return nil, errors.New("Codex channel configuration changed")
+			if current.Type != constant.ChannelTypeCodex || current.ChannelInfo.IsMultiKey {
+				return errors.New("Codex channel configuration changed")
 			}
-			key, err := parseCodexOAuthKey(latest.Key)
-			return codexCredentialRefreshResult{key: key, channel: latest}, err
+			if current.Key != ch.Key {
+				key, err := parseCodexOAuthKey(current.Key)
+				result = codexCredentialRefreshResult{key: key, channel: current}
+				return err
+			}
+
+			currentKey, err := parseCodexOAuthKey(current.Key)
+			if err != nil {
+				return err
+			}
+			if strings.TrimSpace(currentKey.RefreshToken) == "" {
+				return fmt.Errorf("codex channel: refresh_token is required to refresh credential")
+			}
+
+			refreshCtx, refreshCancel := context.WithTimeout(context.Background(), codexCredentialPersistTimeout)
+			defer refreshCancel()
+			res, err := RefreshCodexOAuthTokenWithProxy(refreshCtx, currentKey.RefreshToken, current.GetSetting().Proxy)
+			if err != nil {
+				return err
+			}
+
+			currentKey.AccessToken = res.AccessToken
+			currentKey.RefreshToken = res.RefreshToken
+			currentKey.LastRefresh = time.Now().Format(time.RFC3339)
+			currentKey.Expired = res.ExpiresAt.Format(time.RFC3339)
+			if strings.TrimSpace(currentKey.Type) == "" {
+				currentKey.Type = "codex"
+			}
+			if strings.TrimSpace(currentKey.AccountID) == "" {
+				if accountID, ok := ExtractCodexAccountIDFromJWT(currentKey.AccessToken); ok {
+					currentKey.AccountID = accountID
+				}
+			}
+			if strings.TrimSpace(currentKey.Email) == "" {
+				if email, ok := ExtractEmailFromJWT(currentKey.AccessToken); ok {
+					currentKey.Email = email
+				}
+			}
+
+			encoded, err := common.Marshal(currentKey)
+			if err != nil {
+				return err
+			}
+
+			// The upstream has already rotated the refresh token for every waiter in
+			// this process and on every node holding the credential lock. No single
+			// request cancellation may discard it.
+			persistCtx, persistCancel := context.WithTimeout(context.Background(), codexCredentialPersistTimeout)
+			defer persistCancel()
+			updated := model.DB.WithContext(persistCtx).Model(&model.Channel{}).Where(map[string]any{"id": current.Id, "type": constant.ChannelTypeCodex, "key": current.Key}).Update("key", string(encoded))
+			if updated.Error != nil {
+				return errors.New("failed to persist refreshed Codex credential")
+			}
+			if updated.RowsAffected != 1 {
+				latest, err := model.GetChannelById(channelID, true)
+				if err != nil {
+					return err
+				}
+				if latest.Type != constant.ChannelTypeCodex || latest.ChannelInfo.IsMultiKey {
+					return errors.New("Codex channel configuration changed")
+				}
+				key, err := parseCodexOAuthKey(latest.Key)
+				result = codexCredentialRefreshResult{key: key, channel: latest}
+				return err
+			}
+			current.Key = string(encoded)
+			model.BumpSyncTopic(model.SyncTopicChannels)
+			result = codexCredentialRefreshResult{key: currentKey, channel: current}
+			return nil
+		})
+		if err != nil {
+			return nil, err
 		}
-		ch.Key = string(encoded)
-		return codexCredentialRefreshResult{key: oauthKey, channel: ch}, nil
+		return result, nil
 	})
 	var completed singleflight.Result
 	select {

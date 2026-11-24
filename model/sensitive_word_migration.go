@@ -1,6 +1,8 @@
 package model
 
 import (
+	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"iter"
@@ -9,6 +11,13 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"gorm.io/gorm"
+)
+
+const (
+	sensitiveWordMigrationMySQLLockName  = "new-api:sensitive-word-migration:v2"
+	sensitiveWordMigrationPostgresLockID = int64(0x4e41504953574d47)
+	sensitiveWordMigrationLockWait       = 5 * time.Minute
+	sensitiveWordMigrationLockPoll       = 50 * time.Millisecond
 )
 
 func normalizeLegacySensitiveWords(words iter.Seq[string]) []string {
@@ -126,6 +135,101 @@ func prepareSensitiveWordAuditIdentityMigration(db *gorm.DB) error {
 	return db.Migrator().CreateIndex(&SensitiveWordAuditEvent{}, "idx_sensitive_word_audit_identity")
 }
 
+// withSensitiveWordMigrationLease pins one database session for the whole
+// migration. Server databases use session advisory locks, which disappear if
+// the process or connection dies. SQLite holds one immediate transaction, so
+// another process cannot enter the callback until the owner commits or exits.
+func withSensitiveWordMigrationLease(db *gorm.DB, migrate func(*gorm.DB) error) error {
+	if db == nil {
+		return nil
+	}
+	return db.Connection(func(connection *gorm.DB) error {
+		connPool := connection.Statement.ConnPool
+		migrationDB := connection.Session(&gorm.Session{NewDB: true})
+		switch connection.Dialector.Name() {
+		case "mysql":
+			var acquired sql.NullInt64
+			if err := connPool.QueryRowContext(
+				connection.Statement.Context,
+				"SELECT GET_LOCK(?, ?)",
+				sensitiveWordMigrationMySQLLockName,
+				int(sensitiveWordMigrationLockWait/time.Second),
+			).Scan(&acquired); err != nil {
+				return err
+			}
+			if !acquired.Valid || acquired.Int64 != 1 {
+				return fmt.Errorf("timed out acquiring sensitive-word migration lease")
+			}
+			defer func() {
+				var released sql.NullInt64
+				releaseErr := connPool.QueryRowContext(
+					context.Background(),
+					"SELECT RELEASE_LOCK(?)",
+					sensitiveWordMigrationMySQLLockName,
+				).Scan(&released)
+				if releaseErr != nil {
+					common.SysError(common.LogText("failed to release sensitive-word migration lease: %s", releaseErr.Error()))
+				} else if !released.Valid || released.Int64 != 1 {
+					common.SysError(common.LogText("failed to release sensitive-word migration lease: lock was not owned by this database session"))
+				}
+			}()
+			return migrate(migrationDB)
+		case "postgres":
+			var acquired any
+			if err := connPool.QueryRowContext(
+				connection.Statement.Context,
+				"SELECT pg_advisory_lock($1)",
+				sensitiveWordMigrationPostgresLockID,
+			).Scan(&acquired); err != nil {
+				return err
+			}
+			defer func() {
+				var released bool
+				releaseErr := connPool.QueryRowContext(
+					context.Background(),
+					"SELECT pg_advisory_unlock($1)",
+					sensitiveWordMigrationPostgresLockID,
+				).Scan(&released)
+				if releaseErr != nil {
+					common.SysError(common.LogText("failed to release sensitive-word migration lease: %s", releaseErr.Error()))
+				} else if !released {
+					common.SysError(common.LogText("failed to release sensitive-word migration lease: lock was not owned by this database session"))
+				}
+			}()
+			return migrate(migrationDB)
+		case "sqlite":
+			for {
+				beginErr := connection.Exec("BEGIN IMMEDIATE").Error
+				if beginErr == nil {
+					break
+				}
+				message := strings.ToLower(beginErr.Error())
+				if !strings.Contains(message, "database is locked") && !strings.Contains(message, "database table is locked") {
+					return beginErr
+				}
+				time.Sleep(sensitiveWordMigrationLockPoll)
+			}
+			committed := false
+			defer func() {
+				if !committed {
+					_ = connection.Exec("ROLLBACK").Error
+				}
+			}()
+			sqliteMigrationDB := connection.Session(&gorm.Session{NewDB: true, SkipDefaultTransaction: true})
+			if err := migrate(sqliteMigrationDB); err != nil {
+				return err
+			}
+			if err := connection.Exec("COMMIT").Error; err != nil {
+				return err
+			}
+			committed = true
+			return nil
+		default:
+			return fmt.Errorf("unsupported database dialect %q for sensitive-word migration lease", connection.Dialector.Name())
+		}
+	})
+}
+
 // MigrateSensitiveWordData performs an idempotent, one-way import. Once the
 // marker is committed, legacy options and compatibility columns are never
 // consulted by request handling or future migrations.
@@ -136,49 +240,50 @@ func MigrateSensitiveWordData() (err error) {
 	}()
 
 	if DB == nil {
-		return nil
-	}
-	if err := prepareSensitiveWordAuditIdentityMigration(DB); err != nil {
-		return err
-	}
-	var marker Option
-	markerErr := DB.Where(&Option{Key: sensitiveWordMigrationKey}).First(&marker).Error
-	if markerErr == nil && marker.Value == sensitiveWordMigrationValue {
-		var policy SensitiveWordPolicy
-		policyErr := DB.First(&policy, 1).Error
-		if errors.Is(policyErr, gorm.ErrRecordNotFound) {
-			policy = defaultSensitiveWordPolicy()
-			policyErr = DB.Create(&policy).Error
-		}
-		if policyErr != nil {
-			return policyErr
-		}
 		completed = true
 		return nil
 	}
-	if markerErr != nil && !errors.Is(markerErr, gorm.ErrRecordNotFound) {
-		return markerErr
-	}
+	err = withSensitiveWordMigrationLease(DB, func(db *gorm.DB) error {
+		if migrationErr := prepareSensitiveWordAuditIdentityMigration(db); migrationErr != nil {
+			return migrationErr
+		}
+		var marker Option
+		markerErr := db.Where(&Option{Key: sensitiveWordMigrationKey}).First(&marker).Error
+		if markerErr == nil && marker.Value == sensitiveWordMigrationValue {
+			var policy SensitiveWordPolicy
+			policyErr := db.First(&policy, 1).Error
+			if errors.Is(policyErr, gorm.ErrRecordNotFound) {
+				policy = defaultSensitiveWordPolicy()
+				policyErr = db.Create(&policy).Error
+			}
+			completed = policyErr == nil
+			return policyErr
+		}
+		if markerErr != nil && !errors.Is(markerErr, gorm.ErrRecordNotFound) {
+			return markerErr
+		}
 
-	if err := migrateSensitiveWordPolicy(); err != nil {
-		return err
-	}
-	if err := migrateSensitiveWordRules(); err != nil {
-		return err
-	}
-	if err := migrateLegacySensitiveWordOption(); err != nil {
-		return err
-	}
-	if err := DB.Save(&Option{Key: sensitiveWordMigrationKey, Value: sensitiveWordMigrationValue}).Error; err != nil {
-		return err
-	}
-	completed = true
-	return nil
+		if migrationErr := migrateSensitiveWordPolicy(db); migrationErr != nil {
+			return migrationErr
+		}
+		if migrationErr := migrateSensitiveWordRules(db); migrationErr != nil {
+			return migrationErr
+		}
+		if migrationErr := migrateLegacySensitiveWordOption(db); migrationErr != nil {
+			return migrationErr
+		}
+		if markerErr := db.Save(&Option{Key: sensitiveWordMigrationKey, Value: sensitiveWordMigrationValue}).Error; markerErr != nil {
+			return markerErr
+		}
+		completed = true
+		return nil
+	})
+	return err
 }
 
-func migrateSensitiveWordPolicy() error {
+func migrateSensitiveWordPolicy(db *gorm.DB) error {
 	var policy SensitiveWordPolicy
-	err := DB.First(&policy, 1).Error
+	err := db.First(&policy, 1).Error
 	if err == nil {
 		return nil
 	}
@@ -187,7 +292,7 @@ func migrateSensitiveWordPolicy() error {
 	}
 	policy = defaultSensitiveWordPolicy()
 	var legacy Option
-	if err := DB.Where(&Option{Key: "SensitiveWordConfig"}).First(&legacy).Error; err == nil {
+	if err := db.Where(&Option{Key: "SensitiveWordConfig"}).First(&legacy).Error; err == nil {
 		var config legacySensitiveWordConfig
 		if err := common.UnmarshalJsonStr(legacy.Value, &config); err != nil {
 			return fmt.Errorf("decode legacy sensitive-word policy: %w", err)
@@ -210,12 +315,12 @@ func migrateSensitiveWordPolicy() error {
 		return err
 	}
 	policy = normalizeSensitiveWordPolicy(policy)
-	return DB.Create(&policy).Error
+	return db.Create(&policy).Error
 }
 
-func migrateSensitiveWordRules() error {
+func migrateSensitiveWordRules(db *gorm.DB) error {
 	var rules []SensitiveWordRule
-	if err := DB.Find(&rules).Error; err != nil {
+	if err := db.Find(&rules).Error; err != nil {
 		return err
 	}
 	for _, rule := range rules {
@@ -232,13 +337,13 @@ func migrateSensitiveWordRules() error {
 			updates["version"] = 1
 		}
 		if len(updates) > 0 {
-			if err := DB.Model(&SensitiveWordRule{}).Where("id = ?", rule.ID).Updates(updates).Error; err != nil {
+			if err := db.Model(&SensitiveWordRule{}).Where("id = ?", rule.ID).Updates(updates).Error; err != nil {
 				return err
 			}
 		}
 
 		var count int64
-		if err := DB.Model(&SensitiveWordRuleWord{}).Where("rule_id = ?", rule.ID).Count(&count).Error; err != nil {
+		if err := db.Model(&SensitiveWordRuleWord{}).Where("rule_id = ?", rule.ID).Count(&count).Error; err != nil {
 			return err
 		}
 		if count > 0 || strings.TrimSpace(rule.Word) == "" {
@@ -248,7 +353,7 @@ func migrateSensitiveWordRules() error {
 		if len(words) == 0 {
 			continue
 		}
-		if err := DB.Transaction(func(tx *gorm.DB) error {
+		writeWords := func(tx *gorm.DB) error {
 			for _, word := range words {
 				item := SensitiveWordRuleWord{
 					RuleID: rule.ID, Word: word,
@@ -259,16 +364,23 @@ func migrateSensitiveWordRules() error {
 				}
 			}
 			return nil
-		}); err != nil {
+		}
+		var err error
+		if db.Dialector.Name() == "sqlite" {
+			err = writeWords(db)
+		} else {
+			err = db.Transaction(writeWords)
+		}
+		if err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func migrateLegacySensitiveWordOption() error {
+func migrateLegacySensitiveWordOption(db *gorm.DB) error {
 	var legacy Option
-	err := DB.Where(&Option{Key: "SensitiveWords"}).First(&legacy).Error
+	err := db.Where(&Option{Key: "SensitiveWords"}).First(&legacy).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil
 	}
@@ -280,15 +392,39 @@ func migrateLegacySensitiveWordOption() error {
 		return nil
 	}
 	var importedCount int64
-	if err := DB.Model(&SensitiveWordRule{}).
+	if err := db.Model(&SensitiveWordRule{}).
 		Where("name = ? AND scope = ? AND created_by = ?", "旧配置导入", SensitiveWordScopeGlobal, 0).
 		Count(&importedCount).Error; err != nil {
 		return err
 	}
 	if importedCount == 0 {
-		if _, err := UpsertSensitiveWordRuleWithMode(
-			0, "旧配置导入", words, SensitiveWordScopeGlobal, nil, 0, SensitiveWordModeBlock,
-		); err != nil {
+		now := time.Now()
+		rule := SensitiveWordRule{
+			Name: "旧配置导入", Word: words[0], Scope: SensitiveWordScopeGlobal,
+			Mode: SensitiveWordModeBlock, Enabled: true, CreatedBy: 0, Version: 1,
+			CreatedAt: now, UpdatedAt: now,
+		}
+		insertRule := func(tx *gorm.DB) error {
+			if err := tx.Create(&rule).Error; err != nil {
+				return err
+			}
+			for _, word := range words {
+				item := SensitiveWordRuleWord{
+					RuleID: rule.ID, Word: word,
+					NormalizedHash: sensitiveWordHash(word), CreatedAt: now,
+				}
+				if err := tx.Create(&item).Error; err != nil {
+					return err
+				}
+			}
+			return bumpSensitiveWordPolicyVersion(tx, 0)
+		}
+		if db.Dialector.Name() == "sqlite" {
+			err = insertRule(db)
+		} else {
+			err = db.Transaction(insertRule)
+		}
+		if err != nil {
 			return err
 		}
 	}

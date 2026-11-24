@@ -48,6 +48,11 @@ import {
 } from '@/components/ui/tooltip'
 import { toIntlLocale } from '@/i18n/languages'
 import {
+  ADMIN_PERMISSION_ACTIONS,
+  ADMIN_PERMISSION_RESOURCES,
+  hasPermission,
+} from '@/lib/admin-permissions'
+import {
   formatCurrencyFromUSD,
   formatQuotaWithCurrency,
   getCurrencyLabel,
@@ -59,6 +64,7 @@ import {
   translateServerText,
 } from '@/lib/server-error-message'
 import { truncateText } from '@/lib/utils'
+import { useAuthStore } from '@/stores/auth-store'
 
 import {
   getCodexUsage,
@@ -70,8 +76,11 @@ import {
   CHANNEL_TYPE_TASK_PLUGIN,
   CHANNEL_TYPE_VLLM,
   CHANNEL_TYPE_SGLANG,
-  MODEL_FETCHABLE_TYPES,
 } from '../constants'
+import {
+  useChannelBalanceQueryable,
+  useChannelModelFetchable,
+} from '../hooks/use-task-plugin-option'
 import {
   formatRelativeTime,
   formatResponseTime,
@@ -91,8 +100,13 @@ import {
   parseGroupPriority,
   type TagRow,
 } from '../lib'
+import {
+  formatChannelBalanceSummary,
+  getChannelBalanceUsedPercent,
+} from '../lib/channel-balance'
 import { parseUpstreamUpdateMeta } from '../lib/upstream-update-utils'
 import type { Channel } from '../types'
+import { ChannelBalanceDetails } from './channel-balance-details'
 import { ChannelConcurrencyCell } from './channel-concurrency-status'
 import { ChannelRowActionsLayoutContext } from './channel-row-actions-context'
 import { TaskPluginChannelBadge } from './channel-type-badge'
@@ -324,7 +338,14 @@ export function ChannelGroupsCell({
  */
 function UpstreamUpdateTags({ channel }: { channel: Channel }) {
   const { upstream, setCurrentRow } = useChannels()
-  if (!MODEL_FETCHABLE_TYPES.has(channel.type)) {
+  const modelFetchable = useChannelModelFetchable(channel)
+  const currentUser = useAuthStore((state) => state.auth.user)
+  const canWrite = hasPermission(
+    currentUser,
+    ADMIN_PERMISSION_RESOURCES.CHANNEL,
+    ADMIN_PERMISSION_ACTIONS.WRITE
+  )
+  if (!modelFetchable) {
     return null
   }
 
@@ -347,9 +368,10 @@ function UpstreamUpdateTags({ channel }: { channel: Channel }) {
           variant='success'
           size='sm'
           copyable={false}
-          className='cursor-pointer'
+          className={canWrite ? 'cursor-pointer' : 'cursor-default'}
           onClick={(e: React.MouseEvent) => {
             e.stopPropagation()
+            if (!canWrite) return
             setCurrentRow(channel)
             upstream.openModal(
               channel,
@@ -366,9 +388,10 @@ function UpstreamUpdateTags({ channel }: { channel: Channel }) {
           variant='danger'
           size='sm'
           copyable={false}
-          className='cursor-pointer'
+          className={canWrite ? 'cursor-pointer' : 'cursor-default'}
           onClick={(e: React.MouseEvent) => {
             e.stopPropagation()
+            if (!canWrite) return
             setCurrentRow(channel)
             upstream.openModal(
               channel,
@@ -468,12 +491,19 @@ export function ChannelPriorityCell({
   channel: Channel
   readOnly?: boolean
 }) {
+  const currentUser = useAuthStore((state) => state.auth.user)
+  const canWrite = hasPermission(
+    currentUser,
+    ADMIN_PERMISSION_RESOURCES.CHANNEL,
+    ADMIN_PERMISSION_ACTIONS.WRITE
+  )
+  const effectiveReadOnly = readOnly || !canWrite
   if (isTagAggregateRow(channel)) {
-    return <TagPriorityCell channel={channel} />
+    return <TagPriorityCell channel={channel} readOnly={effectiveReadOnly} />
   }
 
   const overrides = parseGroupPriority(channel.group_priority)
-  const fieldCell = readOnly ? (
+  const fieldCell = effectiveReadOnly ? (
     <NumericSpinnerInput
       value={channel.priority}
       onChange={() => undefined}
@@ -501,7 +531,13 @@ export function ChannelPriorityCell({
   )
 }
 
-function TagPriorityCell({ channel }: { channel: TagRow }) {
+function TagPriorityCell({
+  channel,
+  readOnly,
+}: {
+  channel: TagRow
+  readOnly: boolean
+}) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const priority = channel.priority
@@ -519,6 +555,7 @@ function TagPriorityCell({ channel }: { channel: TagRow }) {
           setConfirmOpen(true)
         }}
         min={-999}
+        disabled={readOnly}
       />
       <ConfirmDialog
         open={confirmOpen}
@@ -530,7 +567,7 @@ function TagPriorityCell({ channel }: { channel: TagRow }) {
         )}
         confirmText={t('Update')}
         handleConfirm={() => {
-          if (pendingValue !== null) {
+          if (!readOnly && pendingValue !== null) {
             handleUpdateTagField(tag, 'priority', pendingValue, queryClient)
           }
           setConfirmOpen(false)
@@ -576,17 +613,30 @@ function ChannelFieldCell({
  * Weight cell component with inline editing
  */
 function WeightCell({ channel }: { channel: Channel }) {
+  const currentUser = useAuthStore((state) => state.auth.user)
+  const canWrite = hasPermission(
+    currentUser,
+    ADMIN_PERMISSION_RESOURCES.CHANNEL,
+    ADMIN_PERMISSION_ACTIONS.WRITE
+  )
   if (isTagAggregateRow(channel)) {
-    return <TagWeightCell channel={channel} />
+    return <TagWeightCell channel={channel} readOnly={!canWrite} />
   }
 
   const overrides = parseGroupPriority(channel.group_priority)
-  const fieldCell = (
+  const fieldCell = canWrite ? (
     <ChannelFieldCell
       channelId={channel.id}
       value={channel.weight}
       field='weight'
       min={0}
+    />
+  ) : (
+    <NumericSpinnerInput
+      value={channel.weight ?? 0}
+      onChange={() => undefined}
+      min={0}
+      disabled
     />
   )
   if (Object.keys(overrides).length === 0) return fieldCell
@@ -602,7 +652,13 @@ function WeightCell({ channel }: { channel: Channel }) {
   )
 }
 
-function TagWeightCell({ channel }: { channel: TagRow }) {
+function TagWeightCell({
+  channel,
+  readOnly,
+}: {
+  channel: TagRow
+  readOnly: boolean
+}) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const weight = channel.weight
@@ -620,6 +676,7 @@ function TagWeightCell({ channel }: { channel: TagRow }) {
           setConfirmOpen(true)
         }}
         min={0}
+        disabled={readOnly}
       />
       <ConfirmDialog
         open={confirmOpen}
@@ -631,7 +688,7 @@ function TagWeightCell({ channel }: { channel: TagRow }) {
         )}
         confirmText={t('Update')}
         handleConfirm={() => {
-          if (pendingValue !== null) {
+          if (!readOnly && pendingValue !== null) {
             handleUpdateTagField(tag, 'weight', pendingValue, queryClient)
           }
           setConfirmOpen(false)
@@ -656,9 +713,22 @@ export function BalanceCell({ channel }: { channel: Channel }) {
   const queryClient = useQueryClient()
   const layout = useContext(ChannelRowActionsLayoutContext)
   const { sensitiveVisible, setCurrentRow, setOpen } = useChannels()
+  const currentUser = useAuthStore((state) => state.auth.user)
+  const canOperate = hasPermission(
+    currentUser,
+    ADMIN_PERMISSION_RESOURCES.CHANNEL,
+    ADMIN_PERMISSION_ACTIONS.OPERATE
+  )
   const isTagRow = isTagAggregateRow(channel)
   const balance = channel.balance || 0
   const usedQuota = channel.used_quota || 0
+  const balanceQueryable = useChannelBalanceQueryable(channel)
+  const detail = channel.balance_detail
+  const usedPercent = getChannelBalanceUsedPercent(detail?.windows)
+  const ownCurrency =
+    detail?.amount != null &&
+    Boolean(detail.currency?.trim()) &&
+    detail.currency?.trim().toUpperCase() !== 'USD'
   const [isUpdating, setIsUpdating] = useState(false)
   const [rawBalanceResponse, setRawBalanceResponse] = useState<string | null>(
     null
@@ -687,9 +757,6 @@ export function BalanceCell({ channel }: { channel: Channel }) {
       showSymbol: layout !== 'card',
     })
   )
-  const remainingFull = withSuffix(
-    formatCurrencyFromUSD(balance, balanceFormatOptions)
-  )
   const usedDisplay =
     usedFull.length > MAX_INLINE_BALANCE_CHARS
       ? withSuffix(
@@ -700,7 +767,10 @@ export function BalanceCell({ channel }: { channel: Channel }) {
           })
         )
       : usedFull
-  const remainingDisplay =
+  let remainingFull = withSuffix(
+    formatCurrencyFromUSD(balance, balanceFormatOptions)
+  )
+  let remainingDisplay =
     remainingFull.length > MAX_INLINE_BALANCE_CHARS
       ? withSuffix(
           formatCurrencyFromUSD(balance, {
@@ -710,6 +780,28 @@ export function BalanceCell({ channel }: { channel: Channel }) {
           })
         )
       : remainingFull
+  if (!balanceQueryable) {
+    remainingFull = '-'
+    remainingDisplay = '-'
+  } else if (
+    detail?.unlimited ||
+    ownCurrency ||
+    (detail?.amount == null && usedPercent !== null)
+  ) {
+    // The upstream's own currency, an unlimited balance or its limits
+    // replace the USD amount when the upstream reports them.
+    remainingFull = formatChannelBalanceSummary(detail, balance, {
+      ...balanceFormatOptions,
+      locale,
+    })
+    remainingDisplay =
+      remainingFull.length > MAX_INLINE_BALANCE_CHARS
+        ? formatChannelBalanceSummary(detail, balance, {
+            compact: true,
+            locale,
+          })
+        : remainingFull
+  }
   const usedLabel = `${t('Used:')} ${usedFull}`
   const remainingLabel = `${t('Remaining:')} ${remainingFull}`
   const maskedUsedLabel = `${t('Used:')} ${SENSITIVE_MASK}`
@@ -752,6 +844,9 @@ export function BalanceCell({ channel }: { channel: Channel }) {
     channel.type === CHANNEL_TYPE_SGLANG ? t('SGLang status') : t('vLLM status')
 
   const handleClickUpdate = async () => {
+    if (!canOperate) {
+      return
+    }
     if (isInferenceChannel) {
       setCurrentRow(channel)
       setOpen('inference-status')
@@ -783,11 +878,11 @@ export function BalanceCell({ channel }: { channel: Channel }) {
       if (response.success && response.balance !== undefined) {
         toast.success(
           t('Balance updated: {{balance}}', {
-            balance: formatCurrencyFromUSD(response.balance, {
-              digitsLarge: 2,
-              digitsSmall: 4,
-              abbreviate: false,
-            }),
+            balance: formatChannelBalanceSummary(
+              response.balance_detail,
+              response.balance,
+              { digitsLarge: 2, digitsSmall: 4, abbreviate: false, locale }
+            ),
           })
         )
         void queryClient.invalidateQueries({
@@ -824,20 +919,29 @@ export function BalanceCell({ channel }: { channel: Channel }) {
   let remainingBadgeVariant: StatusBadgeProps['variant'] = variant
   if (channel.type === 57 || isInferenceChannel) {
     remainingBadgeVariant = 'info'
-  } else if (isUpdating) {
+  } else if (isUpdating || !balanceQueryable) {
     remainingBadgeVariant = 'neutral'
+  } else if (detail?.unlimited) {
+    remainingBadgeVariant = 'success'
+  } else if (detail?.amount == null && usedPercent !== null) {
+    remainingBadgeVariant = 'success'
+    if (usedPercent >= 70) remainingBadgeVariant = 'warning'
+    if (usedPercent >= 90) remainingBadgeVariant = 'danger'
   }
+  const balanceClickable = !isInferenceChannel && canOperate && balanceQueryable
   const remainingBadge = (
     <StatusBadge
       label={remainingBadgeLabel}
       variant={remainingBadgeVariant}
+      icon={sensitiveVisible && detail?.error ? AlertTriangle : undefined}
       size='sm'
       copyable={false}
       showDot={false}
-      className='cursor-pointer'
-      onClick={isInferenceChannel ? undefined : handleClickUpdate}
+      className={balanceClickable ? 'cursor-pointer' : 'cursor-help'}
+      onClick={balanceClickable ? handleClickUpdate : undefined}
     />
   )
+  const balanceQueryHint = balanceClickable && channel.type !== 57
 
   return (
     <TooltipProvider>
@@ -877,11 +981,15 @@ export function BalanceCell({ channel }: { channel: Channel }) {
               )
             }
           />
-          <TooltipContent>
+          <TooltipContent className='flex-col items-start'>
             <p>{remainingTooltipLabel}</p>
-            {channel.type !== 57 && !isInferenceChannel && (
-              <p>{t('Click to update balance')}</p>
+            {sensitiveVisible && balanceQueryHint && (
+              <ChannelBalanceDetails
+                result={detail}
+                updatedTime={channel.balance_updated_time}
+              />
             )}
+            {balanceQueryHint && <p>{t('Click to update balance')}</p>}
           </TooltipContent>
         </Tooltip>
       </div>
@@ -895,7 +1003,7 @@ export function BalanceCell({ channel }: { channel: Channel }) {
         channelDisplayId={sensitiveVisible ? undefined : SENSITIVE_MASK}
         response={codexUsageResponse}
         onRefresh={async () => {
-          if (isUpdating) {
+          if (!canOperate || isUpdating) {
             return false
           }
           setIsUpdating(true)

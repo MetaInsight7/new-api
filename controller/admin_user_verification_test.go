@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/service/authz"
@@ -301,12 +302,14 @@ func TestAdminUserEditOmissionPreservesConcurrentLimitChange(t *testing.T) {
 
 func TestDefaultUserConcurrencyCreation(t *testing.T) {
 	operator, identity, existing := setupAdminUserTest(t)
-	require.NoError(t, model.DB.AutoMigrate(&model.CasbinRule{}, &model.AuthzRole{}, &model.Option{}))
+	require.NoError(t, model.DB.AutoMigrate(&model.CasbinRule{}, &model.AuthzRole{}, &model.Option{}, &model.Token{}))
 	require.NoError(t, authz.Init(model.DB))
 	previous := setting.GetDefaultUserMaxConcurrency()
 	previousQuota := common.QuotaForNewUser
 	previousRegister, previousPasswordRegister, previousEmail := common.RegisterEnabled, common.PasswordRegisterEnabled, common.EmailVerificationEnabled
+	previousGenerateDefaultToken := constant.GenerateDefaultToken
 	common.RegisterEnabled, common.PasswordRegisterEnabled, common.EmailVerificationEnabled = true, true, false
+	constant.GenerateDefaultToken = true
 	common.QuotaForNewUser = 0
 	common.OptionMapRWMutex.Lock()
 	if common.OptionMap == nil {
@@ -318,6 +321,7 @@ func TestDefaultUserConcurrencyCreation(t *testing.T) {
 		require.NoError(t, setting.UpdateDefaultUserMaxConcurrency(strconv.Itoa(previous)))
 		common.QuotaForNewUser = previousQuota
 		common.RegisterEnabled, common.PasswordRegisterEnabled, common.EmailVerificationEnabled = previousRegister, previousPasswordRegister, previousEmail
+		constant.GenerateDefaultToken = previousGenerateDefaultToken
 		common.OptionMapRWMutex.Lock()
 		defer common.OptionMapRWMutex.Unlock()
 		if hadOption {
@@ -347,6 +351,9 @@ func TestDefaultUserConcurrencyCreation(t *testing.T) {
 	var registered model.User
 	require.NoError(t, model.DB.Where("username = ?", "default-register").First(&registered).Error)
 	assert.Equal(t, 5, registered.MaxConcurrency, "untrusted registration data must not override the administrator's default")
+	var defaultToken model.Token
+	require.NoError(t, model.DB.Where("user_id = ?", registered.Id).First(&defaultToken).Error)
+	assert.False(t, defaultToken.AllowUserQuotaQuery, "registration must not implicitly grant user quota queries")
 	oauth := model.User{Username: "default-oauth", DisplayName: "OAuth", Role: common.RoleCommonUser}
 	require.NoError(t, model.DB.Transaction(func(tx *gorm.DB) error { return oauth.InsertWithTx(tx, 0, nil) }))
 	assert.Equal(t, 5, oauth.MaxConcurrency)

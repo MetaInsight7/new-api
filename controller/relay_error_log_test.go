@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
@@ -19,7 +20,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func TestProcessChannelErrorUsesSnapshotWithoutLeakingChannelMetadata(t *testing.T) {
+func TestRelayErrorLogUsesFinalSnapshotWithoutLeakingChannelMetadata(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	previousDB, previousLogDB := model.DB, model.LOG_DB
 	previousRedisEnabled := common.RedisEnabled
@@ -70,6 +71,10 @@ func TestProcessChannelErrorUsesSnapshotWithoutLeakingChannelMetadata(t *testing
 	apiErr := types.NewOpenAIError(errors.New("upstream failed"), types.ErrorCodeBadResponseStatusCode, http.StatusBadGateway)
 
 	processChannelError(ctx, channelSnapshot, apiErr, nil)
+	var count int64
+	require.NoError(t, database.Model(&model.Log{}).Count(&count).Error)
+	assert.Zero(t, count, "attempt processing must not persist a final error log")
+	service.RecordRelayErrorLog(ctx, channelSnapshot.ChannelId, apiErr, nil)
 
 	var stored model.Log
 	require.NoError(t, database.First(&stored).Error)

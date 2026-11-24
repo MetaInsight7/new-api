@@ -24,7 +24,13 @@ import { toast } from 'sonner'
 
 import { Dialog } from '@/components/dialog'
 import { Button } from '@/components/ui/button'
+import {
+  ADMIN_PERMISSION_ACTIONS,
+  ADMIN_PERMISSION_RESOURCES,
+  hasPermission,
+} from '@/lib/admin-permissions'
 import { handleServerError } from '@/lib/handle-server-error'
+import { useAuthStore } from '@/stores/auth-store'
 
 import { fetchUpstreamModels, updateChannel } from '../../api'
 import {
@@ -72,6 +78,23 @@ export function FetchModelsDialog({
 }: FetchModelsDialogProps) {
   const { t } = useTranslation()
   const { currentRow } = useChannels()
+  const currentUser = useAuthStore((state) => state.auth.user)
+  const canOperate = hasPermission(
+    currentUser,
+    ADMIN_PERMISSION_RESOURCES.CHANNEL,
+    ADMIN_PERMISSION_ACTIONS.OPERATE
+  )
+  const canWrite = hasPermission(
+    currentUser,
+    ADMIN_PERMISSION_RESOURCES.CHANNEL,
+    ADMIN_PERMISSION_ACTIONS.WRITE
+  )
+  const canEditSensitive = hasPermission(
+    currentUser,
+    ADMIN_PERMISSION_RESOURCES.CHANNEL,
+    ADMIN_PERMISSION_ACTIONS.SENSITIVE_WRITE
+  )
+  const canFetch = customFetcher ? canEditSensitive : canOperate
   const activeChannel = customFetcher ? null : currentRow
   const queryClient = useQueryClient()
   const [isFetching, setIsFetching] = useState(false)
@@ -99,14 +122,14 @@ export function FetchModelsDialog({
   )
 
   useEffect(() => {
-    if (open && (activeChannel || customFetcher)) {
+    if (open && canFetch && (activeChannel || customFetcher)) {
       handleFetchModels()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, activeChannel?.id, customFetcher])
+  }, [open, activeChannel?.id, customFetcher, canFetch])
 
   const handleFetchModels = async () => {
-    if (!activeChannel && !customFetcher) return
+    if (!canFetch || (!activeChannel && !customFetcher)) return
 
     setIsFetching(true)
     try {
@@ -138,6 +161,7 @@ export function FetchModelsDialog({
   }
 
   const handleSave = async () => {
+    if (!canWrite) return
     // If onModelsSelected callback is provided, use it (form filling mode)
     if (onModelsSelected) {
       onModelsSelected(selectedModels)
@@ -196,7 +220,7 @@ export function FetchModelsDialog({
   }
 
   let dialogBody: ReactNode
-  if (!activeChannel && !customFetcher) {
+  if (!canFetch || (!activeChannel && !customFetcher)) {
     dialogBody = (
       <div className='text-muted-foreground py-8 text-center'>
         {t('No channel selected')}
@@ -249,7 +273,7 @@ export function FetchModelsDialog({
             <Button variant='outline' onClick={handleClose} disabled={isSaving}>
               {t('Cancel')}
             </Button>
-            <Button onClick={handleSave} disabled={isSaving}>
+            <Button onClick={handleSave} disabled={isSaving || !canWrite}>
               {isSaving && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
               {isSaving ? t('Saving...') : t('Save Models')}
             </Button>

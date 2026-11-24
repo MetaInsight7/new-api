@@ -193,7 +193,7 @@ describe('sensitive-word event account review', () => {
     const get = vi.spyOn(api, 'get').mockImplementation(async (url, config) => {
       if (url === '/api/sensitive-words/dashboard') {
         const hours = Number(
-          config?.params?.hours
+          Reflect.get(config?.params ?? {}, 'hours')
         ) as SensitiveWordMonitorWindow
         return {
           data: { success: true, data: sensitiveWordDashboard(hours) },

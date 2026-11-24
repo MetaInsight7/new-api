@@ -469,7 +469,7 @@ it('keeps full mobile information without group or quota section headings', asyn
       screen.queryByText(zh.translation['Group'], { exact: true })
     ).not.toBeInTheDocument()
     expect(screen.getByText('default')).toBeInTheDocument()
-    expect(screen.getByText('1x')).toBeInTheDocument()
+    expect(screen.getByText('1×')).toBeInTheDocument()
     expect(screen.getByText(zh.translation['Models'])).toBeInTheDocument()
     expect(
       screen.getByText(zh.translation['IP Restriction'])

@@ -72,7 +72,9 @@ export function useChannelMutateForm(props: UseChannelMutateFormParams) {
   )
 
   return useMutation({
-    mutationFn: async (data: ChannelFormValues): Promise<string> => {
+    mutationFn: async (
+      data: ChannelFormValues
+    ): Promise<{ messageKey: string; channelId?: number }> => {
       if (props.isEditing && props.currentRow) {
         if (!canEditChannel) {
           throw new Error(
@@ -111,18 +113,25 @@ export function useChannelMutateForm(props: UseChannelMutateFormParams) {
         if (!response.success) {
           throw createServerError(response, t(ERROR_MESSAGES.UPDATE_FAILED))
         }
-        return SUCCESS_MESSAGES.UPDATED
+        return { messageKey: SUCCESS_MESSAGES.UPDATED }
       }
 
+      if (!canEditSensitive) {
+        throw new Error(t('You do not have permission to perform this action.'))
+      }
       const payload = transformFormDataToCreatePayload(data)
       const response = await createChannel(payload)
       if (!response.success) {
         throw createServerError(response, t(ERROR_MESSAGES.CREATE_FAILED))
       }
-      return SUCCESS_MESSAGES.CREATED
+      // A login plugin opens its login dialog on the new channel.
+      return {
+        messageKey: SUCCESS_MESSAGES.CREATED,
+        channelId: response.data?.ids?.[0],
+      }
     },
-    onSuccess: async (messageKey) => {
-      toast.success(t(messageKey))
+    onSuccess: async (result) => {
+      toast.success(t(result.messageKey))
       await props.onSuccess()
     },
     onError: (error: unknown) => {

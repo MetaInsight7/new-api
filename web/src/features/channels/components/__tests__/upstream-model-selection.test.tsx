@@ -20,18 +20,67 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
-import { afterEach, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
 import { api } from '@/lib/api'
+import { ROLE } from '@/lib/roles'
+import { useAuthStore } from '@/stores/auth-store'
 
 import { fetchModels } from '../../api'
 import { ChannelsProvider } from '../channels-provider'
 import { FetchModelsDialog } from '../dialogs/fetch-models-dialog'
 import { UpstreamModelSelection } from '../upstream-model-selection'
 
+const originalAuth = useAuthStore.getState().auth
+
+beforeEach(() => {
+  useAuthStore.setState({
+    auth: {
+      ...originalAuth,
+      user: { id: 1, username: 'root', role: ROLE.SUPER_ADMIN },
+    },
+  })
+})
+
 afterEach(() => {
   cleanup()
+  useAuthStore.setState({ auth: originalAuth })
   vi.restoreAllMocks()
+})
+
+test('the fetch dialog does not call a custom fetcher without sensitive permission', async () => {
+  useAuthStore.setState({
+    auth: {
+      ...originalAuth,
+      user: {
+        id: 2,
+        username: 'reader',
+        role: ROLE.ADMIN,
+        permissions: {
+          admin_permissions: {
+            channel: { read: true, operate: false, sensitive_write: false },
+          },
+        },
+      },
+    },
+  })
+  const customFetcher = vi.fn().mockResolvedValue(['gpt-test'])
+
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <ChannelsProvider>
+        <FetchModelsDialog
+          open
+          onOpenChange={() => undefined}
+          onModelsSelected={() => undefined}
+          existingModelsOverride={[]}
+          customFetcher={customFetcher}
+        />
+      </ChannelsProvider>
+    </QueryClientProvider>
+  )
+
+  await vi.waitFor(() => expect(customFetcher).not.toHaveBeenCalled())
 })
 
 test.each([

@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -76,6 +77,42 @@ func TestDecideRelayRetryPreservesUpgradedWebSocketRetryPolicy(t *testing.T) {
 	assert.Equal(t, "retry", DecideRelayRetry(ctx, apiErr, 1).Action)
 	apiErr = types.NewError(errors.New("non-retryable websocket failure"), types.ErrorCodeBadResponse, types.ErrOptionWithSkipRetry())
 	assert.Equal(t, "stop", DecideRelayRetry(ctx, apiErr, 1).Action)
+}
+
+func TestRecordRelayErrorLogWritesAtMostOncePerRequest(t *testing.T) {
+	previousDB, previousLogDB := model.DB, model.LOG_DB
+	previousMainType, previousLogType := common.MainDatabaseType(), common.LogDatabaseType()
+	previousErrorLogEnabled := constant.ErrorLogEnabled
+	database, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "relay-error.db")), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, database.AutoMigrate(&model.Log{}))
+	model.DB, model.LOG_DB = database, database
+	common.SetDatabaseTypes(common.DatabaseTypeSQLite, common.DatabaseTypeSQLite)
+	constant.ErrorLogEnabled = true
+	t.Cleanup(func() {
+		model.DB, model.LOG_DB = previousDB, previousLogDB
+		common.SetDatabaseTypes(previousMainType, previousLogType)
+		constant.ErrorLogEnabled = previousErrorLogEnabled
+	})
+
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	c.Set("id", 17)
+	c.Set("token_name", "relay-token")
+	c.Set("token_id", 23)
+	c.Set("group", "default")
+	c.Set("original_model", "gpt-relay")
+	c.Set(common.RequestIdKey, "request-relay-error-once")
+	apiErr := types.NewOpenAIError(errors.New("upstream capacity reached"), types.ErrorCodeBadResponseStatusCode, http.StatusTooManyRequests)
+
+	RecordRelayErrorLog(c, 101, apiErr, nil)
+	RecordRelayErrorLog(c, 202, apiErr, nil)
+
+	var logs []model.Log
+	require.NoError(t, database.Find(&logs).Error)
+	require.Len(t, logs, 1)
+	assert.Equal(t, 101, logs[0].ChannelId)
+	assert.Equal(t, "request-relay-error-once", logs[0].RequestId)
 }
 
 func TestProcessChannelErrorMasksDisableReasonAndNotification(t *testing.T) {
@@ -298,4 +335,50 @@ func TestRequestPolicyEventsReachLogAdminInfo(t *testing.T) {
 	other := model.NewLogOther()
 	AppendRelayLogAdminInfo(untouched, nil, other)
 	assert.NotContains(t, other.Snapshot()["admin_info"], "request_policy", "requests without decisions do not carry an empty record")
+}
+
+// Automatic disabling only reacts to failures that say something about the
+// channel. Errors new-api raised itself before or without an upstream answer
+// never disable it, even when their text matches a disable keyword, while
+// upstream credential failures and channel errors still do.
+func TestShouldDisableChannelIgnoresLocalErrors(t *testing.T) {
+	previousAutoDisable := common.AutomaticDisableChannelEnabled
+	common.AutomaticDisableChannelEnabled = true
+	t.Cleanup(func() { common.AutomaticDisableChannelEnabled = previousAutoDisable })
+	upstreamKeyErr := types.WithOpenAIError(types.OpenAIError{Message: "Incorrect API key provided", Type: "invalid_request_error", Code: "invalid_api_key"}, http.StatusUnauthorized)
+	for _, tc := range []struct {
+		name        string
+		err         *types.NewAPIError
+		source      string
+		wantDisable bool
+		wantRetry   bool
+	}{
+		{name: "upstream invalid key", err: upstreamKeyErr, source: "upstream", wantDisable: true, wantRetry: true},
+		{name: "upstream keyword in a 403 response", err: types.NewOpenAIError(errors.New("Permission denied"), types.ErrorCodeBadResponseStatusCode, http.StatusForbidden), source: "upstream", wantDisable: true, wantRetry: true},
+		{name: "upstream keyword in an adaptor-parsed body", err: types.NewError(errors.New("Your credit balance is too low"), types.ErrorCodeBadResponseBody), source: "upstream", wantDisable: true, wantRetry: false},
+		{name: "channel key error", err: types.NewError(errors.New("invalid auth"), types.ErrorCodeChannelInvalidKey), source: "channel", wantDisable: true, wantRetry: true},
+		{name: "channel model mapping error", err: types.NewError(errors.New("bad mapping"), types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry()), source: "channel", wantDisable: true, wantRetry: true},
+		{name: "local 401 from request conversion", err: types.NewErrorWithStatusCode(errors.New("bad image"), types.ErrorCodeConvertRequestFailed, http.StatusUnauthorized), source: "local", wantDisable: false, wantRetry: true},
+		{name: "local error carrying a disable keyword from client input", err: types.NewError(errors.New("fetch https://x.invalid/Permission denied failed"), types.ErrorCodeConvertRequestFailed), source: "local", wantDisable: false, wantRetry: true},
+		{name: "override condition type mismatch", err: types.NewErrorWithStatusCode(errors.New("comparison failed for path temperature"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry()), source: "local", wantDisable: false, wantRetry: false},
+		{name: "local wrapper around an upstream key error", err: types.NewErrorWithStatusCode(upstreamKeyErr, types.ErrorCodeInvalidRequest, http.StatusUnauthorized), source: "upstream", wantDisable: true, wantRetry: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			assert.Equal(t, tc.source, RelayErrorSource(tc.err))
+			assert.Equal(t, tc.wantDisable, ShouldDisableChannel(tc.err))
+			assert.Equal(t, tc.wantRetry, DecideRelayRetry(c, tc.err, 1).Action == "retry")
+
+			c.Set("auto_ban", true)
+			RecordPolicyFailure(c, 7, tc.err, DecideRelayRetry(c, tc.err, 1))
+			events := RequestPolicy(c).Events()
+			require.Len(t, events, 2)
+			assert.Equal(t, tc.source, events[0].ErrorSource)
+			wantHealth := "unchanged"
+			if tc.wantDisable {
+				wantHealth = "channel_disable_requested"
+			}
+			assert.Equal(t, wantHealth, events[1].Health, "the logged health matches the disable decision")
+		})
+	}
 }

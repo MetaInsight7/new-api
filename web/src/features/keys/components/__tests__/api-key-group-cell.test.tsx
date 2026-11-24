@@ -107,7 +107,7 @@ describe('API key group table cell', () => {
       const { container } = render(
         <CellHarness group='default' ratio={ratio} />
       )
-      const multiplier = screen.getByText(`${ratio}x`).parentElement
+      const multiplier = screen.getByText(`${ratio}×`).parentElement
       expect(multiplier).toHaveClass(
         background,
         color,
@@ -131,7 +131,7 @@ describe('API key group table cell', () => {
       'border-muted-foreground/30',
       'rounded-full'
     )
-    expect(screen.queryByText('1x')).not.toBeInTheDocument()
+    expect(screen.queryByText('1×')).not.toBeInTheDocument()
     await userEvent.tab()
     expect(await screen.findByText('Follow user group')).toBeVisible()
   })
@@ -142,7 +142,7 @@ describe('API key group table cell', () => {
     expect(
       screen.getByText(groupName).closest('[data-slot="tooltip-trigger"]')
     ).toHaveClass('max-w-50')
-    expect(screen.getByText('12.345678x')).toBeInTheDocument()
+    expect(screen.getByText('12.345678×')).toBeInTheDocument()
     await userEvent.tab()
     expect(
       await screen.findByText(groupName, {

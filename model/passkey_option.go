@@ -94,6 +94,8 @@ func validatePasskeyRPIDWithTx(tx *gorm.DB, rpID string) error {
 // including unrelated keys from UpdateOptionsBulk. Preview rolls back even the
 // initial default rows and never publishes a local configuration change.
 func UpdatePasskeyDomainOptions(values map[string]string, preview bool, confirmation string) (*PasskeyDomainChange, error) {
+	optionRuntimeMutationMutex.Lock()
+	defer optionRuntimeMutationMutex.Unlock()
 	passkeyOptionMutex.Lock()
 	defer passkeyOptionMutex.Unlock()
 	values = maps.Clone(values)
@@ -248,6 +250,8 @@ func UpdatePasskeyDomainOptions(values map[string]string, preview bool, confirma
 			}
 		}
 	}
+	optionRuntimeRevision++
+	BumpSyncTopic(SyncTopicOptions)
 	return change, nil
 }
 

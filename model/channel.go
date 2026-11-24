@@ -2,17 +2,21 @@ package model
 
 import (
 	"context"
+	"database/sql"
 	"database/sql/driver"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"math/rand"
+	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 
@@ -65,6 +69,9 @@ type Channel struct {
 
 	// cache info
 	Keys []string `json:"-" gorm:"-"`
+	// BalanceDetail is the last balance query in channel responses; see
+	// GetBalanceDetail.
+	BalanceDetail *ChannelBalanceDetail `json:"balance_detail,omitempty" gorm:"-"`
 }
 
 const ChannelStatusReasonAllKeysDisabled = "All keys are disabled"
@@ -365,29 +372,65 @@ func (channel *Channel) GetAutoBan() bool {
 	return *channel.AutoBan == 1
 }
 
-func (channel *Channel) Save() error {
-	return DB.Save(channel).Error
-}
+// ErrChannelOtherInfoBusy reports a channel whose other_info other writers
+// kept changing through every attempt of UpdateChannelOtherInfo.
+var ErrChannelOtherInfoBusy = errors.New("channel other_info kept changing during the update")
 
-// saveStatusState persists only the fields owned by the channel status flow.
-// Keeping this allowlist here prevents a stale channel snapshot from
-// overwriting credentials, accounting counters, or channel configuration.
-func (channel *Channel) saveStatusState() error {
-	return channel.saveStatusStateWithDB(DB)
-}
+const channelOtherInfoAttempts = 5
 
-func (channel *Channel) saveStatusStateWithDB(database *gorm.DB) error {
-	if channel.Id == 0 {
-		return errors.New("channel ID is 0")
+// UpdateChannelOtherInfo runs update on the stored channel and writes the
+// other_info it leaves, with the columns update returns, only while the
+// stored other_info is still the one read. When another writer, on any node,
+// changed it in between, the channel is read again and update runs on that,
+// so neither change is lost: update may run more than once and must not wait
+// on the network. It returns nil to write nothing, and written reports a
+// write. Only the returned columns and other_info are written, so a stale
+// read never puts back the key, counters or settings. On SQLite, which serves
+// one node, the channel's key lock also keeps the locked updates of this
+// process out.
+func UpdateChannelOtherInfo(channelID int, update func(channel *Channel) (map[string]any, error)) (written bool, err error) {
+	if common.UsingMainDatabase(common.DatabaseTypeSQLite) {
+		lock := sqliteChannelKeyLock(channelID)
+		lock.Lock()
+		defer lock.Unlock()
 	}
-	updates := map[string]any{
-		"status":     channel.Status,
-		"other_info": channel.OtherInfo,
+	for range channelOtherInfoAttempts {
+		var channel Channel
+		if err := DB.First(&channel, "id = ?", channelID).Error; err != nil {
+			return false, err
+		}
+		read := channel.OtherInfo
+		updates, err := update(&channel)
+		if err != nil || updates == nil {
+			return false, err
+		}
+		updates["other_info"] = channel.OtherInfo
+		query := DB.Model(&Channel{}).Where("id = ?", channelID)
+		if read == "" {
+			query = query.Where("(other_info IS NULL OR other_info = ?)", "")
+		} else {
+			query = query.Where("other_info = ?", read)
+		}
+		result := query.Updates(updates)
+		if result.Error != nil {
+			return false, result.Error
+		}
+		if result.RowsAffected > 0 {
+			return true, nil
+		}
+		// MySQL counts changed rows only: when other_info is still the one
+		// read, the row matched and already held every value written.
+		if common.UsingMainDatabase(common.DatabaseTypeMySQL) && channel.OtherInfo == read {
+			var stored Channel
+			if err := DB.Select("other_info").First(&stored, "id = ?", channelID).Error; err != nil {
+				return false, err
+			}
+			if stored.OtherInfo == read {
+				return true, nil
+			}
+		}
 	}
-	if channel.ChannelInfo.IsMultiKey {
-		updates["channel_info"] = channel.ChannelInfo
-	}
-	return database.Model(&Channel{}).Where("id = ?", channel.Id).Updates(updates).Error
+	return false, ErrChannelOtherInfoBusy
 }
 
 func GetAllChannels(startIdx int, num int, selectAll bool, idSort bool, sortOptions ...ChannelSortOptions) ([]*Channel, error) {
@@ -480,10 +523,12 @@ func BatchInsertChannels(channels []Channel) error {
 	defer func() {
 		if r := recover(); r != nil {
 			tx.Rollback()
+			panic(r)
 		}
 	}()
 
-	for _, chunk := range lo.Chunk(channels, 50) {
+	// Keep each chunk backed by channels so generated IDs reach the caller.
+	for chunk := range slices.Chunk(channels, 50) {
 		for i := range chunk {
 			chunk[i].prepareCodexFingerprintSeedForInsert()
 		}
@@ -498,7 +543,11 @@ func BatchInsertChannels(channels []Channel) error {
 			}
 		}
 	}
-	return tx.Commit().Error
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+	BumpSyncTopic(SyncTopicChannels)
+	return nil
 }
 
 func BatchDeleteChannels(ids []int) (int64, error) {
@@ -511,6 +560,7 @@ func BatchDeleteChannels(ids []int) (int64, error) {
 		return 0, tx.Error
 	}
 	var deletedCount int64
+	changed := false
 	for _, chunk := range lo.Chunk(ids, 200) {
 		result := tx.Where("id in (?)", chunk).Delete(&Channel{})
 		if result.Error != nil {
@@ -518,13 +568,19 @@ func BatchDeleteChannels(ids []int) (int64, error) {
 			return 0, result.Error
 		}
 		deletedCount += result.RowsAffected
-		if err := tx.Where("channel_id in (?)", chunk).Delete(&Ability{}).Error; err != nil {
+		changed = changed || result.RowsAffected > 0
+		result = tx.Where("channel_id in (?)", chunk).Delete(&Ability{})
+		if result.Error != nil {
 			tx.Rollback()
-			return 0, err
+			return 0, result.Error
 		}
+		changed = changed || result.RowsAffected > 0
 	}
 	if err := tx.Commit().Error; err != nil {
 		return 0, err
+	}
+	if changed {
+		BumpSyncTopic(SyncTopicChannels)
 	}
 	return deletedCount, nil
 }
@@ -794,16 +850,23 @@ func BackfillCodexFingerprintSeeds() error {
 }
 
 func (channel *Channel) Insert() error {
-	var err error
 	channel.prepareCodexFingerprintSeedForInsert()
-	err = DB.Create(channel).Error
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(channel).Error; err != nil {
+			return err
+		}
+		return channel.AddAbilities(tx)
+	})
 	if err != nil {
 		return err
 	}
-	err = channel.AddAbilities(nil)
-	return err
+	BumpSyncTopic(SyncTopicChannels)
+	return nil
 }
 
+// Update writes an edited channel, all but its key: a key changes only through
+// UpdateChannelLocked, so an edit never writes back a key a refresh replaced
+// after the edit read it.
 func (channel *Channel) Update() error {
 	return channel.update(false)
 }
@@ -821,19 +884,12 @@ func (channel *Channel) update(forceMaxConcurrency bool) error {
 		return err
 	}
 
-	// If this is a multi-key channel, recalculate MultiKeySize based on the current key list to avoid inconsistency after editing keys
+	// If this is a multi-key channel, recalculate MultiKeySize from the key
+	// currently stored under the channel key lock. General edits never write it.
 	if channel.ChannelInfo.IsMultiKey {
 		var keyStr string
-		if channel.Key != "" {
-			keyStr = channel.Key
-		} else {
-			// If key is not provided, read the existing key from the database
-			if existing == nil {
-				existing, _ = GetChannelById(channel.Id, true)
-			}
-			if existing != nil {
-				keyStr = existing.Key
-			}
+		if existing != nil {
+			keyStr = existing.Key
 		}
 		// Parse the key list (supports newline separation or JSON array)
 		keys := []string{}
@@ -862,7 +918,7 @@ func (channel *Channel) update(forceMaxConcurrency bool) error {
 			}
 		}
 	}
-	return DB.Transaction(func(tx *gorm.DB) error {
+	err = DB.Transaction(func(tx *gorm.DB) error {
 		var current Channel
 		if err := lockForUpdate(tx).Select("id", "status", "other_info").First(&current, "id = ?", channel.Id).Error; err != nil {
 			return err
@@ -904,7 +960,7 @@ func (channel *Channel) update(forceMaxConcurrency bool) error {
 		} else {
 			channel.CodexFingerprintSeed = ""
 		}
-		if err := tx.Model(channel).Updates(channel).Error; err != nil {
+		if err := tx.Model(channel).Omit("key").Updates(channel).Error; err != nil {
 			return err
 		}
 		if forceMaxConcurrency {
@@ -924,6 +980,11 @@ func (channel *Channel) update(forceMaxConcurrency bool) error {
 		}
 		return channel.UpdateAbilities(tx)
 	})
+	if err != nil {
+		return err
+	}
+	BumpSyncTopic(SyncTopicChannels)
+	return nil
 }
 
 func (channel *Channel) UpdateResponseTime(responseTime int64) {
@@ -947,13 +1008,34 @@ func (channel *Channel) UpdateBalance(balance float64) {
 }
 
 func (channel *Channel) Delete() error {
-	var err error
-	err = DB.Delete(channel).Error
+	changed := false
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		if channel.Id <= 0 {
+			return errors.New("channel id is required for delete")
+		}
+		result := lockForUpdate(tx).Select("id").Where("id = ?", channel.Id).Find(&Channel{})
+		if result.Error != nil {
+			return result.Error
+		}
+		result = tx.Delete(&Channel{}, channel.Id)
+		if result.Error != nil {
+			return result.Error
+		}
+		changed = result.RowsAffected > 0
+		result = tx.Where("channel_id = ?", channel.Id).Delete(&Ability{})
+		if result.Error != nil {
+			return result.Error
+		}
+		changed = changed || result.RowsAffected > 0
+		return nil
+	})
 	if err != nil {
 		return err
 	}
-	err = channel.DeleteAbilities()
-	return err
+	if changed {
+		BumpSyncTopic(SyncTopicChannels)
+	}
+	return nil
 }
 
 var channelStatusLock sync.Mutex
@@ -992,6 +1074,68 @@ func CleanupChannelPollingLocks() {
 	})
 }
 
+// sqlitePluginRefreshLocks serialize the credential refreshes of a channel on
+// SQLite, which serves one node: channel id -> chan struct{} of capacity one.
+var sqlitePluginRefreshLocks sync.Map
+
+// pluginRefreshLockSpace is the first key of the PostgreSQL advisory locks of
+// credential refreshes; the channel id is the second.
+const pluginRefreshLockSpace = 0x6e617069
+
+// WithPluginCredentialRefreshLock runs refresh while no other node or
+// goroutine refreshes a credential of the channel, so a refresh token goes out
+// once even when several nodes need a fresh credential at the same time. MySQL
+// holds a named lock and PostgreSQL a transaction advisory lock, each on a
+// connection of its own, and SQLite, which serves one node, a process lock.
+// None of them locks the channel row: no writer of the channel waits for the
+// network call refresh makes. ctx bounds the wait for the lock only.
+func WithPluginCredentialRefreshLock(ctx context.Context, channelID int, refresh func() error) error {
+	switch {
+	case common.UsingMainDatabase(common.DatabaseTypeMySQL):
+		name := fmt.Sprintf("new-api:plugin-refresh:%d", channelID)
+		wait := 0
+		if deadline, ok := ctx.Deadline(); ok {
+			wait = max(int(time.Until(deadline)/time.Second), 0)
+		}
+		return DB.WithContext(ctx).Connection(func(conn *gorm.DB) error {
+			var acquired sql.NullInt64
+			if err := conn.Raw("SELECT GET_LOCK(?, ?)", name, wait).Row().Scan(&acquired); err != nil {
+				return err
+			}
+			if acquired.Int64 != 1 {
+				return ErrPluginRefreshLockTimeout
+			}
+			// The lock belongs to this connection until released, whatever
+			// happened to ctx meanwhile.
+			defer conn.WithContext(context.Background()).Exec("DO RELEASE_LOCK(?)", name)
+			return refresh()
+		})
+	case common.UsingMainDatabase(common.DatabaseTypePostgreSQL):
+		// The commit releases the lock; it must not fail because ctx ended
+		// while refresh ran.
+		return DB.Transaction(func(tx *gorm.DB) error {
+			if err := tx.WithContext(ctx).Exec("SELECT pg_advisory_xact_lock(?, ?)", pluginRefreshLockSpace, channelID).Error; err != nil {
+				return err
+			}
+			return refresh()
+		})
+	default:
+		value, _ := sqlitePluginRefreshLocks.LoadOrStore(channelID, make(chan struct{}, 1))
+		lock := value.(chan struct{})
+		select {
+		case lock <- struct{}{}:
+		case <-ctx.Done():
+			return ErrPluginRefreshLockTimeout
+		}
+		defer func() { <-lock }()
+		return refresh()
+	}
+}
+
+// ErrPluginRefreshLockTimeout reports a credential refresh that waited for
+// another refresh of the channel longer than it may.
+var ErrPluginRefreshLockTimeout = errors.New("timed out waiting for another credential refresh of the channel")
+
 func handlerMultiKeyUpdate(channel *Channel, usingKey string, status int, reason string) bool {
 	if status == common.ChannelStatusBanned || channel.Status == common.ChannelStatusBanned {
 		return false
@@ -1022,8 +1166,17 @@ func handlerMultiKeyUpdate(channel *Channel, usingKey string, status int, reason
 		if channel.ChannelInfo.MultiKeyStatusList == nil {
 			channel.ChannelInfo.MultiKeyStatusList = make(map[int]int)
 		}
+		currentStatus := common.ChannelStatusEnabled
+		if storedStatus, exists := channel.ChannelInfo.MultiKeyStatusList[keyIndex]; exists {
+			currentStatus = storedStatus
+		}
+		if currentStatus == status {
+			return false
+		}
 		if status == common.ChannelStatusEnabled {
 			delete(channel.ChannelInfo.MultiKeyStatusList, keyIndex)
+			delete(channel.ChannelInfo.MultiKeyDisabledReason, keyIndex)
+			delete(channel.ChannelInfo.MultiKeyDisabledTime, keyIndex)
 		} else {
 			channel.ChannelInfo.MultiKeyStatusList[keyIndex] = status
 			if channel.ChannelInfo.MultiKeyDisabledReason == nil {
@@ -1087,15 +1240,23 @@ func updateChannelStatus(channelId int, usingKey string, status int, reason stri
 	pollingLock := GetChannelPollingLock(channelId)
 	pollingLock.Lock()
 	defer pollingLock.Unlock()
+	if common.UsingMainDatabase(common.DatabaseTypeSQLite) {
+		keyLock := sqliteChannelKeyLock(channelId)
+		keyLock.Lock()
+		defer keyLock.Unlock()
+	}
 
+	var finalStatus int
 	changed := false
-	var closeChannelIDs []int
 	err := DB.Transaction(func(tx *gorm.DB) error {
-		channel := &Channel{}
-		if err := lockForUpdate(tx).First(channel, "id = ?", channelId).Error; err != nil {
+		var channel Channel
+		if err := lockForUpdate(tx).Where("id = ?", channelId).First(&channel).Error; err != nil {
 			return err
 		}
 		if !manual && channel.Status == common.ChannelStatusBanned {
+			return nil
+		}
+		if status == common.ChannelStatusAutoDisabled && channel.Status == common.ChannelStatusManuallyDisabled {
 			return nil
 		}
 		// A manual channel operation must replace the exhaustion reason even
@@ -1103,14 +1264,20 @@ func updateChannelStatus(channelId int, usingKey string, status int, reason stri
 		overridesKeyExhaustion := channel.ChannelInfo.IsMultiKey && usingKey == "" &&
 			status == common.ChannelStatusManuallyDisabled && reason != ChannelStatusReasonAllKeysDisabled &&
 			channel.GetOtherInfo()["status_reason"] == ChannelStatusReasonAllKeysDisabled
-		if channel.Status == status && !overridesKeyExhaustion {
+		if !channel.ChannelInfo.IsMultiKey && channel.Status == status && !overridesKeyExhaustion {
 			return nil
 		}
 
 		beforeStatus := channel.Status
-		statusStateChanged := true
+		beforeOtherInfo := channel.OtherInfo
+		beforeChannelInfo, err := common.Marshal(channel.ChannelInfo)
+		if err != nil {
+			return err
+		}
 		if channel.ChannelInfo.IsMultiKey && !manual {
-			statusStateChanged = handlerMultiKeyUpdate(channel, usingKey, status, reason)
+			if !handlerMultiKeyUpdate(&channel, usingKey, status, reason) {
+				return nil
+			}
 		} else {
 			info := channel.GetOtherInfo()
 			info["status_reason"] = reason
@@ -1118,45 +1285,68 @@ func updateChannelStatus(channelId int, usingKey string, status int, reason stri
 			channel.SetOtherInfo(info)
 			channel.Status = status
 		}
-		if !statusStateChanged {
-			return nil
-		}
-		if err := channel.saveStatusStateWithDB(tx); err != nil {
+		afterChannelInfo, err := common.Marshal(channel.ChannelInfo)
+		if err != nil {
 			return err
 		}
-		if channel.Type == constant.ChannelTypeCodex && channel.Status == common.ChannelStatusEnabled {
-			if _, err := ensureCodexFingerprintSeedTx(tx, channel.Id); err != nil {
+		if beforeStatus == channel.Status && beforeOtherInfo == channel.OtherInfo && string(beforeChannelInfo) == string(afterChannelInfo) {
+			return nil
+		}
+
+		updates := map[string]any{
+			"status":       channel.Status,
+			"other_info":   channel.OtherInfo,
+			"channel_info": channel.ChannelInfo,
+		}
+		if err := tx.Model(&Channel{}).Where("id = ?", channelId).Updates(updates).Error; err != nil {
+			return err
+		}
+		if beforeStatus != channel.Status {
+			if err := updateAbilityStatusWithDB(tx, channelId, channel.Status == common.ChannelStatusEnabled); err != nil {
 				return err
 			}
 		}
-		if beforeStatus != channel.Status {
-			if err := tx.Model(&Ability{}).Where("channel_id = ?", channelId).
-				Update("enabled", channel.Status == common.ChannelStatusEnabled).Error; err != nil {
+		if channel.Type == constant.ChannelTypeCodex && channel.Status == common.ChannelStatusEnabled {
+			if _, err := ensureCodexFingerprintSeedTx(tx, channelId); err != nil {
 				return err
-			}
-			if channel.Status == common.ChannelStatusEnabled {
-				if err := ReapplyCodexModelGovernanceWithDB(tx, []int{channel.Id}); err != nil {
-					return err
-				}
 			}
 		}
 		changed = true
-		if channel.Status != common.ChannelStatusEnabled {
-			closeChannelIDs = []int{channel.Id}
-		}
+		finalStatus = channel.Status
 		return nil
 	})
-	if err != nil {
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		common.SysLog(common.LogText("failed to update channel status: channel_id=%d, status=%d, error=%v", channelId, status, err))
+	}
+	if err != nil || !changed {
 		return false
 	}
-	if changed {
-		InitChannelCache()
-		if err := common.PublishConfigChanged(context.Background(), common.ConfigScopeChannels, closeChannelIDs...); err != nil {
-			common.SysError("failed to publish channel-cache change; periodic cache sync remains available: " + err.Error())
-		}
+	var closeChannelIDs []int
+	if finalStatus != common.ChannelStatusEnabled {
+		closeChannelIDs = []int{channelId}
 	}
-	return changed
+	syncCommittedChannelChange(closeChannelIDs...)
+	return true
+}
+
+func syncCommittedChannelChange(closeChannelIDs ...int) {
+	InitChannelCache()
+	BumpSyncTopic(SyncTopicChannels)
+	if err := common.PublishConfigChanged(context.Background(), common.ConfigScopeChannels, closeChannelIDs...); err != nil {
+		common.SysError("failed to publish channel-cache change; periodic cache sync remains available: " + err.Error())
+	}
+}
+
+// channelPluginHasHook reports a task plugin channel whose plugin exports
+// hook. It reads the setting without GetSetting, which clears an invalid
+// stored setting.
+func channelPluginHasHook(ch *Channel, hook string) bool {
+	var setting dto.ChannelSettings
+	if ch.Type != constant.ChannelTypeTaskPlugin || ch.Setting == nil || common.UnmarshalJsonStr(*ch.Setting, &setting) != nil {
+		return false
+	}
+	plugin, ok := jsplugin.DefaultRegistry.Get(setting.TaskPluginKey)
+	return ok && plugin.HasProviderHook(hook)
 }
 
 func EnableChannelByTag(tag string) error {
@@ -1186,6 +1376,7 @@ func EnableChannelByTag(tag string) error {
 		return err
 	}
 	InitChannelCache()
+	BumpSyncTopic(SyncTopicChannels)
 	if err := common.PublishConfigChanged(context.Background(), common.ConfigScopeChannels); err != nil {
 		common.SysError("failed to publish tag channel-cache change; periodic cache sync remains available: " + err.Error())
 	}
@@ -1225,6 +1416,7 @@ func DisableChannelByTag(tag string) error {
 		return err
 	}
 	InitChannelCache()
+	BumpSyncTopic(SyncTopicChannels)
 	if err := common.PublishConfigChanged(context.Background(), common.ConfigScopeChannels, closeChannelIDs...); err != nil {
 		common.SysError("failed to publish tag channel-cache change; periodic cache sync remains available: " + err.Error())
 	}
@@ -1268,6 +1460,7 @@ func EditChannelByTag(tag string, newTag *string, modelMapping *string, models *
 	if err != nil {
 		return err
 	}
+	defer BumpSyncTopic(SyncTopicChannels)
 	if shouldReCreateAbilities {
 		channels, err := GetChannelsByTag(updatedTag, false, false)
 		if err == nil {
@@ -1309,6 +1502,9 @@ func DeleteChannelByStatus(status int64) (int64, error) {
 
 func DeleteDisabledChannel() (int64, error) {
 	result := DB.Where("status = ? or status = ?", common.ChannelStatusAutoDisabled, common.ChannelStatusManuallyDisabled).Delete(&Channel{})
+	if result.Error == nil {
+		BumpSyncTopic(SyncTopicChannels)
+	}
 	return result.RowsAffected, result.Error
 }
 
@@ -1429,7 +1625,9 @@ func (channel *Channel) GetSetting() dto.ChannelSettings {
 		if err != nil {
 			common.SysLog(common.LogText("failed to unmarshal setting: channel_id=%d, error=%v", channel.Id, err))
 			channel.Setting = nil // 清空设置以避免后续错误
-			_ = channel.Save()    // 保存修改
+			// Only the cleared column is written: the rest of this copy, its key
+			// included, may be older than the stored channel.
+			_ = DB.Model(&Channel{}).Where("id = ?", channel.Id).Update("setting", nil).Error
 		}
 	}
 	return setting
@@ -1451,7 +1649,8 @@ func (channel *Channel) GetOtherSettings() dto.ChannelOtherSettings {
 		if err != nil {
 			common.SysLog(common.LogText("failed to unmarshal setting: channel_id=%d, error=%v", channel.Id, err))
 			channel.OtherSettings = "{}" // 清空设置以避免后续错误
-			_ = channel.Save()           // 保存修改
+			// Only the cleared column is written, as in GetSetting.
+			_ = DB.Model(&Channel{}).Where("id = ?", channel.Id).Update("settings", channel.OtherSettings).Error
 		}
 	}
 	if preset := common.GetAdvancedCustomPreset(channel.Type); preset != nil {
@@ -1511,8 +1710,9 @@ func BatchSetChannelTag(ids []int, tag *string) error {
 		return err
 	}
 
-	// update ability status
-	channels, err := GetChannelsByIds(ids)
+	// Read our uncommitted tag changes before rebuilding abilities.
+	var channels []*Channel
+	err = tx.Where("id in (?)", ids).Find(&channels).Error
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -1527,7 +1727,11 @@ func BatchSetChannelTag(ids []int, tag *string) error {
 	}
 
 	// 提交事务
-	return tx.Commit().Error
+	if err = tx.Commit().Error; err != nil {
+		return err
+	}
+	BumpSyncTopic(SyncTopicChannels)
+	return nil
 }
 
 // UpdateCodexFingerprintModeByIds updates only the fingerprint mode in the

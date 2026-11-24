@@ -44,8 +44,10 @@ describe('sensitive-word event browsing', () => {
           data: {
             success: true,
             data: sensitiveWordEventPage(undefined, {
-              page: Number(config?.params?.p ?? 1),
-              pageSize: Number(config?.params?.page_size ?? 20),
+              page: Number(Reflect.get(config?.params ?? {}, 'p') ?? 1),
+              pageSize: Number(
+                Reflect.get(config?.params ?? {}, 'page_size') ?? 20
+              ),
               total: 45,
             }),
           },

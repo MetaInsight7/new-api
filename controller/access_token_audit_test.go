@@ -832,9 +832,13 @@ func newAuditTestDatabase(t *testing.T, kind, dsn string) (*gorm.DB, string) {
 	t.Helper()
 	if kind == "sqlite" {
 		path := t.TempDir() + "/audit.db"
-		db, err := gorm.Open(sqlite.Open(path), &gorm.Config{})
+		isolatedDSN := common.SQLiteDSN(path)
+		db, err := gorm.Open(sqlite.Open(isolatedDSN), &gorm.Config{})
 		require.NoError(t, err)
-		return db, path
+		connection, err := db.DB()
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = connection.Close() })
+		return db, isolatedDSN
 	}
 	require.NotEmpty(t, dsn)
 	name := fmt.Sprintf("newapi_audit_%d", time.Now().UnixNano())

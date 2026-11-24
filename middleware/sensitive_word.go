@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
+	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -34,6 +35,13 @@ func CheckSensitiveWordBeforeChannelSelection(c *gin.Context, modelName string) 
 		return true
 	}
 	if apiErr := CheckSensitiveWordRequestBeforeChannelSelection(c, format, modelName, request); apiErr != nil {
+		perfmetrics.RecordPreRelayFailure(
+			c.Request.Context(),
+			modelName,
+			common.GetContextKeyString(c, constant.ContextKeyUsingGroup),
+			common.GetContextKeyTime(c, constant.ContextKeyRequestStartTime),
+			apiErr,
+		)
 		writeSensitiveWordRequestError(c, format, apiErr)
 		return false
 	}
@@ -137,6 +145,8 @@ func sensitiveWordRelayFormat(path string) (types.RelayFormat, bool) {
 		return types.RelayFormatOpenAIResponsesCompaction, true
 	case relayconstant.RelayModeAlphaSearch:
 		return types.RelayFormatOpenAIAlphaSearch, true
+	case relayconstant.RelayModeToolsSearch, relayconstant.RelayModeToolsFetch:
+		return types.RelayFormatDeepSeekTools, true
 	case relayconstant.RelayModeAudioSpeech, relayconstant.RelayModeAudioTranscription, relayconstant.RelayModeAudioTranslation:
 		return types.RelayFormatOpenAIAudio, true
 	case relayconstant.RelayModeRerank:

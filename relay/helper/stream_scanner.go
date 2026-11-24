@@ -127,7 +127,7 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 
 	// Finish the request keepalive before changing headers. The scanner owns
 	// subsequent ping and data writes through its shared write mutex.
-	if writer, ok := c.Writer.(*streamKeepAliveWriter); ok {
+	if writer := keepAliveWriter(c); writer != nil {
 		writer.stop()
 	}
 
@@ -345,18 +345,15 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 			data := scanner.Text()
 			logger.LogDebug(c, "stream scanner data: %s", data)
 
-			if len(data) < 6 {
-				continue
-			}
-			if data[:5] != "data:" && data[:6] != "[DONE]" {
-				continue
-			}
-			data = data[5:]
+			data, hasDataPrefix := strings.CutPrefix(data, "data:")
 			data = strings.TrimSpace(data)
+			if !hasDataPrefix && data != "[DONE]" {
+				continue
+			}
 			if data == "" {
 				continue
 			}
-			if !strings.HasPrefix(data, "[DONE]") {
+			if data != "[DONE]" {
 				isHeartbeat := firstResponseState.Load() == firstResponsePending && len(heartbeatClassifier) > 0 && heartbeatClassifier[0] != nil && heartbeatClassifier[0](data)
 				if !isHeartbeat && firstResponseState.CompareAndSwap(firstResponsePending, firstResponseStarted) {
 					firstResponseTimer.Stop()

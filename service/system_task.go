@@ -208,6 +208,7 @@ func StartSystemTaskRunner() {
 					runSystemTaskScheduler()
 				}
 				runSystemTaskClaimPass(runnerID)
+				finishAppliedSyncTasks()
 			}
 
 			runPass()

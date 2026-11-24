@@ -31,6 +31,8 @@ import {
   sideDrawerFormClassName,
   sideDrawerHeaderClassName,
 } from '@/components/drawer-layout'
+import { PasswordInput } from '@/components/password-input'
+import { PasswordStrength } from '@/components/password-strength'
 import { PermissionMatrix } from '@/components/permission-matrix'
 import { Button } from '@/components/ui/button'
 import { Combobox } from '@/components/ui/combobox'
@@ -75,7 +77,7 @@ import {
 import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
 import { formatQuota, parseQuotaFromDollars } from '@/lib/format'
 import { handleServerError } from '@/lib/handle-server-error'
-import { accountPasswordSchema } from '@/lib/password-policy'
+import { getAccountPasswordPolicyError } from '@/lib/password-policy'
 import { ROLE } from '@/lib/roles'
 import { AuthOperationError } from '@/lib/secure-verification'
 import { requireServerSuccess } from '@/lib/server-error-message'
@@ -185,10 +187,11 @@ export function UsersMutateDrawer({
 
   const onSubmit = async (data: UserFormValues) => {
     if (!isUpdate || data.password) {
-      if (!accountPasswordSchema.safeParse(data.password ?? '').success) {
+      const passwordError = getAccountPasswordPolicyError(data.password ?? '')
+      if (passwordError) {
         form.setError('password', {
           type: 'manual',
-          message: t('Password must contain between 8 and 128 characters.'),
+          message: t(passwordError),
         })
         return
       }
@@ -442,10 +445,17 @@ export function UsersMutateDrawer({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>{t('Password')}</FormLabel>
-                      <FormControl>
-                        <Input
+                      <FormControl
+                        describedBy={
+                          !isUpdate || field.value
+                            ? 'user-password-strength'
+                            : undefined
+                        }
+                      >
+                        <PasswordInput
                           {...field}
-                          type='password'
+                          value={field.value ?? ''}
+                          autoComplete='new-password'
                           placeholder={
                             isUpdate
                               ? t('Leave empty to keep unchanged')
@@ -453,6 +463,11 @@ export function UsersMutateDrawer({
                           }
                         />
                       </FormControl>
+                      <PasswordStrength
+                        id='user-password-strength'
+                        value={field.value ?? ''}
+                        quietWhenEmpty={isUpdate}
+                      />
                       <FormMessage />
                     </FormItem>
                   )}

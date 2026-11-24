@@ -11,6 +11,15 @@ var retiredCodexModelGovernanceOptionKeys = []string{
 	"codex_model_governance_setting.ai_analysis_model",
 }
 
+func isRetiredCodexModelGovernanceOption(key string) bool {
+	for _, retiredKey := range retiredCodexModelGovernanceOptionKeys {
+		if key == retiredKey {
+			return true
+		}
+	}
+	return false
+}
+
 func CleanupRetiredCodexModelGovernanceOptions() (int64, error) {
 	if DB == nil {
 		return 0, errors.New("database is not initialized")
