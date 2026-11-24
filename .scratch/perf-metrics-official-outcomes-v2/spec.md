@@ -2,7 +2,7 @@
 
 ## 1. 文档状态
 
-- 状态：**实现与验证完成，待提交；未 push、未部署**。
+- 状态：**实现、验证与提交完成；未 push、未部署**。
 - 实施分支：`merge/upstream-cb074d31e`。
 - 固定上游基线：`cb074d31e296b53ce252d402a7063079cbf7f990`。
 - 本轮只在临时 worktree `/tmp/newapi-upstream-merge-assessment-20261123` 开发、测试和提交；**不 push、不部署**。
