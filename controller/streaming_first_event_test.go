@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -350,8 +351,9 @@ func TestStreamingOptionsDatabaseMatrix(test *testing.T) {
 				readOldOptions := make(chan struct{})
 				releaseReload := make(chan struct{}, 1)
 				reloadFinished := make(chan struct{})
+				var intercepted atomic.Bool
 				require.NoError(test, database.Callback().Query().After("gorm:query").Register("test:streaming-stale-reload", func(transaction *gorm.DB) {
-					if _, ok := transaction.Statement.Dest.(*[]*model.Option); ok {
+					if _, ok := transaction.Statement.Dest.(*[]*model.Option); ok && intercepted.CompareAndSwap(false, true) {
 						close(readOldOptions)
 						<-releaseReload
 					}

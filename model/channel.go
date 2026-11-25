@@ -16,7 +16,6 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
-	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 
@@ -1337,18 +1336,6 @@ func syncCommittedChannelChange(closeChannelIDs ...int) {
 	}
 }
 
-// channelPluginHasHook reports a task plugin channel whose plugin exports
-// hook. It reads the setting without GetSetting, which clears an invalid
-// stored setting.
-func channelPluginHasHook(ch *Channel, hook string) bool {
-	var setting dto.ChannelSettings
-	if ch.Type != constant.ChannelTypeTaskPlugin || ch.Setting == nil || common.UnmarshalJsonStr(*ch.Setting, &setting) != nil {
-		return false
-	}
-	plugin, ok := jsplugin.DefaultRegistry.Get(setting.TaskPluginKey)
-	return ok && plugin.HasProviderHook(hook)
-}
-
 func EnableChannelByTag(tag string) error {
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		var channels []Channel
@@ -1502,7 +1489,7 @@ func DeleteChannelByStatus(status int64) (int64, error) {
 
 func DeleteDisabledChannel() (int64, error) {
 	result := DB.Where("status = ? or status = ?", common.ChannelStatusAutoDisabled, common.ChannelStatusManuallyDisabled).Delete(&Channel{})
-	if result.Error == nil {
+	if result.Error == nil && result.RowsAffected > 0 {
 		BumpSyncTopic(SyncTopicChannels)
 	}
 	return result.RowsAffected, result.Error
@@ -1783,8 +1770,8 @@ func UpdateCodexFingerprintModeByIds(ids []int, mode string) (int, error) {
 		}
 		return nil
 	})
-	if err == nil && common.MemoryCacheEnabled {
-		InitChannelCache()
+	if err == nil && updatedCount > 0 {
+		syncCommittedChannelChange()
 	}
 	return updatedCount, err
 }

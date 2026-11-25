@@ -1001,6 +1001,7 @@ func TestAutoGroupSelectionResetsAcquireBudgetForEachGroup(t *testing.T) {
 	requestContext.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
 	common.SetContextKey(requestContext, constant.ContextKeyUserGroup, "default")
 	common.SetContextKey(requestContext, constant.ContextKeyTokenAutoGroups, []string{"vip", "default"})
+	requestContext.Set(ginKeyChannelAffinityRetryOffset, 1)
 	retry := 0
 	selected, selectedGroup, err := CacheGetRandomSatisfiedChannel(&RetryParam{
 		Ctx: requestContext, TokenGroup: "auto", ModelName: "gpt-auto-budget-reset", Retry: &retry,
@@ -1010,5 +1011,7 @@ func TestAutoGroupSelectionResetsAcquireBudgetForEachGroup(t *testing.T) {
 	require.NotNil(t, selected)
 	require.Equal(t, secondGroupFree.Id, selected.Id)
 	require.Equal(t, "default", selectedGroup)
+	require.Zero(t, retry)
+	require.Zero(t, requestContext.GetInt(ginKeyChannelAffinityRetryOffset))
 	require.NoError(t, ReleaseChannelConcurrencyForContext(requestContext))
 }

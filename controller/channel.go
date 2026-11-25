@@ -1312,6 +1312,14 @@ func applyChannelUpdatePatch(stored *model.Channel, patch *PatchChannel, request
 	}
 }
 
+func sameChannelCredentialValidationContext(left, right *model.Channel) bool {
+	return left != nil && right != nil &&
+		left.Type == right.Type &&
+		equalStringPtr(left.BaseURL, right.BaseURL) &&
+		equalStringPtr(left.Setting, right.Setting) &&
+		left.OtherSettings == right.OtherSettings
+}
+
 type ChannelStatusRequest struct {
 	Status int `json:"status"`
 }
@@ -1508,14 +1516,17 @@ func UpdateChannel(c *gin.Context) {
 	newProxy, _ := service.NormalizeProxyURL(candidate.GetSetting().Proxy)
 	normalizedOriginProxy, originProxyErr := service.NormalizeProxyURL(originProxy)
 	proxyChanged := originProxyErr != nil || normalizedOriginProxy != newProxy
+	credentialContextChanged := !sameChannelCredentialValidationContext(&candidate, originChannel)
 	var expectedKey *string
-	_, typeProvided := requestData["type"]
-	_, settingsProvided := requestData["settings"]
-	if keyChanged && !appendKeyMode || typeProvided || settingProvided || settingsProvided {
+	if keyChanged && !appendKeyMode || credentialContextChanged {
 		expected := originChannel.Key
 		expectedKey = &expected
 	}
 	before, updatedChannel, changed, err := model.UpdateChannelConfigLocked(channel.Id, expectedKey, func(stored *model.Channel) error {
+		if keyChanged && keptType == constant.ChannelTypeTaskPlugin &&
+			!sameChannelCredentialValidationContext(stored, originChannel) {
+			return model.ErrChannelConfigChanged
+		}
 		lockedKey := requestedKey
 		lockedKeyChanged := keyChanged
 		if appendKeyMode {

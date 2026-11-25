@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
+	kittypes "github.com/QuantumNous/new-api/relaykit/types"
 
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
@@ -72,6 +73,7 @@ func TestRecordConcurrencyLimitRejectionWritesOneScopedErrorLog(t *testing.T) {
 	}
 	RecordConcurrencyLimitRejection(ctx, rejection)
 	RecordConcurrencyLimitRejection(ctx, rejection)
+	RecordRelayErrorLog(ctx, 101, kittypes.NewErrorWithStatusCode(errors.New("duplicate"), kittypes.ErrorCodeGetChannelFailed, http.StatusTooManyRequests), nil)
 
 	var stored []model.Log
 	require.NoError(t, database.Find(&stored).Error)

@@ -196,6 +196,8 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 					common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, i+1)
 					common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupRetryIndex, 0)
 					param.SetRetry(0)
+					affinityRetryOffset = 0
+					param.Ctx.Set(ginKeyChannelAffinityRetryOffset, 0)
 					continue
 				}
 				return nil, autoGroup, err

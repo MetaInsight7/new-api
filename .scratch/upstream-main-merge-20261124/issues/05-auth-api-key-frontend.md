@@ -26,8 +26,8 @@
 
 - 基线：OWASP 官方项目页在 2026-11-24 标示 ASVS 5.0.0 为最新稳定版；同时复核了 [Authentication Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html) 与 [Session Management Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html)。本 Ticket 没有改变会话创建、轮换、退出或失效语义。
 - `v5.0.0-6.2.1`、`v5.0.0-6.2.5`、`v5.0.0-6.2.9`：注册密码保持 8–128 个 Unicode 字符，不增加字符种类限制，并允许至少 64 个字符。
-- `v5.0.0-6.2.4`：所有新密码写入在 `HashAccountPassword` 前统一执行服务端筛查；词表固定为 SecLists `10k-most-common.txt` 提交 `fcde9140df969b1e4d7bb056122646dace4ed4cc`（10001 项，SHA-256 `68782d6a4a19a4768d5f15dd66bd534e7a33055cc755411e33f16d18c50fdcce`），并拒绝大小写变体、纯数字/符号尾缀、重复字符和完整顺序键盘串。已有 bcrypt/Argon2id 密码只在选择新密码时受约束，历史登录继续兼容。
+- `v5.0.0-6.2.4`：所有新密码写入在 `HashAccountPassword` 前统一执行服务端筛查；词表固定为 SecLists `10k-most-common.txt` 提交 `fcde9140df969b1e4d7bb056122646dace4ed4cc`（10001 项，SHA-256 `68782d6a4a19a4768d5f15dd66bd534e7a33055cc755411e33f16d18c50fdcce`），对完整口令做大小写不敏感的精确匹配，并仅对前后端共享的固定高危根口令拒绝纯数字/符号尾缀，同时拒绝重复字符和完整顺序键盘串；短词加高熵随机尾缀不得仅因短词出现在词表中而被误杀。已有 bcrypt/Argon2id 密码只在选择新密码时受约束，历史登录继续兼容。
 - `v5.0.0-6.2.6`、`v5.0.0-6.2.7`：密码和确认字段继续使用遮罩输入，允许粘贴与密码管理器，并使用 `autocomplete="new-password"`；强度和确认提示通过 `aria-describedby` 关联，不替代服务端校验。
 - `v5.0.0-8.2.3`、`v5.0.0-8.3.1`：API Key 的额度查询权限由服务端字段显式执行；前端新建默认关闭，编辑时按当前记录重新加载，避免上一把 Key 的权限值串入下一把。
 - 验证覆盖：注册密码长度/Unicode/确认反馈与可访问性测试；API Key 默认映射、显式开启、记录切换和详情加载期间禁止提交测试；后端注册默认 Key 和 Token 创建/更新回归。
-- 验证补充：服务端测试强制词表不少于 3000 项，覆盖 `password123`、大小写与装饰尾缀、重复/顺序模式、强密码通过及旧常见密码登录；账户改密路由验证固定 `PASSWORD_POLICY_REJECTED` 响应且不改写存量哈希。前端即时拒绝明显可预测口令并提供七语言错误文案，服务端完整词表始终为权威。
+- 验证补充：服务端测试强制词表不少于 3000 项，覆盖 `password123`、大小写与高危根口令装饰尾缀、重复/顺序模式、高熵随机尾缀通过、强密码通过及旧常见密码登录；账户改密路由验证固定 `PASSWORD_POLICY_REJECTED` 响应且不改写存量哈希。前端即时拒绝明显可预测口令并提供七语言错误文案，服务端完整词表始终为权威。

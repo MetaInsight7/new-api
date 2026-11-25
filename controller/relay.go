@@ -160,7 +160,10 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 				sensitiveWordError = exists && result != nil && result.Matched && result.Blocked
 			}
 			if relayInfo != nil && relayInfo.LastError != nil {
-				channelID := relayInfo.ChannelId
+				channelID := relayInfo.LastErrorChannelId
+				if channelID == 0 {
+					channelID = relayInfo.ChannelId
+				}
 				if channelID == 0 {
 					channelID = common.GetContextKeyInt(c, constant.ContextKeyChannelId)
 				}
@@ -289,6 +292,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	}
 	relayInfo.RetryIndex = 0
 	relayInfo.LastError = nil
+	relayInfo.LastErrorChannelId = 0
 	responsesEncryptedReasoningRecovery := service.NewResponsesEncryptedReasoningRecovery(
 		model.CurrentRequestPolicy().ResponsesEncryptedReasoningRecoveryEnabled,
 	)
@@ -330,11 +334,13 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		if newAPIError == nil {
 			service.MarkRequestPolicySuccess(c, relayInfo.StreamStatus)
 			relayInfo.LastError = nil
+			relayInfo.LastErrorChannelId = 0
 			return
 		}
 
 		newAPIError = service.NormalizeViolationFeeError(newAPIError)
 		relayInfo.LastError = newAPIError
+		relayInfo.LastErrorChannelId = channel.Id
 
 		decision := service.DecideRelayRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry())
 		service.RecordPolicyFailure(c, channel.Id, newAPIError, decision)
@@ -778,11 +784,13 @@ func executeTaskSubmissionWith(
 	submit taskSubmitAttempt,
 ) (*taskSubmissionOutcome, *taskdto.TaskError) {
 	relayInfo.LastError = nil
+	relayInfo.LastErrorChannelId = 0
 	policy := service.RequestPolicy(c)
 	diagnostics := newTaskPluginSubmitDiagnostics(c)
 	diagnostics.start(relayInfo)
 	var result *relay.TaskSubmitResult
 	var taskErr *taskdto.TaskError
+	recordLastError := false
 	durable := false
 	stage := "start"
 	defer func() {
@@ -883,12 +891,16 @@ func executeTaskSubmissionWith(
 		}
 		if taskErr == nil {
 			relayInfo.LastError = nil
+			relayInfo.LastErrorChannelId = 0
+			recordLastError = false
 			diagnostics.attemptSucceeded(retryParam.GetRetry()+1, result)
 			break
 		}
 
 		taskAPIError := taskSubmissionAPIError(taskErr)
 		relayInfo.LastError = taskAPIError
+		relayInfo.LastErrorChannelId = channel.Id
+		recordLastError = !taskErr.LocalError || requestplugin.Stopped(taskErr)
 		decision := decideTaskRetry(c, taskErr, common.RetryTimes-retryParam.GetRetry())
 		service.RecordPolicyFailure(c, channel.Id, taskAPIError, decision)
 		if !taskErr.LocalError {
@@ -906,12 +918,16 @@ func executeTaskSubmissionWith(
 			break
 		}
 	}
-	if taskErr != nil && relayInfo.LastError != nil && (!taskErr.LocalError || requestplugin.Stopped(taskErr)) {
+	if taskErr != nil && relayInfo.LastError != nil && recordLastError {
 		logErr := relayInfo.LastError
 		if requestplugin.Stopped(taskErr) {
 			logErr = taskReportError(taskErr)
 		}
-		service.RecordRelayErrorLog(c, relayInfo.ChannelId, logErr, relayInfo)
+		channelID := relayInfo.LastErrorChannelId
+		if channelID == 0 {
+			channelID = relayInfo.ChannelId
+		}
+		service.RecordRelayErrorLog(c, channelID, logErr, relayInfo)
 	}
 
 	useChannel := c.GetStringSlice("use_channel")

@@ -572,6 +572,49 @@ func TestSelectResponsesWSChannelRecordsConcurrencyRejection(t *testing.T) {
 	assert.Equal(t, "channel_concurrency_limit", other["error_code"])
 }
 
+func TestResponsesWSNoChannelDoesNotRecordErrorLog(t *testing.T) {
+	require.NoError(t, i18n.Init())
+	database := setupRelayChannelDB(t)
+	require.NoError(t, database.AutoMigrate(&model.Ability{}, &model.Log{}))
+	previousLogDB := model.LOG_DB
+	previousLogDatabaseType := common.LogDatabaseType()
+	previousErrorLogEnabled := constant.ErrorLogEnabled
+	previousRedisEnabled := common.RedisEnabled
+	model.LOG_DB = database
+	common.SetLogDatabaseType(common.DatabaseTypeSQLite)
+	constant.ErrorLogEnabled = true
+	common.RedisEnabled = false
+	common.MemoryCacheEnabled = true
+	model.InitChannelCache()
+	t.Cleanup(func() {
+		model.LOG_DB = previousLogDB
+		common.SetLogDatabaseType(previousLogDatabaseType)
+		constant.ErrorLogEnabled = previousErrorLogEnabled
+		common.RedisEnabled = previousRedisEnabled
+	})
+
+	create, _, err := normalizeResponsesWSTestMessage([]byte(`{"type":"response.create","model":"ws-no-channel"}`))
+	require.NoError(t, err)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(string(create.Body)))
+	c.Request.Header.Set("Content-Type", "application/json")
+	c.Set("id", 101)
+	c.Set("token_name", "ws-no-channel-token")
+	common.SetContextKey(c, constant.ContextKeyTokenId, 102)
+	common.SetContextKey(c, constant.ContextKeyTokenGroup, "default")
+	common.SetContextKey(c, constant.ContextKeyUsingGroup, "default")
+	common.SetContextKey(c, constant.ContextKeyUserGroup, "default")
+
+	session := &responsesWSSession{}
+	apiErr := session.runCall(c, &responsesWSCallState{}, create)
+	require.NotNil(t, apiErr)
+	assert.Equal(t, http.StatusServiceUnavailable, apiErr.StatusCode)
+
+	var errorLogs int64
+	require.NoError(t, database.Model(&model.Log{}).Where("type = ?", model.LogTypeError).Count(&errorLogs).Error)
+	assert.Zero(t, errorLogs)
+}
+
 func TestNormalizeResponsesWSCreateEventWrapper(t *testing.T) {
 	message := []byte(`{
 		"type": "response.create",

@@ -186,6 +186,8 @@ describe('password strength score', () => {
     ['a digit run after a word', 'Forest1234!'],
     ['an alphabet run before a word', 'Abcd7!forest'],
     ['repeated characters before a word', 'AAAA7!forest'],
+    ['a high-entropy suffix after a short word', 'blue-8392014756!#'],
+    ['a high-entropy suffix after digits', '1234-8392-0147-5629'],
   ])('does not flag %s (%s) as easy to guess', (_name, password) => {
     expect(evaluatePasswordStrength(password).guessable).toBe(false)
   })

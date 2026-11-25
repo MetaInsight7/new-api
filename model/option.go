@@ -1,6 +1,7 @@
 package model
 
 import (
+	"fmt"
 	"maps"
 	"strconv"
 	"strings"
@@ -28,6 +29,8 @@ var streamingOptionMutex sync.Mutex
 var streamingOptionRevision uint64
 var optionRuntimeMutationMutex sync.Mutex
 var optionRuntimeRevision uint64
+
+const optionLoadMaxAttempts = 3
 
 func AllOption() ([]*Option, error) {
 	var options []*Option
@@ -214,22 +217,30 @@ func InitOptionMap() {
 // LoadOptionsFromDatabase applies every stored option. A failed read keeps
 // the options in memory as they are.
 func LoadOptionsFromDatabase() error {
-	optionRuntimeMutationMutex.Lock()
-	loadedRuntimeRevision := optionRuntimeRevision
-	streamingOptionMutex.Lock()
-	loadedStreamingRevision := streamingOptionRevision
-	streamingOptionMutex.Unlock()
-	optionRuntimeMutationMutex.Unlock()
+	for range optionLoadMaxAttempts {
+		optionRuntimeMutationMutex.Lock()
+		loadedRuntimeRevision := optionRuntimeRevision
+		streamingOptionMutex.Lock()
+		loadedStreamingRevision := streamingOptionRevision
+		streamingOptionMutex.Unlock()
+		optionRuntimeMutationMutex.Unlock()
 
-	options, err := AllOption()
-	if err != nil {
-		return err
+		options, err := AllOption()
+		if err != nil {
+			return err
+		}
+		if applyLoadedOptions(options, loadedRuntimeRevision, loadedStreamingRevision) {
+			return nil
+		}
 	}
+	return fmt.Errorf("options changed while loading after %d attempts", optionLoadMaxAttempts)
+}
 
+func applyLoadedOptions(options []*Option, loadedRuntimeRevision, loadedStreamingRevision uint64) bool {
 	optionRuntimeMutationMutex.Lock()
 	defer optionRuntimeMutationMutex.Unlock()
 	if optionRuntimeRevision != loadedRuntimeRevision {
-		return nil
+		return false
 	}
 	requestPolicyOptionMutex.Lock()
 	defer requestPolicyOptionMutex.Unlock()
@@ -238,7 +249,7 @@ func LoadOptionsFromDatabase() error {
 	streamingOptionMutex.Lock()
 	defer streamingOptionMutex.Unlock()
 	if streamingOptionRevision != loadedStreamingRevision {
-		return nil
+		return false
 	}
 
 	passkeyOptions := make(map[string]string)
@@ -257,27 +268,40 @@ func LoadOptionsFromDatabase() error {
 			requestPolicyOptions[option.Key] = option.Value
 		}
 	}
-	policySnapshot, err := BuildRequestPolicy(requestPolicyOptions)
-	if err != nil {
-		return err
+	policySnapshot, policyErr := BuildRequestPolicy(requestPolicyOptions)
+	if policyErr != nil {
+		common.SysLog(common.LogText("invalid request policy: %s", policyErr.Error()))
 	}
-	if err := operation_setting.ValidateMonitorOptions(optionValues(options)); err != nil {
-		return err
+	monitorErr := operation_setting.ValidateMonitorOptions(optionValues(options))
+	if monitorErr != nil {
+		common.SysLog(common.LogText("failed to update option map: %s", monitorErr.Error()))
 	}
 	if err := applyStreamingOptions(streamingOptions); err != nil {
-		return err
+		common.SysLog(common.LogText("failed to update option map: %s", err.Error()))
 	}
 	applyPasskeyDomainOptions(passkeyOptions)
+	policyApplied := policySnapshot != nil
 	for _, option := range options {
 		if strings.HasPrefix(option.Key, "streaming_setting.") || IsPasskeyDomainOption(option.Key) {
 			continue
 		}
+		if IsRequestPolicyOption(option.Key) && policySnapshot == nil {
+			continue
+		}
+		if monitorErr != nil && (option.Key == "monitor_setting.dingtalk_alert_enabled" || option.Key == "monitor_setting.dingtalk_alert_webhook_url") {
+			continue
+		}
 		if err := updateOptionMap(option.Key, option.Value); err != nil {
-			return err
+			common.SysLog(common.LogText("failed to update option map: %s", err.Error()))
+			if IsRequestPolicyOption(option.Key) {
+				policyApplied = false
+			}
 		}
 	}
-	requestPolicySnapshot.Store(policySnapshot)
-	return nil
+	if policyApplied {
+		requestPolicySnapshot.Store(policySnapshot)
+	}
+	return true
 }
 
 func optionValues(options []*Option) map[string]string {
@@ -559,10 +583,9 @@ func updateOptionMap(key string, value string) (err error) {
 		common.OptionMap[key] = value
 		return nil
 	}
-	common.OptionMap[key] = value
-
 	// 检查是否是模型配置 - 使用更规范的方式处理
 	if handleConfigUpdate(key, value) {
+		common.OptionMap[key] = value
 		return nil // 已由配置系统处理
 	}
 
@@ -881,8 +904,10 @@ func updateOptionMap(key string, value string) (err error) {
 		err = operation_setting.UpdatePayMethodsByJsonString(value)
 	case "WaffoPayMethods":
 		// WaffoPayMethods is read directly from OptionMap via setting.GetWaffoPayMethods().
-		// The value is already stored in OptionMap at the top of this function (line: common.OptionMap[key] = value).
-		// No additional in-memory variable to update.
+		// No additional in-memory variable needs updating.
+	}
+	if err == nil {
+		common.OptionMap[key] = value
 	}
 	return err
 }

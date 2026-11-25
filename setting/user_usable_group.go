@@ -37,11 +37,14 @@ func UserUsableGroups2JSONString() string {
 }
 
 func UpdateUserUsableGroupsByJSONString(jsonStr string) error {
+	groups := make(map[string]string)
+	if err := json.Unmarshal([]byte(jsonStr), &groups); err != nil {
+		return err
+	}
 	userUsableGroupsMutex.Lock()
 	defer userUsableGroupsMutex.Unlock()
-
-	userUsableGroups = make(map[string]string)
-	return json.Unmarshal([]byte(jsonStr), &userUsableGroups)
+	userUsableGroups = groups
+	return nil
 }
 
 func GetUsableGroupDescription(groupName string) string {

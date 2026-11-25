@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
@@ -103,6 +104,39 @@ func TestLoadOptionsFromDatabaseReadsOnceAndKeepsRuntimeOnReadFailure(t *testing
 	require.NoError(t, database.Callback().Query().Remove("option_read_count"))
 }
 
+func TestLoadOptionsFromDatabaseSkipsDirtyValuesAndAppliesValidSiblings(t *testing.T) {
+	database := setupOptionConsistencyTest(t)
+	previousSystemName := common.SystemName
+	previousChats := setting.Chats2JsonString()
+	t.Cleanup(func() {
+		common.SystemName = previousSystemName
+		require.NoError(t, setting.UpdateChatsByJsonString(previousChats))
+	})
+
+	require.NoError(t, updateOptionMap("RetryTimes", "7"))
+	policySnapshot, err := BuildRequestPolicy(map[string]string{"RetryTimes": "7"})
+	require.NoError(t, err)
+	requestPolicySnapshot.Store(policySnapshot)
+	require.NoError(t, updateOptionMap("Chats", `[{"Before":"https://before.example"}]`))
+	require.NoError(t, updateOptionMap("SystemName", "before"))
+	streamingBefore := operation_setting.GetStreamingSetting()
+
+	require.NoError(t, database.Create(&[]Option{
+		{Key: "RetryTimes", Value: "not-an-integer"},
+		{Key: "Chats", Value: "{"},
+		{Key: "SystemName", Value: "loaded"},
+		{Key: "streaming_setting.first_response_timeout_seconds", Value: "0"},
+	}).Error)
+
+	require.NoError(t, LoadOptionsFromDatabase())
+	assert.Equal(t, "loaded", common.SystemName)
+	assert.Equal(t, `[{"Before":"https://before.example"}]`, setting.Chats2JsonString())
+	assert.Equal(t, `[{"Before":"https://before.example"}]`, common.OptionMap["Chats"])
+	assert.Equal(t, 7, common.RetryTimes)
+	assert.Same(t, policySnapshot, CurrentRequestPolicy())
+	assert.Equal(t, streamingBefore, operation_setting.GetStreamingSetting())
+}
+
 func TestStaleOptionLoadCannotOverwriteCommittedUpdate(t *testing.T) {
 	database := setupOptionConsistencyTest(t)
 	require.NoError(t, database.Create(&Option{Key: "RetryTimes", Value: "1"}).Error)
@@ -110,8 +144,16 @@ func TestStaleOptionLoadCannotOverwriteCommittedUpdate(t *testing.T) {
 	queried := make(chan struct{})
 	release := make(chan struct{})
 	var intercepted atomic.Bool
+	var loadQueries atomic.Int32
 	require.NoError(t, database.Callback().Query().After("gorm:query").Register("option_stale_load", func(tx *gorm.DB) {
-		if tx.Statement.Table == "options" && intercepted.CompareAndSwap(false, true) {
+		if tx.Statement.Table != "options" {
+			return
+		}
+		if _, ok := tx.Statement.Dest.(*[]*Option); !ok {
+			return
+		}
+		loadQueries.Add(1)
+		if intercepted.CompareAndSwap(false, true) {
 			close(queried)
 			<-release
 		}
@@ -128,11 +170,36 @@ func TestStaleOptionLoadCannotOverwriteCommittedUpdate(t *testing.T) {
 	require.NoError(t, <-loadDone)
 	require.NoError(t, database.Callback().Query().Remove("option_stale_load"))
 
+	assert.EqualValues(t, 2, loadQueries.Load())
 	assert.Equal(t, 3, common.RetryTimes)
 	assert.Equal(t, 3, CurrentRequestPolicy().RetryTimes)
 	var stored Option
 	require.NoError(t, database.First(&stored, "key = ?", "RetryTimes").Error)
 	assert.Equal(t, "3", stored.Value)
+}
+
+func TestOptionLoadReportsRepeatedConcurrentMutations(t *testing.T) {
+	database := setupOptionConsistencyTest(t)
+	require.NoError(t, database.Create(&Option{Key: "SystemName", Value: "loaded"}).Error)
+
+	var loadQueries atomic.Int32
+	require.NoError(t, database.Callback().Query().After("gorm:query").Register("option_contended_load", func(tx *gorm.DB) {
+		if tx.Statement.Table != "options" {
+			return
+		}
+		if _, ok := tx.Statement.Dest.(*[]*Option); !ok {
+			return
+		}
+		loadQueries.Add(1)
+		optionRuntimeMutationMutex.Lock()
+		optionRuntimeRevision++
+		optionRuntimeMutationMutex.Unlock()
+	}))
+
+	err := LoadOptionsFromDatabase()
+	require.ErrorContains(t, err, "options changed while loading")
+	assert.EqualValues(t, optionLoadMaxAttempts, loadQueries.Load())
+	require.NoError(t, database.Callback().Query().Remove("option_contended_load"))
 }
 
 func TestOptionWriteFailureDoesNotMutateRuntimeOrSync(t *testing.T) {

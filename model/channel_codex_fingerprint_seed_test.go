@@ -29,7 +29,7 @@ func setupCodexFingerprintSeedTestDB(t *testing.T) {
 	sqlDB, err := db.DB()
 	require.NoError(t, err)
 	sqlDB.SetMaxOpenConns(8)
-	require.NoError(t, db.AutoMigrate(&Channel{}, &Ability{}))
+	require.NoError(t, db.AutoMigrate(&Channel{}, &Ability{}, &SystemTask{}))
 
 	DB = db
 	common.SetDatabaseTypes(common.DatabaseTypeSQLite, common.DatabaseTypeSQLite)
@@ -172,9 +172,11 @@ func TestUpdateCodexFingerprintModeByIdsIsAtomicAndPreservesSettings(t *testing.
 	require.NoError(t, DB.Model(&first).Updates(first).Error)
 	second := insertFingerprintSeedTestChannel(t, constant.ChannelTypeOpenAI, common.ChannelStatusEnabled, "")
 
+	beforeRevision := channelsRevision(t)
 	updatedCount, err := UpdateCodexFingerprintModeByIds([]int{first.Id, second.Id}, "session")
 	require.NoError(t, err)
 	require.Equal(t, 1, updatedCount)
+	assert.Greater(t, channelsRevision(t), beforeRevision)
 	var updated Channel
 	require.NoError(t, DB.First(&updated, first.Id).Error)
 	require.Equal(t, "session", updated.GetSetting().CodexFingerprintMode)
@@ -184,6 +186,11 @@ func TestUpdateCodexFingerprintModeByIdsIsAtomicAndPreservesSettings(t *testing.
 	var untouched Channel
 	require.NoError(t, DB.First(&untouched, second.Id).Error)
 	require.Empty(t, untouched.GetSetting().CodexFingerprintMode)
+	afterRevision := channelsRevision(t)
+	updatedCount, err = UpdateCodexFingerprintModeByIds([]int{second.Id}, "device")
+	require.NoError(t, err)
+	assert.Zero(t, updatedCount)
+	assert.Equal(t, afterRevision, channelsRevision(t))
 }
 
 func TestUpdateCodexFingerprintModeByIdsPreservesConcurrentSettingEdit(t *testing.T) {

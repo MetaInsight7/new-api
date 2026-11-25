@@ -296,12 +296,16 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 		if info != nil && billingPrepared {
 			apiErr = RefundFailedRequestBilling(c, info, apiErr)
 		}
-		if apiErr != nil {
-			channelID := 0
-			if resultInfo != nil && resultInfo.ChannelMeta != nil {
-				channelID = resultInfo.ChannelId
+		if apiErr != nil && resultInfo != nil && (resultInfo.ChannelMeta != nil || resultInfo.LastError != nil) {
+			logErr := apiErr
+			channelID := resultInfo.ChannelId
+			if resultInfo.LastError != nil {
+				logErr = resultInfo.LastError
+				if resultInfo.LastErrorChannelId != 0 {
+					channelID = resultInfo.LastErrorChannelId
+				}
 			}
-			service.RecordRelayErrorLog(c, channelID, apiErr, resultInfo)
+			service.RecordRelayErrorLog(c, channelID, logErr, resultInfo)
 		}
 		if sampleResult {
 			perfmetrics.RecordRelayResult(c.Request.Context(), resultInfo, apiErr)
@@ -435,6 +439,7 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 				apiErr = service.NormalizeViolationFeeError(types.NewError(dialErr, types.ErrorCodeDoRequestFailed))
 				service.ResetStatusCode(apiErr, c.GetString("status_code_mapping"))
 				info.LastError = apiErr
+				info.LastErrorChannelId = currentChannel.Id
 				decision := service.DecideRelayRetry(c, apiErr, common.RetryTimes-retry.GetRetry())
 				service.RecordPolicyFailure(c, currentChannel.Id, apiErr, decision)
 				service.ProcessChannelError(c, *types.NewChannelError(currentChannel.Id, currentChannel.Type, currentChannel.Name, currentChannel.ChannelInfo.IsMultiKey, info.ApiKey, currentChannel.GetAutoBan()), apiErr, info)
@@ -615,6 +620,7 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 						finalErr := service.NormalizeViolationFeeError(types.WithOpenAIError(rejected.ToOpenAIError(), rejected.StatusCode, types.ErrOptionWithSkipRetry()))
 						service.ResetStatusCode(finalErr, c.GetString("status_code_mapping"))
 						info.LastError = finalErr
+						info.LastErrorChannelId = currentChannel.Id
 						decision := service.DecideRelayRetry(c, finalErr, common.RetryTimes-retry.GetRetry())
 						service.RecordPolicyFailure(c, currentChannel.Id, finalErr, decision)
 						service.ProcessChannelError(c, *types.NewChannelError(currentChannel.Id, currentChannel.Type, currentChannel.Name, currentChannel.ChannelInfo.IsMultiKey, info.ApiKey, currentChannel.GetAutoBan()), finalErr, info)
@@ -835,6 +841,7 @@ func (s *responsesWSSession) retryRejectedResponsesWSCall(
 	channel := currentChannel
 	for channel != nil && currentErr != nil {
 		info.LastError = currentErr
+		info.LastErrorChannelId = channel.Id
 		decision := service.DecideRelayRetry(c, currentErr, common.RetryTimes-retry.GetRetry())
 		service.RecordPolicyFailure(c, channel.Id, currentErr, decision)
 		service.ProcessChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, info.ApiKey, channel.GetAutoBan()), currentErr, info)
@@ -889,6 +896,7 @@ func (s *responsesWSSession) retryRejectedResponsesWSCall(
 		s.registerChannelClose(channel.Id)
 		s.startTargetReader(target)
 		info.LastError = nil
+		info.LastErrorChannelId = 0
 		return channel, true, nil
 	}
 	return nil, false, nil

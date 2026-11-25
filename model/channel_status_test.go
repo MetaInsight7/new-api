@@ -163,6 +163,28 @@ func setupChannelStatusTest(t *testing.T) {
 	})
 }
 
+func TestDeleteDisabledChannelOnlyPublishesRealChanges(t *testing.T) {
+	setupChannelStatusTest(t)
+	beforeRevision := channelsRevision(t)
+	deleted, err := DeleteDisabledChannel()
+	require.NoError(t, err)
+	assert.Zero(t, deleted)
+	assert.Equal(t, beforeRevision, channelsRevision(t))
+
+	channel := Channel{Name: "disabled-delete", Key: "key", Status: common.ChannelStatusManuallyDisabled}
+	require.NoError(t, DB.Create(&channel).Error)
+	deleted, err = DeleteDisabledChannel()
+	require.NoError(t, err)
+	assert.EqualValues(t, 1, deleted)
+	afterRevision := channelsRevision(t)
+	assert.Greater(t, afterRevision, beforeRevision)
+
+	deleted, err = DeleteDisabledChannel()
+	require.NoError(t, err)
+	assert.Zero(t, deleted)
+	assert.Equal(t, afterRevision, channelsRevision(t))
+}
+
 func TestUpdateChannelStatusPersistsMultiKeyState(t *testing.T) {
 	setupChannelStatusTest(t)
 

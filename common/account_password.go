@@ -35,9 +35,8 @@ var (
 var accountPasswordBlocklistSource string
 
 var accountPasswordBlocklist = func() map[string]struct{} {
-	lines := strings.Split(accountPasswordBlocklistSource, "\n")
-	blocklist := make(map[string]struct{}, len(lines))
-	for _, line := range lines {
+	blocklist := make(map[string]struct{}, 10001)
+	for line := range strings.SplitSeq(accountPasswordBlocklistSource, "\n") {
 		line = strings.TrimSuffix(line, "\r")
 		if line == "" {
 			continue
@@ -46,6 +45,22 @@ var accountPasswordBlocklist = func() map[string]struct{} {
 	}
 	return blocklist
 }()
+
+var accountPasswordHighRiskRoots = []string{
+	"password",
+	"passw0rd",
+	"qwerty",
+	"letmein",
+	"welcome",
+	"admin",
+	"iloveyou",
+	"monkey",
+	"dragon",
+	"abc123",
+	"111111",
+	"123123",
+	"123456",
+}
 
 var accountPasswordStraightRuns = []string{
 	"0123456789",
@@ -74,14 +89,8 @@ func isCommonAccountPassword(password string) bool {
 		return true
 	}
 
-	prefix := candidate
-	for prefix != "" {
-		r, size := utf8.DecodeLastRuneInString(prefix)
-		if !unicode.IsNumber(r) && !unicode.IsPunct(r) && !unicode.IsSymbol(r) && !unicode.IsSpace(r) {
-			break
-		}
-		prefix = prefix[:len(prefix)-size]
-		if _, blocked := accountPasswordBlocklist[prefix]; blocked {
+	for _, root := range accountPasswordHighRiskRoots {
+		if suffix, ok := strings.CutPrefix(candidate, root); ok && isAccountPasswordDecoration(suffix) {
 			return true
 		}
 	}
@@ -128,6 +137,15 @@ func isCommonAccountPassword(password string) bool {
 		}
 	}
 	return false
+}
+
+func isAccountPasswordDecoration(value string) bool {
+	for _, character := range value {
+		if !unicode.IsNumber(character) && !unicode.IsPunct(character) && !unicode.IsSymbol(character) && !unicode.IsSpace(character) {
+			return false
+		}
+	}
+	return true
 }
 
 // HashAccountPassword is for account passwords, not MFA backup codes. The

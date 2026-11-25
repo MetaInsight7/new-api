@@ -37,8 +37,12 @@ var PayMethods = []map[string]string{
 }
 
 func UpdatePayMethodsByJsonString(jsonString string) error {
-	PayMethods = make([]map[string]string, 0)
-	return common.Unmarshal([]byte(jsonString), &PayMethods)
+	methods := make([]map[string]string, 0)
+	if err := common.Unmarshal([]byte(jsonString), &methods); err != nil {
+		return err
+	}
+	PayMethods = methods
+	return nil
 }
 
 func PayMethods2JsonString() string {

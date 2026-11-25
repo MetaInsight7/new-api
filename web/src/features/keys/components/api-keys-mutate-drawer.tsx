@@ -472,15 +472,7 @@ export function ApiKeysMutateDrawer({
   }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(v) => {
-        onOpenChange(v)
-        if (!v) {
-          form.reset()
-        }
-      }}
-    >
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className='flex h-[min(90vh,52rem)] max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl lg:max-w-[68rem]'>
         <DialogHeader className='shrink-0 border-b p-4 pr-12 sm:p-6'>
           <DialogTitle>

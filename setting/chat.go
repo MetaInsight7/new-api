@@ -43,8 +43,12 @@ var Chats = []map[string]string{
 }
 
 func UpdateChatsByJsonString(jsonString string) error {
-	Chats = make([]map[string]string, 0)
-	return json.Unmarshal([]byte(jsonString), &Chats)
+	chats := make([]map[string]string, 0)
+	if err := json.Unmarshal([]byte(jsonString), &chats); err != nil {
+		return err
+	}
+	Chats = chats
+	return nil
 }
 
 func Chats2JsonString() string {

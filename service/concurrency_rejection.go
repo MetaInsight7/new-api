@@ -102,7 +102,7 @@ func RecordConcurrencyLimitRejection(c *gin.Context, rejection ConcurrencyLimitR
 		c.Set(concurrencyLimitMetricRecordedContextKey, true)
 		perfmetrics.RecordPreRelayIgnored(modelName, group)
 	}
-	if !constant.ErrorLogEnabled || c.GetBool(concurrencyLimitLogRecordedContextKey) {
+	if !constant.ErrorLogEnabled || c.GetBool(concurrencyLimitLogRecordedContextKey) || !RequestPolicy(c).ClaimErrorLog() {
 		return
 	}
 	c.Set(concurrencyLimitLogRecordedContextKey, true)

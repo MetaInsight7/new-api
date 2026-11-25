@@ -26,6 +26,7 @@ const (
 // ErrChannelKeyChanged reports a channel key that changed while a locked
 // update waited, which only a write outside UpdateChannelLocked can do.
 var ErrChannelKeyChanged = errors.New("channel key changed during the credential update")
+var ErrChannelConfigChanged = errors.New("channel configuration changed during key validation")
 
 // SQLite serves one node, so process locks stand in for its row locks.
 var (
@@ -141,10 +142,10 @@ func UpdateChannelConfigLocked(channelID int, expectedKey *string, update func(c
 		switch {
 		case current.Type != constant.ChannelTypeCodex:
 			current.CodexFingerprintSeed = ""
-		case current.Status != common.ChannelStatusEnabled:
-			current.CodexFingerprintSeed = ""
 		case validCodexFingerprintSeed(serverFingerprintSeed):
 			current.CodexFingerprintSeed = serverFingerprintSeed
+		case current.Status != common.ChannelStatusEnabled:
+			current.CodexFingerprintSeed = ""
 		default:
 			current.CodexFingerprintSeed = uuid.NewString()
 		}

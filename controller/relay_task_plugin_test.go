@@ -977,3 +977,62 @@ func TestTaskNewRoutingFailureTakesPrecedence(test *testing.T) {
 		})
 	}
 }
+
+func TestTaskFinalRoutingFailureLogsLastUpstreamAttempt(test *testing.T) {
+	database := setupRelayRetryRouting(test, &model.Log{})
+	previousLogDB := model.LOG_DB
+	previousLogType := common.LogDatabaseType()
+	previousErrorLogEnabled := constant.ErrorLogEnabled
+	model.LOG_DB = database
+	common.SetLogDatabaseType(common.MainDatabaseType())
+	constant.ErrorLogEnabled = true
+	test.Cleanup(func() {
+		model.LOG_DB = previousLogDB
+		common.SetLogDatabaseType(previousLogType)
+		constant.ErrorLogEnabled = previousErrorLogEnabled
+	})
+
+	channels := make([]*model.Channel, 0, 2)
+	for index := range 2 {
+		priority := int64(2 - index)
+		channel := &model.Channel{
+			Name: fmt.Sprintf("task-log-channel-%d", index), Type: constant.ChannelTypeOpenAI, Key: "task-key",
+			Status: common.ChannelStatusEnabled, Group: "default", Models: "plugin-model", Priority: &priority,
+		}
+		require.NoError(test, database.Create(channel).Error)
+		require.NoError(test, channel.AddAbilities(nil))
+		channels = append(channels, channel)
+	}
+	model.InitChannelCache()
+
+	requestContext := taskSubmissionTestContext()
+	requestContext.Set("id", 17)
+	requestContext.Set("token_id", 23)
+	requestContext.Set("token_name", "task-log-token")
+	requestContext.Set("original_model", "plugin-model")
+	requestContext.Set("group", "default")
+	common.SetContextKey(requestContext, constant.ContextKeyUserGroup, "default")
+	common.SetContextKey(requestContext, constant.ContextKeyRequestStartTime, time.Now())
+	relayInfo := taskSubmissionRelayInfo(nil)
+	relayInfo.LockedChannel = nil
+	relayInfo.TokenGroup = "default"
+
+	const callbackName = "test:task-final-routing-log"
+	outcome, taskError := executeTaskSubmissionWith(requestContext, relayInfo, func(*gin.Context, *relaycommon.RelayInfo) (*relay.TaskSubmitResult, *dto.TaskError) {
+		common.MemoryCacheEnabled = false
+		require.NoError(test, database.Callback().Query().Before("gorm:query").Register(callbackName, func(query *gorm.DB) {
+			query.AddError(errors.New("routing database unavailable"))
+		}))
+		return nil, &dto.TaskError{StatusCode: http.StatusServiceUnavailable, Code: "provider_unavailable", Message: "provider unavailable"}
+	})
+	require.NoError(test, database.Callback().Query().Remove(callbackName))
+	require.Nil(test, outcome)
+	require.NotNil(test, taskError)
+	assert.True(test, taskError.LocalError)
+	assert.Equal(test, channels[0].Id, relayInfo.LastErrorChannelId)
+
+	var logs []model.Log
+	require.NoError(test, database.Where("type = ?", model.LogTypeError).Find(&logs).Error)
+	require.Len(test, logs, 1)
+	assert.Equal(test, channels[0].Id, logs[0].ChannelId)
+}

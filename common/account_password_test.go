@@ -17,6 +17,7 @@ func TestValidateNewAccountPasswordRejectsCommonAndPredictablePasswords(t *testi
 		"password123",
 		"Password123!",
 		"qwerty123",
+		"baseball",
 		"aaaaaaaaaaaaaaaa",
 		"1234567890123456",
 	} {
@@ -26,6 +27,9 @@ func TestValidateNewAccountPasswordRejectsCommonAndPredictablePasswords(t *testi
 	}
 
 	assert.NoError(t, ValidateNewAccountPassword("Saffron-river telescope 47"))
+	assert.NoError(t, ValidateNewAccountPassword("blue-8392014756!#"))
+	assert.NoError(t, ValidateNewAccountPassword("rock!8291048372#"))
+	assert.NoError(t, ValidateNewAccountPassword("1234-8392-0147-5629"))
 	assert.ErrorIs(t, ValidateNewAccountPassword("seven77"), ErrAccountPasswordLength)
 	assert.ErrorIs(t, ValidateNewAccountPassword(strings.Repeat("界", 129)), ErrAccountPasswordLength)
 }

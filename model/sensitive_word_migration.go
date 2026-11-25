@@ -198,16 +198,28 @@ func withSensitiveWordMigrationLease(db *gorm.DB, migrate func(*gorm.DB) error) 
 			}()
 			return migrate(migrationDB)
 		case "sqlite":
+			lockContext, cancel := context.WithTimeout(connection.Statement.Context, sensitiveWordMigrationLockWait)
+			defer cancel()
+			lockConnection := connection.WithContext(lockContext)
 			for {
-				beginErr := connection.Exec("BEGIN IMMEDIATE").Error
+				beginErr := lockConnection.Exec("BEGIN IMMEDIATE").Error
 				if beginErr == nil {
+					cancel()
 					break
 				}
 				message := strings.ToLower(beginErr.Error())
 				if !strings.Contains(message, "database is locked") && !strings.Contains(message, "database table is locked") {
 					return beginErr
 				}
-				time.Sleep(sensitiveWordMigrationLockPoll)
+				timer := time.NewTimer(sensitiveWordMigrationLockPoll)
+				select {
+				case <-lockContext.Done():
+					if !timer.Stop() {
+						<-timer.C
+					}
+					return fmt.Errorf("acquiring sensitive-word migration lease: %w", lockContext.Err())
+				case <-timer.C:
+				}
 			}
 			committed := false
 			defer func() {

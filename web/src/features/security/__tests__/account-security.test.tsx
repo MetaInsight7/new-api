@@ -427,7 +427,7 @@ it('regenerates backup codes through scoped verification and keeps the result vi
   expect(success).toHaveBeenCalledTimes(1)
 })
 
-it('allows a common new password after verifying the current password once', async () => {
+it('changes to a strong new password after verifying the current password once', async () => {
   const get = vi.spyOn(api, 'get').mockResolvedValue({
     data: {
       success: true,

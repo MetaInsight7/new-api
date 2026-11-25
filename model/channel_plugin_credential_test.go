@@ -243,6 +243,31 @@ func TestUpdateChannelConfigLockedPreservesServerStateAndIsAtomic(t *testing.T) 
 	assert.Equal(t, beforeRevision+1, channelsRevision(t))
 }
 
+func TestUpdateChannelConfigLockedPreservesDisabledCodexFingerprintSeed(t *testing.T) {
+	truncateTables(t)
+	seed := "2e9bce53-8850-4ae9-8c70-a74d9cecb893"
+	channel := Channel{
+		Type: constant.ChannelTypeCodex, Status: common.ChannelStatusManuallyDisabled,
+		Name: "disabled-codex", Key: `{"access_token":"test"}`, Models: "gpt-5-codex", Group: "default",
+		CodexFingerprintSeed: seed,
+	}
+	require.NoError(t, DB.Create(&channel).Error)
+	require.NoError(t, channel.AddAbilities(nil))
+	expectedKey := channel.Key
+
+	_, _, changed, err := UpdateChannelConfigLocked(channel.Id, &expectedKey, func(stored *Channel) error {
+		stored.Name = "renamed-disabled-codex"
+		return nil
+	})
+	require.NoError(t, err)
+	require.True(t, changed)
+
+	var stored Channel
+	require.NoError(t, DB.First(&stored, channel.Id).Error)
+	assert.Equal(t, seed, stored.CodexFingerprintSeed)
+	assert.Equal(t, common.ChannelStatusManuallyDisabled, stored.Status)
+}
+
 func TestProviderChannelSelectionFollowsRelayRoutes(t *testing.T) {
 	truncateTables(t)
 	registerModelTestPlugin(t, dualPluginSource, "select-dual")

@@ -175,6 +175,38 @@ func TestGapsChannelConfigAndKeyCheckOnSave(t *testing.T) {
 	})
 }
 
+func TestChannelCredentialValidationContextDetectsConcurrentChanges(t *testing.T) {
+	baseURL := "https://vendor.example"
+	setting := `{"task_plugin_key":"gaps-config"}`
+	original := &model.Channel{
+		Type: constant.ChannelTypeTaskPlugin, BaseURL: &baseURL, Setting: &setting,
+		OtherSettings: `{"plugin_config":{"region":"eu"}}`,
+	}
+
+	unchanged := *original
+	assert.True(t, sameChannelCredentialValidationContext(original, &unchanged))
+	for name, mutate := range map[string]func(*model.Channel){
+		"type": func(channel *model.Channel) { channel.Type = constant.ChannelTypeOpenAI },
+		"base URL": func(channel *model.Channel) {
+			changed := "https://other.example"
+			channel.BaseURL = &changed
+		},
+		"plugin setting": func(channel *model.Channel) {
+			changed := `{"task_plugin_key":"other"}`
+			channel.Setting = &changed
+		},
+		"plugin config": func(channel *model.Channel) {
+			channel.OtherSettings = `{"plugin_config":{"region":"us"}}`
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			changed := *original
+			mutate(&changed)
+			assert.False(t, sameChannelCredentialValidationContext(original, &changed))
+		})
+	}
+}
+
 // balanceServer answers the balance request of each key with the reply set
 // for it.
 func balanceServer(t *testing.T, replies map[string]string) *httptest.Server {

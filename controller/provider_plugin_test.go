@@ -659,7 +659,14 @@ func TestProviderChannelManagementDatabaseMatrix(t *testing.T) {
 			}{
 				{name: "an edit that sends the key back", write: func(t *testing.T, channel *model.Channel) {
 					// The key as the client read it, before the write.
-					response, raw := callChannelAPI(t, UpdateChannel, http.MethodPut, "/api/channel", fmt.Sprintf(`{"id":%d,"name":"renamed","key":%q}`, channel.Id, channel.Key))
+					setting := ""
+					if channel.Setting != nil {
+						setting = *channel.Setting
+					}
+					response, raw := callChannelAPI(t, UpdateChannel, http.MethodPut, "/api/channel", fmt.Sprintf(
+						`{"id":%d,"name":"renamed","key":%q,"type":%d,"setting":%q,"settings":%q}`,
+						channel.Id, channel.Key, channel.Type, setting, channel.OtherSettings,
+					))
 					assert.True(t, response.Success, raw)
 				}, rest: []string{"sk-static"}, check: func(t *testing.T, stored *model.Channel) {
 					assert.Equal(t, "renamed", stored.Name)
